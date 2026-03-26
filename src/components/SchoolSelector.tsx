@@ -58,7 +58,7 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
           <div className="w-16 h-16 rounded-2xl gradient-green flex items-center justify-center mx-auto mb-4">
             <Building2 className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-display font-bold">Projeção Financeira</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground">Projeção Financeira</h1>
           <p className="text-muted-foreground text-sm">Selecione ou crie uma escola para começar</p>
         </div>
 
@@ -86,7 +86,7 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                   <Building2 className="w-4 h-4" />
                 </div>
-                <span className="font-medium text-sm">{school.nome}</span>
+                <span className="font-medium text-sm text-foreground">{school.nome}</span>
               </motion.button>
             ))}
           </AnimatePresence>
