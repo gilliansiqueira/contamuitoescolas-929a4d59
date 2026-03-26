@@ -9,21 +9,29 @@ import { UploadGuide } from '@/components/UploadGuide';
 import { ProjectedVsReal } from '@/components/ProjectedVsReal';
 import { ExportImport } from '@/components/ExportImport';
 import { Receivables } from '@/components/Receivables';
+import { FinancialCalendar } from '@/components/FinancialCalendar';
+import { DataTable } from '@/components/DataTable';
+import { ScenarioView } from '@/components/ScenarioView';
+import { MonthSelector } from '@/components/MonthSelector';
+import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
 import {
   LayoutDashboard, BarChart3, Calculator, GitCompare, Settings, CreditCard, Building2, ChevronDown,
+  CalendarDays, TableProperties, TrendingUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'comparison' | 'simulation' | 'upload' | 'guide' | 'export';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'comparison' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export';
 
 const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'cashflow', label: 'Fluxo de Caixa', icon: BarChart3 },
+  { key: 'cashflow', label: 'Fluxo', icon: BarChart3 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
-  { key: 'comparison', label: 'Proj. vs Real', icon: GitCompare },
+  { key: 'calendar', label: 'Calendário', icon: CalendarDays },
+  { key: 'datatable', label: 'Dados', icon: TableProperties },
+  { key: 'scenarios', label: 'Cenários', icon: TrendingUp },
   { key: 'simulation', label: 'Simulação', icon: Calculator },
 ];
 
@@ -31,12 +39,15 @@ const settingsTabs: { key: Tab; label: string }[] = [
   { key: 'upload', label: 'Upload de Dados' },
   { key: 'guide', label: 'Guia & Regras' },
   { key: 'export', label: 'Exportar / Importar' },
+  { key: 'comparison', label: 'Projetado vs Real' },
 ];
 
 const Index = () => {
   const [school, setSchool] = useState<School | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedMonth, setSelectedMonth] = useState('all');
+  const [scenario, setScenario] = useState<ScenarioType>('real');
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
@@ -49,6 +60,9 @@ const Index = () => {
       </div>
     );
   }
+
+  const showMonthSelector = ['dashboard', 'cashflow', 'receivables', 'calendar', 'datatable', 'scenarios'].includes(activeTab);
+  const showScenarioSelector = activeTab === 'scenarios';
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,7 +91,7 @@ const Index = () => {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ${
+              className={`flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ${
                 activeTab === tab.key
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -97,7 +111,7 @@ const Index = () => {
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}>
                 <Settings className="w-4 h-4" />
-                <span className="hidden sm:inline">Configurações</span>
+                <span className="hidden sm:inline">Config</span>
                 <ChevronDown className="w-3 h-3" />
               </button>
             </DropdownMenuTrigger>
@@ -112,11 +126,23 @@ const Index = () => {
         </div>
       </nav>
 
+      {/* Filters bar */}
+      {(showMonthSelector || showScenarioSelector) && (
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3 border-b border-border/30">
+          {showMonthSelector && (
+            <MonthSelector schoolId={school.id} value={selectedMonth} onChange={setSelectedMonth} />
+          )}
+          {showScenarioSelector && (
+            <ScenarioSelector value={scenario} onChange={setScenario} />
+          )}
+        </div>
+      )}
+
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         <AnimatePresence mode="wait">
           <motion.div
-            key={`${activeTab}-${refreshKey}`}
+            key={`${activeTab}-${refreshKey}-${selectedMonth}-${scenario}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -126,6 +152,9 @@ const Index = () => {
             {activeTab === 'upload' && <FileUpload schoolId={school.id} onImported={refresh} />}
             {activeTab === 'cashflow' && <CashFlow schoolId={school.id} />}
             {activeTab === 'receivables' && <Receivables schoolId={school.id} />}
+            {activeTab === 'calendar' && <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />}
+            {activeTab === 'datatable' && <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
+            {activeTab === 'scenarios' && <ScenarioView schoolId={school.id} scenario={scenario} selectedMonth={selectedMonth} />}
             {activeTab === 'simulation' && <Simulation schoolId={school.id} />}
             {activeTab === 'guide' && <UploadGuide schoolId={school.id} />}
             {activeTab === 'comparison' && <ProjectedVsReal schoolId={school.id} />}
