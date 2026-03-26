@@ -31,7 +31,6 @@ export function CashFlow({ schoolId }: CashFlowProps) {
     });
   }, [entries]);
 
-  // Monthly consolidation
   const monthly = useMemo(() => {
     const byMonth: Record<string, { receitas: number; despesas: number }> = {};
     entries.forEach(e => {
@@ -58,12 +57,12 @@ export function CashFlow({ schoolId }: CashFlowProps) {
       {/* Monthly consolidation */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border/50">
-          <h3 className="font-display font-semibold">Consolidação Mensal</h3>
+          <h3 className="font-display font-semibold text-foreground">Consolidação Mensal</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-muted/30">
+              <tr className="bg-surface">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mês</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receitas</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Despesas</th>
@@ -73,7 +72,7 @@ export function CashFlow({ schoolId }: CashFlowProps) {
             <tbody>
               {monthly.map(m => (
                 <tr key={m.mes} className="border-t border-border/30">
-                  <td className="px-4 py-3 font-medium">{m.mes}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">{m.mes}</td>
                   <td className="px-4 py-3 text-right text-primary">{formatCurrency(m.receitas)}</td>
                   <td className="px-4 py-3 text-right text-destructive">{formatCurrency(m.despesas)}</td>
                   <td className={`px-4 py-3 text-right font-semibold ${m.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
@@ -86,15 +85,15 @@ export function CashFlow({ schoolId }: CashFlowProps) {
         </div>
       </motion.div>
 
-      {/* Daily cash flow */}
+      {/* Daily cash flow with negative highlighting */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border/50">
-          <h3 className="font-display font-semibold">Fluxo de Caixa Diário</h3>
+          <h3 className="font-display font-semibold text-foreground">Fluxo de Caixa Diário</h3>
         </div>
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-card">
-              <tr className="bg-muted/30">
+              <tr className="bg-surface">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Data</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Entradas</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Saídas</th>
@@ -104,8 +103,8 @@ export function CashFlow({ schoolId }: CashFlowProps) {
             </thead>
             <tbody>
               {cashFlow.map(day => (
-                <tr key={day.data} className="border-t border-border/30">
-                  <td className="px-4 py-2 font-medium text-xs">{day.data}</td>
+                <tr key={day.data} className={`border-t border-border/30 ${day.saldoDia < 0 ? 'negative-row' : ''}`}>
+                  <td className="px-4 py-2 font-medium text-xs text-foreground">{day.data}</td>
                   <td className="px-4 py-2 text-right text-primary text-xs">{formatCurrency(day.entradas)}</td>
                   <td className="px-4 py-2 text-right text-destructive text-xs">{formatCurrency(day.saidas)}</td>
                   <td className="px-4 py-2 text-right text-muted-foreground text-xs">{formatCurrency(day.saldoAnterior)}</td>
