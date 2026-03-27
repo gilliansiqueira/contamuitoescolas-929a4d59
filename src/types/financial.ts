@@ -7,12 +7,14 @@ export interface FinancialEntry {
   categoria: string;
   origem: 'sponte' | 'cheque' | 'cartao' | 'manual' | 'fluxo' | 'contas_pagar' | 'simulacao';
   school_id: string;
+  origem_upload_id?: string;
 }
 
 export interface School {
   id: string;
   nome: string;
   createdAt: string;
+  saldoInicial?: number;
 }
 
 export interface ExclusionRule {
@@ -33,7 +35,7 @@ export interface SimulationScenario {
   createdAt: string;
   matriculas: number;
   ticketMedio: number;
-  inadimplencia: number; // percentage
+  inadimplencia: number;
   receitasExtras: FinancialEntry[];
   despesasExtras: FinancialEntry[];
 }
@@ -67,6 +69,15 @@ export interface UploadType {
   label: string;
   requiredColumns: string[];
   origem: FinancialEntry['origem'];
+}
+
+export interface UploadRecord {
+  id: string;
+  school_id: string;
+  fileName: string;
+  tipo: string; // upload type key
+  uploadedAt: string;
+  recordCount: number;
 }
 
 export const UPLOAD_TYPES: UploadType[] = [
@@ -108,4 +119,5 @@ export interface AppData {
   rules: ExclusionRule[];
   scenarios: SimulationScenario[];
   closings: MonthlyClosing[];
+  uploads: UploadRecord[];
 }
