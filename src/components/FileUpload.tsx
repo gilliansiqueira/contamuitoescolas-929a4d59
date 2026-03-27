@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule } from '@/types/financial';
-import { addEntries, getRules } from '@/lib/storage';
+import { addEntries, getRules, addUpload } from '@/lib/storage';
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
