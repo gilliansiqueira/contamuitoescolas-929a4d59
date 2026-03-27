@@ -27,6 +27,7 @@ interface SaleSimulation {
 }
 
 export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioViewProps) {
+  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
   const entries = useMemo(() => {
     const all = getEntries(schoolId);
     if (selectedMonth === 'all') return all;
