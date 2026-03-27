@@ -334,8 +334,18 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   };
 
   const handleConfirm = () => {
-    if (errors.length > 0 || preview.length === 0) return;
-    addEntries(preview);
+    if (errors.length > 0 || preview.length === 0 || !selectedType) return;
+    const uploadId = crypto.randomUUID();
+    const entriesWithUploadId = preview.map(e => ({ ...e, origem_upload_id: uploadId }));
+    addEntries(entriesWithUploadId);
+    addUpload({
+      id: uploadId,
+      school_id: schoolId,
+      fileName,
+      tipo: selectedType.key,
+      uploadedAt: new Date().toISOString(),
+      recordCount: preview.length,
+    });
     setPreview([]);
     setErrors([]);
     setSelectedType(null);
