@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { getEntries } from '@/lib/storage';
+import { getEntries, getSaldoInicial } from '@/lib/storage';
 import { FinancialEntry } from '@/types/financial';
 import { ScenarioType } from '@/components/ScenarioSelector';
 import { motion } from 'framer-motion';
