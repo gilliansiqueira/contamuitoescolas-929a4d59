@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FinancialEntry } from '@/types/financial';
-import { getEntries } from '@/lib/storage';
+import { getEntries, getSaldoInicial } from '@/lib/storage';
 import { motion } from 'framer-motion';
 import { Pencil, Trash2, Check, X, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -55,6 +55,8 @@ function deleteEntry(id: string, schoolId: string) {
 
 export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableProps) {
   const [refreshKey, setRefreshKey] = useState(0);
+  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId, refreshKey]);
+
   const entries = useMemo(() => {
     const all = getEntries(schoolId);
     if (selectedMonth === 'all') return all.sort((a, b) => a.data.localeCompare(b.data));
@@ -76,14 +78,14 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
     );
   }, [entries, search]);
 
-  // Compute running balance
+  // Running balance starting from saldo inicial
   const withBalance = useMemo(() => {
-    let saldo = 0;
+    let saldo = saldoInicial;
     return filtered.map(e => {
       saldo += e.tipo === 'entrada' ? e.valor : -e.valor;
       return { ...e, saldo };
     });
-  }, [filtered]);
+  }, [filtered, saldoInicial]);
 
   const startEdit = (e: FinancialEntry) => {
     setEditId(e.id);
@@ -131,7 +133,6 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
 
   return (
     <div className="space-y-4">
-      {/* Summary + search */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex gap-4 text-sm">
@@ -141,17 +142,11 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
           </div>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm"
-            />
+            <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
           </div>
         </div>
       </motion.div>
 
-      {/* Table */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl overflow-hidden">
         <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
           <table className="w-full text-xs">
@@ -159,6 +154,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
               <tr className="border-b border-border">
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Data</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Tipo</th>
+                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Origem</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Forma</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Descrição</th>
                 <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">Valor</th>
@@ -175,21 +171,16 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                         <Input value={editData.data || ''} onChange={ev => setEditData(d => ({ ...d, data: ev.target.value }))} className="h-7 text-xs w-28" />
                       </td>
                       <td className="px-2 py-1">
-                        <select
-                          value={editData.tipo || 'entrada'}
-                          onChange={ev => setEditData(d => ({ ...d, tipo: ev.target.value as 'entrada' | 'saida' }))}
-                          className="h-7 text-xs border rounded px-1 bg-background"
-                        >
+                        <select value={editData.tipo || 'entrada'} onChange={ev => setEditData(d => ({ ...d, tipo: ev.target.value as 'entrada' | 'saida' }))}
+                          className="h-7 text-xs border rounded px-1 bg-background">
                           <option value="entrada">Entrada</option>
                           <option value="saida">Saída</option>
                         </select>
                       </td>
+                      <td className="px-2 py-1 text-muted-foreground text-[10px]">{e.origem === 'fluxo' ? 'Realizado' : 'Projetado'}</td>
                       <td className="px-2 py-1">
-                        <select
-                          value={editData.categoria || ''}
-                          onChange={ev => setEditData(d => ({ ...d, categoria: ev.target.value }))}
-                          className="h-7 text-xs border rounded px-1 bg-background"
-                        >
+                        <select value={editData.categoria || ''} onChange={ev => setEditData(d => ({ ...d, categoria: ev.target.value }))}
+                          className="h-7 text-xs border rounded px-1 bg-background">
                           <option value="Boleto">Boleto</option>
                           <option value="PIX">PIX</option>
                           <option value="Cartão">Cartão</option>
@@ -219,6 +210,13 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                           {e.tipo === 'entrada' ? 'Entrada' : 'Saída'}
                         </span>
                       </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          e.origem === 'fluxo' ? 'bg-blue-100 text-blue-700' : 'bg-secondary/20 text-secondary'
+                        }`}>
+                          {e.origem === 'fluxo' ? 'Realizado' : 'Projetado'}
+                        </span>
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">{standardizePaymentType(e.categoria)}</td>
                       <td className="px-3 py-2 text-muted-foreground truncate max-w-[200px]">{e.descricao}</td>
                       <td className={`px-3 py-2 text-right font-semibold ${e.tipo === 'entrada' ? 'text-primary' : 'text-destructive'}`}>
@@ -238,14 +236,13 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                 </tr>
               ))}
               {withBalance.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </motion.div>
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

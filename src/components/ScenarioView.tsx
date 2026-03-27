@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { getEntries } from '@/lib/storage';
+import { getEntries, getSaldoInicial } from '@/lib/storage';
 import { FinancialEntry } from '@/types/financial';
 import { ScenarioType } from '@/components/ScenarioSelector';
 import { motion } from 'framer-motion';
@@ -27,6 +27,7 @@ interface SaleSimulation {
 }
 
 export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioViewProps) {
+  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
   const entries = useMemo(() => {
     const all = getEntries(schoolId);
     if (selectedMonth === 'all') return all;
@@ -93,13 +94,13 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
     }
 
     const sorted = Object.keys(byDate).sort();
-    let saldo = 0;
+    let saldo = saldoInicial;
     return sorted.map(data => {
       const { entradas, saidas } = byDate[data];
       saldo += entradas - saidas;
       return { data: data.slice(5), fullDate: data, entradas, saidas, saldo };
     });
-  }, [entries, scenario, reductionPct, sales]);
+  }, [entries, scenario, reductionPct, sales, saldoInicial]);
 
   const totalEntradas = scenarioData.reduce((s, d) => s + d.entradas, 0);
   const totalSaidas = scenarioData.reduce((s, d) => s + d.saidas, 0);

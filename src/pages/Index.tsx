@@ -14,8 +14,10 @@ import { DataTable } from '@/components/DataTable';
 import { ScenarioView } from '@/components/ScenarioView';
 import { MonthSelector } from '@/components/MonthSelector';
 import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
+import { UploadHistory } from '@/components/UploadHistory';
+import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
 import {
-  LayoutDashboard, BarChart3, Calculator, GitCompare, Settings, CreditCard, Building2, ChevronDown,
+  LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
   CalendarDays, TableProperties, TrendingUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,7 +25,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'comparison' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial';
 
 const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -36,7 +38,9 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
 ];
 
 const settingsTabs: { key: Tab; label: string }[] = [
+  { key: 'saldo_inicial', label: 'Saldo Inicial' },
   { key: 'upload', label: 'Upload de Dados' },
+  { key: 'uploads_history', label: 'Histórico de Uploads' },
   { key: 'guide', label: 'Guia & Regras' },
   { key: 'export', label: 'Exportar / Importar' },
   { key: 'comparison', label: 'Projetado vs Real' },
@@ -102,7 +106,6 @@ const Index = () => {
             </button>
           ))}
 
-          {/* Settings dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ml-auto ${
@@ -159,6 +162,8 @@ const Index = () => {
             {activeTab === 'guide' && <UploadGuide schoolId={school.id} />}
             {activeTab === 'comparison' && <ProjectedVsReal schoolId={school.id} />}
             {activeTab === 'export' && <ExportImport schoolId={school.id} onDataChanged={refresh} />}
+            {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
+            {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
           </motion.div>
         </AnimatePresence>
       </main>

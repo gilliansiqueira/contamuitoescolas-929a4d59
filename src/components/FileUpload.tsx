@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule } from '@/types/financial';
-import { addEntries, getRules } from '@/lib/storage';
+import { addEntries, getRules, addUpload } from '@/lib/storage';
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -334,8 +334,18 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   };
 
   const handleConfirm = () => {
-    if (errors.length > 0 || preview.length === 0) return;
-    addEntries(preview);
+    if (errors.length > 0 || preview.length === 0 || !selectedType) return;
+    const uploadId = crypto.randomUUID();
+    const entriesWithUploadId = preview.map(e => ({ ...e, origem_upload_id: uploadId }));
+    addEntries(entriesWithUploadId);
+    addUpload({
+      id: uploadId,
+      school_id: schoolId,
+      fileName,
+      tipo: selectedType.key,
+      uploadedAt: new Date().toISOString(),
+      recordCount: preview.length,
+    });
     setPreview([]);
     setErrors([]);
     setSelectedType(null);
