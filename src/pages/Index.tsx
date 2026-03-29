@@ -151,10 +151,10 @@ const Index = () => {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === 'dashboard' && <Dashboard schoolId={school.id} />}
+            {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'upload' && <FileUpload schoolId={school.id} onImported={refresh} />}
-            {activeTab === 'cashflow' && <CashFlow schoolId={school.id} />}
-            {activeTab === 'receivables' && <Receivables schoolId={school.id} />}
+            {activeTab === 'cashflow' && <CashFlow schoolId={school.id} selectedMonth={selectedMonth} />}
+            {activeTab === 'receivables' && <Receivables schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'calendar' && <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'datatable' && <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
             {activeTab === 'scenarios' && <ScenarioView schoolId={school.id} scenario={scenario} selectedMonth={selectedMonth} />}
