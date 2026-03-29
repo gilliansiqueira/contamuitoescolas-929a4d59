@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
-import { getEntries } from '@/lib/storage';
+import { getEntriesFromBaseDate } from '@/lib/storage';
 import { FinancialEntry } from '@/types/financial';
 import { CreditCard, Smartphone, Landmark, DollarSign } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { matchesMonthFilter } from '@/components/MonthSelector';
 
 interface ReceivablesProps {
   schoolId: string;
+  selectedMonth: string;
 }
 
 function formatCurrency(v: number) {
@@ -35,8 +37,12 @@ const typeConfig: Record<string, { label: string; icon: typeof CreditCard }> = {
   outros: { label: 'Outros', icon: DollarSign },
 };
 
-export function Receivables({ schoolId }: ReceivablesProps) {
-  const entries = useMemo(() => getEntries(schoolId), [schoolId]);
+export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
+  const allEntries = useMemo(() => getEntriesFromBaseDate(schoolId), [schoolId]);
+  const entries = useMemo(() =>
+    allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
+    [allEntries, selectedMonth]
+  );
   const entradas = entries.filter(e => e.tipo === 'entrada');
 
   const grouped = useMemo(() => {
@@ -46,7 +52,6 @@ export function Receivables({ schoolId }: ReceivablesProps) {
       if (!map[t]) map[t] = [];
       map[t].push(e);
     });
-    // Sort each group by date
     Object.values(map).forEach(arr => arr.sort((a, b) => a.data.localeCompare(b.data)));
     return map;
   }, [entradas]);

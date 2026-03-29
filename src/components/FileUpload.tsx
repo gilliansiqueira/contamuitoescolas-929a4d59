@@ -175,16 +175,26 @@ function convertRows(
         case 'fluxo': {
           const dt = parseDate(get(row, 'data'));
           const val = parseNumber(get(row, 'valor'));
-          const tipo = String(get(row, 'tipo') || '').toLowerCase().trim();
+          const tipoRaw = String(get(row, 'tipo') || '').trim();
           if (!dt) { errors.push({ linha: lineNum, coluna: 'data', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          if (tipo !== 'entrada' && tipo !== 'saida') {
-            errors.push({ linha: lineNum, coluna: 'tipo', mensagem: 'Tipo deve ser "entrada" ou "saida"' }); return;
+          // Read tipo as-is, map to entrada/saida for internal use
+          const tipoLower = tipoRaw.toLowerCase();
+          let tipoInterno: 'entrada' | 'saida' = 'entrada';
+          if (tipoLower === 'saida' || tipoLower === 'saída' || tipoLower === 'despesa') {
+            tipoInterno = 'saida';
+          } else if (tipoLower === 'entrada' || tipoLower === 'receita') {
+            tipoInterno = 'entrada';
+          } else if (val < 0) {
+            tipoInterno = 'saida';
           }
+          // If tipo is empty, use fallback based on value sign
+          const tipoOriginal = tipoRaw || (tipoInterno === 'entrada' ? 'entrada' : 'saida');
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: get(row, 'descricao') || '',
-            valor: Math.abs(val), tipo: tipo as 'entrada' | 'saida', categoria: 'fluxo_realizado',
+            valor: Math.abs(val), tipo: tipoInterno, categoria: 'fluxo_realizado',
             origem: 'fluxo', school_id: schoolId,
+            tipoOriginal,
           };
           break;
         }

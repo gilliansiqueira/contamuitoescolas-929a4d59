@@ -8,6 +8,7 @@ export interface FinancialEntry {
   origem: 'sponte' | 'cheque' | 'cartao' | 'manual' | 'fluxo' | 'contas_pagar' | 'simulacao';
   school_id: string;
   origem_upload_id?: string;
+  tipoOriginal?: string; // raw "tipo" value from the source file
 }
 
 export interface School {
@@ -15,6 +16,7 @@ export interface School {
   nome: string;
   createdAt: string;
   saldoInicial?: number;
+  saldoInicialData?: string; // YYYY-MM-DD base date
 }
 
 export interface ExclusionRule {
@@ -26,6 +28,16 @@ export interface ExclusionRule {
   valor: string;
   acao: 'ignorar' | 'recategorizar';
   novaCategoria?: string;
+}
+
+/** Flexible type classification per school for fluxo realizado entries */
+export interface TypeClassification {
+  id: string;
+  school_id: string;
+  tipoValor: string; // the raw value from the "tipo" column
+  entraNoResultado: boolean; // counts towards resultado (receita/despesa)
+  impactaCaixa: boolean; // impacts cash balance
+  label: string; // display label
 }
 
 export interface SimulationScenario {
@@ -120,4 +132,8 @@ export interface AppData {
   scenarios: SimulationScenario[];
   closings: MonthlyClosing[];
   uploads: UploadRecord[];
+  typeClassifications?: TypeClassification[];
 }
+
+// Fixed types that always count in resultado
+export const FIXED_RESULT_TYPES = ['receita', 'despesa'];

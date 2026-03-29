@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { FinancialEntry, ExclusionRule } from '@/types/financial';
-import { getEntries, getSaldoInicial, getRules } from '@/lib/storage';
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, Landmark, Smartphone, AlertTriangle, Wallet, BarChart3, Target } from 'lucide-react';
+import { FinancialEntry, TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
+import { getEntriesFromBaseDate, getSaldoInicial, getTypeClassifications } from '@/lib/storage';
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, Landmark, Smartphone, AlertTriangle, Wallet, Target, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { matchesMonthFilter } from '@/components/MonthSelector';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
   BarChart, Bar, Legend,
@@ -10,27 +11,11 @@ import {
 
 interface DashboardProps {
   schoolId: string;
+  selectedMonth: string;
 }
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-/** Check if entry should be excluded from resultado (not revenue/not expense) based on rules */
-function isMovimentacaoInterna(entry: FinancialEntry, rules: ExclusionRule[]): boolean {
-  for (const rule of rules) {
-    if (rule.acao !== 'ignorar') continue;
-    const fieldValue = rule.campo === 'descricao' ? entry.descricao : entry.categoria;
-    const matches = rule.operador === 'contem'
-      ? fieldValue.toLowerCase().includes(rule.valor.toLowerCase())
-      : fieldValue.toLowerCase() === rule.valor.toLowerCase();
-    if (matches) return true;
-  }
-  // Also auto-detect common internal movements
-  const desc = entry.descricao.toLowerCase();
-  if (desc.includes('transferência') || desc.includes('transferencia')) return true;
-  if (desc.includes('ajuste') || desc.includes('movimentação interna')) return true;
-  return false;
 }
 
 function categorizePaymentType(entry: FinancialEntry): string {
@@ -51,36 +36,66 @@ const paymentTypeLabels: Record<string, string> = {
   outros: 'Outros',
 };
 
-export function Dashboard({ schoolId }: DashboardProps) {
-  const entries = useMemo(() => getEntries(schoolId), [schoolId]);
-  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
-  const rules = useMemo(() => getRules(schoolId), [schoolId]);
+/** Check if a fluxo entry's tipo counts towards resultado based on type classifications */
+function entraNoResultado(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
+  if (entry.origem !== 'fluxo') return false; // only fluxo entries go to resultado
+  const tipoKey = entry.tipoOriginal || entry.tipo;
+  // Fixed types always count
+  if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase())) return true;
+  if (['entrada', 'saida'].includes(tipoKey.toLowerCase())) return true;
+  // Check classification
+  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  return cls?.entraNoResultado ?? false;
+}
 
-  // Classify: realizado = origem 'fluxo', projetado = everything else
+function impactaCaixa(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
+  if (entry.origem !== 'fluxo') return true; // non-fluxo always impacts cash
+  const tipoKey = entry.tipoOriginal || entry.tipo;
+  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  return cls?.impactaCaixa ?? true;
+}
+
+export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
+  const allEntries = useMemo(() => getEntriesFromBaseDate(schoolId), [schoolId]);
+  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
+  const classifications = useMemo(() => getTypeClassifications(schoolId), [schoolId]);
+
+  // Filter by selected month(s)
+  const entries = useMemo(() =>
+    allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
+    [allEntries, selectedMonth]
+  );
+
+  // Classify
   const realized = useMemo(() => entries.filter(e => e.origem === 'fluxo'), [entries]);
   const projected = useMemo(() => entries.filter(e => e.origem !== 'fluxo'), [entries]);
 
-  // BLOCO 1: FLUXO DE CAIXA (all entries)
-  const totalEntradas = entries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0);
-  const totalSaidas = entries.filter(e => e.tipo === 'saida').reduce((s, e) => s + e.valor, 0);
-  const saldoAtual = saldoInicial + totalEntradas - totalSaidas;
-
-  // BLOCO 2: RESULTADO / FECHAMENTO (only realized, excluding internal movements)
+  // BLOCO: RESULTADO (only realized entries that enter resultado)
   const receitaReal = useMemo(() =>
-    realized.filter(e => e.tipo === 'entrada' && !isMovimentacaoInterna(e, rules)).reduce((s, e) => s + e.valor, 0),
-    [realized, rules]
+    realized.filter(e => e.tipo === 'entrada' && entraNoResultado(e, classifications)).reduce((s, e) => s + e.valor, 0),
+    [realized, classifications]
   );
   const despesaReal = useMemo(() =>
-    realized.filter(e => e.tipo === 'saida' && !isMovimentacaoInterna(e, rules)).reduce((s, e) => s + e.valor, 0),
-    [realized, rules]
+    realized.filter(e => e.tipo === 'saida' && entraNoResultado(e, classifications)).reduce((s, e) => s + e.valor, 0),
+    [realized, classifications]
   );
   const resultadoReal = receitaReal - despesaReal;
 
-  // BLOCO 3: PROJEÇÃO (only projected)
+  // BLOCO: OPERAÇÕES (fluxo entries that DON'T enter resultado but DO impact caixa)
+  const operacoesEntradas = useMemo(() =>
+    realized.filter(e => e.tipo === 'entrada' && !entraNoResultado(e, classifications) && impactaCaixa(e, classifications)).reduce((s, e) => s + e.valor, 0),
+    [realized, classifications]
+  );
+  const operacoesSaidas = useMemo(() =>
+    realized.filter(e => e.tipo === 'saida' && !entraNoResultado(e, classifications) && impactaCaixa(e, classifications)).reduce((s, e) => s + e.valor, 0),
+    [realized, classifications]
+  );
+
+  // BLOCO: PROJEÇÃO
   const receitaProjetada = projected.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0);
   const despesaProjetada = projected.filter(e => e.tipo === 'saida').reduce((s, e) => s + e.valor, 0);
 
-  // Entradas por tipo de pagamento (all entries)
+  // Entradas por tipo de pagamento
   const entradasPorTipo = useMemo(() => {
     const byType: Record<string, number> = {};
     entries.filter(e => e.tipo === 'entrada').forEach(e => {
@@ -90,10 +105,11 @@ export function Dashboard({ schoolId }: DashboardProps) {
     return Object.entries(byType).map(([tipo, valor]) => ({ tipo, label: paymentTypeLabels[tipo] || tipo, valor }));
   }, [entries]);
 
-  // Cash flow chart with saldo inicial
+  // Cash flow chart (only entries that impact caixa)
   const cashFlow = useMemo(() => {
+    const relevant = allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth) && impactaCaixa(e, classifications));
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
-    entries.forEach(e => {
+    relevant.forEach(e => {
       if (!byDate[e.data]) byDate[e.data] = { entradas: 0, saidas: 0 };
       if (e.tipo === 'entrada') byDate[e.data].entradas += e.valor;
       else byDate[e.data].saidas += e.valor;
@@ -105,7 +121,7 @@ export function Dashboard({ schoolId }: DashboardProps) {
       saldo += entradas - saidas;
       return { data: data.slice(5), entradas, saidas, saldo };
     });
-  }, [entries, saldoInicial]);
+  }, [allEntries, selectedMonth, saldoInicial, classifications]);
 
   const negativeDays = cashFlow.filter(d => d.saldo < 0);
   const firstNegativeDay = negativeDays.length > 0 ? negativeDays[0] : null;
@@ -143,32 +159,7 @@ export function Dashboard({ schoolId }: DashboardProps) {
         )}
       </motion.div>
 
-      {/* BLOCO 1: FLUXO DE CAIXA */}
-      <div>
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" /> Fluxo de Caixa
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { label: 'Entradas Totais', value: totalEntradas, color: 'primary' as const, icon: TrendingUp },
-            { label: 'Saídas Totais', value: totalSaidas, color: 'destructive' as const, icon: TrendingDown },
-            { label: 'Saldo Atual', value: saldoAtual, color: (saldoAtual >= 0 ? 'primary' : 'destructive') as 'primary' | 'destructive', icon: DollarSign },
-          ].map((card, i) => (
-            <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="glass-card rounded-xl p-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</span>
-                <card.icon className={`w-5 h-5 ${card.color === 'primary' ? 'text-primary' : 'text-destructive'}`} />
-              </div>
-              <p className={`text-2xl font-display font-bold ${card.color === 'primary' ? 'text-primary' : 'text-destructive'}`}>
-                {formatCurrency(card.value)}
-              </p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* BLOCO 2: RESULTADO (FECHAMENTO) - apenas realizado */}
+      {/* BLOCO: RESULTADO (FECHAMENTO) - apenas realizado */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
           <Target className="w-4 h-4" /> Resultado (Realizado)
@@ -179,7 +170,7 @@ export function Dashboard({ schoolId }: DashboardProps) {
             { label: 'Despesa Real', value: despesaReal, color: 'destructive' as const },
             { label: 'Resultado', value: resultadoReal, color: (resultadoReal >= 0 ? 'primary' : 'destructive') as 'primary' | 'destructive' },
           ].map((card, i) => (
-            <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.05 }}
+            <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className="glass-card rounded-xl p-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</span>
@@ -193,7 +184,28 @@ export function Dashboard({ schoolId }: DashboardProps) {
         </div>
       </div>
 
-      {/* BLOCO 3: PROJEÇÃO */}
+      {/* BLOCO: OPERAÇÕES (não entram no resultado) */}
+      {(operacoesEntradas > 0 || operacoesSaidas > 0) && (
+        <div>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" /> Operações (Não entram no resultado)
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+              className="glass-card rounded-xl p-5">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Entradas Operacionais</span>
+              <p className="text-xl font-display font-bold text-muted-foreground mt-1">{formatCurrency(operacoesEntradas)}</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="glass-card rounded-xl p-5">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Saídas Operacionais</span>
+              <p className="text-xl font-display font-bold text-muted-foreground mt-1">{formatCurrency(operacoesSaidas)}</p>
+            </motion.div>
+          </div>
+        </div>
+      )}
+
+      {/* BLOCO: PROJEÇÃO */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
           <TrendingUp className="w-4 h-4" /> Projeção
@@ -203,7 +215,7 @@ export function Dashboard({ schoolId }: DashboardProps) {
             { label: 'Receitas Projetadas', value: receitaProjetada, color: 'primary' as const },
             { label: 'Despesas Projetadas', value: despesaProjetada, color: 'destructive' as const },
           ].map((card, i) => (
-            <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + i * 0.05 }}
+            <motion.div key={card.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 + i * 0.05 }}
               className="glass-card rounded-xl p-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</span>

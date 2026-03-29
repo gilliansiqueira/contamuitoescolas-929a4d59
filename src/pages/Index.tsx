@@ -16,6 +16,7 @@ import { MonthSelector } from '@/components/MonthSelector';
 import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
 import { UploadHistory } from '@/components/UploadHistory';
 import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
+import { TypeClassificationConfig } from '@/components/TypeClassificationConfig';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
   CalendarDays, TableProperties, TrendingUp,
@@ -25,7 +26,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification';
 
 const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -39,6 +40,7 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
 
 const settingsTabs: { key: Tab; label: string }[] = [
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
+  { key: 'type_classification', label: 'Classificação de Tipos' },
   { key: 'upload', label: 'Upload de Dados' },
   { key: 'uploads_history', label: 'Histórico de Uploads' },
   { key: 'guide', label: 'Guia & Regras' },
@@ -151,10 +153,10 @@ const Index = () => {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === 'dashboard' && <Dashboard schoolId={school.id} />}
+            {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'upload' && <FileUpload schoolId={school.id} onImported={refresh} />}
-            {activeTab === 'cashflow' && <CashFlow schoolId={school.id} />}
-            {activeTab === 'receivables' && <Receivables schoolId={school.id} />}
+            {activeTab === 'cashflow' && <CashFlow schoolId={school.id} selectedMonth={selectedMonth} />}
+            {activeTab === 'receivables' && <Receivables schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'calendar' && <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'datatable' && <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
             {activeTab === 'scenarios' && <ScenarioView schoolId={school.id} scenario={scenario} selectedMonth={selectedMonth} />}
@@ -164,6 +166,7 @@ const Index = () => {
             {activeTab === 'export' && <ExportImport schoolId={school.id} onDataChanged={refresh} />}
             {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
             {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
+            {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
           </motion.div>
         </AnimatePresence>
       </main>

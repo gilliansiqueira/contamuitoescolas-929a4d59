@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { getEntries, getSaldoInicial } from '@/lib/storage';
+import { getEntriesFromBaseDate, getSaldoInicial } from '@/lib/storage';
 import { FinancialEntry } from '@/types/financial';
 import { ScenarioType } from '@/components/ScenarioSelector';
 import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { TrendingUp, TrendingDown, AlertTriangle, Plus, X } from 'lucide-react';
+import { matchesMonthFilter } from '@/components/MonthSelector';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
@@ -29,15 +30,11 @@ interface SaleSimulation {
 export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioViewProps) {
   const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
   const entries = useMemo(() => {
-    const all = getEntries(schoolId);
-    if (selectedMonth === 'all') return all;
-    return all.filter(e => e.data.startsWith(selectedMonth));
+    const all = getEntriesFromBaseDate(schoolId);
+    return all.filter(e => matchesMonthFilter(e.data, selectedMonth));
   }, [schoolId, selectedMonth]);
 
-  // Pessimist config
   const [reductionPct, setReductionPct] = useState(20);
-
-  // Optimist config
   const [sales, setSales] = useState<SaleSimulation[]>([]);
 
   const addSale = () => setSales(s => [...s, { id: crypto.randomUUID(), quantidade: 1, valorUnitario: 1000, meses: 1 }]);
@@ -46,38 +43,31 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
     setSales(s => s.map(x => x.id === id ? { ...x, [field]: value } : x));
   };
 
-  // Build scenario data
   const scenarioData = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
-
     entries.forEach(e => {
       if (!byDate[e.data]) byDate[e.data] = { entradas: 0, saidas: 0 };
       if (e.tipo === 'entrada') byDate[e.data].entradas += e.valor;
       else byDate[e.data].saidas += e.valor;
     });
 
-    // Apply scenario modifiers
     if (scenario === 'pessimista') {
       const factor = 1 - reductionPct / 100;
       Object.keys(byDate).forEach(d => { byDate[d].entradas *= factor; });
     }
 
     if (scenario === 'otimista') {
-      // Distribute sales across months
       sales.forEach(sale => {
         const total = sale.quantidade * sale.valorUnitario;
         const monthly = total / sale.meses;
         const sortedDates = Object.keys(byDate).sort();
         if (sortedDates.length === 0) return;
-        // Get unique months from entries
         const months = [...new Set(sortedDates.map(d => d.slice(0, 7)))].sort();
         for (let i = 0; i < sale.meses && i < months.length; i++) {
-          // Add to first day of each month
           const dayKey = `${months[i]}-01`;
           if (!byDate[dayKey]) byDate[dayKey] = { entradas: 0, saidas: 0 };
           byDate[dayKey].entradas += monthly;
         }
-        // If more months than available, extend
         if (sale.meses > months.length && months.length > 0) {
           const lastMonth = months[months.length - 1];
           const [ly, lm] = lastMonth.split('-').map(Number);
@@ -115,7 +105,6 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
 
   return (
     <div className="space-y-5">
-      {/* Scenario badge */}
       <div className="flex items-center gap-2">
         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${badgeClass}`}>
           Cenário: {scenarioLabel}
@@ -125,16 +114,13 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
         )}
       </div>
 
-      {/* Pessimist controls */}
       {scenario === 'pessimista' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-destructive/20">
           <h4 className="font-display font-semibold text-sm text-foreground mb-3">Configuração Pessimista</h4>
           <div className="flex items-center gap-3">
             <label className="text-sm text-muted-foreground">Redução nas receitas (%):</label>
             <Input
-              type="number"
-              min={0} max={100}
-              value={reductionPct}
+              type="number" min={0} max={100} value={reductionPct}
               onChange={e => setReductionPct(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
               className="w-20 h-9 text-sm text-center"
             />
@@ -143,7 +129,6 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
         </motion.div>
       )}
 
-      {/* Optimist controls */}
       {scenario === 'otimista' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-primary/20">
           <div className="flex items-center justify-between mb-3">
@@ -208,7 +193,6 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
         </motion.div>
       </div>
 
-      {/* Risk alert */}
       {negativeDays.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-4 border-destructive/30 bg-destructive/5">
           <div className="flex items-start gap-3">
@@ -226,7 +210,6 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
         </motion.div>
       )}
 
-      {/* Chart */}
       {scenarioData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card rounded-xl p-6">
           <h3 className="text-base font-display font-semibold mb-4 text-foreground">
