@@ -40,6 +40,7 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
 
 const settingsTabs: { key: Tab; label: string }[] = [
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
+  { key: 'type_classification', label: 'Classificação de Tipos' },
   { key: 'upload', label: 'Upload de Dados' },
   { key: 'uploads_history', label: 'Histórico de Uploads' },
   { key: 'guide', label: 'Guia & Regras' },
