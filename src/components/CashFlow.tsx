@@ -1,18 +1,37 @@
 import { useMemo } from 'react';
-import { getEntries } from '@/lib/storage';
-import { CashFlowDay } from '@/types/financial';
+import { getEntriesFromBaseDate, getSaldoInicial, getTypeClassifications } from '@/lib/storage';
+import { CashFlowDay, TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
+import { FinancialEntry } from '@/types/financial';
 import { motion } from 'framer-motion';
+import { matchesMonthFilter } from '@/components/MonthSelector';
 
 interface CashFlowProps {
   schoolId: string;
+  selectedMonth: string;
 }
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-export function CashFlow({ schoolId }: CashFlowProps) {
-  const entries = useMemo(() => getEntries(schoolId), [schoolId]);
+function getEntryClassLabel(entry: FinancialEntry, classifications: TypeClassification[]): string {
+  if (entry.origem !== 'fluxo') return 'Projetado';
+  const tipoKey = entry.tipoOriginal || entry.tipo;
+  if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase()) || ['entrada', 'saida'].includes(tipoKey.toLowerCase())) return 'Resultado';
+  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  if (cls?.entraNoResultado) return 'Resultado';
+  return 'Operação';
+}
+
+export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
+  const allEntries = useMemo(() => getEntriesFromBaseDate(schoolId), [schoolId]);
+  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
+  const classifications = useMemo(() => getTypeClassifications(schoolId), [schoolId]);
+
+  const entries = useMemo(() =>
+    allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
+    [allEntries, selectedMonth]
+  );
 
   const cashFlow: CashFlowDay[] = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
@@ -22,27 +41,32 @@ export function CashFlow({ schoolId }: CashFlowProps) {
       else byDate[e.data].saidas += e.valor;
     });
     const sorted = Object.keys(byDate).sort();
-    let saldo = 0;
+    let saldo = saldoInicial;
     return sorted.map(data => {
       const saldoAnterior = saldo;
       const { entradas, saidas } = byDate[data];
       saldo += entradas - saidas;
       return { data, entradas, saidas, saldoAnterior, saldoDia: saldo };
     });
-  }, [entries]);
+  }, [entries, saldoInicial]);
 
   const monthly = useMemo(() => {
-    const byMonth: Record<string, { receitas: number; despesas: number }> = {};
+    const byMonth: Record<string, { receitas: number; despesas: number; operacoes: number }> = {};
     entries.forEach(e => {
       const m = e.data.slice(0, 7);
-      if (!byMonth[m]) byMonth[m] = { receitas: 0, despesas: 0 };
-      if (e.tipo === 'entrada') byMonth[m].receitas += e.valor;
-      else byMonth[m].despesas += e.valor;
+      if (!byMonth[m]) byMonth[m] = { receitas: 0, despesas: 0, operacoes: 0 };
+      const classLabel = getEntryClassLabel(e, classifications);
+      if (classLabel === 'Operação') {
+        byMonth[m].operacoes += e.valor;
+      } else {
+        if (e.tipo === 'entrada') byMonth[m].receitas += e.valor;
+        else byMonth[m].despesas += e.valor;
+      }
     });
     return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([mes, v]) => ({
       mes, ...v, resultado: v.receitas - v.despesas,
     }));
-  }, [entries]);
+  }, [entries, classifications]);
 
   if (cashFlow.length === 0) {
     return (
@@ -67,6 +91,7 @@ export function CashFlow({ schoolId }: CashFlowProps) {
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receitas</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Despesas</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Resultado</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Operações</th>
               </tr>
             </thead>
             <tbody>
@@ -78,6 +103,7 @@ export function CashFlow({ schoolId }: CashFlowProps) {
                   <td className={`px-4 py-3 text-right font-semibold ${m.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
                     {formatCurrency(m.resultado)}
                   </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{formatCurrency(m.operacoes)}</td>
                 </tr>
               ))}
             </tbody>
@@ -85,7 +111,7 @@ export function CashFlow({ schoolId }: CashFlowProps) {
         </div>
       </motion.div>
 
-      {/* Daily cash flow with negative highlighting */}
+      {/* Daily cash flow */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border/50">
           <h3 className="font-display font-semibold text-foreground">Fluxo de Caixa Diário</h3>
