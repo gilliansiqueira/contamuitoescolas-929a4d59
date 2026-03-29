@@ -16,6 +16,7 @@ import { MonthSelector } from '@/components/MonthSelector';
 import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
 import { UploadHistory } from '@/components/UploadHistory';
 import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
+import { TypeClassificationConfig } from '@/components/TypeClassificationConfig';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
   CalendarDays, TableProperties, TrendingUp,
