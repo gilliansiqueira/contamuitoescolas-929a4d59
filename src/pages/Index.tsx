@@ -166,6 +166,7 @@ const Index = () => {
             {activeTab === 'export' && <ExportImport schoolId={school.id} onDataChanged={refresh} />}
             {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
             {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
+            {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
           </motion.div>
         </AnimatePresence>
       </main>
