@@ -17,19 +17,23 @@ import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
 import { UploadHistory } from '@/components/UploadHistory';
 import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
 import { TypeClassificationConfig } from '@/components/TypeClassificationConfig';
+import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
+import { AuditHistory } from '@/components/AuditHistory';
+import { DailyFlowTable } from '@/components/DailyFlowTable';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp,
+  CalendarDays, TableProperties, TrendingUp, Table2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow';
 
 const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'daily_flow', label: 'Fluxo Diário', icon: Table2 },
   { key: 'cashflow', label: 'Fluxo', icon: BarChart3 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
   { key: 'calendar', label: 'Calendário', icon: CalendarDays },
@@ -41,8 +45,10 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
 const settingsTabs: { key: Tab; label: string }[] = [
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
   { key: 'type_classification', label: 'Classificação de Tipos' },
+  { key: 'payment_delays', label: 'Prazos de Cobrança' },
   { key: 'upload', label: 'Upload de Dados' },
   { key: 'uploads_history', label: 'Histórico de Uploads' },
+  { key: 'audit_history', label: 'Histórico de Alterações' },
   { key: 'guide', label: 'Guia & Regras' },
   { key: 'export', label: 'Exportar / Importar' },
   { key: 'comparison', label: 'Projetado vs Real' },
@@ -67,7 +73,7 @@ const Index = () => {
     );
   }
 
-  const showMonthSelector = ['dashboard', 'cashflow', 'receivables', 'calendar', 'datatable', 'scenarios'].includes(activeTab);
+  const showMonthSelector = ['dashboard', 'cashflow', 'receivables', 'calendar', 'datatable', 'scenarios', 'daily_flow', 'export'].includes(activeTab);
   const showScenarioSelector = activeTab === 'scenarios';
 
   return (
@@ -154,6 +160,7 @@ const Index = () => {
             transition={{ duration: 0.2 }}
           >
             {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
+            {activeTab === 'daily_flow' && <DailyFlowTable schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'upload' && <FileUpload schoolId={school.id} onImported={refresh} />}
             {activeTab === 'cashflow' && <CashFlow schoolId={school.id} selectedMonth={selectedMonth} />}
             {activeTab === 'receivables' && <Receivables schoolId={school.id} selectedMonth={selectedMonth} />}
@@ -163,10 +170,12 @@ const Index = () => {
             {activeTab === 'simulation' && <Simulation schoolId={school.id} />}
             {activeTab === 'guide' && <UploadGuide schoolId={school.id} />}
             {activeTab === 'comparison' && <ProjectedVsReal schoolId={school.id} />}
-            {activeTab === 'export' && <ExportImport schoolId={school.id} onDataChanged={refresh} />}
+            {activeTab === 'export' && <ExportImport schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
             {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
             {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
             {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
+            {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
+            {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
           </motion.div>
         </AnimatePresence>
       </main>
