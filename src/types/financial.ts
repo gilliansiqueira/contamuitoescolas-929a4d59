@@ -92,6 +92,23 @@ export interface UploadRecord {
   recordCount: number;
 }
 
+/** Payment method delay rules per school */
+export interface PaymentDelayRule {
+  id: string;
+  school_id: string;
+  formaCobranca: string; // e.g. 'Cartão de crédito', 'PIX', 'Boleto'
+  prazo: number; // days to add
+}
+
+/** Audit log entry */
+export interface AuditLogEntry {
+  id: string;
+  school_id: string;
+  timestamp: string; // ISO
+  action: 'upload' | 'edit' | 'delete' | 'delete_upload' | 'config';
+  description: string;
+}
+
 export const UPLOAD_TYPES: UploadType[] = [
   {
     key: 'sponte',
@@ -133,7 +150,18 @@ export interface AppData {
   closings: MonthlyClosing[];
   uploads: UploadRecord[];
   typeClassifications?: TypeClassification[];
+  paymentDelayRules?: PaymentDelayRule[];
+  auditLog?: AuditLogEntry[];
 }
 
 // Fixed types that always count in resultado
 export const FIXED_RESULT_TYPES = ['receita', 'despesa'];
+
+// Default payment delay rules
+export const DEFAULT_PAYMENT_DELAYS: { forma: string; prazo: number }[] = [
+  { forma: 'PIX', prazo: 0 },
+  { forma: 'Boleto', prazo: 0 },
+  { forma: 'Cartão de crédito', prazo: 30 },
+  { forma: 'Cartão de débito', prazo: 0 },
+  { forma: 'Cheque', prazo: 0 },
+];

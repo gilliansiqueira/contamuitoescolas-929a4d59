@@ -1,4 +1,4 @@
-import { AppData, FinancialEntry, School, ExclusionRule, SimulationScenario, MonthlyClosing, UploadRecord, TypeClassification } from '@/types/financial';
+import { AppData, FinancialEntry, School, ExclusionRule, SimulationScenario, MonthlyClosing, UploadRecord, TypeClassification, PaymentDelayRule, AuditLogEntry } from '@/types/financial';
 
 const STORAGE_KEY = 'projecao_financeira_data';
 
@@ -9,10 +9,12 @@ function getAppData(): AppData {
       const data = JSON.parse(raw);
       if (!data.uploads) data.uploads = [];
       if (!data.typeClassifications) data.typeClassifications = [];
+      if (!data.paymentDelayRules) data.paymentDelayRules = [];
+      if (!data.auditLog) data.auditLog = [];
       return data;
     }
   } catch {}
-  return { schools: [], entries: [], rules: [], scenarios: [], closings: [], uploads: [], typeClassifications: [] };
+  return { schools: [], entries: [], rules: [], scenarios: [], closings: [], uploads: [], typeClassifications: [], paymentDelayRules: [], auditLog: [] };
 }
 
 function saveAppData(data: AppData) {
@@ -46,6 +48,8 @@ export function deleteSchool(schoolId: string) {
   data.closings = data.closings.filter(c => c.school_id !== schoolId);
   data.uploads = data.uploads.filter(u => u.school_id !== schoolId);
   data.typeClassifications = (data.typeClassifications || []).filter(t => t.school_id !== schoolId);
+  data.paymentDelayRules = (data.paymentDelayRules || []).filter(r => r.school_id !== schoolId);
+  data.auditLog = (data.auditLog || []).filter(a => a.school_id !== schoolId);
   saveAppData(data);
 }
 
@@ -195,10 +199,41 @@ export function getFluxoTipos(schoolId: string): string[] {
   const set = new Set<string>();
   entries.forEach(e => {
     if (e.tipoOriginal) set.add(e.tipoOriginal);
-    // Also add tipo as fallback
     set.add(e.tipo);
   });
   return Array.from(set).sort();
+}
+
+// Payment delay rules
+export function getPaymentDelayRules(schoolId: string): PaymentDelayRule[] {
+  return (getAppData().paymentDelayRules || []).filter(r => r.school_id === schoolId);
+}
+
+export function savePaymentDelayRule(rule: PaymentDelayRule) {
+  const data = getAppData();
+  if (!data.paymentDelayRules) data.paymentDelayRules = [];
+  const idx = data.paymentDelayRules.findIndex(r => r.id === rule.id);
+  if (idx >= 0) data.paymentDelayRules[idx] = rule;
+  else data.paymentDelayRules.push(rule);
+  saveAppData(data);
+}
+
+export function deletePaymentDelayRule(id: string) {
+  const data = getAppData();
+  data.paymentDelayRules = (data.paymentDelayRules || []).filter(r => r.id !== id);
+  saveAppData(data);
+}
+
+// Audit log
+export function getAuditLog(schoolId: string): AuditLogEntry[] {
+  return (getAppData().auditLog || []).filter(a => a.school_id === schoolId);
+}
+
+export function addAuditLog(entry: AuditLogEntry) {
+  const data = getAppData();
+  if (!data.auditLog) data.auditLog = [];
+  data.auditLog.push(entry);
+  saveAppData(data);
 }
 
 // Export/Import
@@ -212,6 +247,8 @@ export function importAllData(json: string): boolean {
     if (!data.schools || !data.entries) return false;
     if (!data.uploads) data.uploads = [];
     if (!data.typeClassifications) data.typeClassifications = [];
+    if (!data.paymentDelayRules) data.paymentDelayRules = [];
+    if (!data.auditLog) data.auditLog = [];
     saveAppData(data);
     return true;
   } catch {
