@@ -1,8 +1,8 @@
-import { useRef, useMemo } from 'react';
-import { exportAllData, importAllData, getEntriesFromBaseDate } from '@/lib/storage';
+import { useRef } from 'react';
+import { useEntriesFromBaseDate, useSchool } from '@/hooks/useFinancialData';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { Button } from '@/components/ui/button';
-import { Download, Upload, FileJson, FileSpreadsheet } from 'lucide-react';
+import { Upload, FileJson, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ExportImportProps {
@@ -12,22 +12,10 @@ interface ExportImportProps {
 }
 
 export function ExportImport({ schoolId, selectedMonth = 'all', onDataChanged }: ExportImportProps) {
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handleExportJSON = () => {
-    const data = exportAllData();
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `projecao_financeira_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Backup exportado com sucesso!');
-  };
+  const { data: school } = useSchool(schoolId);
+  const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, school?.saldoInicialData);
 
   const handleExportCSV = () => {
-    const allEntries = getEntriesFromBaseDate(schoolId);
     const entries = allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth));
     if (entries.length === 0) {
       toast.error('Nenhum dado para exportar no período selecionado');
@@ -49,21 +37,26 @@ export function ExportImport({ schoolId, selectedMonth = 'all', onDataChanged }:
     toast.success(`CSV exportado (${entries.length} registros do período)`);
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      if (importAllData(text)) {
-        toast.success('Dados importados com sucesso!');
-        onDataChanged();
-      } else {
-        toast.error('Arquivo inválido. Verifique o formato JSON.');
-      }
+  const handleExportJSON = () => {
+    const entries = allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth));
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      schoolId,
+      selectedMonth,
+      entries,
     };
-    reader.readAsText(file);
-    if (fileRef.current) fileRef.current.value = '';
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_${schoolId}_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Backup JSON exportado com sucesso!');
+  };
+
+  const handleImportInfo = () => {
+    toast.info('Para importar dados, use a aba "Upload de Dados". O import por JSON está disponível apenas em modo local.');
   };
 
   return (
@@ -81,16 +74,14 @@ export function ExportImport({ schoolId, selectedMonth = 'all', onDataChanged }:
           <FileSpreadsheet className="w-4 h-4 mr-2" />
           Exportar CSV ({selectedMonth === 'all' ? 'Todos' : 'Período'})
         </Button>
-        <label>
-          <Button asChild variant="outline" size="sm">
-            <span>
-              <Upload className="w-4 h-4 mr-2" />
-              Importar Backup (JSON)
-            </span>
-          </Button>
-          <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-        </label>
+        <Button onClick={handleImportInfo} variant="outline" size="sm">
+          <Upload className="w-4 h-4 mr-2" />
+          Importar dados
+        </Button>
       </div>
+      <p className="text-xs text-muted-foreground pt-2">
+        💡 Os dados são salvos automaticamente no Supabase e compartilhados entre todos os usuários.
+      </p>
     </div>
   );
 }
