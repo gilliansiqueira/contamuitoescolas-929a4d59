@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
-import { getFluxoTipos, getTypeClassifications, saveTypeClassification } from '@/lib/storage';
+import { useFluxoTipos, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { Switch } from '@/components/ui/switch';
 import { motion } from 'framer-motion';
 import { Settings2, Info } from 'lucide-react';
@@ -11,16 +11,16 @@ interface TypeClassificationConfigProps {
   onChanged: () => void;
 }
 
-export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassificationConfigProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+type ClassificacaoType = 'receita' | 'despesa' | 'operacao' | 'ignorar';
 
-  const allTipos = useMemo(() => getFluxoTipos(schoolId), [schoolId, refreshKey]);
-  const classifications = useMemo(() => getTypeClassifications(schoolId), [schoolId, refreshKey]);
+export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassificationConfigProps) {
+  const { data: allTipos = [] } = useFluxoTipos(schoolId);
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const saveMut = useSaveTypeClassification();
 
   const getClassification = (tipo: string): TypeClassification => {
     const existing = classifications.find(c => c.tipoValor === tipo);
     if (existing) return existing;
-    // Defaults: receita/despesa/entrada/saida always in resultado
     const isFixed = FIXED_RESULT_TYPES.includes(tipo.toLowerCase());
     const isEntradaSaida = ['entrada', 'saida'].includes(tipo.toLowerCase());
     return {
@@ -29,22 +29,31 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
       tipoValor: tipo,
       entraNoResultado: isFixed || isEntradaSaida,
       impactaCaixa: true,
+      classificacao: isFixed || isEntradaSaida ? (tipo.toLowerCase() === 'despesa' || tipo.toLowerCase() === 'saida' ? 'despesa' : 'receita') : 'operacao',
       label: tipo,
     };
   };
 
-  const handleToggle = (tipo: string, field: 'entraNoResultado' | 'impactaCaixa', value: boolean) => {
+  const handleClassificacaoChange = async (tipo: string, classificacao: ClassificacaoType) => {
     const isFixed = FIXED_RESULT_TYPES.includes(tipo.toLowerCase());
-    if (isFixed && field === 'entraNoResultado') {
-      toast.error(`"${tipo}" é fixo e sempre entra no resultado`);
+    if (isFixed) {
+      toast.error(`"${tipo}" é fixo e não pode ser alterado`);
       return;
     }
     const current = getClassification(tipo);
-    const updated = { ...current, [field]: value };
-    saveTypeClassification(updated);
-    setRefreshKey(k => k + 1);
-    onChanged();
-    toast.success(`Classificação de "${tipo}" atualizada`);
+    const updated: TypeClassification = {
+      ...current,
+      classificacao,
+      entraNoResultado: classificacao === 'receita' || classificacao === 'despesa',
+      impactaCaixa: classificacao !== 'ignorar',
+    };
+    try {
+      await saveMut.mutateAsync(updated);
+      onChanged();
+      toast.success(`Classificação de "${tipo}" atualizada`);
+    } catch {
+      toast.error('Erro ao salvar classificação');
+    }
   };
 
   if (allTipos.length === 0) {
@@ -67,8 +76,9 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">
             Configure como cada tipo do fluxo de caixa realizado é tratado.
-            <strong> "receita"</strong> e <strong>"despesa"</strong> são fixos e sempre entram no resultado.
-            Demais tipos podem ser configurados livremente.
+            <strong> "receita"</strong> e <strong>"despesa"</strong> são fixos.
+            Demais tipos podem ser: <strong>Receita</strong>, <strong>Despesa</strong>, <strong>Operação</strong> ou <strong>Ignorar</strong>.
+            Tipos marcados como "Ignorar" não aparecem em nenhum cálculo.
           </p>
         </div>
 
@@ -77,18 +87,21 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
             <thead>
               <tr className="border-b border-border">
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tipo</th>
-                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Entra no Resultado</th>
-                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Impacta Caixa</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Classificação</th>
+                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Classificação</th>
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Efeito</th>
               </tr>
             </thead>
             <tbody>
               {allTipos.map(tipo => {
                 const cls = getClassification(tipo);
                 const isFixed = FIXED_RESULT_TYPES.includes(tipo.toLowerCase());
-                const classification = cls.entraNoResultado
-                  ? (cls.impactaCaixa ? '📊 Resultado + Caixa' : '📊 Resultado')
-                  : (cls.impactaCaixa ? '🔁 Operação (só caixa)' : '⚪ Sem impacto');
+
+                const effectLabel = {
+                  receita: '📊 Entra no resultado como receita',
+                  despesa: '📊 Entra no resultado como despesa',
+                  operacao: '🔁 Impacta caixa, não entra no resultado',
+                  ignorar: '⚪ Ignorado completamente',
+                }[cls.classificacao];
 
                 return (
                   <tr key={tipo} className="border-t border-border/30">
@@ -103,20 +116,20 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      <Switch
-                        checked={cls.entraNoResultado}
-                        onCheckedChange={(v) => handleToggle(tipo, 'entraNoResultado', v)}
+                      <select
+                        value={cls.classificacao}
+                        onChange={e => handleClassificacaoChange(tipo, e.target.value as ClassificacaoType)}
                         disabled={isFixed}
-                      />
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <Switch
-                        checked={cls.impactaCaixa}
-                        onCheckedChange={(v) => handleToggle(tipo, 'impactaCaixa', v)}
-                      />
+                        className="h-8 text-xs border rounded px-2 bg-background disabled:opacity-50"
+                      >
+                        <option value="receita">Receita</option>
+                        <option value="despesa">Despesa</option>
+                        <option value="operacao">Operação</option>
+                        <option value="ignorar">Ignorar</option>
+                      </select>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                      {classification}
+                      {effectLabel}
                     </td>
                   </tr>
                 );

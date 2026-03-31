@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { School } from '@/types/financial';
-import { getSchools, addSchool } from '@/lib/storage';
-import { Search, Plus, Building2 } from 'lucide-react';
+import { useSchools, useAddSchool, useDeleteSchool } from '@/hooks/useFinancialData';
+import { Search, Plus, Building2, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 
 interface SchoolSelectorProps {
   selectedSchool: School | null;
@@ -12,38 +17,82 @@ interface SchoolSelectorProps {
 }
 
 export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps) {
-  const [schools, setSchools] = useState<School[]>(getSchools());
+  const { data: schools = [], isLoading } = useSchools();
+  const addSchoolMut = useAddSchool();
+  const deleteSchoolMut = useDeleteSchool();
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = schools.filter(s =>
     s.nome.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newName.trim()) return;
-    const school: School = {
-      id: crypto.randomUUID(),
-      nome: newName.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    addSchool(school);
-    setSchools(getSchools());
-    setNewName('');
-    setShowCreate(false);
-    onSelect(school);
+    try {
+      const data = await addSchoolMut.mutateAsync({ nome: newName.trim() });
+      setNewName('');
+      setShowCreate(false);
+      onSelect({
+        id: data.id,
+        nome: data.nome,
+        createdAt: data.created_at,
+        saldoInicial: Number(data.saldo_inicial) || 0,
+      });
+      toast.success('Escola criada com sucesso!');
+    } catch {
+      toast.error('Erro ao criar escola');
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await deleteSchoolMut.mutateAsync(deleteId);
+      setDeleteId(null);
+      if (selectedSchool?.id === deleteId) onSelect(null as any);
+      toast.success('Escola excluída com sucesso');
+    } catch {
+      toast.error('Erro ao excluir escola');
+    }
   };
 
   if (selectedSchool) {
     return (
-      <button
-        onClick={() => onSelect(null as any)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
-      >
-        <Building2 className="w-4 h-4" />
-        {selectedSchool.nome}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onSelect(null as any)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
+        >
+          <Building2 className="w-4 h-4" />
+          {selectedSchool.nome}
+        </button>
+        <button
+          onClick={() => setDeleteId(selectedSchool.id)}
+          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+          title="Excluir escola"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+        <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir escola</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza? Todos os dados vinculados serão removidos permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     );
   }
 
@@ -73,6 +122,7 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
         </div>
 
         <div className="max-h-64 overflow-y-auto space-y-1">
+          {isLoading && <p className="text-center text-muted-foreground text-sm py-4">Carregando...</p>}
           <AnimatePresence>
             {filtered.map((school, i) => (
               <motion.button
@@ -90,10 +140,10 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
               </motion.button>
             ))}
           </AnimatePresence>
-          {filtered.length === 0 && schools.length > 0 && (
+          {!isLoading && filtered.length === 0 && schools.length > 0 && (
             <p className="text-center text-muted-foreground text-sm py-4">Nenhuma escola encontrada</p>
           )}
-          {schools.length === 0 && (
+          {!isLoading && schools.length === 0 && (
             <p className="text-center text-muted-foreground text-sm py-4">Nenhuma escola cadastrada</p>
           )}
         </div>
@@ -109,8 +159,8 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
                 className="bg-surface"
                 autoFocus
               />
-              <Button onClick={handleCreate} className="gradient-green text-primary-foreground shrink-0">
-                Criar
+              <Button onClick={handleCreate} disabled={addSchoolMut.isPending} className="gradient-green text-primary-foreground shrink-0">
+                {addSchoolMut.isPending ? '...' : 'Criar'}
               </Button>
               <Button variant="ghost" onClick={() => setShowCreate(false)} className="shrink-0">
                 Cancelar
