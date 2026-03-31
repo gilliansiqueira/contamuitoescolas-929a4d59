@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { getUploads, deleteUpload } from '@/lib/storage';
+import { useState } from 'react';
+import { useUploads, useDeleteUpload } from '@/hooks/useFinancialData';
 import { UPLOAD_TYPES } from '@/types/financial';
 import { motion } from 'framer-motion';
 import { Trash2, FileSpreadsheet, History } from 'lucide-react';
@@ -15,20 +15,22 @@ interface UploadHistoryProps {
 }
 
 export function UploadHistory({ schoolId, onDataChanged }: UploadHistoryProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
-  const uploads = useMemo(() =>
-    getUploads(schoolId).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
-    [schoolId, refreshKey]
-  );
+  const { data: uploads = [], isLoading } = useUploads(schoolId);
+  const deleteUpload = useDeleteUpload();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const confirmDelete = () => {
+  const sorted = [...uploads].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+
+  const confirmDelete = async () => {
     if (!deleteId) return;
-    deleteUpload(deleteId);
-    setDeleteId(null);
-    setRefreshKey(k => k + 1);
-    onDataChanged();
-    toast.success('Upload e transações vinculadas excluídos');
+    try {
+      await deleteUpload.mutateAsync(deleteId);
+      setDeleteId(null);
+      onDataChanged();
+      toast.success('Upload e transações vinculadas excluídos');
+    } catch {
+      toast.error('Erro ao excluir upload');
+    }
   };
 
   const getTypeLabel = (key: string) => UPLOAD_TYPES.find(t => t.key === key)?.label || key;
@@ -41,11 +43,13 @@ export function UploadHistory({ schoolId, onDataChanged }: UploadHistoryProps) {
           <h3 className="font-display font-semibold text-foreground">Histórico de Uploads</h3>
         </div>
 
-        {uploads.length === 0 ? (
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Carregando...</p>
+        ) : sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">Nenhum upload registrado</p>
         ) : (
           <div className="space-y-2">
-            {uploads.map(u => (
+            {sorted.map(u => (
               <div key={u.id} className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
                 <div className="flex items-center gap-3">
                   <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
@@ -78,8 +82,12 @@ export function UploadHistory({ schoolId, onDataChanged }: UploadHistoryProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir Upload
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteUpload.isPending}
+            >
+              {deleteUpload.isPending ? 'Excluindo...' : 'Excluir Upload'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
