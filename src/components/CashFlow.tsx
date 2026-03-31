@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { getEntriesFromBaseDate, getSaldoInicial, getTypeClassifications } from '@/lib/storage';
+import { useSchool, useEntriesFromBaseDate, useTypeClassifications } from '@/hooks/useFinancialData';
 import { CashFlowDay, TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
 import { FinancialEntry } from '@/types/financial';
 import { motion } from 'framer-motion';
@@ -14,6 +14,15 @@ function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function isIgnored(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
+  if (entry.origem !== 'fluxo') return false;
+  const tipoKey = entry.tipoOriginal || entry.tipo;
+  if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase())) return false;
+  if (['entrada', 'saida'].includes(tipoKey.toLowerCase())) return false;
+  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  return cls?.classificacao === 'ignorar';
+}
+
 function getEntryClassLabel(entry: FinancialEntry, classifications: TypeClassification[]): string {
   if (entry.origem !== 'fluxo') return 'Projetado';
   const tipoKey = entry.tipoOriginal || entry.tipo;
@@ -24,13 +33,21 @@ function getEntryClassLabel(entry: FinancialEntry, classifications: TypeClassifi
 }
 
 export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
-  const allEntries = useMemo(() => getEntriesFromBaseDate(schoolId), [schoolId]);
-  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
-  const classifications = useMemo(() => getTypeClassifications(schoolId), [schoolId]);
+  const { data: school } = useSchool(schoolId);
+  const saldoInicial = school?.saldoInicial ?? 0;
+  const baseDate = school?.saldoInicialData;
+  const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
+
+  // Filter out ignored entries
+  const activeEntries = useMemo(() =>
+    allEntries.filter(e => !isIgnored(e, classifications)),
+    [allEntries, classifications]
+  );
 
   const entries = useMemo(() =>
-    allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
-    [allEntries, selectedMonth]
+    activeEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
+    [activeEntries, selectedMonth]
   );
 
   const cashFlow: CashFlowDay[] = useMemo(() => {
@@ -78,7 +95,6 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
 
   return (
     <div className="space-y-6">
-      {/* Monthly consolidation */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border/50">
           <h3 className="font-display font-semibold text-foreground">Consolidação Mensal</h3>
@@ -111,7 +127,6 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
         </div>
       </motion.div>
 
-      {/* Daily cash flow */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border/50">
           <h3 className="font-display font-semibold text-foreground">Fluxo de Caixa Diário</h3>

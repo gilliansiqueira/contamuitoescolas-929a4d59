@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { FinancialEntry } from '@/types/financial';
-import { getEntriesFromBaseDate, getSaldoInicial, getPaymentDelayRules } from '@/lib/storage';
+import { useSchool, useEntriesFromBaseDate, usePaymentDelayRules } from '@/hooks/useFinancialData';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR, addDaysAndAdjust } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
@@ -26,9 +26,7 @@ interface DayRow {
   dayOfWeek: string;
 }
 
-/** Apply payment delay rules to Sponte entries */
-function applyPaymentDelays(entries: FinancialEntry[], schoolId: string): FinancialEntry[] {
-  const rules = getPaymentDelayRules(schoolId);
+function applyPaymentDelays(entries: FinancialEntry[], rules: { formaCobranca: string; prazo: number }[]): FinancialEntry[] {
   return entries.map(e => {
     if (e.origem !== 'sponte' || e.tipo !== 'entrada') return e;
     const forma = e.categoria || '';
@@ -40,13 +38,14 @@ function applyPaymentDelays(entries: FinancialEntry[], schoolId: string): Financ
 }
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
-  const allEntries = useMemo(() => getEntriesFromBaseDate(schoolId), [schoolId]);
-  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId]);
+  const { data: school } = useSchool(schoolId);
+  const saldoInicial = school?.saldoInicial ?? 0;
+  const baseDate = school?.saldoInicialData;
+  const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
+  const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
 
-  // Apply payment delays to projected entries
-  const adjustedEntries = useMemo(() => applyPaymentDelays(allEntries, schoolId), [allEntries, schoolId]);
+  const adjustedEntries = useMemo(() => applyPaymentDelays(allEntries, delayRules), [allEntries, delayRules]);
 
-  // Determine which months to show
   const months = useMemo(() => {
     if (selectedMonth === 'all') {
       const set = new Set<string>();
@@ -58,9 +57,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   const allDays = useMemo(() => getAllDaysInMonths(months), [months]);
 
-  // Build daily data
   const dailyData = useMemo(() => {
-    // First compute entries before first day for prior saldo
     const firstDay = allDays[0];
     let priorSaldo = saldoInicial;
     if (firstDay) {
@@ -70,7 +67,6 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       });
     }
 
-    // Group entries by date
     const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number }> = {};
     adjustedEntries.forEach(e => {
       if (!allDays.includes(e.data)) return;
@@ -111,7 +107,6 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      {/* Saldo final do período */}
       <div className="glass-card rounded-xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Table2 className="w-5 h-5 text-primary" />
@@ -122,7 +117,6 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         </span>
       </div>
 
-      {/* Table */}
       <div className="glass-card rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border/50">
           <h3 className="font-display font-semibold text-foreground text-sm">Fluxo Diário Completo</h3>
@@ -134,18 +128,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
               <tr className="bg-surface">
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Data</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Dia</th>
-                <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
-                  <span className="text-blue-600">Entrada Prevista</span>
-                </th>
-                <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
-                  <span className="text-primary">Entrada Realizada</span>
-                </th>
-                <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
-                  <span className="text-orange-500">Saída Prevista</span>
-                </th>
-                <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">
-                  <span className="text-destructive">Saída Realizada</span>
-                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-blue-600">Entrada Prevista</th>
+                <th className="px-3 py-2.5 text-right font-medium text-primary">Entrada Realizada</th>
+                <th className="px-3 py-2.5 text-right font-medium text-orange-500">Saída Prevista</th>
+                <th className="px-3 py-2.5 text-right font-medium text-destructive">Saída Realizada</th>
                 <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">Saldo Final</th>
               </tr>
             </thead>

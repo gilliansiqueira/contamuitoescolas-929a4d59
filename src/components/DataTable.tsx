@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FinancialEntry } from '@/types/financial';
-import { getEntries, getSaldoInicial } from '@/lib/storage';
+import { useEntries, useSchool, useUpdateEntry, useDeleteEntry, useAddAuditLog } from '@/hooks/useFinancialData';
 import { motion } from 'framer-motion';
 import { Pencil, Trash2, Check, X, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -34,34 +34,21 @@ function standardizePaymentType(cat: string): string {
   return cat;
 }
 
-function updateEntry(id: string, schoolId: string, updates: Partial<FinancialEntry>) {
-  const raw = localStorage.getItem('projecao_financeira_data');
-  if (!raw) return;
-  const data = JSON.parse(raw);
-  const idx = data.entries.findIndex((e: FinancialEntry) => e.id === id && e.school_id === schoolId);
-  if (idx >= 0) {
-    data.entries[idx] = { ...data.entries[idx], ...updates };
-    localStorage.setItem('projecao_financeira_data', JSON.stringify(data));
-  }
-}
-
-function deleteEntry(id: string, schoolId: string) {
-  const raw = localStorage.getItem('projecao_financeira_data');
-  if (!raw) return;
-  const data = JSON.parse(raw);
-  data.entries = data.entries.filter((e: FinancialEntry) => !(e.id === id && e.school_id === schoolId));
-  localStorage.setItem('projecao_financeira_data', JSON.stringify(data));
-}
-
 export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
-  const saldoInicial = useMemo(() => getSaldoInicial(schoolId), [schoolId, refreshKey]);
+  const { data: school } = useSchool(schoolId);
+  const saldoInicial = school?.saldoInicial ?? 0;
+  const { data: allEntries = [] } = useEntries(schoolId);
+  const updateEntryMut = useUpdateEntry();
+  const deleteEntryMut = useDeleteEntry();
+  const addAuditMut = useAddAuditLog();
 
   const entries = useMemo(() => {
-    const all = getEntries(schoolId);
-    if (selectedMonth === 'all') return all.sort((a, b) => a.data.localeCompare(b.data));
-    return all.filter(e => e.data.startsWith(selectedMonth)).sort((a, b) => a.data.localeCompare(b.data));
-  }, [schoolId, selectedMonth, refreshKey]);
+    if (selectedMonth === 'all') return [...allEntries].sort((a, b) => a.data.localeCompare(b.data));
+    return allEntries.filter(e => {
+      const months = selectedMonth.split(',');
+      return months.includes(e.data.slice(0, 7));
+    }).sort((a, b) => a.data.localeCompare(b.data));
+  }, [allEntries, selectedMonth]);
 
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<FinancialEntry>>({});
@@ -78,7 +65,6 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
     );
   }, [entries, search]);
 
-  // Running balance starting from saldo inicial
   const withBalance = useMemo(() => {
     let saldo = saldoInicial;
     return filtered.map(e => {
@@ -94,7 +80,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
 
   const cancelEdit = () => { setEditId(null); setEditData({}); };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editId || !editData.data || !editData.descricao || editData.valor === undefined) {
       toast.error('Preencha todos os campos');
       return;
@@ -107,25 +93,29 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
       toast.error('Valor deve ser positivo');
       return;
     }
-    if (editData.tipo !== 'entrada' && editData.tipo !== 'saida') {
-      toast.error('Tipo deve ser entrada ou saida');
-      return;
+    try {
+      await updateEntryMut.mutateAsync({ id: editId, updates: editData });
+      await addAuditMut.mutateAsync({ school_id: schoolId, action: 'edit', description: `Lançamento editado: ${editData.descricao}` });
+      setEditId(null);
+      setEditData({});
+      onDataChanged();
+      toast.success('Lançamento atualizado');
+    } catch {
+      toast.error('Erro ao atualizar');
     }
-    updateEntry(editId, schoolId, editData);
-    setEditId(null);
-    setEditData({});
-    setRefreshKey(k => k + 1);
-    onDataChanged();
-    toast.success('Lançamento atualizado');
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteId) return;
-    deleteEntry(deleteId, schoolId);
-    setDeleteId(null);
-    setRefreshKey(k => k + 1);
-    onDataChanged();
-    toast.success('Lançamento excluído');
+    try {
+      await deleteEntryMut.mutateAsync(deleteId);
+      await addAuditMut.mutateAsync({ school_id: schoolId, action: 'delete', description: 'Lançamento excluído' });
+      setDeleteId(null);
+      onDataChanged();
+      toast.success('Lançamento excluído');
+    } catch {
+      toast.error('Erro ao excluir');
+    }
   };
 
   const totalEntradas = filtered.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0);
@@ -179,12 +169,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                       </td>
                       <td className="px-2 py-1 text-muted-foreground text-[10px]">{e.origem === 'fluxo' ? 'Realizado' : 'Projetado'}</td>
                       <td className="px-2 py-1">
-                        <select value={editData.categoria || ''} onChange={ev => setEditData(d => ({ ...d, categoria: ev.target.value }))}
-                          className="h-7 text-xs border rounded px-1 bg-background">
-                          <option value="Boleto">Boleto</option>
-                          <option value="PIX">PIX</option>
-                          <option value="Cartão">Cartão</option>
-                        </select>
+                        <Input value={editData.categoria || ''} onChange={ev => setEditData(d => ({ ...d, categoria: ev.target.value }))} className="h-7 text-xs w-24" />
                       </td>
                       <td className="px-2 py-1">
                         <Input value={editData.descricao || ''} onChange={ev => setEditData(d => ({ ...d, descricao: ev.target.value }))} className="h-7 text-xs" />
