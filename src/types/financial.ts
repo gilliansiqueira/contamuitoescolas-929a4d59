@@ -37,6 +37,7 @@ export interface TypeClassification {
   tipoValor: string; // the raw value from the "tipo" column
   entraNoResultado: boolean; // counts towards resultado (receita/despesa)
   impactaCaixa: boolean; // impacts cash balance
+  classificacao: 'receita' | 'despesa' | 'operacao' | 'ignorar';
   label: string; // display label
 }
 
