@@ -14,7 +14,264 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          description: string
+          id: string
+          school_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          description?: string
+          id?: string
+          school_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          description?: string
+          id?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exclusion_rules: {
+        Row: {
+          acao: string
+          campo: string
+          created_at: string
+          id: string
+          nova_categoria: string | null
+          operador: string
+          school_id: string
+          tipo: string
+          valor: string
+        }
+        Insert: {
+          acao: string
+          campo: string
+          created_at?: string
+          id?: string
+          nova_categoria?: string | null
+          operador: string
+          school_id: string
+          tipo: string
+          valor: string
+        }
+        Update: {
+          acao?: string
+          campo?: string
+          created_at?: string
+          id?: string
+          nova_categoria?: string | null
+          operador?: string
+          school_id?: string
+          tipo?: string
+          valor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_rules_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_entries: {
+        Row: {
+          categoria: string
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          origem: string
+          origem_upload_id: string | null
+          school_id: string
+          tipo: string
+          tipo_original: string | null
+          valor: number
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          data: string
+          descricao?: string
+          id?: string
+          origem: string
+          origem_upload_id?: string | null
+          school_id: string
+          tipo: string
+          tipo_original?: string | null
+          valor?: number
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          origem?: string
+          origem_upload_id?: string | null
+          school_id?: string
+          tipo?: string
+          tipo_original?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_entries_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_delay_rules: {
+        Row: {
+          created_at: string
+          forma_cobranca: string
+          id: string
+          prazo: number
+          school_id: string
+        }
+        Insert: {
+          created_at?: string
+          forma_cobranca: string
+          id?: string
+          prazo?: number
+          school_id: string
+        }
+        Update: {
+          created_at?: string
+          forma_cobranca?: string
+          id?: string
+          prazo?: number
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_delay_rules_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schools: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          saldo_inicial: number
+          saldo_inicial_data: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          saldo_inicial?: number
+          saldo_inicial_data?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          saldo_inicial?: number
+          saldo_inicial_data?: string | null
+        }
+        Relationships: []
+      }
+      type_classifications: {
+        Row: {
+          classificacao: string
+          created_at: string
+          entra_no_resultado: boolean
+          id: string
+          impacta_caixa: boolean
+          label: string
+          school_id: string
+          tipo_valor: string
+        }
+        Insert: {
+          classificacao?: string
+          created_at?: string
+          entra_no_resultado?: boolean
+          id?: string
+          impacta_caixa?: boolean
+          label?: string
+          school_id: string
+          tipo_valor: string
+        }
+        Update: {
+          classificacao?: string
+          created_at?: string
+          entra_no_resultado?: boolean
+          id?: string
+          impacta_caixa?: boolean
+          label?: string
+          school_id?: string
+          tipo_valor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "type_classifications_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      upload_records: {
+        Row: {
+          file_name: string
+          id: string
+          record_count: number
+          school_id: string
+          tipo: string
+          uploaded_at: string
+        }
+        Insert: {
+          file_name: string
+          id?: string
+          record_count?: number
+          school_id: string
+          tipo: string
+          uploaded_at?: string
+        }
+        Update: {
+          file_name?: string
+          id?: string
+          record_count?: number
+          school_id?: string
+          tipo?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_records_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
