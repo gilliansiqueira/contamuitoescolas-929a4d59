@@ -209,7 +209,7 @@ function convertRows(
             id: crypto.randomUUID(), data: dt, descricao: `Pagar - ${get(row, 'favorecido') || ''}`,
             valor: Math.abs(val), tipo: 'saida', categoria: get(row, 'categoria') || 'despesa',
             origem: 'contas_pagar', school_id: schoolId,
-            tipoRegistro: determineTipoRegistro(dt),
+            tipoRegistro: 'projetado',
             editadoManualmente: false,
           };
           break;
