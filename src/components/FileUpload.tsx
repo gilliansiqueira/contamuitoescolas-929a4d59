@@ -195,7 +195,7 @@ function convertRows(
             id: crypto.randomUUID(), data: dt, descricao: `Cartão`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cartao',
             origem: 'cartao', school_id: schoolId,
-            tipoRegistro: determineTipoRegistro(dt),
+            tipoRegistro: 'projetado',
             editadoManualmente: false,
           };
           break;
