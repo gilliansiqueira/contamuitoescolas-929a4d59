@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { FinancialEntry, TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Target, CalendarCheck, ArrowDown, ArrowUp } from 'lucide-react';
+import { DollarSign, Target, CalendarCheck, ArrowDown, ArrowUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
