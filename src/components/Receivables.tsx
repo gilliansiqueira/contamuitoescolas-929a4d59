@@ -66,6 +66,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
   // Only include entries classified as 'receita' — exclude operacao and ignorar
   const recebiveis = useMemo(() =>
     entries.filter(e => {
+      if (e.tipoRegistro !== 'projetado') return false;
       const cls = getEffectiveClassification(e, classifications);
       return cls === 'receita';
     }),
