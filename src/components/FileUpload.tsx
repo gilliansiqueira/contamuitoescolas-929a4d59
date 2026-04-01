@@ -167,7 +167,7 @@ function convertRows(
             id: crypto.randomUUID(), data: dt, descricao: `Recebimento - ${get(row, 'nome_aluno') || ''}`,
             valor: Math.abs(val), tipo: 'entrada', categoria: get(row, 'tipo_pagamento') || 'mensalidade',
             origem: 'sponte', school_id: schoolId,
-            tipoRegistro: determineTipoRegistro(dt),
+            tipoRegistro: 'projetado',
             editadoManualmente: false,
           };
           break;
@@ -181,7 +181,7 @@ function convertRows(
             id: crypto.randomUUID(), data: dt, descricao: `Cheque - ${get(row, 'nome_aluno') || ''}`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cheque',
             origem: 'cheque', school_id: schoolId,
-            tipoRegistro: determineTipoRegistro(dt),
+            tipoRegistro: 'projetado',
             editadoManualmente: false,
           };
           break;
@@ -195,7 +195,7 @@ function convertRows(
             id: crypto.randomUUID(), data: dt, descricao: `Cartão`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cartao',
             origem: 'cartao', school_id: schoolId,
-            tipoRegistro: determineTipoRegistro(dt),
+            tipoRegistro: 'projetado',
             editadoManualmente: false,
           };
           break;
@@ -209,7 +209,7 @@ function convertRows(
             id: crypto.randomUUID(), data: dt, descricao: `Pagar - ${get(row, 'favorecido') || ''}`,
             valor: Math.abs(val), tipo: 'saida', categoria: get(row, 'categoria') || 'despesa',
             origem: 'contas_pagar', school_id: schoolId,
-            tipoRegistro: determineTipoRegistro(dt),
+            tipoRegistro: 'projetado',
             editadoManualmente: false,
           };
           break;
