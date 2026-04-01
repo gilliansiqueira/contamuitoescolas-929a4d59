@@ -181,7 +181,7 @@ function convertRows(
             id: crypto.randomUUID(), data: dt, descricao: `Cheque - ${get(row, 'nome_aluno') || ''}`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cheque',
             origem: 'cheque', school_id: schoolId,
-            tipoRegistro: determineTipoRegistro(dt),
+            tipoRegistro: 'projetado',
             editadoManualmente: false,
           };
           break;
