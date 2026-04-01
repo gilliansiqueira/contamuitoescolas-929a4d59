@@ -426,8 +426,8 @@ export function useFluxoTipos(schoolId: string) {
       if (error) throw error;
       const set = new Set<string>();
       (data ?? []).forEach(e => {
-        if (e.tipo_original) set.add(e.tipo_original);
-        set.add(e.tipo);
+        if (e.tipo_original) set.add(e.tipo_original.toLowerCase().trim());
+        set.add(e.tipo.toLowerCase().trim());
       });
       return Array.from(set).sort();
     },
