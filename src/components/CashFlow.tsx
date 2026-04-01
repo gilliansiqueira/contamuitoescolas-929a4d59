@@ -19,17 +19,8 @@ function isIgnored(entry: FinancialEntry, classifications: TypeClassification[])
   const tipoKey = entry.tipoOriginal || entry.tipo;
   if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase())) return false;
   if (['entrada', 'saida'].includes(tipoKey.toLowerCase())) return false;
-  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  const cls = classifications.find(c => c.tipoValor.toLowerCase().trim() === tipoKey.toLowerCase().trim());
   return cls?.classificacao === 'ignorar';
-}
-
-function getEntryClassLabel(entry: FinancialEntry, classifications: TypeClassification[]): string {
-  if (entry.origem !== 'fluxo') return 'Projetado';
-  const tipoKey = entry.tipoOriginal || entry.tipo;
-  if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase()) || ['entrada', 'saida'].includes(tipoKey.toLowerCase())) return 'Resultado';
-  const cls = classifications.find(c => c.tipoValor === tipoKey);
-  if (cls?.entraNoResultado) return 'Resultado';
-  return 'Operação';
 }
 
 export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
@@ -39,7 +30,6 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
-  // Filter out ignored entries
   const activeEntries = useMemo(() =>
     allEntries.filter(e => !isIgnored(e, classifications)),
     [allEntries, classifications]
@@ -50,6 +40,7 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
     [activeEntries, selectedMonth]
   );
 
+  // Daily cash flow — uses tipo as single source of truth
   const cashFlow: CashFlowDay[] = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
     entries.forEach(e => {
@@ -67,23 +58,19 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
     });
   }, [entries, saldoInicial]);
 
+  // Monthly consolidation — uses tipo as single source of truth
   const monthly = useMemo(() => {
-    const byMonth: Record<string, { receitas: number; despesas: number; operacoes: number }> = {};
+    const byMonth: Record<string, { receitas: number; despesas: number }> = {};
     entries.forEach(e => {
       const m = e.data.slice(0, 7);
-      if (!byMonth[m]) byMonth[m] = { receitas: 0, despesas: 0, operacoes: 0 };
-      const classLabel = getEntryClassLabel(e, classifications);
-      if (classLabel === 'Operação') {
-        byMonth[m].operacoes += e.valor;
-      } else {
-        if (e.tipo === 'entrada') byMonth[m].receitas += e.valor;
-        else byMonth[m].despesas += e.valor;
-      }
+      if (!byMonth[m]) byMonth[m] = { receitas: 0, despesas: 0 };
+      if (e.tipo === 'entrada') byMonth[m].receitas += e.valor;
+      else byMonth[m].despesas += e.valor;
     });
     return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([mes, v]) => ({
       mes, ...v, resultado: v.receitas - v.despesas,
     }));
-  }, [entries, classifications]);
+  }, [entries]);
 
   if (cashFlow.length === 0) {
     return (
@@ -104,10 +91,9 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
             <thead>
               <tr className="bg-surface">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mês</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receitas</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Despesas</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Entradas</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Saídas</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Resultado</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Operações</th>
               </tr>
             </thead>
             <tbody>
@@ -119,7 +105,6 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
                   <td className={`px-4 py-3 text-right font-semibold ${m.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
                     {formatCurrency(m.resultado)}
                   </td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">{formatCurrency(m.operacoes)}</td>
                 </tr>
               ))}
             </tbody>

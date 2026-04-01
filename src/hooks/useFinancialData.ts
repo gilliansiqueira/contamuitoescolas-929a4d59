@@ -80,6 +80,23 @@ export function useUpdateSchool() {
 }
 
 // ─── Financial Entries ──────────────────────────────
+function mapEntry(e: any): FinancialEntry {
+  return {
+    id: e.id,
+    data: e.data,
+    descricao: e.descricao,
+    valor: Number(e.valor),
+    tipo: e.tipo as 'entrada' | 'saida',
+    categoria: e.categoria,
+    origem: e.origem as FinancialEntry['origem'],
+    school_id: e.school_id,
+    origem_upload_id: e.origem_upload_id ?? undefined,
+    tipoOriginal: e.tipo_original ?? undefined,
+    tipoRegistro: (e.tipo_registro as 'realizado' | 'projetado') || 'realizado',
+    editadoManualmente: e.editado_manualmente ?? false,
+  };
+}
+
 export function useEntries(schoolId: string) {
   return useQuery({
     queryKey: ['entries', schoolId],
@@ -110,21 +127,6 @@ export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
   });
 }
 
-function mapEntry(e: any): FinancialEntry {
-  return {
-    id: e.id,
-    data: e.data,
-    descricao: e.descricao,
-    valor: Number(e.valor),
-    tipo: e.tipo as 'entrada' | 'saida',
-    categoria: e.categoria,
-    origem: e.origem as FinancialEntry['origem'],
-    school_id: e.school_id,
-    origem_upload_id: e.origem_upload_id ?? undefined,
-    tipoOriginal: e.tipo_original ?? undefined,
-  };
-}
-
 export function useAddEntries() {
   const qc = useQueryClient();
   return useMutation({
@@ -140,8 +142,9 @@ export function useAddEntries() {
         origem: e.origem,
         origem_upload_id: e.origem_upload_id || null,
         tipo_original: e.tipoOriginal || null,
+        tipo_registro: e.tipoRegistro || 'realizado',
+        editado_manualmente: e.editadoManualmente || false,
       }));
-      // Insert in batches of 500
       for (let i = 0; i < rows.length; i += 500) {
         const batch = rows.slice(i, i + 500);
         const { error } = await supabase.from('financial_entries').insert(batch);
@@ -162,6 +165,8 @@ export function useUpdateEntry() {
       if (params.updates.valor !== undefined) dbUpdates.valor = params.updates.valor;
       if (params.updates.tipo !== undefined) dbUpdates.tipo = params.updates.tipo;
       if (params.updates.categoria !== undefined) dbUpdates.categoria = params.updates.categoria;
+      if (params.updates.editadoManualmente !== undefined) dbUpdates.editado_manualmente = params.updates.editadoManualmente;
+      if (params.updates.tipoRegistro !== undefined) dbUpdates.tipo_registro = params.updates.tipoRegistro;
       const { error } = await supabase.from('financial_entries').update(dbUpdates).eq('id', params.id);
       if (error) throw error;
     },
@@ -226,7 +231,6 @@ export function useDeleteUpload() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (uploadId: string) => {
-      // Delete entries linked to this upload
       const { error: e1 } = await supabase.from('financial_entries').delete().eq('origem_upload_id', uploadId);
       if (e1) throw e1;
       const { error: e2 } = await supabase.from('upload_records').delete().eq('id', uploadId);

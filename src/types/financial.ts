@@ -9,6 +9,8 @@ export interface FinancialEntry {
   school_id: string;
   origem_upload_id?: string;
   tipoOriginal?: string; // raw "tipo" value from the source file
+  tipoRegistro: 'realizado' | 'projetado';
+  editadoManualmente: boolean;
 }
 
 export interface School {
@@ -97,8 +99,8 @@ export interface UploadRecord {
 export interface PaymentDelayRule {
   id: string;
   school_id: string;
-  formaCobranca: string; // e.g. 'Cartão de crédito', 'PIX', 'Boleto'
-  prazo: number; // days to add
+  formaCobranca: string;
+  prazo: number;
 }
 
 /** Audit log entry */
@@ -166,3 +168,9 @@ export const DEFAULT_PAYMENT_DELAYS: { forma: string; prazo: number }[] = [
   { forma: 'Cartão de débito', prazo: 0 },
   { forma: 'Cheque', prazo: 0 },
 ];
+
+/** Determine if a date is in the past (realizado) or future (projetado) */
+export function determineTipoRegistro(dateStr: string): 'realizado' | 'projetado' {
+  const today = new Date().toISOString().slice(0, 10);
+  return dateStr <= today ? 'realizado' : 'projetado';
+}

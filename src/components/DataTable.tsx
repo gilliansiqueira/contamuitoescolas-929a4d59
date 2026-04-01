@@ -71,15 +71,19 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
   const withBalance = useMemo(() => {
     let saldo = saldoInicial;
     return filtered.map(e => {
-      saldo += e.tipo === 'entrada' ? e.valor : -e.valor;
+      if (e.tipo === 'entrada') saldo += e.valor;
+      else saldo -= e.valor;
       return { ...e, saldo };
     });
   }, [filtered, saldoInicial]);
 
-  // Inline classification change (instant save)
+  // Inline classification change — saves immediately + marks as manually edited
   const handleTipoChange = async (entryId: string, novoTipo: 'entrada' | 'saida') => {
     try {
-      await updateEntryMut.mutateAsync({ id: entryId, updates: { tipo: novoTipo } });
+      await updateEntryMut.mutateAsync({
+        id: entryId,
+        updates: { tipo: novoTipo, editadoManualmente: true },
+      });
       toast.success('Classificação atualizada');
     } catch {
       toast.error('Erro ao atualizar classificação');
@@ -107,7 +111,10 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
       return;
     }
     try {
-      await updateEntryMut.mutateAsync({ id: editId, updates: editData });
+      await updateEntryMut.mutateAsync({
+        id: editId,
+        updates: { ...editData, editadoManualmente: true },
+      });
       await addAuditMut.mutateAsync({ school_id: schoolId, action: 'edit', description: `Lançamento editado: ${editData.descricao}` });
       setEditId(null);
       setEditData({});
@@ -157,6 +164,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
               <tr className="border-b border-border">
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Data</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Tipo</th>
+                <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Registro</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Origem</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Forma</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Descrição</th>
@@ -180,7 +188,14 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                           <option value="saida">Saída</option>
                         </select>
                       </td>
-                      <td className="px-2 py-1 text-muted-foreground text-[10px]">{e.origem === 'fluxo' ? 'Realizado' : 'Projetado'}</td>
+                      <td className="px-2 py-1">
+                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          e.tipoRegistro === 'realizado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {e.tipoRegistro === 'realizado' ? 'Real.' : 'Proj.'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1 text-muted-foreground text-[10px]">{e.origem}</td>
                       <td className="px-2 py-1">
                         <Input value={editData.categoria || ''} onChange={ev => setEditData(d => ({ ...d, categoria: ev.target.value }))} className="h-7 text-xs w-24" />
                       </td>
@@ -216,13 +231,19 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                       </td>
                       <td className="px-3 py-2">
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                          e.origem === 'fluxo' ? 'bg-blue-100 text-blue-700' : 'bg-secondary/20 text-secondary'
+                          e.tipoRegistro === 'realizado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
                         }`}>
-                          {e.origem === 'fluxo' ? 'Realizado' : 'Projetado'}
+                          {e.tipoRegistro === 'realizado' ? 'Realizado' : 'Projetado'}
                         </span>
                       </td>
+                      <td className="px-3 py-2 text-muted-foreground text-[10px]">{e.origem}</td>
                       <td className="px-3 py-2 text-muted-foreground">{standardizePaymentType(e.categoria)}</td>
-                      <td className="px-3 py-2 text-muted-foreground truncate max-w-[200px]">{e.descricao}</td>
+                      <td className="px-3 py-2 text-muted-foreground truncate max-w-[200px]">
+                        {e.descricao}
+                        {e.editadoManualmente && (
+                          <span className="ml-1 text-[9px] text-amber-600 font-semibold">✎</span>
+                        )}
+                      </td>
                       <td className={`px-3 py-2 text-right font-semibold ${e.tipo === 'entrada' ? 'text-primary' : 'text-destructive'}`}>
                         {formatCurrency(e.valor)}
                       </td>
@@ -240,7 +261,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                 </tr>
               ))}
               {withBalance.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">Nenhum lançamento encontrado</td></tr>
               )}
             </tbody>
           </table>
