@@ -63,9 +63,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     [entries, classifications]
   );
 
-  const hasRealizado = entries.some(e => e.tipoRegistro === 'realizado');
-  const totaisExibidos = hasRealizado ? realizadoTotals : projetadoTotals;
-
   // Projection chart
   const projectionData = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -164,14 +161,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       {/* Main KPIs */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-          <Target className="w-4 h-4" /> {hasRealizado ? "Resultado do período" : "Projeção do período"}
+          <Target className="w-4 h-4" /> Resultado do Período
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { icon: Wallet, label: 'Saldo Inicial', value: saldoInicial, color: 'text-foreground' },
-            { icon: ArrowUp, label: 'Receitas', value: totaisExibidos.receitas, color: 'text-primary' },
-            { icon: ArrowDown, label: 'Despesas', value: totaisExibidos.despesas, color: 'text-destructive' },
-            { icon: Target, label: 'Resultado', value: totaisExibidos.resultado, color: totaisExibidos.resultado >= 0 ? 'text-primary' : 'text-destructive' },
+            { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-primary' },
+            { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive' },
+            { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-primary' : 'text-destructive' },
             { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-primary' : 'text-destructive' },
           ].map((kpi, i) => (
             <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-5">
@@ -200,28 +197,25 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
       {/* Realizado vs Projetado */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Sempre renderiza ambos, mas Realizado só se houver */}
-        {hasRealizado && (
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="text-[10px] text-muted-foreground uppercase">Receitas</span>
-                <p className="text-lg font-display font-bold text-primary">{formatCurrency(realizadoTotals.receitas)}</p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground uppercase">Despesas</span>
-                <p className="text-lg font-display font-bold text-destructive">{formatCurrency(realizadoTotals.despesas)}</p>
-              </div>
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
+          <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase">Receitas</span>
+              <p className="text-lg font-display font-bold text-primary">{formatCurrency(realizadoTotals.receitas)}</p>
             </div>
-            <div className="mt-2 pt-2 border-t border-border/30">
-              <span className="text-[10px] text-muted-foreground uppercase">Resultado Realizado</span>
-              <p className={`text-lg font-display font-bold ${realizadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                {formatCurrency(realizadoTotals.resultado)}
-              </p>
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase">Despesas</span>
+              <p className="text-lg font-display font-bold text-destructive">{formatCurrency(realizadoTotals.despesas)}</p>
             </div>
-          </motion.div>
-        )}
+          </div>
+          <div className="mt-2 pt-2 border-t border-border/30">
+            <span className="text-[10px] text-muted-foreground uppercase">Resultado Realizado</span>
+            <p className={`text-lg font-display font-bold ${realizadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              {formatCurrency(realizadoTotals.resultado)}
+            </p>
+          </div>
+        </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="glass-card rounded-xl p-5">
           <h4 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">📊 Projetado</h4>
@@ -283,4 +277,24 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="data" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"} tick
+                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip formatter={(value: number) => formatCurrency(value)} labelFormatter={(label) => `Data: ${label}`}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="3 3" />
+                <Area type="monotone" dataKey="saldo" stroke="hsl(var(--primary))" fill="url(#saldoGrad)" strokeWidth={2} name="Saldo" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Receivables Section - embedded */}
+      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+          💳 Recebíveis por Origem
+        </h3>
+        <Receivables schoolId={schoolId} selectedMonth={selectedMonth} />
+      </motion.div>
+    </div>
+  );
+}
