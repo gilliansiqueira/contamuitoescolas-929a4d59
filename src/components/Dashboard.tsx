@@ -58,11 +58,15 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     calculateTotals(entries.filter(e => e.tipoRegistro === 'realizado'), classifications),
     [entries, classifications]
   );
-  const projetadoTotals = useMemo(() =>
-    calculateTotals(entries.filter(e => e.tipoRegistro === 'projetado'), classifications),
-    [entries, classifications]
-  );
+const projetadoTotals = useMemo(() =>
+  calculateTotals(entries.filter(e => e.tipoRegistro === 'projetado'), classifications),
+  [entries, classifications]
+);
 
+const hasRealizado = entries.some(e => e.tipoRegistro === 'realizado');
+
+const totaisExibidos = hasRealizado ? realizadoTotals : projetadoTotals;
+  
   // Projection chart
   const projectionData = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -161,14 +165,15 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       {/* Main KPIs */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-          <Target className="w-4 h-4" /> Resultado do Período
+          <Target className="w-4 h-4" /> {hasRealizado ? "Resultado do período" : "Projeção do período"}
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { icon: Wallet, label: 'Saldo Inicial', value: saldoInicial, color: 'text-foreground' },
-            { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-primary' },
-            { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive' },
-            { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-primary' : 'text-destructive' },
+      { icon: ArrowUp, label: 'Receitas', value: totaisExibidos.receitas, color: 'text-primary' },
+{ icon: ArrowDown, label: 'Despesas', value: totaisExibidos.despesas, color: 'text-destructive' },
+{ icon: Target, label: 'Resultado', value: totaisExibidos.resultado, color: totaisExibidos.resultado >= 0 ? 'text-primary' : 'text-destructive' },
+         
             { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-primary' : 'text-destructive' },
           ].map((kpi, i) => (
             <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-5">
@@ -195,8 +200,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
-      {/* Realizado vs Projetado */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+{/* Realizado vs Projetado */}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+  {hasRealizado && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
           <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
           <div className="grid grid-cols-2 gap-4">
@@ -235,7 +242,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
               {formatCurrency(projetadoTotals.resultado)}
             </p>
           </div>
-        </motion.div>
+        </motion.div> )}
       </div>
 
       {/* Entradas vs Saídas Bar Chart */}
