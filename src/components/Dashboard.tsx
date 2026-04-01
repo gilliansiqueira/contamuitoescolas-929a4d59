@@ -254,7 +254,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
               <BarChart data={monthlyChart}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mes" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{
                   backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px',
                 }} />
