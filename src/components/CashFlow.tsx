@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications } from '@/hooks/useFinancialData';
-import { CashFlowDay, TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
-import { FinancialEntry } from '@/types/financial';
+import { CashFlowDay } from '@/types/financial';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
+import { filterActiveEntries, getSaldoImpact, isReceita, isDespesa, calculateTotals } from '@/lib/classificationUtils';
 
 interface CashFlowProps {
   schoolId: string;
@@ -14,15 +14,6 @@ function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function isIgnored(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
-  if (entry.origem !== 'fluxo') return false;
-  const tipoKey = entry.tipoOriginal || entry.tipo;
-  if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase())) return false;
-  if (['entrada', 'saida'].includes(tipoKey.toLowerCase())) return false;
-  const cls = classifications.find(c => c.tipoValor.toLowerCase().trim() === tipoKey.toLowerCase().trim());
-  return cls?.classificacao === 'ignorar';
-}
-
 export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
@@ -30,23 +21,21 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
-  const activeEntries = useMemo(() =>
-    allEntries.filter(e => !isIgnored(e, classifications)),
-    [allEntries, classifications]
-  );
+  const activeEntries = useMemo(() => filterActiveEntries(allEntries, classifications), [allEntries, classifications]);
 
   const entries = useMemo(() =>
     activeEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
     [activeEntries, selectedMonth]
   );
 
-  // Daily cash flow — uses tipo as single source of truth
+  // Daily cash flow using proper classification
   const cashFlow: CashFlowDay[] = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
     entries.forEach(e => {
       if (!byDate[e.data]) byDate[e.data] = { entradas: 0, saidas: 0 };
-      if (e.tipo === 'entrada') byDate[e.data].entradas += e.valor;
-      else byDate[e.data].saidas += e.valor;
+      const impact = getSaldoImpact(e, classifications);
+      if (impact > 0) byDate[e.data].entradas += impact;
+      else if (impact < 0) byDate[e.data].saidas += Math.abs(impact);
     });
     const sorted = Object.keys(byDate).sort();
     let saldo = saldoInicial;
@@ -56,21 +45,21 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
       saldo += entradas - saidas;
       return { data, entradas, saidas, saldoAnterior, saldoDia: saldo };
     });
-  }, [entries, saldoInicial]);
+  }, [entries, classifications, saldoInicial]);
 
-  // Monthly consolidation — uses tipo as single source of truth
+  // Monthly consolidation using proper classification
   const monthly = useMemo(() => {
-    const byMonth: Record<string, { receitas: number; despesas: number }> = {};
+    const byMonth: Record<string, typeof entries> = {};
     entries.forEach(e => {
       const m = e.data.slice(0, 7);
-      if (!byMonth[m]) byMonth[m] = { receitas: 0, despesas: 0 };
-      if (e.tipo === 'entrada') byMonth[m].receitas += e.valor;
-      else byMonth[m].despesas += e.valor;
+      if (!byMonth[m]) byMonth[m] = [];
+      byMonth[m].push(e);
     });
-    return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([mes, v]) => ({
-      mes, ...v, resultado: v.receitas - v.despesas,
-    }));
-  }, [entries]);
+    return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([mes, monthEntries]) => {
+      const t = calculateTotals(monthEntries, classifications);
+      return { mes, receitas: t.receitas, despesas: t.despesas, resultado: t.resultado };
+    });
+  }, [entries, classifications]);
 
   if (cashFlow.length === 0) {
     return (
@@ -91,8 +80,8 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
             <thead>
               <tr className="bg-surface">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mês</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Entradas</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Saídas</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Receitas</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Despesas</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Resultado</th>
               </tr>
             </thead>

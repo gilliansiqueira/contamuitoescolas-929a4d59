@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { FinancialEntry } from '@/types/financial';
-import { useSchool, useEntriesFromBaseDate, usePaymentDelayRules } from '@/hooks/useFinancialData';
+import { useSchool, useEntriesFromBaseDate, usePaymentDelayRules, useTypeClassifications } from '@/hooks/useFinancialData';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR, addDaysAndAdjust } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
+import { filterActiveEntries, getSaldoImpact } from '@/lib/classificationUtils';
 
 interface DailyFlowTableProps {
   schoolId: string;
@@ -43,8 +44,12 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const baseDate = school?.saldoInicialData;
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
 
-  const adjustedEntries = useMemo(() => applyPaymentDelays(allEntries, delayRules), [allEntries, delayRules]);
+  const adjustedEntries = useMemo(() => {
+    const delayed = applyPaymentDelays(allEntries, delayRules);
+    return filterActiveEntries(delayed, classifications);
+  }, [allEntries, delayRules, classifications]);
 
   const months = useMemo(() => {
     if (selectedMonth === 'all') {
@@ -62,8 +67,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     let priorSaldo = saldoInicial;
     if (firstDay) {
       adjustedEntries.filter(e => e.data < firstDay).forEach(e => {
-        if (e.tipo === 'entrada') priorSaldo += e.valor;
-        else priorSaldo -= e.valor;
+        priorSaldo += getSaldoImpact(e, classifications);
       });
     }
 
@@ -71,13 +75,15 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     adjustedEntries.forEach(e => {
       if (!allDays.includes(e.data)) return;
       if (!byDate[e.data]) byDate[e.data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 };
+      const impact = getSaldoImpact(e, classifications);
+      if (impact === 0) return;
       const isRealizado = e.tipoRegistro === 'realizado';
-      if (e.tipo === 'entrada') {
-        if (isRealizado) byDate[e.data].entradaRealizada += e.valor;
-        else byDate[e.data].entradaPrevista += e.valor;
+      if (impact > 0) {
+        if (isRealizado) byDate[e.data].entradaRealizada += impact;
+        else byDate[e.data].entradaPrevista += impact;
       } else {
-        if (isRealizado) byDate[e.data].saidaRealizada += e.valor;
-        else byDate[e.data].saidaPrevista += e.valor;
+        if (isRealizado) byDate[e.data].saidaRealizada += Math.abs(impact);
+        else byDate[e.data].saidaPrevista += Math.abs(impact);
       }
     });
 
@@ -93,7 +99,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         dayOfWeek: getDayOfWeek(data),
       } as DayRow;
     });
-  }, [allDays, adjustedEntries, saldoInicial]);
+  }, [allDays, adjustedEntries, saldoInicial, classifications]);
 
   const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicial;
 
