@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
 import { useFluxoTipos, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
-import { Switch } from '@/components/ui/switch';
 import { motion } from 'framer-motion';
 import { Settings2, Info } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,29 +12,35 @@ interface TypeClassificationConfigProps {
 
 type ClassificacaoType = 'receita' | 'despesa' | 'operacao' | 'ignorar';
 
+function normalize(s: string) {
+  return s.toLowerCase().trim();
+}
+
 export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassificationConfigProps) {
   const { data: allTipos = [] } = useFluxoTipos(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const saveMut = useSaveTypeClassification();
 
   const getClassification = (tipo: string): TypeClassification => {
-    const existing = classifications.find(c => c.tipoValor === tipo);
+    const existing = classifications.find(c => normalize(c.tipoValor) === normalize(tipo));
     if (existing) return existing;
-    const isFixed = FIXED_RESULT_TYPES.includes(tipo.toLowerCase());
-    const isEntradaSaida = ['entrada', 'saida'].includes(tipo.toLowerCase());
+    const isFixed = FIXED_RESULT_TYPES.includes(normalize(tipo));
+    const isEntradaSaida = ['entrada', 'saida'].includes(normalize(tipo));
     return {
       id: crypto.randomUUID(),
       school_id: schoolId,
-      tipoValor: tipo,
+      tipoValor: normalize(tipo),
       entraNoResultado: isFixed || isEntradaSaida,
       impactaCaixa: true,
-      classificacao: isFixed || isEntradaSaida ? (tipo.toLowerCase() === 'despesa' || tipo.toLowerCase() === 'saida' ? 'despesa' : 'receita') : 'operacao',
+      classificacao: isFixed || isEntradaSaida
+        ? (normalize(tipo) === 'despesa' || normalize(tipo) === 'saida' ? 'despesa' : 'receita')
+        : 'operacao',
       label: tipo,
     };
   };
 
   const handleClassificacaoChange = async (tipo: string, classificacao: ClassificacaoType) => {
-    const isFixed = FIXED_RESULT_TYPES.includes(tipo.toLowerCase());
+    const isFixed = FIXED_RESULT_TYPES.includes(normalize(tipo));
     if (isFixed) {
       toast.error(`"${tipo}" é fixo e não pode ser alterado`);
       return;
@@ -43,6 +48,7 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
     const current = getClassification(tipo);
     const updated: TypeClassification = {
       ...current,
+      tipoValor: normalize(tipo),
       classificacao,
       entraNoResultado: classificacao === 'receita' || classificacao === 'despesa',
       impactaCaixa: classificacao !== 'ignorar',
@@ -76,7 +82,6 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">
             Configure como cada tipo do fluxo de caixa realizado é tratado.
-            <strong> "receita"</strong> e <strong>"despesa"</strong> são fixos.
             Demais tipos podem ser: <strong>Receita</strong>, <strong>Despesa</strong>, <strong>Operação</strong> ou <strong>Ignorar</strong>.
             Tipos marcados como "Ignorar" não aparecem em nenhum cálculo.
           </p>
@@ -94,7 +99,7 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
             <tbody>
               {allTipos.map(tipo => {
                 const cls = getClassification(tipo);
-                const isFixed = FIXED_RESULT_TYPES.includes(tipo.toLowerCase());
+                const isFixed = FIXED_RESULT_TYPES.includes(normalize(tipo));
 
                 const effectLabel = {
                   receita: '📊 Entra no resultado como receita',
