@@ -76,6 +76,16 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
     });
   }, [filtered, saldoInicial]);
 
+  // Inline classification change (instant save)
+  const handleTipoChange = async (entryId: string, novoTipo: 'entrada' | 'saida') => {
+    try {
+      await updateEntryMut.mutateAsync({ id: entryId, updates: { tipo: novoTipo } });
+      toast.success('Classificação atualizada');
+    } catch {
+      toast.error('Erro ao atualizar classificação');
+    }
+  };
+
   const startEdit = (e: FinancialEntry) => {
     setEditId(e.id);
     setEditData({ data: e.data, descricao: e.descricao, valor: e.valor, tipo: e.tipo, categoria: e.categoria });
