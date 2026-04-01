@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { FinancialEntry, TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
-import { DollarSign, Target, CalendarCheck, ArrowDown, ArrowUp } from 'lucide-react';
+import { Target, CalendarCheck, ArrowDown, ArrowUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
@@ -23,15 +23,6 @@ function findCls(tipoKey: string, classifications: TypeClassification[]) {
   return classifications.find(c => normalize(c.tipoValor) === normalize(tipoKey));
 }
 
-function entraNoResultado(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
-  if (entry.origem !== 'fluxo') return false;
-  const tipoKey = entry.tipoOriginal || entry.tipo;
-  if (FIXED_RESULT_TYPES.includes(normalize(tipoKey))) return true;
-  if (['entrada', 'saida'].includes(normalize(tipoKey))) return true;
-  const cls = findCls(tipoKey, classifications);
-  return cls?.entraNoResultado ?? false;
-}
-
 function isIgnored(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
   if (entry.origem !== 'fluxo') return false;
   const tipoKey = entry.tipoOriginal || entry.tipo;
@@ -39,14 +30,6 @@ function isIgnored(entry: FinancialEntry, classifications: TypeClassification[])
   if (['entrada', 'saida'].includes(normalize(tipoKey))) return false;
   const cls = findCls(tipoKey, classifications);
   return cls?.classificacao === 'ignorar';
-}
-
-function impactaCaixa(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
-  if (isIgnored(entry, classifications)) return false;
-  if (entry.origem !== 'fluxo') return true;
-  const tipoKey = entry.tipoOriginal || entry.tipo;
-  const cls = findCls(tipoKey, classifications);
-  return cls?.impactaCaixa ?? true;
 }
 
 function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; prazo: number }[]): FinancialEntry[] {
@@ -79,63 +62,68 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     [activeEntries, selectedMonth]
   );
 
-  const realized = useMemo(() => entries.filter(e => e.origem === 'fluxo'), [entries]);
-
-  const receitaReal = useMemo(() =>
-    realized.filter(e => e.tipo === 'entrada' && entraNoResultado(e, classifications)).reduce((s, e) => s + e.valor, 0),
-    [realized, classifications]
+  // Totals based strictly on tipo field (single source of truth)
+  const totalEntradas = useMemo(() =>
+    entries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0),
+    [entries]
   );
-  const despesaReal = useMemo(() =>
-    realized.filter(e => e.tipo === 'saida' && entraNoResultado(e, classifications)).reduce((s, e) => s + e.valor, 0),
-    [realized, classifications]
+  const totalSaidas = useMemo(() =>
+    entries.filter(e => e.tipo === 'saida').reduce((s, e) => s + e.valor, 0),
+    [entries]
   );
-  const resultado = receitaReal - despesaReal;
-
-  const operacoes = useMemo(() => {
-    const ops = realized.filter(e => !entraNoResultado(e, classifications) && impactaCaixa(e, classifications));
-    const byTipo: Record<string, { entradas: number; saidas: number }> = {};
-    ops.forEach(e => {
-      const key = e.tipoOriginal || e.tipo;
-      if (!byTipo[key]) byTipo[key] = { entradas: 0, saidas: 0 };
-      if (e.tipo === 'entrada') byTipo[key].entradas += e.valor;
-      else byTipo[key].saidas += e.valor;
-    });
-    return Object.entries(byTipo).map(([tipo, vals]) => ({ tipo, ...vals }));
-  }, [realized, classifications]);
+  const resultado = totalEntradas - totalSaidas;
 
   const saldoFinal = useMemo(() => {
     let saldo = saldoInicial;
     activeEntries
-      .filter(e => matchesMonthFilter(e.data, selectedMonth) && impactaCaixa(e, classifications))
+      .filter(e => matchesMonthFilter(e.data, selectedMonth))
       .forEach(e => {
         if (e.tipo === 'entrada') saldo += e.valor;
         else saldo -= e.valor;
       });
     return saldo;
-  }, [activeEntries, selectedMonth, saldoInicial, classifications]);
+  }, [activeEntries, selectedMonth, saldoInicial]);
+
+  // Breakdown by tipo_registro
+  const realizadoEntradas = useMemo(() =>
+    entries.filter(e => e.tipoRegistro === 'realizado' && e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0),
+    [entries]
+  );
+  const realizadoSaidas = useMemo(() =>
+    entries.filter(e => e.tipoRegistro === 'realizado' && e.tipo === 'saida').reduce((s, e) => s + e.valor, 0),
+    [entries]
+  );
+  const projetadoEntradas = useMemo(() =>
+    entries.filter(e => e.tipoRegistro === 'projetado' && e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0),
+    [entries]
+  );
+  const projetadoSaidas = useMemo(() =>
+    entries.filter(e => e.tipoRegistro === 'projetado' && e.tipo === 'saida').reduce((s, e) => s + e.valor, 0),
+    [entries]
+  );
 
   return (
     <div className="space-y-6">
-
+      {/* Main KPIs */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-          <Target className="w-4 h-4" /> Resultado (Realizado)
+          <Target className="w-4 h-4" /> Resultado do Período
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5">
             <div className="flex items-center gap-2 mb-2">
               <ArrowUp className="w-4 h-4 text-primary" />
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receita Real</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Entradas</span>
             </div>
-            <p className="text-2xl font-display font-bold text-primary">{formatCurrency(receitaReal)}</p>
+            <p className="text-2xl font-display font-bold text-primary">{formatCurrency(totalEntradas)}</p>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card rounded-xl p-5">
             <div className="flex items-center gap-2 mb-2">
               <ArrowDown className="w-4 h-4 text-destructive" />
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesa Real</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Saídas</span>
             </div>
-            <p className="text-2xl font-display font-bold text-destructive">{formatCurrency(despesaReal)}</p>
+            <p className="text-2xl font-display font-bold text-destructive">{formatCurrency(totalSaidas)}</p>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl p-5">
@@ -160,36 +148,48 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       </div>
 
-      {operacoes.length > 0 && (
-        <div>
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-            <DollarSign className="w-4 h-4" /> Operações
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {operacoes.map((op, i) => (
-              <motion.div key={op.tipo} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                className="glass-card rounded-xl p-4">
-                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">{op.tipo}</span>
-                <div className="flex items-center justify-between mt-2 gap-4">
-                  {op.entradas > 0 && (
-                    <div>
-                      <span className="text-[10px] text-muted-foreground">Entradas</span>
-                      <p className="text-sm font-bold text-primary">{formatCurrency(op.entradas)}</p>
-                    </div>
-                  )}
-                  {op.saidas > 0 && (
-                    <div>
-                      <span className="text-[10px] text-muted-foreground">Saídas</span>
-                      <p className="text-sm font-bold text-destructive">{formatCurrency(op.saidas)}</p>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+      {/* Realizado vs Projetado breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card rounded-xl p-5">
+          <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase">Entradas</span>
+              <p className="text-lg font-display font-bold text-primary">{formatCurrency(realizadoEntradas)}</p>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase">Saídas</span>
+              <p className="text-lg font-display font-bold text-destructive">{formatCurrency(realizadoSaidas)}</p>
+            </div>
           </div>
-        </div>
-      )}
+          <div className="mt-2 pt-2 border-t border-border/30">
+            <span className="text-[10px] text-muted-foreground uppercase">Resultado Realizado</span>
+            <p className={`text-lg font-display font-bold ${realizadoEntradas - realizadoSaidas >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              {formatCurrency(realizadoEntradas - realizadoSaidas)}
+            </p>
+          </div>
+        </motion.div>
 
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="glass-card rounded-xl p-5">
+          <h4 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">📊 Projetado</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase">Entradas</span>
+              <p className="text-lg font-display font-bold text-primary">{formatCurrency(projetadoEntradas)}</p>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase">Saídas</span>
+              <p className="text-lg font-display font-bold text-destructive">{formatCurrency(projetadoSaidas)}</p>
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-border/30">
+            <span className="text-[10px] text-muted-foreground uppercase">Resultado Projetado</span>
+            <p className={`text-lg font-display font-bold ${projetadoEntradas - projetadoSaidas >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              {formatCurrency(projetadoEntradas - projetadoSaidas)}
+            </p>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }

@@ -71,7 +71,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     adjustedEntries.forEach(e => {
       if (!allDays.includes(e.data)) return;
       if (!byDate[e.data]) byDate[e.data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 };
-      const isRealizado = e.origem === 'fluxo';
+      const isRealizado = e.tipoRegistro === 'realizado';
       if (e.tipo === 'entrada') {
         if (isRealizado) byDate[e.data].entradaRealizada += e.valor;
         else byDate[e.data].entradaPrevista += e.valor;

@@ -96,12 +96,14 @@ export type Database = {
           created_at: string
           data: string
           descricao: string
+          editado_manualmente: boolean
           id: string
           origem: string
           origem_upload_id: string | null
           school_id: string
           tipo: string
           tipo_original: string | null
+          tipo_registro: string
           valor: number
         }
         Insert: {
@@ -109,12 +111,14 @@ export type Database = {
           created_at?: string
           data: string
           descricao?: string
+          editado_manualmente?: boolean
           id?: string
           origem: string
           origem_upload_id?: string | null
           school_id: string
           tipo: string
           tipo_original?: string | null
+          tipo_registro?: string
           valor?: number
         }
         Update: {
@@ -122,12 +126,14 @@ export type Database = {
           created_at?: string
           data?: string
           descricao?: string
+          editado_manualmente?: boolean
           id?: string
           origem?: string
           origem_upload_id?: string | null
           school_id?: string
           tipo?: string
           tipo_original?: string | null
+          tipo_registro?: string
           valor?: number
         }
         Relationships: [
