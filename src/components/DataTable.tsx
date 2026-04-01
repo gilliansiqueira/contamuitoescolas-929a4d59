@@ -202,11 +202,17 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                     <>
                       <td className="px-3 py-2 font-medium text-foreground">{formatDate(e.data)}</td>
                       <td className="px-3 py-2">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                          e.tipo === 'entrada' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'
-                        }`}>
-                          {e.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                        </span>
+                        <Select value={e.tipo} onValueChange={(v) => handleTipoChange(e.id, v as 'entrada' | 'saida')}>
+                          <SelectTrigger className={`h-6 w-[90px] text-[10px] font-semibold border-0 px-1.5 py-0.5 ${
+                            e.tipo === 'entrada' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'
+                          }`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="entrada">Entrada</SelectItem>
+                            <SelectItem value="saida">Saída</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="px-3 py-2">
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
