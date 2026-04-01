@@ -112,53 +112,18 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   return (
     <div className="space-y-6">
 
-      {/* Cards principais */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Wallet className="w-4 h-4 text-muted-foreground" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Saldo Inicial</span>
-          </div>
-          <p className="text-2xl font-display font-bold text-foreground">{formatCurrency(saldoInicial)}</p>
-          {saldoInicial === 0 && (
-            <p className="text-[10px] text-secondary mt-1">Configure em Config → Saldo Inicial</p>
-          )}
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <CalendarCheck className="w-4 h-4 text-primary" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Saldo Final</span>
-          </div>
-          <p className={`text-2xl font-display font-bold ${saldoFinal >= 0 ? 'text-primary' : 'text-destructive'}`}>
-            {formatCurrency(saldoFinal)}
-          </p>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Target className="w-4 h-4 text-muted-foreground" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Resultado</span>
-          </div>
-          <p className={`text-2xl font-display font-bold ${resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
-            {formatCurrency(resultado)}
-          </p>
-        </motion.div>
-      </div>
-
-      {/* Receitas e Despesas */}
+      {/* Resultado Realizado — 4 cards */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-          <Target className="w-4 h-4" /> Resultado Realizado
+          <Target className="w-4 h-4" /> Resultado (Realizado)
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <ArrowUp className="w-4 h-4 text-primary" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receitas</span>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receita Real</span>
               </div>
-              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">Realizado</span>
             </div>
             <p className="text-2xl font-display font-bold text-primary">{formatCurrency(receitaReal)}</p>
           </motion.div>
@@ -167,11 +132,34 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <ArrowDown className="w-4 h-4 text-destructive" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesas</span>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesa Real</span>
               </div>
-              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">Realizado</span>
             </div>
             <p className="text-2xl font-display font-bold text-destructive">{formatCurrency(despesaReal)}</p>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl p-5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resultado</span>
+              </div>
+            </div>
+            <p className={`text-2xl font-display font-bold ${resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              {formatCurrency(resultado)}
+            </p>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-card rounded-xl p-5">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CalendarCheck className="w-4 h-4 text-primary" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Saldo Final</span>
+              </div>
+            </div>
+            <p className={`text-2xl font-display font-bold ${saldoFinal >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              {formatCurrency(saldoFinal)}
+            </p>
           </motion.div>
         </div>
       </div>
