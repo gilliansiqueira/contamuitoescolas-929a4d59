@@ -15,21 +15,29 @@ function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function normalize(s: string) {
+  return s.toLowerCase().trim();
+}
+
+function findCls(tipoKey: string, classifications: TypeClassification[]) {
+  return classifications.find(c => normalize(c.tipoValor) === normalize(tipoKey));
+}
+
 function entraNoResultado(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
   if (entry.origem !== 'fluxo') return false;
   const tipoKey = entry.tipoOriginal || entry.tipo;
-  if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase())) return true;
-  if (['entrada', 'saida'].includes(tipoKey.toLowerCase())) return true;
-  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  if (FIXED_RESULT_TYPES.includes(normalize(tipoKey))) return true;
+  if (['entrada', 'saida'].includes(normalize(tipoKey))) return true;
+  const cls = findCls(tipoKey, classifications);
   return cls?.entraNoResultado ?? false;
 }
 
 function isIgnored(entry: FinancialEntry, classifications: TypeClassification[]): boolean {
   if (entry.origem !== 'fluxo') return false;
   const tipoKey = entry.tipoOriginal || entry.tipo;
-  if (FIXED_RESULT_TYPES.includes(tipoKey.toLowerCase())) return false;
-  if (['entrada', 'saida'].includes(tipoKey.toLowerCase())) return false;
-  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  if (FIXED_RESULT_TYPES.includes(normalize(tipoKey))) return false;
+  if (['entrada', 'saida'].includes(normalize(tipoKey))) return false;
+  const cls = findCls(tipoKey, classifications);
   return cls?.classificacao === 'ignorar';
 }
 
@@ -37,7 +45,7 @@ function impactaCaixa(entry: FinancialEntry, classifications: TypeClassification
   if (isIgnored(entry, classifications)) return false;
   if (entry.origem !== 'fluxo') return true;
   const tipoKey = entry.tipoOriginal || entry.tipo;
-  const cls = classifications.find(c => c.tipoValor === tipoKey);
+  const cls = findCls(tipoKey, classifications);
   return cls?.impactaCaixa ?? true;
 }
 
@@ -73,7 +81,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
   const realized = useMemo(() => entries.filter(e => e.origem === 'fluxo'), [entries]);
 
-  // Receitas e despesas (só o que entra no resultado)
   const receitaReal = useMemo(() =>
     realized.filter(e => e.tipo === 'entrada' && entraNoResultado(e, classifications)).reduce((s, e) => s + e.valor, 0),
     [realized, classifications]
@@ -84,7 +91,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   );
   const resultado = receitaReal - despesaReal;
 
-  // Operações (não entram no resultado mas impactam caixa) — ex: resgates, transferências classificadas como operação
   const operacoes = useMemo(() => {
     const ops = realized.filter(e => !entraNoResultado(e, classifications) && impactaCaixa(e, classifications));
     const byTipo: Record<string, { entradas: number; saidas: number }> = {};
@@ -97,7 +103,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return Object.entries(byTipo).map(([tipo, vals]) => ({ tipo, ...vals }));
   }, [realized, classifications]);
 
-  // Saldo final
   const saldoFinal = useMemo(() => {
     let saldo = saldoInicial;
     activeEntries
@@ -112,38 +117,31 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   return (
     <div className="space-y-6">
 
-      {/* Resultado Realizado — 4 cards */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
           <Target className="w-4 h-4" /> Resultado (Realizado)
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <ArrowUp className="w-4 h-4 text-primary" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receita Real</span>
-              </div>
+            <div className="flex items-center gap-2 mb-2">
+              <ArrowUp className="w-4 h-4 text-primary" />
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receita Real</span>
             </div>
             <p className="text-2xl font-display font-bold text-primary">{formatCurrency(receitaReal)}</p>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card rounded-xl p-5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <ArrowDown className="w-4 h-4 text-destructive" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesa Real</span>
-              </div>
+            <div className="flex items-center gap-2 mb-2">
+              <ArrowDown className="w-4 h-4 text-destructive" />
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesa Real</span>
             </div>
             <p className="text-2xl font-display font-bold text-destructive">{formatCurrency(despesaReal)}</p>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl p-5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resultado</span>
-              </div>
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resultado</span>
             </div>
             <p className={`text-2xl font-display font-bold ${resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
               {formatCurrency(resultado)}
@@ -151,11 +149,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-card rounded-xl p-5">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <CalendarCheck className="w-4 h-4 text-primary" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Saldo Final</span>
-              </div>
+            <div className="flex items-center gap-2 mb-2">
+              <CalendarCheck className="w-4 h-4 text-primary" />
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Saldo Final</span>
             </div>
             <p className={`text-2xl font-display font-bold ${saldoFinal >= 0 ? 'text-primary' : 'text-destructive'}`}>
               {formatCurrency(saldoFinal)}
@@ -164,7 +160,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       </div>
 
-      {/* Operações */}
       {operacoes.length > 0 && (
         <div>
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
