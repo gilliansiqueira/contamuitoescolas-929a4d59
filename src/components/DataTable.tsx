@@ -5,6 +5,9 @@ import { motion } from 'framer-motion';
 import { Pencil, Trash2, Check, X, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
@@ -72,6 +75,16 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
       return { ...e, saldo };
     });
   }, [filtered, saldoInicial]);
+
+  // Inline classification change (instant save)
+  const handleTipoChange = async (entryId: string, novoTipo: 'entrada' | 'saida') => {
+    try {
+      await updateEntryMut.mutateAsync({ id: entryId, updates: { tipo: novoTipo } });
+      toast.success('Classificação atualizada');
+    } catch {
+      toast.error('Erro ao atualizar classificação');
+    }
+  };
 
   const startEdit = (e: FinancialEntry) => {
     setEditId(e.id);
@@ -189,11 +202,17 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                     <>
                       <td className="px-3 py-2 font-medium text-foreground">{formatDate(e.data)}</td>
                       <td className="px-3 py-2">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                          e.tipo === 'entrada' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'
-                        }`}>
-                          {e.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                        </span>
+                        <Select value={e.tipo} onValueChange={(v) => handleTipoChange(e.id, v as 'entrada' | 'saida')}>
+                          <SelectTrigger className={`h-6 w-[90px] text-[10px] font-semibold border-0 px-1.5 py-0.5 ${
+                            e.tipo === 'entrada' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'
+                          }`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="entrada">Entrada</SelectItem>
+                            <SelectItem value="saida">Saída</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="px-3 py-2">
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
