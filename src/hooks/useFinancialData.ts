@@ -117,9 +117,25 @@ export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
   return useQuery({
     queryKey: ['entries', schoolId, 'fromBase', baseDate],
     queryFn: async (): Promise<FinancialEntry[]> => {
-      let q = supabase.from('financial_entries').select('*').eq('school_id', schoolId).order('data');
-      if (baseDate) q = q.gte('data', baseDate);
-      const { data, error } = await q;
+      // If baseDate is set, try filtering from it
+      if (baseDate) {
+        const { data, error } = await supabase
+          .from('financial_entries')
+          .select('*')
+          .eq('school_id', schoolId)
+          .gte('data', baseDate)
+          .order('data');
+        if (error) throw error;
+        const mapped = (data ?? []).map(mapEntry);
+        // If we got results, use them; otherwise fall back to all entries
+        if (mapped.length > 0) return mapped;
+      }
+      // No baseDate or no results after baseDate — load all entries
+      const { data, error } = await supabase
+        .from('financial_entries')
+        .select('*')
+        .eq('school_id', schoolId)
+        .order('data');
       if (error) throw error;
       return (data ?? []).map(mapEntry);
     },
