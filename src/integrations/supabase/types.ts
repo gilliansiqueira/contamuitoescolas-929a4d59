@@ -46,6 +46,60 @@ export type Database = {
           },
         ]
       }
+      chart_of_accounts: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          grupo: string
+          id: string
+          nivel: number
+          nome: string
+          pai_id: string | null
+          school_id: string
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          grupo?: string
+          id?: string
+          nivel?: number
+          nome: string
+          pai_id?: string | null
+          school_id: string
+          tipo?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          grupo?: string
+          id?: string
+          nivel?: number
+          nome?: string
+          pai_id?: string | null
+          school_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_of_accounts_pai_id_fkey"
+            columns: ["pai_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exclusion_rules: {
         Row: {
           acao: string
@@ -171,6 +225,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "payment_delay_rules_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      realized_entries: {
+        Row: {
+          complemento: string
+          conta_codigo: string
+          conta_id: string | null
+          conta_nome: string
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          origem_arquivo: string
+          school_id: string
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          complemento?: string
+          conta_codigo?: string
+          conta_id?: string | null
+          conta_nome?: string
+          created_at?: string
+          data: string
+          descricao?: string
+          id?: string
+          origem_arquivo?: string
+          school_id: string
+          tipo?: string
+          valor?: number
+        }
+        Update: {
+          complemento?: string
+          conta_codigo?: string
+          conta_id?: string | null
+          conta_nome?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          origem_arquivo?: string
+          school_id?: string
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realized_entries_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realized_entries_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
