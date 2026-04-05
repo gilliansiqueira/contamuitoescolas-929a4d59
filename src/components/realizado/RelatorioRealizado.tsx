@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, FileText } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line } from 'recharts';
+import { TrendingDown, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Props {
@@ -43,7 +43,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('chart_of_accounts').select('*').eq('school_id', schoolId).order('codigo');
+      const { data, error } = await supabase.from('chart_of_accounts').select('*').eq('school_id', schoolId);
       if (error) throw error;
       return data;
     },
@@ -51,10 +51,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
 
   const mesesDisponiveis = useMemo(() => {
     const meses = new Set<string>();
-    entries.forEach(e => {
-      const m = e.data?.slice(0, 7);
-      if (m) meses.add(m);
-    });
+    entries.forEach(e => { const m = e.data?.slice(0, 7); if (m) meses.add(m); });
     return Array.from(meses).sort();
   }, [entries]);
 
@@ -63,45 +60,64 @@ export function RelatorioRealizado({ schoolId }: Props) {
     return entries.filter(e => e.data?.startsWith(mesFilter));
   }, [entries, mesFilter]);
 
-  const totals = useMemo(() => {
-    const receitas = filtered.filter(e => e.tipo === 'receita').reduce((s, e) => s + Number(e.valor), 0);
-    const despesas = filtered.filter(e => e.tipo === 'despesa').reduce((s, e) => s + Number(e.valor), 0);
-    return { receitas, despesas, resultado: receitas - despesas };
-  }, [filtered]);
+  const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor), 0), [filtered]);
 
-  const byGroup = useMemo(() => {
-    const groups: Record<string, { receitas: number; despesas: number }> = {};
+  // Group entries by categoria mãe
+  const byCategoriaMae = useMemo(() => {
+    const map: Record<string, { total: number; filhas: Record<string, number> }> = {};
     filtered.forEach(e => {
-      const conta = contas.find(c => c.codigo === e.conta_codigo);
-      const grupo = conta?.grupo || 'Sem Grupo';
-      if (!groups[grupo]) groups[grupo] = { receitas: 0, despesas: 0 };
-      if (e.tipo === 'receita') groups[grupo].receitas += Number(e.valor);
-      else groups[grupo].despesas += Number(e.valor);
-    });
-    return Object.entries(groups).map(([name, vals]) => ({ name, ...vals }));
-  }, [filtered, contas]);
+      const catNome = e.conta_nome || 'Sem categoria';
+      // Find the parent group from chart_of_accounts
+      const conta = contas.find(c => c.nome.toLowerCase() === catNome.toLowerCase() && c.nivel > 1);
+      const grupo = conta?.grupo || 'Outros';
 
-  const byConta = useMemo(() => {
-    const map: Record<string, { nome: string; tipo: string; total: number }> = {};
-    filtered.forEach(e => {
-      const key = e.conta_codigo || 'sem-conta';
-      if (!map[key]) map[key] = { nome: e.conta_nome || e.conta_codigo || 'Sem conta', tipo: e.tipo, total: 0 };
-      map[key].total += Number(e.valor);
+      if (!map[grupo]) map[grupo] = { total: 0, filhas: {} };
+      map[grupo].total += Number(e.valor);
+      map[grupo].filhas[catNome] = (map[grupo].filhas[catNome] || 0) + Number(e.valor);
     });
     return Object.entries(map)
-      .map(([codigo, v]) => ({ codigo, ...v }))
+      .map(([name, v]) => ({ name, total: v.total, filhas: Object.entries(v.filhas).map(([f, t]) => ({ name: f, total: t })).sort((a, b) => b.total - a.total) }))
       .sort((a, b) => b.total - a.total);
-  }, [filtered]);
+  }, [filtered, contas]);
 
-  const pieData = useMemo(() => {
-    return byConta.filter(c => c.tipo === 'despesa').slice(0, 8).map(c => ({ name: c.nome || c.codigo, value: c.total }));
-  }, [byConta]);
+  const pieData = useMemo(() => byCategoriaMae.slice(0, 8).map(c => ({ name: c.name, value: c.total })), [byCategoriaMae]);
 
-  const formatMonth = (m: string) => {
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const [y, mo] = m.split('-');
-    return `${months[parseInt(mo) - 1]}/${y.slice(2)}`;
-  };
+  // Monthly comparison data
+  const monthlyByGroup = useMemo(() => {
+    if (mesesDisponiveis.length < 2) return [];
+    const groupSet = new Set(byCategoriaMae.map(c => c.name));
+    return mesesDisponiveis.map(m => {
+      const monthEntries = entries.filter(e => e.data?.startsWith(m));
+      const row: Record<string, any> = { mes: formatMonth(m) };
+      groupSet.forEach(g => {
+        const conta = contas.filter(c => c.grupo === g && c.nivel > 1).map(c => c.nome.toLowerCase());
+        row[g] = monthEntries.filter(e => {
+          const catNome = (e.conta_nome || '').toLowerCase();
+          return conta.includes(catNome) || (contas.find(c => c.nome.toLowerCase() === catNome)?.grupo === g);
+        }).reduce((s, e) => s + Number(e.valor), 0);
+      });
+      return row;
+    });
+  }, [mesesDisponiveis, entries, contas, byCategoriaMae]);
+
+  // Month-over-month variation
+  const variations = useMemo(() => {
+    if (mesesDisponiveis.length < 2 || mesFilter !== 'all') return [];
+    return byCategoriaMae.map(cat => {
+      const lastMonth = mesesDisponiveis[mesesDisponiveis.length - 1];
+      const prevMonth = mesesDisponiveis[mesesDisponiveis.length - 2];
+      const lastVal = entries.filter(e => e.data?.startsWith(lastMonth)).filter(e => {
+        const conta = contas.find(c => c.nome.toLowerCase() === (e.conta_nome || '').toLowerCase());
+        return conta?.grupo === cat.name || (!conta && cat.name === 'Outros');
+      }).reduce((s, e) => s + Number(e.valor), 0);
+      const prevVal = entries.filter(e => e.data?.startsWith(prevMonth)).filter(e => {
+        const conta = contas.find(c => c.nome.toLowerCase() === (e.conta_nome || '').toLowerCase());
+        return conta?.grupo === cat.name || (!conta && cat.name === 'Outros');
+      }).reduce((s, e) => s + Number(e.valor), 0);
+      const variacao = prevVal > 0 ? ((lastVal - prevVal) / prevVal) * 100 : 0;
+      return { name: cat.name, atual: lastVal, anterior: prevVal, variacao };
+    }).filter(v => v.atual > 0 || v.anterior > 0);
+  }, [mesesDisponiveis, entries, contas, byCategoriaMae, mesFilter]);
 
   if (isLoading) return <p className="text-muted-foreground text-center py-8">Carregando relatório...</p>;
 
@@ -113,69 +129,45 @@ export function RelatorioRealizado({ schoolId }: Props) {
           <SelectTrigger className="w-44"><SelectValue placeholder="Todos os meses" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os meses</SelectItem>
-            {mesesDisponiveis.map(m => (
-              <SelectItem key={m} value={m}>{formatMonth(m)}</SelectItem>
-            ))}
+            {mesesDisponiveis.map(m => <SelectItem key={m} value={m}>{formatMonth(m)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Badge variant="outline" className="text-xs">{filtered.length} lançamentos</Badge>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10"><TrendingUp className="w-5 h-5 text-green-600" /></div>
-              <div>
-                <p className="text-xs text-muted-foreground">Receitas</p>
-                <p className="text-lg font-bold text-green-600">{formatCurrency(totals.receitas)}</p>
+      {/* KPI */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-destructive/10"><TrendingDown className="w-5 h-5 text-destructive" /></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total de Despesas</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totalDespesas)}</p>
+            </div>
+            {byCategoriaMae.length > 0 && (
+              <div className="ml-auto text-right">
+                <p className="text-xs text-muted-foreground">Maior categoria</p>
+                <p className="text-sm font-semibold">{byCategoriaMae[0].name}</p>
+                <p className="text-xs text-muted-foreground">{formatCurrency(byCategoriaMae[0].total)} ({totalDespesas > 0 ? ((byCategoriaMae[0].total / totalDespesas) * 100).toFixed(1) : 0}%)</p>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-500/10"><TrendingDown className="w-5 h-5 text-red-600" /></div>
-              <div>
-                <p className="text-xs text-muted-foreground">Despesas</p>
-                <p className="text-lg font-bold text-red-600">{formatCurrency(totals.despesas)}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${totals.resultado >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                <DollarSign className={`w-5 h-5 ${totals.resultado >= 0 ? 'text-green-600' : 'text-red-600'}`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Resultado</p>
-                <p className={`text-lg font-bold ${totals.resultado >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(totals.resultado)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {byGroup.length > 0 && (
+        {byCategoriaMae.length > 0 && (
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm">Receitas vs Despesas por Grupo</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Despesas por Categoria Mãe</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={byGroup}>
+                <BarChart data={byCategoriaMae} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={100} />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                  <Bar dataKey="receitas" fill="hsl(142, 76%, 36%)" name="Receitas" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="despesas" fill="hsl(var(--destructive))" name="Despesas" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total" fill="hsl(var(--primary))" name="Total" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -188,10 +180,9 @@ export function RelatorioRealizado({ schoolId }: Props) {
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                    {pieData.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Legend />
@@ -202,31 +193,52 @@ export function RelatorioRealizado({ schoolId }: Props) {
         )}
       </div>
 
-      {/* Table by conta */}
-      {byConta.length > 0 && (
+      {/* Monthly comparison line chart */}
+      {monthlyByGroup.length > 1 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Comparativo Mensal por Categoria</CardTitle></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={monthlyByGroup}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Legend />
+                {byCategoriaMae.slice(0, 5).map((cat, i) => (
+                  <Line key={cat.name} type="monotone" dataKey={cat.name} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Variations table */}
+      {variations.length > 0 && (
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center gap-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
-            <CardTitle className="text-sm">Detalhamento por Conta</CardTitle>
+            <BarChart3 className="w-4 h-4 text-muted-foreground" />
+            <CardTitle className="text-sm">Variação Mensal</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Conta</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead className="text-right">{formatMonth(mesesDisponiveis[mesesDisponiveis.length - 2])}</TableHead>
+                  <TableHead className="text-right">{formatMonth(mesesDisponiveis[mesesDisponiveis.length - 1])}</TableHead>
+                  <TableHead className="text-right">Variação</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {byConta.map(c => (
-                  <TableRow key={c.codigo}>
-                    <TableCell className="font-mono text-xs">{c.codigo}</TableCell>
-                    <TableCell className="text-sm">{c.nome}</TableCell>
-                    <TableCell><Badge variant={c.tipo === 'receita' ? 'default' : 'destructive'} className="text-xs">{c.tipo}</Badge></TableCell>
-                    <TableCell className={`text-right font-medium ${c.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(c.total)}
+                {variations.map(v => (
+                  <TableRow key={v.name}>
+                    <TableCell className="text-sm font-medium">{v.name}</TableCell>
+                    <TableCell className="text-right text-sm">{formatCurrency(v.anterior)}</TableCell>
+                    <TableCell className="text-right text-sm">{formatCurrency(v.atual)}</TableCell>
+                    <TableCell className={`text-right text-sm font-medium ${v.variacao > 0 ? 'text-destructive' : v.variacao < 0 ? 'text-green-600' : ''}`}>
+                      {v.variacao > 0 ? '+' : ''}{v.variacao.toFixed(1)}%
                     </TableCell>
                   </TableRow>
                 ))}
@@ -236,14 +248,52 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       )}
 
+      {/* Detail by category */}
+      {byCategoriaMae.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Detalhamento por Categoria</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {byCategoriaMae.map(cat => (
+              <div key={cat.name} className="border border-border rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold">{cat.name}</span>
+                  <span className="text-sm font-bold">{formatCurrency(cat.total)}</span>
+                </div>
+                {cat.filhas.length > 0 && (
+                  <div className="space-y-1">
+                    {cat.filhas.map(f => (
+                      <div key={f.name} className="flex items-center justify-between pl-4">
+                        <span className="text-xs text-muted-foreground">{f.name}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${cat.total > 0 ? (f.total / cat.total) * 100 : 0}%` }} />
+                          </div>
+                          <span className="text-xs font-medium w-20 text-right">{formatCurrency(f.total)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {entries.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">Nenhum lançamento realizado encontrado.</p>
+            <p className="text-muted-foreground">Nenhum lançamento encontrado.</p>
             <p className="text-xs text-muted-foreground mt-1">Importe dados na aba "Importação".</p>
           </CardContent>
         </Card>
       )}
     </div>
   );
+}
+
+function formatMonth(m: string) {
+  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const [y, mo] = m.split('-');
+  return `${months[parseInt(mo) - 1]}/${y.slice(2)}`;
 }
