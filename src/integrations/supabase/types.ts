@@ -200,6 +200,30 @@ export type Database = {
           },
         ]
       }
+      monthly_revenue: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          school_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          school_id: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          school_id?: string
+          value?: number
+        }
+        Relationships: []
+      }
       payment_delay_rules: {
         Row: {
           created_at: string
