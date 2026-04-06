@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,30 +6,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, FileSpreadsheet, Plus, Check, X, AlertTriangle, ArrowRight, ArrowLeft, Columns, Eye, CheckCircle2 } from 'lucide-react';
+import { Upload, Plus, Check, X, AlertTriangle, ArrowRight, ArrowLeft, Columns, Eye, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
 
-interface Props {
-  schoolId: string;
-}
-
+interface Props { schoolId: string; }
 type Step = 'idle' | 'mapping' | 'preview';
 
 const MAPPING_STORAGE_KEY = 'importacao_column_mapping';
 
 const FIELD_DEFS = [
-  { key: 'data', label: 'Data', required: true, aliases: ['data', 'date', 'dt', 'data_pagamento', 'data_vencimento', 'data pagamento', 'data vencimento', 'dtpagto', 'dtpag'] },
+  { key: 'data', label: 'Data', required: true, aliases: ['data', 'date', 'dt', 'data_pagamento', 'data_vencimento', 'data pagamento', 'dtpagto'] },
   { key: 'valor', label: 'Valor', required: true, aliases: ['valor', 'value', 'vlr', 'total', 'montante', 'amount', 'vl', 'val'] },
-  { key: 'descricao', label: 'Descrição', required: false, aliases: ['descricao', 'descrição', 'desc', 'historico', 'histórico', 'detalhes', 'observacao', 'obs', 'memo', 'description'] },
-  { key: 'categoria', label: 'Categoria', required: false, aliases: ['categoria', 'category', 'cat', 'conta', 'account', 'tipo', 'classificacao', 'grupo', 'class'] },
+  { key: 'descricao', label: 'Descrição', required: false, aliases: ['descricao', 'descrição', 'desc', 'historico', 'histórico', 'detalhes', 'observacao', 'obs', 'description'] },
+  { key: 'categoria', label: 'Categoria', required: true, aliases: ['categoria', 'category', 'cat', 'conta', 'account', 'tipo', 'classificacao', 'grupo', 'class', 'conta_nome'] },
 ] as const;
-
-function formatCurrency(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
 
 function normalizeStr(s: string) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -38,18 +31,12 @@ function normalizeStr(s: string) {
 function parseDate(raw: any): string | null {
   if (!raw && raw !== 0) return null;
   let s = String(raw).trim();
-
-  // Handle Excel serial dates
   if (/^\d{5}$/.test(s)) {
     const d = XLSX.SSF.parse_date_code(Number(s));
     if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
   }
-
-  // Strip time portion
   s = s.replace(/\s+\d{1,2}:\d{2}(:\d{2})?.*$/, '');
-
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-
   const parts = s.split(/[\/\-\.]/);
   if (parts.length === 3) {
     if (parts[2]?.length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
@@ -63,8 +50,6 @@ function parseValue(raw: any): number | null {
   if (!raw) return null;
   const s = String(raw).replace(/[R$\s]/g, '').trim();
   if (!s) return null;
-
-  // Detect Brazilian format: 1.234,56
   let cleaned = s;
   if (/\d\.\d{3}/.test(s) && s.includes(',')) {
     cleaned = s.replace(/\./g, '').replace(',', '.');
@@ -82,7 +67,6 @@ function suggestColumn(fieldAliases: readonly string[], columns: string[]): stri
     const match = norm.find(n => n.norm === alias);
     if (match) return match.orig;
   }
-  // Partial match
   for (const alias of fieldAliases) {
     const match = norm.find(n => n.norm.includes(alias) || alias.includes(n.norm));
     if (match) return match.orig;
@@ -91,37 +75,31 @@ function suggestColumn(fieldAliases: readonly string[], columns: string[]): stri
 }
 
 function loadSavedMapping(): Record<string, string> {
-  try {
-    const saved = localStorage.getItem(MAPPING_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
-  } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(MAPPING_STORAGE_KEY) || '{}'); } catch { return {}; }
 }
 
 function saveMappingToStorage(mapping: Record<string, string>) {
   try { localStorage.setItem(MAPPING_STORAGE_KEY, JSON.stringify(mapping)); } catch {}
 }
 
+function formatCurrency(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 export function ImportacaoRealizado({ schoolId }: Props) {
   const queryClient = useQueryClient();
-
-  // Steps
   const [step, setStep] = useState<Step>('idle');
   const [showManual, setShowManual] = useState(false);
   const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '' });
-
-  // File data
   const [rawRows, setRawRows] = useState<Record<string, any>[]>([]);
   const [fileColumns, setFileColumns] = useState<string[]>([]);
   const [fileName, setFileName] = useState('');
-
-  // Column mapping
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
-
-  // Processed data
   const [preview, setPreview] = useState<any[]>([]);
   const [invalidCount, setInvalidCount] = useState(0);
   const [unmapped, setUnmapped] = useState<{ categoria: string }[]>([]);
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({});
+  const [newCatMappings, setNewCatMappings] = useState<Record<string, { nome: string; grupo: string }>>({});
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
@@ -133,9 +111,19 @@ export function ImportacaoRealizado({ schoolId }: Props) {
   });
 
   const categoriaFilhas = useMemo(() => contas.filter(c => c.nivel > 1), [contas]);
+  const groupNames = useMemo(() => [...new Set(contas.filter(c => c.nivel === 1).map(c => c.grupo))], [contas]);
 
   const insertMutation = useMutation({
     mutationFn: async (rows: any[]) => {
+      // First create any new categories
+      for (const [normKey, nc] of Object.entries(newCatMappings)) {
+        if (nc.nome && nc.grupo) {
+          await supabase.from('chart_of_accounts').insert({
+            school_id: schoolId, codigo: '', nome: nc.nome, tipo: 'despesa', grupo: nc.grupo, nivel: 2, pai_id: null,
+          });
+        }
+      }
+
       const mapped = rows.map(r => ({
         school_id: schoolId,
         data: r.data,
@@ -149,13 +137,13 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       }));
       const batchSize = 500;
       for (let i = 0; i < mapped.length; i += batchSize) {
-        const batch = mapped.slice(i, i + batchSize);
-        const { error } = await supabase.from('realized_entries').insert(batch);
+        const { error } = await supabase.from('realized_entries').insert(mapped.slice(i, i + batchSize));
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['chart_of_accounts', schoolId] });
       toast.success('Lançamentos importados com sucesso');
       resetAll();
     },
@@ -163,128 +151,100 @@ export function ImportacaoRealizado({ schoolId }: Props) {
   });
 
   function resetAll() {
-    setStep('idle');
-    setRawRows([]);
-    setFileColumns([]);
-    setFileName('');
-    setColumnMapping({});
-    setPreview([]);
-    setInvalidCount(0);
-    setUnmapped([]);
-    setCategoryMappings({});
+    setStep('idle'); setRawRows([]); setFileColumns([]); setFileName('');
+    setColumnMapping({}); setPreview([]); setInvalidCount(0);
+    setUnmapped([]); setCategoryMappings({}); setNewCatMappings({});
   }
 
-  // Step 1: Read file
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
-
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const wb = XLSX.read(ev.target?.result, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws);
-
-        if (rows.length === 0) {
-          toast.error('Arquivo vazio');
-          return;
-        }
-
+        if (rows.length === 0) { toast.error('Arquivo vazio'); return; }
         const cols = Object.keys(rows[0]);
-        setRawRows(rows);
-        setFileColumns(cols);
-
-        // Auto-suggest mapping using saved + aliases
+        setRawRows(rows); setFileColumns(cols);
         const saved = loadSavedMapping();
         const autoMapping: Record<string, string> = {};
         for (const field of FIELD_DEFS) {
-          // Try saved mapping first
-          if (saved[field.key] && cols.includes(saved[field.key])) {
-            autoMapping[field.key] = saved[field.key];
-          } else {
-            const suggested = suggestColumn(field.aliases, cols);
-            if (suggested) autoMapping[field.key] = suggested;
-          }
+          if (saved[field.key] && cols.includes(saved[field.key])) autoMapping[field.key] = saved[field.key];
+          else { const s = suggestColumn(field.aliases, cols); if (s) autoMapping[field.key] = s; }
         }
         setColumnMapping(autoMapping);
         setStep('mapping');
-        toast.success(`${rows.length} linhas encontradas com ${cols.length} colunas`);
-      } catch {
-        toast.error('Erro ao ler arquivo');
-      }
+        toast.success(`${rows.length} linhas encontradas`);
+      } catch { toast.error('Erro ao ler arquivo'); }
     };
     reader.readAsBinaryString(file);
     e.target.value = '';
   }, []);
 
-  // Step 2: Process with mapping → preview
   const processMapping = useCallback(() => {
-    if (!columnMapping.data || !columnMapping.valor) {
-      toast.error('Mapeie pelo menos Data e Valor');
+    if (!columnMapping.data || !columnMapping.valor || !columnMapping.categoria) {
+      toast.error('Mapeie Data, Valor e Categoria');
       return;
     }
-
     saveMappingToStorage(columnMapping);
-
     const knownNorm = new Set(contas.map(c => normalizeStr(c.nome)));
     let invalid = 0;
 
     const parsed = rawRows.map(r => {
-      const dataCol = columnMapping.data;
-      const valorCol = columnMapping.valor;
-      const descCol = columnMapping.descricao;
-      const catCol = columnMapping.categoria;
+      const data = parseDate(r[columnMapping.data]);
+      const valor = parseValue(r[columnMapping.valor]);
+      const catRaw = String(r[columnMapping.categoria] || '').trim();
 
-      const data = parseDate(r[dataCol]);
-      const valor = parseValue(r[valorCol]);
+      if (!data || valor === null || valor === 0) { invalid++; return null; }
+      if (!catRaw) { invalid++; return null; } // sem categoria → não importar
 
-      if (!data || valor === null || valor === 0) {
-        invalid++;
-        return null;
-      }
-
-      const descricao = descCol ? String(r[descCol] || '').trim() : '';
-      const categoria = catCol ? String(r[catCol] || '').trim() : '';
-
-      return { data, descricao, valor: Math.abs(valor), categoria, origem_arquivo: fileName };
+      const descricao = columnMapping.descricao ? String(r[columnMapping.descricao] || '').trim() : '';
+      return { data, descricao, valor: Math.abs(valor), categoria: catRaw, origem_arquivo: fileName };
     }).filter(Boolean) as any[];
 
-    // Check unmapped categories
     const unmappedCats: { categoria: string }[] = [];
     const seen = new Set<string>();
     parsed.forEach(r => {
-      if (r.categoria) {
-        const norm = normalizeStr(r.categoria);
-        if (!knownNorm.has(norm) && !seen.has(norm)) {
-          unmappedCats.push({ categoria: r.categoria });
-          seen.add(norm);
-        }
+      const norm = normalizeStr(r.categoria);
+      if (!knownNorm.has(norm) && !seen.has(norm)) {
+        unmappedCats.push({ categoria: r.categoria });
+        seen.add(norm);
       }
     });
 
-    setPreview(parsed);
-    setInvalidCount(invalid);
-    setUnmapped(unmappedCats);
-    setCategoryMappings({});
+    setPreview(parsed); setInvalidCount(invalid);
+    setUnmapped(unmappedCats); setCategoryMappings({}); setNewCatMappings({});
     setStep('preview');
-
-    if (parsed.length === 0) toast.error('Nenhum registro válido após processamento');
+    if (parsed.length === 0) toast.error('Nenhum registro válido');
     else toast.success(`${parsed.length} lançamentos válidos`);
   }, [columnMapping, rawRows, contas, fileName]);
 
   const handleConfirmImport = () => {
+    // Check all unmapped are resolved
+    const unresolved = unmapped.filter(u => {
+      const norm = normalizeStr(u.categoria);
+      return !categoryMappings[norm] && !newCatMappings[norm];
+    });
+    if (unresolved.length > 0) {
+      toast.error(`Resolva todas as categorias não reconhecidas (${unresolved.length} pendentes)`);
+      return;
+    }
+
     const final = preview.map(r => {
-      const mapped = categoryMappings[normalizeStr(r.categoria)];
-      return { ...r, categoria: mapped || r.categoria };
+      const norm = normalizeStr(r.categoria);
+      const mapped = categoryMappings[norm];
+      const newCat = newCatMappings[norm];
+      return { ...r, categoria: mapped || newCat?.nome || r.categoria };
     });
     insertMutation.mutate(final);
   };
 
   const handleManualAdd = () => {
-    if (!manual.data || !manual.valor) {
-      toast.error('Data e valor são obrigatórios');
+    if (!manual.data || !manual.valor || !manual.categoria) {
+      toast.error('Data, valor e categoria são obrigatórios');
       return;
     }
     insertMutation.mutate([{
@@ -298,20 +258,19 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     setShowManual(false);
   };
 
-  // --- RENDER ---
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="rounded-2xl">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-lg">Importação de Lançamentos</CardTitle>
           <div className="flex gap-2">
             {step === 'idle' && (
               <>
-                <Button size="sm" variant="outline" onClick={() => setShowManual(!showManual)}>
+                <Button size="sm" variant="outline" onClick={() => setShowManual(!showManual)} className="rounded-xl">
                   <Plus className="w-4 h-4 mr-1" /> Manual
                 </Button>
                 <label>
-                  <Button size="sm" asChild>
+                  <Button size="sm" asChild className="rounded-xl">
                     <span><Upload className="w-4 h-4 mr-1" /> Importar Arquivo</span>
                   </Button>
                   <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFile} />
@@ -319,14 +278,13 @@ export function ImportacaoRealizado({ schoolId }: Props) {
               </>
             )}
             {step !== 'idle' && (
-              <Button size="sm" variant="ghost" onClick={resetAll}>
+              <Button size="sm" variant="ghost" onClick={resetAll} className="rounded-xl">
                 <X className="w-4 h-4 mr-1" /> Cancelar
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent>
-          {/* Steps indicator */}
           {step !== 'idle' && (
             <div className="flex items-center gap-2 mb-4 text-xs">
               <StepIndicator n={1} label="Arquivo" active={step === 'mapping'} done={step === 'preview'} />
@@ -341,21 +299,21 @@ export function ImportacaoRealizado({ schoolId }: Props) {
           <AnimatePresence>
             {showManual && step === 'idle' && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-lg border border-border bg-muted/30">
-                  <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} />
-                  <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} />
-                  <Input placeholder="Valor" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-xl border border-border bg-muted/30">
+                  <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} className="rounded-xl" />
+                  <Input placeholder="Valor" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} className="rounded-xl" />
                   <Select value={manual.categoria} onValueChange={v => setManual(m => ({ ...m, categoria: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Categoria *" /></SelectTrigger>
                     <SelectContent>
-                      {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>)}
+                      {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <div className="flex gap-1 col-span-2 sm:col-span-4">
-                    <Button size="sm" onClick={handleManualAdd} disabled={insertMutation.isPending} className="flex-1">
+                    <Button size="sm" onClick={handleManualAdd} disabled={insertMutation.isPending} className="flex-1 rounded-xl">
                       <Check className="w-4 h-4 mr-1" /> Salvar
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowManual(false)}>
+                    <Button size="sm" variant="ghost" onClick={() => setShowManual(false)} className="rounded-xl">
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
@@ -364,88 +322,64 @@ export function ImportacaoRealizado({ schoolId }: Props) {
             )}
           </AnimatePresence>
 
-          {/* STEP: Column Mapping */}
+          {/* Mapping step */}
           <AnimatePresence mode="wait">
             {step === 'mapping' && (
               <motion.div key="mapping" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <div className="mb-3">
                   <p className="text-sm font-medium flex items-center gap-2 mb-1">
                     <Columns className="w-4 h-4" />
-                    Mapeamento de Colunas — <span className="text-muted-foreground">{fileName}</span>
+                    Mapeamento — <span className="text-muted-foreground">{fileName}</span>
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Selecione qual coluna do arquivo corresponde a cada campo. Colunas similares são sugeridas automaticamente.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Selecione qual coluna corresponde a cada campo.</p>
                 </div>
-
                 <div className="space-y-3 mb-4">
                   {FIELD_DEFS.map(field => (
                     <div key={field.key} className="flex items-center gap-3">
                       <div className="min-w-[100px] flex items-center gap-1.5">
                         <span className="text-sm font-medium">{field.label}</span>
-                        {field.required && <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">obrigatório</Badge>}
+                        {field.required && <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4 rounded-md">obrigatório</Badge>}
                       </div>
                       <Select
                         value={columnMapping[field.key] || ''}
                         onValueChange={v => setColumnMapping(prev => ({ ...prev, [field.key]: v === '__none__' ? '' : v }))}
                       >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Selecionar coluna..." />
-                        </SelectTrigger>
+                        <SelectTrigger className="flex-1 rounded-xl"><SelectValue placeholder="Selecionar coluna..." /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">— Não mapear —</SelectItem>
-                          {fileColumns.map(col => (
-                            <SelectItem key={col} value={col}>{col}</SelectItem>
-                          ))}
+                          {fileColumns.map(col => <SelectItem key={col} value={col}>{col}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                   ))}
                 </div>
-
-                {/* Sample data from file */}
-                <div className="mb-4 rounded-lg border border-border overflow-hidden">
-                  <p className="text-xs text-muted-foreground px-3 py-2 bg-muted/50 font-medium">
-                    Amostra do arquivo ({rawRows.length} linhas)
-                  </p>
+                <div className="mb-4 rounded-xl border border-border overflow-hidden">
+                  <p className="text-xs text-muted-foreground px-3 py-2 bg-muted/50 font-medium">Amostra ({rawRows.length} linhas)</p>
                   <div className="max-h-32 overflow-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          {fileColumns.slice(0, 6).map(col => (
-                            <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
-                          ))}
-                        </TableRow>
+                        <TableRow>{fileColumns.slice(0, 6).map(col => <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>)}</TableRow>
                       </TableHeader>
                       <TableBody>
                         {rawRows.slice(0, 3).map((r, i) => (
                           <TableRow key={i}>
-                            {fileColumns.slice(0, 6).map(col => (
-                              <TableCell key={col} className="text-xs py-1 whitespace-nowrap max-w-[120px] truncate">
-                                {String(r[col] ?? '—')}
-                              </TableCell>
-                            ))}
+                            {fileColumns.slice(0, 6).map(col => <TableCell key={col} className="text-xs py-1 whitespace-nowrap max-w-[120px] truncate">{String(r[col] ?? '—')}</TableCell>)}
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
                 </div>
-
                 <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="ghost" onClick={resetAll}>Cancelar</Button>
-                  <Button
-                    size="sm"
-                    onClick={processMapping}
-                    disabled={!columnMapping.data || !columnMapping.valor}
-                  >
+                  <Button size="sm" variant="ghost" onClick={resetAll} className="rounded-xl">Cancelar</Button>
+                  <Button size="sm" onClick={processMapping} disabled={!columnMapping.data || !columnMapping.valor || !columnMapping.categoria} className="rounded-xl">
                     <Eye className="w-4 h-4 mr-1" /> Visualizar Dados
                   </Button>
                 </div>
               </motion.div>
             )}
 
-            {/* STEP: Preview */}
+            {/* Preview step */}
             {step === 'preview' && (
               <motion.div key="preview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <div className="flex items-center justify-between mb-3">
@@ -455,50 +389,78 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                       {preview.length} lançamentos válidos
                     </p>
                     {invalidCount > 0 && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {invalidCount} linhas ignoradas (sem data ou valor)
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{invalidCount} linhas ignoradas (sem data, valor ou categoria)</p>
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setStep('mapping')}>
+                    <Button size="sm" variant="outline" onClick={() => setStep('mapping')} className="rounded-xl">
                       <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
                     </Button>
-                    <Button size="sm" onClick={handleConfirmImport} disabled={insertMutation.isPending || preview.length === 0}>
-                      {insertMutation.isPending ? 'Importando...' : (
-                        <><CheckCircle2 className="w-4 h-4 mr-1" /> Importar {preview.length}</>
-                      )}
+                    <Button size="sm" onClick={handleConfirmImport} disabled={insertMutation.isPending || preview.length === 0} className="rounded-xl">
+                      {insertMutation.isPending ? 'Importando...' : <><CheckCircle2 className="w-4 h-4 mr-1" /> Importar {preview.length}</>}
                     </Button>
                   </div>
                 </div>
 
                 {/* Unmapped categories */}
                 {unmapped.length > 0 && (
-                  <div className="mb-4 p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 space-y-2">
-                    <p className="text-sm font-medium flex items-center gap-2 text-yellow-700">
+                  <div className="mb-4 p-4 rounded-xl border border-orange-400/30 bg-orange-50/50 dark:bg-orange-900/10 space-y-3">
+                    <p className="text-sm font-medium flex items-center gap-2 text-orange-700 dark:text-orange-400">
                       <AlertTriangle className="w-4 h-4" />
                       Categorias não reconhecidas ({unmapped.length})
                     </p>
-                    <p className="text-xs text-muted-foreground">Associe ao plano de contas ou deixe em branco para manter o nome original.</p>
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                      {unmapped.map(u => (
-                        <div key={u.categoria} className="flex items-center gap-2">
-                          <span className="text-xs font-medium min-w-[100px] truncate">{u.categoria}</span>
-                          <span className="text-xs text-muted-foreground">→</span>
-                          <Select value={categoryMappings[normalizeStr(u.categoria)] || ''} onValueChange={v => setCategoryMappings(prev => ({ ...prev, [normalizeStr(u.categoria)]: v }))}>
-                            <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Manter original" /></SelectTrigger>
-                            <SelectContent>
-                              {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ))}
+                    <p className="text-xs text-muted-foreground">Associe a uma categoria existente ou crie uma nova vinculada a uma categoria mãe.</p>
+                    <div className="space-y-2 max-h-52 overflow-y-auto">
+                      {unmapped.map(u => {
+                        const norm = normalizeStr(u.categoria);
+                        const isNew = !!newCatMappings[norm];
+                        return (
+                          <div key={u.categoria} className="p-2 rounded-lg bg-background border border-border space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs shrink-0 rounded-md">{u.categoria}</Badge>
+                              <span className="text-xs text-muted-foreground">→</span>
+                              <Select
+                                value={categoryMappings[norm] || (isNew ? '__new__' : '')}
+                                onValueChange={v => {
+                                  if (v === '__new__') {
+                                    setCategoryMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
+                                    setNewCatMappings(prev => ({ ...prev, [norm]: { nome: u.categoria, grupo: '' } }));
+                                  } else {
+                                    setNewCatMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
+                                    setCategoryMappings(prev => ({ ...prev, [norm]: v }));
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs flex-1 rounded-lg"><SelectValue placeholder="Escolher..." /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__new__">+ Criar nova categoria</SelectItem>
+                                  {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {isNew && (
+                              <div className="flex items-center gap-2 pl-2">
+                                <span className="text-xs text-muted-foreground shrink-0">Mãe:</span>
+                                <Select
+                                  value={newCatMappings[norm]?.grupo || ''}
+                                  onValueChange={v => setNewCatMappings(prev => ({ ...prev, [norm]: { ...prev[norm], grupo: v } }))}
+                                >
+                                  <SelectTrigger className="h-7 text-xs flex-1 rounded-lg"><SelectValue placeholder="Categoria mãe..." /></SelectTrigger>
+                                  <SelectContent>
+                                    {groupNames.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* Data preview table */}
-                <div className="rounded-lg border border-border overflow-hidden">
+                {/* Data preview */}
+                <div className="rounded-xl border border-border overflow-hidden">
                   <div className="max-h-60 overflow-y-auto">
                     <Table>
                       <TableHeader>
@@ -515,30 +477,27 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                             <TableCell className="text-xs py-1.5">{r.data}</TableCell>
                             <TableCell className="text-xs py-1.5 max-w-[150px] truncate">{r.descricao || '—'}</TableCell>
                             <TableCell className="text-xs py-1.5 text-right">{formatCurrency(r.valor)}</TableCell>
-                            <TableCell className="text-xs py-1.5">{r.categoria || '—'}</TableCell>
+                            <TableCell className="text-xs py-1.5">{r.categoria}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
                   {preview.length > 15 && (
-                    <p className="text-xs text-muted-foreground text-center py-2 bg-muted/30">
-                      ...e mais {preview.length - 15} lançamentos
-                    </p>
+                    <p className="text-xs text-muted-foreground text-center py-2 bg-muted/30">...e mais {preview.length - 15} lançamentos</p>
                   )}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Idle help */}
           {step === 'idle' && !showManual && (
-            <div className="text-xs text-muted-foreground space-y-1 p-3 rounded-lg bg-muted/30">
+            <div className="text-xs text-muted-foreground space-y-1 p-4 rounded-xl bg-muted/30">
               <p className="font-medium">Como funciona:</p>
               <p>1. Importe um arquivo CSV ou Excel</p>
-              <p>2. Mapeie as colunas do seu arquivo (data, valor, etc.)</p>
-              <p>3. Visualize e confirme os dados antes de importar</p>
-              <p className="mt-2 text-muted-foreground/70">O sistema lembra o último mapeamento usado e sugere automaticamente colunas com nomes parecidos.</p>
+              <p>2. Mapeie as colunas: <strong>data</strong>, <strong>valor</strong> e <strong>categoria</strong> (obrigatórios)</p>
+              <p>3. Categorias não reconhecidas serão associadas ao plano de contas</p>
+              <p className="mt-2 text-muted-foreground/70">O sistema lembra o último mapeamento usado.</p>
             </div>
           )}
         </CardContent>
