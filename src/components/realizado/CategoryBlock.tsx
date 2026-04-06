@@ -178,7 +178,7 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                                 {isUp ? (
                                   <TrendingUp className="w-3 h-3 text-destructive" />
                                 ) : (
-                                  <TrendingDown className="w-3 h-3 text-emerald-600" />
+                                  <TrendingDown className="w-3 h-3 text-green-600" />
                                 )}
                                 <span className={isUp ? 'text-destructive font-medium' : 'text-emerald-600 font-medium'}>
                                   {isUp ? '+' : ''}{variation.toFixed(1)}%
