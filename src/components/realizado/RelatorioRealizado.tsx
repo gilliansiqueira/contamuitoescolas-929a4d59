@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { motion } from 'framer-motion';
 import { CategoryBlock } from './CategoryBlock';
-import { DollarSign, Check, Copy, ClipboardCheck } from 'lucide-react';
+import { DollarSign, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -35,7 +35,6 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [mesFilter, setMesFilter] = useState('all');
   const [faturamentoInput, setFaturamentoInput] = useState('');
   const [editingFat, setEditingFat] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
@@ -137,15 +136,6 @@ export function RelatorioRealizado({ schoolId }: Props) {
 
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
-  const exportText = useMemo(() => {
-    return categoryBlocks.map(b => {
-      const header = `${b.name.toUpperCase()}: ${formatCurrency(b.total)}`;
-      const subcats: Record<string, number> = {};
-      b.entries.forEach(e => { subcats[e.conta_nome || 'Outros'] = (subcats[e.conta_nome || 'Outros'] || 0) + e.valor; });
-      const lines = Object.entries(subcats).sort((a, b) => b[1] - a[1]).map(([n, v]) => `  ${n}: ${formatCurrency(v)}`);
-      return [header, ...lines].join('\n');
-    }).join('\n\n');
-  }, [categoryBlocks]);
 
   // Data for top-level bar chart
   const barChartData = useMemo(() => {
@@ -311,36 +301,6 @@ export function RelatorioRealizado({ schoolId }: Props) {
         ))}
       </div>
 
-      {/* Export / Copy section */}
-      {categoryBlocks.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="rounded-2xl">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-foreground">Exportar Dados</h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-xl gap-2"
-                  onClick={() => {
-                    navigator.clipboard.writeText(exportText).then(() => {
-                      setCopied(true);
-                      toast.success('Dados copiados!');
-                      setTimeout(() => setCopied(false), 2000);
-                    });
-                  }}
-                >
-                  {copied ? <ClipboardCheck className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  {copied ? 'Copiado!' : 'Copiar dados'}
-                </Button>
-              </div>
-              <pre className="text-xs text-muted-foreground bg-muted/30 rounded-xl p-4 whitespace-pre-wrap max-h-64 overflow-auto font-mono">
-                {exportText}
-              </pre>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
     </div>
   );
 }
