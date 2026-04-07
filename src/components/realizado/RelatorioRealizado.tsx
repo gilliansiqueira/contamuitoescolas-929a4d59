@@ -137,6 +137,16 @@ export function RelatorioRealizado({ schoolId }: Props) {
 
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
+  const exportText = useMemo(() => {
+    return categoryBlocks.map(b => {
+      const header = `${b.name.toUpperCase()}: ${formatCurrency(b.total)}`;
+      const subcats: Record<string, number> = {};
+      b.entries.forEach(e => { subcats[e.conta_nome || 'Outros'] = (subcats[e.conta_nome || 'Outros'] || 0) + e.valor; });
+      const lines = Object.entries(subcats).sort((a, b) => b[1] - a[1]).map(([n, v]) => `  ${n}: ${formatCurrency(v)}`);
+      return [header, ...lines].join('\n');
+    }).join('\n\n');
+  }, [categoryBlocks]);
+
   // Data for top-level bar chart
   const barChartData = useMemo(() => {
     return [...categoryBlocks].map(b => ({
