@@ -35,6 +35,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [mesFilter, setMesFilter] = useState('all');
   const [faturamentoInput, setFaturamentoInput] = useState('');
   const [editingFat, setEditingFat] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
