@@ -3,6 +3,7 @@ import { PlanoDeContas } from './PlanoDeContas';
 import { ImportacaoRealizado } from './ImportacaoRealizado';
 import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
+import { ExportacaoDados } from './ExportacaoDados';
 import { Settings, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -12,12 +13,13 @@ interface Props {
   schoolId: string;
 }
 
-type ConfigTab = 'plano' | 'importacao' | 'historico';
+type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados';
 
 const configTabs: { key: ConfigTab; label: string }[] = [
   { key: 'plano', label: 'Plano de Contas' },
   { key: 'importacao', label: 'Importação' },
   { key: 'historico', label: 'Histórico' },
+  { key: 'dados', label: 'Exportar Dados' },
 ];
 
 export function RealizadoModule({ schoolId }: Props) {
@@ -58,6 +60,7 @@ export function RealizadoModule({ schoolId }: Props) {
           {configTab === 'plano' && <PlanoDeContas schoolId={schoolId} />}
           {configTab === 'importacao' && <ImportacaoRealizado schoolId={schoolId} />}
           {configTab === 'historico' && <HistoricoUploads schoolId={schoolId} />}
+          {configTab === 'dados' && <ExportacaoDados schoolId={schoolId} />}
         </motion.div>
       </div>
     );
