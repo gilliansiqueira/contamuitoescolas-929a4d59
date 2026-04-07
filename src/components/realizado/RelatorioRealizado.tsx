@@ -299,6 +299,37 @@ export function RelatorioRealizado({ schoolId }: Props) {
           />
         ))}
       </div>
+
+      {/* Export / Copy section */}
+      {categoryBlocks.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <Card className="rounded-2xl">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-foreground">Exportar Dados</h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl gap-2"
+                  onClick={() => {
+                    navigator.clipboard.writeText(exportText).then(() => {
+                      setCopied(true);
+                      toast.success('Dados copiados!');
+                      setTimeout(() => setCopied(false), 2000);
+                    });
+                  }}
+                >
+                  {copied ? <ClipboardCheck className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Copiado!' : 'Copiar dados'}
+                </Button>
+              </div>
+              <pre className="text-xs text-muted-foreground bg-muted/30 rounded-xl p-4 whitespace-pre-wrap max-h-64 overflow-auto font-mono">
+                {exportText}
+              </pre>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
 }
