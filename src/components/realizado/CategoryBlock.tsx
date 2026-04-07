@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Cell, LabelList } from 'recharts';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  LineChart, Line, CartesianGrid, LabelList, PieChart, Pie, Cell,
+} from 'recharts';
 import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -19,6 +22,17 @@ interface Props {
   allMonths: string[];
   index: number;
 }
+
+const COLORS = [
+  'hsl(var(--primary))',
+  'hsl(25 95% 53%)',    // orange
+  'hsl(var(--destructive))',
+  'hsl(210 40% 60%)',
+  'hsl(150 40% 50%)',
+  'hsl(280 40% 55%)',
+  'hsl(40 70% 50%)',
+  'hsl(190 60% 45%)',
+];
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -48,32 +62,57 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
     });
     return Object.entries(map)
       .map(([n, v]) => ({ name: n, value: v }))
-      .sort((a, b) => a.value - b.value); // menor → maior
+      .sort((a, b) => a.value - b.value);
   }, [entries]);
 
+  const usePie = bySubcat.length <= 5;
+
   const monthlyData = useMemo(() => {
-    return allMonths.map(m => {
-      const monthEntries = entries.filter(e => e.data?.startsWith(m));
-      return { mes: formatMonth(m), raw: m, valor: monthEntries.reduce((s, e) => s + e.valor, 0) };
-    }).filter(d => d.valor > 0);
-  }, [entries, allMonths]);
+    const byYearMonth: Record<string, Record<string, number>> = {};
+    entries.forEach(e => {
+      const m = e.data?.slice(0, 7);
+      if (!m) return;
+      const year = m.slice(0, 4);
+      const mm = m.slice(5, 7);
+      if (!byYearMonth[year]) byYearMonth[year] = {};
+      byYearMonth[year][mm] = (byYearMonth[year][mm] || 0) + e.valor;
+    });
+
+    const years = Object.keys(byYearMonth).sort();
+    const allMM = new Set<string>();
+    years.forEach(y => Object.keys(byYearMonth[y]).forEach(mm => allMM.add(mm)));
+    const sortedMM = Array.from(allMM).sort();
+
+    return sortedMM.map(mm => {
+      const point: Record<string, any> = {
+        mes: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][parseInt(mm) - 1] || mm,
+      };
+      years.forEach(y => { point[y] = byYearMonth[y]?.[mm] || 0; });
+      return point;
+    });
+  }, [entries]);
+
+  const yearKeys = useMemo(() => {
+    const years = new Set<string>();
+    entries.forEach(e => { const y = e.data?.slice(0, 4); if (y) years.add(y); });
+    return Array.from(years).sort();
+  }, [entries]);
 
   const insights = useMemo(() => {
     const result: { text: string; type: 'up' | 'down' | 'neutral' }[] = [];
-
     if (bySubcat.length > 0) {
       const biggest = bySubcat[bySubcat.length - 1];
       result.push({ text: `Maior gasto: ${biggest.name} (${formatCurrency(biggest.value)})`, type: 'neutral' });
     }
-
     if (faturamento > 0) {
       const pctFat = (total / faturamento) * 100;
       result.push({ text: `${pctFat.toFixed(1)}% do faturamento`, type: pctFat > 30 ? 'up' : 'neutral' });
     }
-
-    if (monthlyData.length >= 2) {
-      const last = monthlyData[monthlyData.length - 1].valor;
-      const prev = monthlyData[monthlyData.length - 2].valor;
+    // Simple MoM from allMonths
+    const monthTotals = allMonths.map(m => entries.filter(e => e.data?.startsWith(m)).reduce((s, e) => s + e.valor, 0));
+    if (monthTotals.length >= 2) {
+      const last = monthTotals[monthTotals.length - 1];
+      const prev = monthTotals[monthTotals.length - 2];
       if (prev > 0) {
         const variation = ((last - prev) / prev) * 100;
         if (Math.abs(variation) > 0.5) {
@@ -84,15 +123,15 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
         }
       }
     }
-
     return result;
-  }, [bySubcat, total, faturamento, monthlyData]);
+  }, [bySubcat, total, faturamento, allMonths, entries]);
+
+  const YEAR_COLORS = ['hsl(var(--primary))', 'hsl(25 95% 53%)', 'hsl(var(--destructive))', 'hsl(210 40% 60%)'];
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
       <Card className="rounded-2xl overflow-hidden">
         <CardContent className="p-0">
-          {/* Clickable header */}
           <button
             onClick={() => setExpanded(!expanded)}
             className="w-full flex items-center justify-between p-5 hover:bg-muted/30 transition-colors text-left"
@@ -101,7 +140,7 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
               {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
               <div>
                 <h3 className="font-display font-semibold text-foreground text-sm">{name}</h3>
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   {insights.slice(0, 2).map((ins, i) => (
                     <span key={i} className={`text-xs ${ins.type === 'up' ? 'text-destructive' : ins.type === 'down' ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                       {ins.text}
@@ -116,7 +155,6 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
             </div>
           </button>
 
-          {/* Expanded drill-down */}
           <AnimatePresence>
             {expanded && (
               <motion.div
@@ -127,23 +165,49 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                 className="overflow-hidden"
               >
                 <div className="border-t border-border px-5 pb-5 space-y-5">
-                  {/* Subcategory horizontal bars */}
+                  {/* Subcategory chart */}
                   {bySubcat.length > 0 && (
                     <div className="pt-4">
-                      <p className="text-xs text-muted-foreground font-medium mb-3">Categorias Filhas</p>
-                      <ResponsiveContainer width="100%" height={Math.max(bySubcat.length * 36, 80)}>
-                        <BarChart data={bySubcat} layout="vertical" margin={{ left: 10, right: 70, top: 0, bottom: 0 }}>
-                          <XAxis type="number" hide />
-                          <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={120} />
-                          <Tooltip
-                            formatter={(v: number) => formatCurrency(v)}
-                            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                          />
-                          <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22} fill="hsl(var(--primary))" opacity={0.8}>
-                            <LabelList dataKey="value" position="right" formatter={(v: number) => formatCurrencyShort(v)} style={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs text-muted-foreground font-medium">Categorias Filhas</p>
+                        <p className="text-xs font-semibold text-foreground">Total: {formatCurrency(total)}</p>
+                      </div>
+                      {usePie ? (
+                        <div className="flex items-center gap-6">
+                          <ResponsiveContainer width="50%" height={180}>
+                            <PieChart>
+                              <Pie data={bySubcat} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={35}>
+                                {bySubcat.map((_, i) => (
+                                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div className="space-y-1.5 flex-1">
+                            {bySubcat.map((s, i) => (
+                              <div key={s.name} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                                  <span className="text-muted-foreground truncate max-w-[140px]">{s.name}</span>
+                                </div>
+                                <span className="font-medium text-foreground">{formatCurrency(s.value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={Math.max(bySubcat.length * 36, 80)}>
+                          <BarChart data={bySubcat} layout="vertical" margin={{ left: 10, right: 70, top: 0, bottom: 0 }}>
+                            <XAxis type="number" hide />
+                            <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={120} />
+                            <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                            <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22} fill="hsl(var(--primary))" opacity={0.8}>
+                              <LabelList dataKey="value" position="right" formatter={(v: number) => formatCurrencyShort(v)} style={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
                     </div>
                   )}
 
@@ -151,35 +215,33 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                   {monthlyData.length > 1 && (
                     <div>
                       <p className="text-xs text-muted-foreground font-medium mb-3">Evolução Mensal</p>
-                      <ResponsiveContainer width="100%" height={160}>
+                      <ResponsiveContainer width="100%" height={180}>
                         <LineChart data={monthlyData} margin={{ left: 10, right: 10, top: 5, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis dataKey="mes" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                           <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v: number) => formatCurrencyShort(v)} width={60} />
-                          <Tooltip
-                            formatter={(v: number) => formatCurrency(v)}
-                            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                          />
-                          <Line type="monotone" dataKey="valor" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 4, fill: 'hsl(var(--primary))' }} />
+                          <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                          {yearKeys.map((y, i) => (
+                            <Line key={y} type="monotone" dataKey={y} name={y} stroke={YEAR_COLORS[i % YEAR_COLORS.length]} strokeWidth={2.5} dot={{ r: 4, fill: YEAR_COLORS[i % YEAR_COLORS.length] }}>
+                              <LabelList dataKey={y} position="top" formatter={(v: number) => v > 0 ? formatCurrencyShort(v) : ''} style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} />
+                            </Line>
+                          ))}
                         </LineChart>
                       </ResponsiveContainer>
 
-                      {/* Variation indicators */}
-                      {monthlyData.length >= 2 && (
+                      {/* MoM variation indicators */}
+                      {allMonths.length >= 2 && (
                         <div className="flex gap-3 mt-2 flex-wrap">
-                          {monthlyData.slice(1).map((d, i) => {
-                            const prev = monthlyData[i].valor;
-                            if (prev === 0) return null;
-                            const variation = ((d.valor - prev) / prev) * 100;
+                          {allMonths.slice(1).map((m, i) => {
+                            const prev = entries.filter(e => e.data?.startsWith(allMonths[i])).reduce((s, e) => s + e.valor, 0);
+                            const curr = entries.filter(e => e.data?.startsWith(m)).reduce((s, e) => s + e.valor, 0);
+                            if (prev === 0 || curr === 0) return null;
+                            const variation = ((curr - prev) / prev) * 100;
                             const isUp = variation > 0;
                             return (
-                              <div key={d.mes} className="flex items-center gap-1 text-xs">
-                                <span className="text-muted-foreground">{d.mes}:</span>
-                                {isUp ? (
-                                  <TrendingUp className="w-3 h-3 text-destructive" />
-                                ) : (
-                                  <TrendingDown className="w-3 h-3 text-green-600" />
-                                )}
+                              <div key={m} className="flex items-center gap-1 text-xs">
+                                <span className="text-muted-foreground">{formatMonth(m)}:</span>
+                                {isUp ? <TrendingUp className="w-3 h-3 text-destructive" /> : <TrendingDown className="w-3 h-3 text-green-600" />}
                                 <span className={isUp ? 'text-destructive font-medium' : 'text-emerald-600 font-medium'}>
                                   {isUp ? '+' : ''}{variation.toFixed(1)}%
                                 </span>
