@@ -48,11 +48,24 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
   const totals = useMemo(() => calculateTotals(entries, classifications), [entries, classifications]);
 
-  const saldoFinal = useMemo(() => {
+  // Dynamic saldo inicial: accumulate all entries before the selected month
+  const saldoInicialCalculado = useMemo(() => {
+    if (selectedMonth === 'all') return saldoInicial;
+    const monthStart = `${selectedMonth}-01`;
     let saldo = saldoInicial;
+    for (const e of activeEntries) {
+      if (e.data < monthStart) saldo += getSaldoImpact(e, classifications);
+    }
+    return saldo;
+  }, [activeEntries, classifications, saldoInicial, selectedMonth]);
+
+  const saldoFinal = useMemo(() => {
+    let saldo = saldoInicialCalculado;
     for (const e of entries) saldo += getSaldoImpact(e, classifications);
     return saldo;
-  }, [entries, classifications, saldoInicial]);
+  }, [entries, classifications, saldoInicialCalculado]);
+
+  const hasRealizado = useMemo(() => entries.some(e => e.tipoRegistro === 'realizado'), [entries]);
 
   const realizadoTotals = useMemo(() =>
     calculateTotals(entries.filter(e => e.tipoRegistro === 'realizado'), classifications),
@@ -69,7 +82,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const futureEntries = activeEntries.filter(e => e.data >= today);
     if (futureEntries.length === 0) return [];
 
-    let saldoToday = saldoInicial;
+    let saldoToday = saldoInicialCalculado;
     for (const e of activeEntries.filter(e => e.data < today)) saldoToday += getSaldoImpact(e, classifications);
 
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
@@ -88,7 +101,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       saldo += d.entradas - d.saidas;
       return { data: data.slice(5).split('-').reverse().join('/'), fullDate: data, entradas: d.entradas, saidas: d.saidas, saldo };
     });
-  }, [activeEntries, classifications, saldoInicial]);
+  }, [activeEntries, classifications, saldoInicialCalculado]);
 
   // Entradas vs Saídas bar chart (monthly)
   const monthlyChart = useMemo(() => {
@@ -161,11 +174,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       {/* Main KPIs */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-          <Target className="w-4 h-4" /> Resultado do Período
+          <Target className="w-4 h-4" /> {hasRealizado ? 'Resultado do Período' : 'Projeção do Período'}
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
-            { icon: Wallet, label: 'Saldo Inicial', value: saldoInicial, color: 'text-foreground' },
+            { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
             { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-primary' },
             { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive' },
             { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-primary' : 'text-destructive' },
@@ -195,48 +208,50 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
-      {/* Realizado vs Projetado */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
-          <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-[10px] text-muted-foreground uppercase">Receitas</span>
-              <p className="text-lg font-display font-bold text-primary">{formatCurrency(realizadoTotals.receitas)}</p>
+      {/* Realizado vs Projetado - only show if there's data for both */}
+      {hasRealizado && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
+            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase">Receitas</span>
+                <p className="text-lg font-display font-bold text-primary">{formatCurrency(realizadoTotals.receitas)}</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase">Despesas</span>
+                <p className="text-lg font-display font-bold text-destructive">{formatCurrency(realizadoTotals.despesas)}</p>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] text-muted-foreground uppercase">Despesas</span>
-              <p className="text-lg font-display font-bold text-destructive">{formatCurrency(realizadoTotals.despesas)}</p>
+            <div className="mt-2 pt-2 border-t border-border/30">
+              <span className="text-[10px] text-muted-foreground uppercase">Resultado Realizado</span>
+              <p className={`text-lg font-display font-bold ${realizadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                {formatCurrency(realizadoTotals.resultado)}
+              </p>
             </div>
-          </div>
-          <div className="mt-2 pt-2 border-t border-border/30">
-            <span className="text-[10px] text-muted-foreground uppercase">Resultado Realizado</span>
-            <p className={`text-lg font-display font-bold ${realizadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
-              {formatCurrency(realizadoTotals.resultado)}
-            </p>
-          </div>
-        </motion.div>
+          </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="glass-card rounded-xl p-5">
-          <h4 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">📊 Projetado</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-[10px] text-muted-foreground uppercase">Receitas Futuras</span>
-              <p className="text-lg font-display font-bold text-primary">{formatCurrency(projetadoTotals.receitas)}</p>
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="glass-card rounded-xl p-5">
+            <h4 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">📊 Projetado</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase">Receitas Futuras</span>
+                <p className="text-lg font-display font-bold text-primary">{formatCurrency(projetadoTotals.receitas)}</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase">Despesas Futuras</span>
+                <p className="text-lg font-display font-bold text-destructive">{formatCurrency(projetadoTotals.despesas)}</p>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] text-muted-foreground uppercase">Despesas Futuras</span>
-              <p className="text-lg font-display font-bold text-destructive">{formatCurrency(projetadoTotals.despesas)}</p>
+            <div className="mt-2 pt-2 border-t border-border/30">
+              <span className="text-[10px] text-muted-foreground uppercase">Resultado Projetado</span>
+              <p className={`text-lg font-display font-bold ${projetadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                {formatCurrency(projetadoTotals.resultado)}
+              </p>
             </div>
-          </div>
-          <div className="mt-2 pt-2 border-t border-border/30">
-            <span className="text-[10px] text-muted-foreground uppercase">Resultado Projetado</span>
-            <p className={`text-lg font-display font-bold ${projetadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
-              {formatCurrency(projetadoTotals.resultado)}
-            </p>
-          </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Entradas vs Saídas Bar Chart */}
       {monthlyChart.length > 0 && (
