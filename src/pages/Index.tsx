@@ -20,17 +20,18 @@ import { TypeClassificationConfig } from '@/components/TypeClassificationConfig'
 import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
 import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
+import { Indicadores } from '@/components/Indicadores';
 import { RealizadoModule } from '@/components/realizado/RealizadoModule';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, Gauge,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'indicadores';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -43,6 +44,7 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'datatable', label: 'Dados', icon: TableProperties },
   { key: 'scenarios', label: 'Cenários', icon: TrendingUp },
   { key: 'simulation', label: 'Simulação', icon: Calculator },
+  { key: 'indicadores', label: 'Indicadores', icon: Gauge },
 ];
 
 const settingsTabs: { key: Tab; label: string }[] = [
@@ -210,6 +212,7 @@ const Index = () => {
                 {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
+                {activeTab === 'indicadores' && <Indicadores schoolId={school.id} />}
               </motion.div>
             </AnimatePresence>
           </main>
