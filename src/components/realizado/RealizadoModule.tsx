@@ -4,7 +4,8 @@ import { ImportacaoRealizado } from './ImportacaoRealizado';
 import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
 import { ExportacaoDados } from './ExportacaoDados';
-import { Settings, ChevronLeft } from 'lucide-react';
+import { Indicadores } from '@/components/Indicadores';
+import { Settings, ChevronLeft, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
@@ -14,6 +15,7 @@ interface Props {
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados';
+type MainView = 'relatorio' | 'indicadores';
 
 const configTabs: { key: ConfigTab; label: string }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -25,6 +27,7 @@ const configTabs: { key: ConfigTab; label: string }[] = [
 export function RealizadoModule({ schoolId }: Props) {
   const [showConfig, setShowConfig] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>('importacao');
+  const [mainView, setMainView] = useState<MainView>('relatorio');
   const queryClient = useQueryClient();
 
   const handleBackToReport = useCallback(() => {
@@ -69,12 +72,37 @@ export function RealizadoModule({ schoolId }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-lg font-display font-semibold text-foreground">Análise de Despesas</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMainView('relatorio')}
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              mainView === 'relatorio'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            Análise de Despesas
+          </button>
+          <button
+            onClick={() => setMainView('indicadores')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              mainView === 'indicadores'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <Gauge className="w-4 h-4" />
+            Indicadores
+          </button>
+        </div>
         <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
           <Settings className="w-4 h-4 mr-1" /> Configurações
         </Button>
       </div>
-      <RelatorioRealizado schoolId={schoolId} />
+      <motion.div key={mainView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
+        {mainView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
+        {mainView === 'indicadores' && <Indicadores schoolId={schoolId} />}
+      </motion.div>
     </div>
   );
 }
