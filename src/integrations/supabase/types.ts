@@ -316,6 +316,50 @@ export type Database = {
           },
         ]
       }
+      school_kpis: {
+        Row: {
+          alunos_modalidade: number | null
+          created_at: string
+          evasao: number | null
+          id: string
+          inadimplencia: number | null
+          lucratividade: number | null
+          media_alunos_turma: number | null
+          month: string
+          school_id: string
+        }
+        Insert: {
+          alunos_modalidade?: number | null
+          created_at?: string
+          evasao?: number | null
+          id?: string
+          inadimplencia?: number | null
+          lucratividade?: number | null
+          media_alunos_turma?: number | null
+          month: string
+          school_id: string
+        }
+        Update: {
+          alunos_modalidade?: number | null
+          created_at?: string
+          evasao?: number | null
+          id?: string
+          inadimplencia?: number | null
+          lucratividade?: number | null
+          media_alunos_turma?: number | null
+          month?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_kpis_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schools: {
         Row: {
           created_at: string
