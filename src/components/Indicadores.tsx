@@ -3,8 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Save, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+import lucratividadeIcon from '@/assets/lucratividade.png';
+import inadimplenciaIcon from '@/assets/inadimplencia.png';
+import alunosTurmaIcon from '@/assets/alunos_turma.png';
+import alunosModalidadeIcon from '@/assets/alunos_modalidade.png';
+import evasaoIcon from '@/assets/evasao.png';
 import { toast } from 'sonner';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -29,13 +35,14 @@ interface KpiDef {
   key: keyof Pick<KpiRow, 'lucratividade' | 'inadimplencia' | 'media_alunos_turma' | 'alunos_modalidade' | 'evasao'>;
   label: string;
   unit: string;
+  icon: string;
   goodDirection: 'up' | 'down';
   ranges: { max: number; color: string; label: string }[];
 }
 
 const KPI_DEFS: KpiDef[] = [
   {
-    key: 'lucratividade', label: 'Lucratividade', unit: '%', goodDirection: 'up',
+    key: 'lucratividade', label: 'Lucratividade', unit: '%', icon: lucratividadeIcon, goodDirection: 'up',
     ranges: [
       { max: 10, color: 'hsl(0 84% 60%)', label: 'Ruim' },
       { max: 15, color: 'hsl(45 93% 47%)', label: 'Regular' },
@@ -44,7 +51,7 @@ const KPI_DEFS: KpiDef[] = [
     ],
   },
   {
-    key: 'inadimplencia', label: 'Inadimplência', unit: '%', goodDirection: 'down',
+    key: 'inadimplencia', label: 'Inadimplência', unit: '%', icon: inadimplenciaIcon, goodDirection: 'down',
     ranges: [
       { max: 2, color: 'hsl(142 71% 45%)', label: 'Ótimo' },
       { max: 2.5, color: 'hsl(217 91% 60%)', label: 'Bom' },
@@ -53,7 +60,7 @@ const KPI_DEFS: KpiDef[] = [
     ],
   },
   {
-    key: 'media_alunos_turma', label: 'Média Alunos/Turma', unit: '', goodDirection: 'up',
+    key: 'media_alunos_turma', label: 'Média Alunos/Turma', unit: '', icon: alunosTurmaIcon, goodDirection: 'up',
     ranges: [
       { max: 3, color: 'hsl(0 84% 60%)', label: 'Ruim' },
       { max: 4, color: 'hsl(45 93% 47%)', label: 'Regular' },
@@ -62,7 +69,7 @@ const KPI_DEFS: KpiDef[] = [
     ],
   },
   {
-    key: 'alunos_modalidade', label: 'Alunos por Modalidade', unit: '%', goodDirection: 'up',
+    key: 'alunos_modalidade', label: 'Alunos por Modalidade', unit: '%', icon: alunosModalidadeIcon, goodDirection: 'up',
     ranges: [
       { max: 70, color: 'hsl(0 84% 60%)', label: 'Ruim' },
       { max: 75, color: 'hsl(45 93% 47%)', label: 'Regular' },
@@ -71,7 +78,7 @@ const KPI_DEFS: KpiDef[] = [
     ],
   },
   {
-    key: 'evasao', label: 'Evasão', unit: '%', goodDirection: 'down',
+    key: 'evasao', label: 'Evasão', unit: '%', icon: evasaoIcon, goodDirection: 'down',
     ranges: [
       { max: 2.5, color: 'hsl(142 71% 45%)', label: 'Ótimo' },
       { max: 3, color: 'hsl(217 91% 60%)', label: 'Bom' },
@@ -213,13 +220,9 @@ export function Indicadores({ schoolId }: Props) {
               animate={{ opacity: 1, y: 0 }}
               className="glass-card rounded-xl p-4 space-y-2"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">{def.label}</span>
-                {def.goodDirection === 'up' ? (
-                  <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
-                ) : (
-                  <TrendingDown className="w-3.5 h-3.5 text-muted-foreground" />
-                )}
+              <div className="flex flex-col items-center gap-1">
+                <img src={def.icon} alt={def.label} width={36} height={36} className="object-contain" />
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wide">{def.label}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Input
@@ -261,7 +264,10 @@ export function Indicadores({ schoolId }: Props) {
             animate={{ opacity: 1 }}
             className="glass-card rounded-xl p-5"
           >
-            <h4 className="text-sm font-semibold mb-1">{def.label}</h4>
+            <div className="flex items-center gap-2 mb-1">
+              <img src={def.icon} alt={def.label} width={24} height={24} className="object-contain" />
+              <h4 className="text-sm font-semibold">{def.label}</h4>
+            </div>
             <div className="flex gap-2 mb-3 flex-wrap">
               {def.ranges.map(r => (
                 <span
