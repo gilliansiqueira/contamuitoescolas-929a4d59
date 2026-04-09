@@ -200,6 +200,150 @@ export type Database = {
           },
         ]
       }
+      kpi_definitions: {
+        Row: {
+          created_at: string
+          direction: string
+          enabled: boolean
+          icon_id: string | null
+          id: string
+          name: string
+          school_id: string
+          sort_order: number
+          value_type: string
+        }
+        Insert: {
+          created_at?: string
+          direction?: string
+          enabled?: boolean
+          icon_id?: string | null
+          id?: string
+          name: string
+          school_id: string
+          sort_order?: number
+          value_type?: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          enabled?: boolean
+          icon_id?: string | null
+          id?: string
+          name?: string
+          school_id?: string
+          sort_order?: number
+          value_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_definitions_icon_id_fkey"
+            columns: ["icon_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_icons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpi_icons: {
+        Row: {
+          created_at: string
+          file_url: string
+          id: string
+          name: string
+          school_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_url: string
+          id?: string
+          name: string
+          school_id: string
+        }
+        Update: {
+          created_at?: string
+          file_url?: string
+          id?: string
+          name?: string
+          school_id?: string
+        }
+        Relationships: []
+      }
+      kpi_thresholds: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          kpi_definition_id: string
+          label: string
+          max_value: number | null
+          min_value: number | null
+          sort_order: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          kpi_definition_id: string
+          label?: string
+          max_value?: number | null
+          min_value?: number | null
+          sort_order?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          kpi_definition_id?: string
+          label?: string
+          max_value?: number | null
+          min_value?: number | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_thresholds_kpi_definition_id_fkey"
+            columns: ["kpi_definition_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpi_values: {
+        Row: {
+          created_at: string
+          id: string
+          kpi_definition_id: string
+          month: string
+          school_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kpi_definition_id: string
+          month: string
+          school_id: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kpi_definition_id?: string
+          month?: string
+          school_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_values_kpi_definition_id_fkey"
+            columns: ["kpi_definition_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_revenue: {
         Row: {
           created_at: string
