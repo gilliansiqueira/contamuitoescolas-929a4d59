@@ -4,7 +4,7 @@ import { ImportacaoRealizado } from './ImportacaoRealizado';
 import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
 import { ExportacaoDados } from './ExportacaoDados';
-import { Indicadores } from '@/components/Indicadores';
+import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
 import { Settings, ChevronLeft, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -101,7 +101,7 @@ export function RealizadoModule({ schoolId }: Props) {
       </div>
       <motion.div key={mainView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
         {mainView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
-        {mainView === 'indicadores' && <Indicadores schoolId={schoolId} />}
+        {mainView === 'indicadores' && <IndicadoresDashboard schoolId={schoolId} />}
       </motion.div>
     </div>
   );
