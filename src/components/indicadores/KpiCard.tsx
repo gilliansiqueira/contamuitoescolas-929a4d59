@@ -116,13 +116,13 @@ export function KpiCard({ definition: def, values, months }: Props) {
       {variation !== null && (
         <div className="flex items-center justify-center gap-1 mb-3 text-xs">
           {isImprovement ? (
-            <ArrowUp className="w-3.5 h-3.5 text-emerald-500" />
+            <ArrowUp className="w-3.5 h-3.5" style={{ color: 'hsl(142 71% 45%)' }} />
           ) : variation === 0 ? (
             <Minus className="w-3.5 h-3.5 text-muted-foreground" />
           ) : (
-            <ArrowDown className="w-3.5 h-3.5 text-red-500" />
+            <ArrowDown className="w-3.5 h-3.5" style={{ color: 'hsl(0 84% 60%)' }} />
           )}
-          <span className={isImprovement ? 'text-emerald-600 font-medium' : variation === 0 ? 'text-muted-foreground' : 'text-red-600 font-medium'}>
+          <span className={variation === 0 ? 'text-muted-foreground' : 'font-medium'} style={isImprovement ? { color: 'hsl(142 71% 45%)' } : !isImprovement && variation !== 0 ? { color: 'hsl(0 84% 60%)' } : undefined}>
             {variation > 0 ? '+' : ''}{formatValue(variation, def.value_type === 'percent' ? 'number' : def.value_type)}
             {def.value_type === 'percent' ? ' p.p.' : ''}
           </span>
