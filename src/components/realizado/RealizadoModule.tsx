@@ -101,7 +101,7 @@ export function RealizadoModule({ schoolId }: Props) {
       </div>
       <motion.div key={mainView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
         {mainView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
-        {mainView === 'indicadores' && <Indicadores schoolId={schoolId} />}
+        {mainView === 'indicadores' && <IndicadoresDashboard schoolId={schoolId} />}
       </motion.div>
     </div>
   );
