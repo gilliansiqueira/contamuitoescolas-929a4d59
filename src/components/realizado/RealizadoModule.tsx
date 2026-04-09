@@ -4,7 +4,7 @@ import { ImportacaoRealizado } from './ImportacaoRealizado';
 import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
 import { ExportacaoDados } from './ExportacaoDados';
-import { Indicadores } from '@/components/Indicadores';
+import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
 import { Settings, ChevronLeft, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
