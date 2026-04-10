@@ -163,14 +163,14 @@ export function KpiCard({ definition: def, values, months }: Props) {
       {/* Variation */}
       {variation !== null && (
         <div className="flex items-center justify-center gap-1 mb-3 text-xs">
-          {isImprovement ? (
-            <ArrowUp className="w-3.5 h-3.5" style={{ color: 'hsl(142 71% 45%)' }} />
-          ) : variation === 0 ? (
-            <Minus className="w-3.5 h-3.5 text-muted-foreground" />
+          {variation > 0 ? (
+            <ArrowUp className="w-3.5 h-3.5" style={{ color: isImprovement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
+          ) : variation < 0 ? (
+            <ArrowDown className="w-3.5 h-3.5" style={{ color: isImprovement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
           ) : (
-            <ArrowDown className="w-3.5 h-3.5" style={{ color: 'hsl(0 84% 60%)' }} />
+            <Minus className="w-3.5 h-3.5 text-muted-foreground" />
           )}
-          <span className={variation === 0 ? 'text-muted-foreground' : 'font-medium'} style={isImprovement ? { color: 'hsl(142 71% 45%)' } : !isImprovement && variation !== 0 ? { color: 'hsl(0 84% 60%)' } : undefined}>
+          <span className={variation === 0 ? 'text-muted-foreground' : 'font-medium'} style={isImprovement ? { color: 'hsl(142 71% 45%)' } : variation !== 0 ? { color: 'hsl(0 84% 60%)' } : undefined}>
             {formatVariation(variation)}
           </span>
           <span className="text-muted-foreground">vs mês anterior</span>
