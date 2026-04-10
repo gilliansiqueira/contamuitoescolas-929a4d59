@@ -268,6 +268,65 @@ export type Database = {
         }
         Relationships: []
       }
+      kpi_template_items: {
+        Row: {
+          created_at: string
+          direction: string
+          id: string
+          name: string
+          sort_order: number
+          template_id: string
+          thresholds: Json
+          value_type: string
+        }
+        Insert: {
+          created_at?: string
+          direction?: string
+          id?: string
+          name: string
+          sort_order?: number
+          template_id: string
+          thresholds?: Json
+          value_type?: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          template_id?: string
+          thresholds?: Json
+          value_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpi_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       kpi_thresholds: {
         Row: {
           color: string
