@@ -44,13 +44,55 @@ function getThresholdLabel(def: KpiDefinitionWithThresholds, value: number | nul
   return def.thresholds[def.thresholds.length - 1].label;
 }
 
+const NEUTRAL_LINE_COLOR = '#6b7280'; // gray-500
+
+// Year line colors for multi-year support
+const YEAR_COLORS = ['#6b7280', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'];
+
+// Custom dot that uses threshold color
+function ThresholdDot(props: any) {
+  const { cx, cy, payload, def } = props;
+  if (cx === undefined || cy === undefined || payload.value === null) return null;
+  const color = getThresholdColor(def, payload.value);
+  return <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />;
+}
+
 export function KpiCard({ definition: def, values, months }: Props) {
+  // Group values by year
+  const years = useMemo(() => {
+    const allMonths = new Set<string>();
+    values.forEach(v => allMonths.add(v.month));
+    months.forEach(m => allMonths.add(m));
+    const yrs = new Set<string>();
+    allMonths.forEach(m => yrs.add(m.split('-')[0]));
+    return Array.from(yrs).sort();
+  }, [values, months]);
+
+  const isMultiYear = years.length > 1;
+
+  // Single year chart data
   const chartData = useMemo(() => {
+    if (isMultiYear) return [];
     return months.map(m => {
       const v = values.find(v => v.month === m);
       return { month: formatMonth(m), value: v?.value ?? null };
     });
-  }, [months, values]);
+  }, [months, values, isMultiYear]);
+
+  // Multi-year chart data: one line per year, X axis = month number
+  const multiYearData = useMemo(() => {
+    if (!isMultiYear) return [];
+    const monthNums = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const monthLabels = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return monthNums.map((mo, i) => {
+      const point: any = { month: monthLabels[i] };
+      years.forEach(y => {
+        const v = values.find(v => v.month === `${y}-${mo}`);
+        point[y] = v?.value ?? null;
+      });
+      return point;
+    });
+  }, [values, years, isMultiYear]);
 
   const currentMonth = months[months.length - 1];
   const prevMonth = months[months.length - 2];
@@ -64,6 +106,12 @@ export function KpiCard({ definition: def, values, months }: Props) {
 
   const color = getThresholdColor(def, currentVal);
   const label = getThresholdLabel(def, currentVal);
+
+  // Format variation with correct unit (no p.p.)
+  const formatVariation = (v: number) => {
+    const prefix = v > 0 ? '+' : '';
+    return `${prefix}${formatValue(v, def.value_type)}`;
+  };
 
   // Compute Y domain from thresholds and data
   const allValues = values.map(v => v.value);
@@ -123,49 +171,85 @@ export function KpiCard({ definition: def, values, months }: Props) {
             <ArrowDown className="w-3.5 h-3.5" style={{ color: 'hsl(0 84% 60%)' }} />
           )}
           <span className={variation === 0 ? 'text-muted-foreground' : 'font-medium'} style={isImprovement ? { color: 'hsl(142 71% 45%)' } : !isImprovement && variation !== 0 ? { color: 'hsl(0 84% 60%)' } : undefined}>
-            {variation > 0 ? '+' : ''}{formatValue(variation, def.value_type === 'percent' ? 'number' : def.value_type)}
-            {def.value_type === 'percent' ? ' p.p.' : ''}
+            {formatVariation(variation)}
           </span>
           <span className="text-muted-foreground">vs mês anterior</span>
         </div>
       )}
 
-      {/* Chart with performance zones */}
+      {/* Chart */}
       <div className="flex-1 min-h-[160px]">
         <ResponsiveContainer width="100%" height={160}>
-          <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
-            {/* Performance zone bands */}
-            {def.thresholds.map((t, i) => {
-              const lo = t.min_value ?? yMin;
-              const hi = t.max_value ?? yMax;
-              return (
-                <ReferenceArea
-                  key={i}
-                  y1={Math.max(lo, yMin)}
-                  y2={Math.min(hi, yMax)}
-                  fill={t.color}
-                  fillOpacity={0.08}
+          {isMultiYear ? (
+            <LineChart data={multiYearData} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+              {def.thresholds.map((t, i) => {
+                const lo = t.min_value ?? yMin;
+                const hi = t.max_value ?? yMax;
+                return (
+                  <ReferenceArea key={i} y1={Math.max(lo, yMin)} y2={Math.min(hi, yMax)} fill={t.color} fillOpacity={0.08} />
+                );
+              })}
+              <XAxis dataKey="month" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                formatter={(v: number, name: string) => [formatValue(v, def.value_type), name]}
+                contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+              />
+              {years.map((year, idx) => (
+                <Line
+                  key={year}
+                  type="monotone"
+                  dataKey={year}
+                  name={year}
+                  stroke={YEAR_COLORS[idx % YEAR_COLORS.length]}
+                  strokeWidth={idx === years.length - 1 ? 2.5 : 1.5}
+                  strokeDasharray={idx === years.length - 1 ? undefined : '5 3'}
+                  dot={{ r: 3, strokeWidth: 0 }}
+                  connectNulls
+                  activeDot={{ r: 5 }}
                 />
-              );
-            })}
-            <XAxis dataKey="month" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-            <Tooltip
-              formatter={(v: number) => [formatValue(v, def.value_type), def.name]}
-              contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
-            />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke={color}
-              strokeWidth={2.5}
-              dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
-              connectNulls
-              activeDot={{ r: 5 }}
-            />
-          </LineChart>
+              ))}
+            </LineChart>
+          ) : (
+            <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+              {def.thresholds.map((t, i) => {
+                const lo = t.min_value ?? yMin;
+                const hi = t.max_value ?? yMax;
+                return (
+                  <ReferenceArea key={i} y1={Math.max(lo, yMin)} y2={Math.min(hi, yMax)} fill={t.color} fillOpacity={0.08} />
+                );
+              })}
+              <XAxis dataKey="month" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                formatter={(v: number) => [formatValue(v, def.value_type), def.name]}
+                contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={NEUTRAL_LINE_COLOR}
+                strokeWidth={2.5}
+                dot={<ThresholdDot def={def} />}
+                connectNulls
+                activeDot={{ r: 5 }}
+              />
+            </LineChart>
+          )}
         </ResponsiveContainer>
       </div>
+
+      {/* Year legend for multi-year */}
+      {isMultiYear && (
+        <div className="flex justify-center gap-3 mt-1">
+          {years.map((year, idx) => (
+            <div key={year} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: YEAR_COLORS[idx % YEAR_COLORS.length] }} />
+              {year}
+            </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }
