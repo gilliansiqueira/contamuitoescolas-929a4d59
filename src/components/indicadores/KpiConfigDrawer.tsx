@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,11 +7,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Trash2, Upload, Save, Image } from 'lucide-react';
+import { Plus, Trash2, Upload, Save, Image, Copy, FileDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { KpiDefinitionWithThresholds, KpiIcon } from './types';
 import { useKpiMutations } from './useKpiData';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   open: boolean;
@@ -32,10 +33,11 @@ export function KpiConfigDrawer({ open, onOpenChange, schoolId, definitions, ico
           <SheetTitle>Configuração de Indicadores</SheetTitle>
         </SheetHeader>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid grid-cols-3 mb-3">
+          <TabsList className="grid grid-cols-4 mb-3">
             <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
             <TabsTrigger value="valores">Valores</TabsTrigger>
             <TabsTrigger value="icones">Ícones</TabsTrigger>
+            <TabsTrigger value="modelos">Modelos</TabsTrigger>
           </TabsList>
           <ScrollArea className="flex-1">
             <TabsContent value="indicadores" className="mt-0">
@@ -46,6 +48,9 @@ export function KpiConfigDrawer({ open, onOpenChange, schoolId, definitions, ico
             </TabsContent>
             <TabsContent value="icones" className="mt-0">
               <IconesTab icons={icons} schoolId={schoolId} mutations={mutations} />
+            </TabsContent>
+            <TabsContent value="modelos" className="mt-0">
+              <ModelosTab schoolId={schoolId} mutations={mutations} />
             </TabsContent>
           </ScrollArea>
         </Tabs>
@@ -92,7 +97,6 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
 
       await mutations.saveDefinition.mutateAsync(defPayload);
 
-      // Need the ID for thresholds
       if (editing !== 'new' && thresholds.length >= 0) {
         await mutations.saveThresholds.mutateAsync({
           kpiId: editing!,
@@ -167,48 +171,26 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
         <div>
           <div className="flex items-center justify-between mb-2">
             <Label>Faixas de desempenho</Label>
-            <Button size="sm" variant="ghost" onClick={() => setThresholds([...thresholds, { min_value: '', max_value: '', color: 'hsl(142 71% 45%)', label: '' }])}>
+            <Button size="sm" variant="ghost" onClick={() => setThresholds([...thresholds, { min_value: '', max_value: '', color: '#22c55e', label: '' }])}>
               <Plus className="w-3 h-3 mr-1" /> Faixa
             </Button>
           </div>
           <div className="space-y-2">
             {thresholds.map((t, i) => (
               <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                <Input
-                  placeholder="Mín"
-                  type="number"
-                  value={t.min_value}
-                  onChange={e => {
-                    const n = [...thresholds]; n[i] = { ...t, min_value: e.target.value }; setThresholds(n);
-                  }}
-                  className="w-16 h-7 text-xs"
-                />
+                <Input placeholder="Mín" type="number" value={t.min_value}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, min_value: e.target.value }; setThresholds(n); }}
+                  className="w-16 h-7 text-xs" />
                 <span className="text-xs text-muted-foreground">a</span>
-                <Input
-                  placeholder="Máx"
-                  type="number"
-                  value={t.max_value}
-                  onChange={e => {
-                    const n = [...thresholds]; n[i] = { ...t, max_value: e.target.value }; setThresholds(n);
-                  }}
-                  className="w-16 h-7 text-xs"
-                />
-                <input
-                  type="color"
-                  value={t.color.startsWith('hsl') ? '#22c55e' : t.color}
-                  onChange={e => {
-                    const n = [...thresholds]; n[i] = { ...t, color: e.target.value }; setThresholds(n);
-                  }}
-                  className="w-7 h-7 rounded border-0 cursor-pointer"
-                />
-                <Input
-                  placeholder="Rótulo"
-                  value={t.label}
-                  onChange={e => {
-                    const n = [...thresholds]; n[i] = { ...t, label: e.target.value }; setThresholds(n);
-                  }}
-                  className="flex-1 h-7 text-xs"
-                />
+                <Input placeholder="Máx" type="number" value={t.max_value}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, max_value: e.target.value }; setThresholds(n); }}
+                  className="w-16 h-7 text-xs" />
+                <input type="color" value={t.color.startsWith('hsl') ? '#22c55e' : t.color}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, color: e.target.value }; setThresholds(n); }}
+                  className="w-7 h-7 rounded border-0 cursor-pointer" />
+                <Input placeholder="Rótulo" value={t.label}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, label: e.target.value }; setThresholds(n); }}
+                  className="flex-1 h-7 text-xs" />
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setThresholds(thresholds.filter((_, j) => j !== i))}>
                   <Trash2 className="w-3 h-3" />
                 </Button>
@@ -232,13 +214,8 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
       <Button size="sm" onClick={startNew}><Plus className="w-3.5 h-3.5 mr-1" /> Novo indicador</Button>
       {definitions.map(def => (
         <div key={def.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
-          <Checkbox
-            checked={def.enabled}
-            onCheckedChange={() => handleToggle(def)}
-          />
-          {def.icon?.file_url && (
-            <img src={def.icon.file_url} alt={def.name} className="w-8 h-8 object-contain" />
-          )}
+          <Checkbox checked={def.enabled} onCheckedChange={() => handleToggle(def)} />
+          {def.icon?.file_url && <img src={def.icon.file_url} alt={def.name} className="w-8 h-8 object-contain" />}
           <div className="flex-1">
             <p className="text-sm font-medium">{def.name}</p>
             <p className="text-xs text-muted-foreground">
@@ -348,12 +325,8 @@ function IconesTab({ icons, schoolId, mutations }: {
           <div key={ic.id} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-muted/30 border border-border/30 relative group">
             <img src={ic.file_url} alt={ic.name} className="w-12 h-12 object-contain" />
             <span className="text-[10px] text-muted-foreground truncate max-w-full">{ic.name}</span>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
-              onClick={() => mutations.deleteIcon.mutate(ic.id)}
-            >
+            <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
+              onClick={() => mutations.deleteIcon.mutate(ic.id)}>
               <Trash2 className="w-3 h-3" />
             </Button>
           </div>
@@ -364,6 +337,165 @@ function IconesTab({ icons, schoolId, mutations }: {
           <Image className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
           <p className="text-sm text-muted-foreground">Nenhum ícone na biblioteca.</p>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Modelos Tab ─── */
+interface Template {
+  id: string;
+  name: string;
+  items: TemplateItem[];
+}
+interface TemplateItem {
+  id: string;
+  template_id: string;
+  name: string;
+  value_type: string;
+  direction: string;
+  sort_order: number;
+  thresholds: any[];
+}
+
+function ModelosTab({ schoolId, mutations }: {
+  schoolId: string;
+  mutations: ReturnType<typeof useKpiMutations>;
+}) {
+  const qc = useQueryClient();
+
+  const { data: templates = [], isLoading } = useQuery({
+    queryKey: ['kpi_templates'],
+    queryFn: async () => {
+      const { data: tpls, error } = await supabase.from('kpi_templates').select('*').order('name');
+      if (error) throw error;
+      const { data: items, error: e2 } = await supabase.from('kpi_template_items').select('*').order('sort_order');
+      if (e2) throw e2;
+      return (tpls as any[]).map(t => ({
+        ...t,
+        items: (items as any[]).filter(i => i.template_id === t.id),
+      })) as Template[];
+    },
+  });
+
+  const [editing, setEditing] = useState<string | null>(null);
+  const [formName, setFormName] = useState('');
+
+  const applyTemplate = async (tpl: Template) => {
+    try {
+      for (let i = 0; i < tpl.items.length; i++) {
+        const item = tpl.items[i];
+        const { data: inserted, error } = await supabase.from('kpi_definitions').insert({
+          school_id: schoolId,
+          name: item.name,
+          value_type: item.value_type,
+          direction: item.direction,
+          sort_order: item.sort_order,
+          enabled: true,
+        } as any).select('id').single();
+        if (error) throw error;
+
+        if (item.thresholds?.length && inserted) {
+          const rows = item.thresholds.map((t: any, j: number) => ({
+            kpi_definition_id: inserted.id,
+            min_value: t.min_value,
+            max_value: t.max_value,
+            color: t.color,
+            label: t.label,
+            sort_order: j,
+          }));
+          const { error: e2 } = await supabase.from('kpi_thresholds').insert(rows as any);
+          if (e2) throw e2;
+        }
+      }
+      qc.invalidateQueries({ queryKey: ['kpi_definitions', schoolId] });
+      qc.invalidateQueries({ queryKey: ['kpi_thresholds', schoolId] });
+      toast.success(`Modelo "${tpl.name}" aplicado com ${tpl.items.length} indicadores!`);
+    } catch {
+      toast.error('Erro ao aplicar modelo');
+    }
+  };
+
+  const duplicateTemplate = async (tpl: Template) => {
+    try {
+      const { data: newTpl, error } = await supabase.from('kpi_templates').insert({ name: `${tpl.name} (cópia)` } as any).select('id').single();
+      if (error) throw error;
+      if (tpl.items.length) {
+        const rows = tpl.items.map(i => ({
+          template_id: newTpl.id,
+          name: i.name,
+          value_type: i.value_type,
+          direction: i.direction,
+          sort_order: i.sort_order,
+          thresholds: i.thresholds,
+        }));
+        await supabase.from('kpi_template_items').insert(rows as any);
+      }
+      qc.invalidateQueries({ queryKey: ['kpi_templates'] });
+      toast.success('Modelo duplicado!');
+    } catch {
+      toast.error('Erro ao duplicar');
+    }
+  };
+
+  const deleteTemplate = async (id: string) => {
+    if (!confirm('Excluir este modelo?')) return;
+    await supabase.from('kpi_templates').delete().eq('id', id);
+    qc.invalidateQueries({ queryKey: ['kpi_templates'] });
+    toast.success('Modelo excluído');
+  };
+
+  const renameTemplate = async (id: string) => {
+    if (!formName.trim()) return;
+    await supabase.from('kpi_templates').update({ name: formName } as any).eq('id', id);
+    qc.invalidateQueries({ queryKey: ['kpi_templates'] });
+    setEditing(null);
+    toast.success('Nome atualizado');
+  };
+
+  const createTemplate = async () => {
+    const { error } = await supabase.from('kpi_templates').insert({ name: 'Novo Modelo' } as any);
+    if (error) { toast.error('Erro'); return; }
+    qc.invalidateQueries({ queryKey: ['kpi_templates'] });
+    toast.success('Modelo criado!');
+  };
+
+  return (
+    <div className="space-y-4 p-1">
+      <Button size="sm" onClick={createTemplate}><Plus className="w-3.5 h-3.5 mr-1" /> Novo modelo</Button>
+
+      {templates.map(tpl => (
+        <div key={tpl.id} className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-2">
+          {editing === tpl.id ? (
+            <div className="flex gap-2">
+              <Input value={formName} onChange={e => setFormName(e.target.value)} className="h-8 text-sm" />
+              <Button size="sm" onClick={() => renameTemplate(tpl.id)}><Save className="w-3 h-3" /></Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>✕</Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium cursor-pointer" onClick={() => { setEditing(tpl.id); setFormName(tpl.name); }}>{tpl.name}</p>
+              <div className="flex gap-1">
+                <Button size="icon" variant="ghost" className="h-7 w-7" title="Aplicar à empresa" onClick={() => applyTemplate(tpl)}>
+                  <FileDown className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" title="Duplicar" onClick={() => duplicateTemplate(tpl)}>
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Excluir" onClick={() => deleteTemplate(tpl.id)}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground">
+            {tpl.items.length} indicadores: {tpl.items.map(i => i.name).join(', ') || '(vazio)'}
+          </div>
+        </div>
+      ))}
+
+      {!templates.length && !isLoading && (
+        <p className="text-sm text-muted-foreground text-center py-8">Nenhum modelo. Crie um para reutilizar indicadores em várias empresas.</p>
       )}
     </div>
   );

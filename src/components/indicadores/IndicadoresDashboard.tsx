@@ -10,22 +10,28 @@ interface Props {
   schoolId: string;
 }
 
-function generateMonths(): string[] {
+function generateMonths(values: { month: string }[]): string[] {
   const now = new Date();
-  const months: string[] = [];
+  const months = new Set<string>();
+  
+  // Always include last 12 months
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    months.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
-  return months;
+  
+  // Include any historical months from values
+  values.forEach(v => months.add(v.month));
+  
+  return Array.from(months).sort();
 }
 
 export function IndicadoresDashboard({ schoolId }: Props) {
   const [configOpen, setConfigOpen] = useState(false);
-  const months = useMemo(generateMonths, []);
   const { definitions, isLoading, icons } = useKpiDefinitions(schoolId);
   const { data: allValues = [] } = useKpiValues(schoolId);
-
+  
+  const months = useMemo(() => generateMonths(allValues), [allValues]);
   const enabledDefs = useMemo(() => definitions.filter(d => d.enabled), [definitions]);
 
   if (isLoading) {
@@ -38,7 +44,6 @@ export function IndicadoresDashboard({ schoolId }: Props) {
 
   return (
     <div className="relative">
-      {/* Config gear */}
       <Button
         size="icon"
         variant="ghost"
