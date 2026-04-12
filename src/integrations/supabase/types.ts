@@ -100,6 +100,66 @@ export type Database = {
           },
         ]
       }
+      conversion_data: {
+        Row: {
+          contatos: number
+          created_at: string
+          id: string
+          matriculas: number
+          month: string
+          school_id: string
+        }
+        Insert: {
+          contatos?: number
+          created_at?: string
+          id?: string
+          matriculas?: number
+          month: string
+          school_id: string
+        }
+        Update: {
+          contatos?: number
+          created_at?: string
+          id?: string
+          matriculas?: number
+          month?: string
+          school_id?: string
+        }
+        Relationships: []
+      }
+      conversion_thresholds: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          label: string
+          max_value: number | null
+          min_value: number | null
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          label?: string
+          max_value?: number | null
+          min_value?: number | null
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          label?: string
+          max_value?: number | null
+          min_value?: number | null
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       exclusion_rules: {
         Row: {
           acao: string
@@ -402,6 +462,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      module_tabs: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          school_id: string
+          tab_key: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          school_id: string
+          tab_key: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          school_id?: string
+          tab_key?: string
+        }
+        Relationships: []
       }
       monthly_revenue: {
         Row: {
