@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -233,7 +233,9 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
   );
 }
 
-/* ─── Valores Tab ─── */
+/* ─── Valores Tab (tabela editável por ano/mês) ─── */
+const MONTH_LABELS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
 function ValoresTab({ definitions, schoolId, mutations }: {
   definitions: KpiDefinitionWithThresholds[];
   schoolId: string;
@@ -241,22 +243,52 @@ function ValoresTab({ definitions, schoolId, mutations }: {
 }) {
   const enabledDefs = definitions.filter(d => d.enabled);
   const [selectedKpi, setSelectedKpi] = useState(enabledDefs[0]?.id || '');
-  const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [value, setValue] = useState('');
 
-  const handleSave = async () => {
-    if (!selectedKpi || !month || value === '') { toast.error('Preencha todos os campos'); return; }
+  // Fetch all values for this school
+  const { data: allValues = [] } = useQuery({
+    queryKey: ['kpi_values', schoolId],
+    queryFn: async () => {
+      const { data } = await supabase.from('kpi_values').select('*').eq('school_id', schoolId);
+      return (data || []) as { id: string; kpi_definition_id: string; month: string; value: number }[];
+    },
+  });
+
+  const kpiValues = useMemo(() => allValues.filter(v => v.kpi_definition_id === selectedKpi), [allValues, selectedKpi]);
+
+  // Compute years: current year + any historical years from data
+  const years = useMemo(() => {
+    const yrs = new Set<number>();
+    yrs.add(new Date().getFullYear());
+    kpiValues.forEach(v => yrs.add(parseInt(v.month.split('-')[0])));
+    return Array.from(yrs).sort();
+  }, [kpiValues]);
+
+  const [addYear, setAddYear] = useState('');
+
+  const allYears = useMemo(() => {
+    const yrs = new Set(years);
+    if (addYear && !isNaN(parseInt(addYear))) yrs.add(parseInt(addYear));
+    return Array.from(yrs).sort();
+  }, [years, addYear]);
+
+  // Get value for a specific year-month
+  const getValue = useCallback((year: number, monthIdx: number) => {
+    const m = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+    const v = kpiValues.find(v => v.month === m);
+    return v?.value ?? '';
+  }, [kpiValues]);
+
+  // Save a single cell
+  const handleCellSave = useCallback(async (year: number, monthIdx: number, raw: string) => {
+    if (!selectedKpi) return;
+    const m = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+    if (raw === '' || isNaN(Number(raw))) return;
     try {
-      await mutations.saveValue.mutateAsync({ kpi_definition_id: selectedKpi, month, value: Number(value) });
-      toast.success('Valor salvo!');
-      setValue('');
+      await mutations.saveValue.mutateAsync({ kpi_definition_id: selectedKpi, month: m, value: Number(raw) });
     } catch {
-      toast.error('Erro ao salvar');
+      toast.error('Erro ao salvar valor');
     }
-  };
+  }, [selectedKpi, mutations]);
 
   return (
     <div className="space-y-4 p-1">
@@ -269,18 +301,93 @@ function ValoresTab({ definitions, schoolId, mutations }: {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <Label>Mês</Label>
-        <Input type="month" value={month} onChange={e => setMonth(e.target.value)} />
-      </div>
-      <div>
-        <Label>Valor</Label>
-        <Input type="number" step="0.01" value={value} onChange={e => setValue(e.target.value)} placeholder="Ex: 15.5" />
-      </div>
-      <Button size="sm" onClick={handleSave} disabled={mutations.saveValue.isPending}>
-        <Save className="w-3.5 h-3.5 mr-1" /> Salvar valor
-      </Button>
+
+      {selectedKpi && (
+        <>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              placeholder="Adicionar ano (ex: 2024)"
+              className="w-40 h-8 text-xs"
+              value={addYear}
+              onChange={e => setAddYear(e.target.value)}
+            />
+            {addYear && !years.includes(parseInt(addYear)) && (
+              <span className="text-[10px] text-muted-foreground">Novo ano será adicionado à tabela</span>
+            )}
+          </div>
+
+          <ScrollArea className="max-h-[400px]">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr>
+                  <th className="text-left p-1.5 font-medium text-muted-foreground border-b border-border/50 sticky left-0 bg-background">Mês</th>
+                  {allYears.map(y => (
+                    <th key={y} className="text-center p-1.5 font-medium text-muted-foreground border-b border-border/50 min-w-[70px]">{y}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {MONTH_LABELS.map((label, mi) => (
+                  <tr key={mi} className="border-b border-border/20 hover:bg-muted/30">
+                    <td className="p-1.5 font-medium text-muted-foreground sticky left-0 bg-background">{label}</td>
+                    {allYears.map(y => (
+                      <td key={y} className="p-0.5">
+                        <EditableCell
+                          value={getValue(y, mi)}
+                          onSave={(v) => handleCellSave(y, mi, v)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollArea>
+        </>
+      )}
     </div>
+  );
+}
+
+/* ─── Editable Cell ─── */
+function EditableCell({ value, onSave }: { value: number | string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setDraft(String(value)); }, [value]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== String(value) && draft !== '') {
+      onSave(draft);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div
+        className="text-center cursor-pointer rounded px-1 py-1 hover:bg-muted/50 min-h-[28px] flex items-center justify-center text-xs"
+        onClick={() => setEditing(true)}
+      >
+        {value !== '' ? value : <span className="text-muted-foreground/40">—</span>}
+      </div>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="number"
+      step="0.01"
+      className="w-full text-center text-xs border border-primary/40 rounded px-1 py-1 bg-background outline-none focus:ring-1 focus:ring-primary/30"
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(String(value)); setEditing(false); } }}
+    />
   );
 }
 
