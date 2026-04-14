@@ -164,6 +164,7 @@ export type Database = {
           min_value: number | null
           school_id: string
           sort_order: number
+          tipo: string
         }
         Insert: {
           color?: string
@@ -174,6 +175,7 @@ export type Database = {
           min_value?: number | null
           school_id: string
           sort_order?: number
+          tipo?: string
         }
         Update: {
           color?: string
@@ -184,6 +186,7 @@ export type Database = {
           min_value?: number | null
           school_id?: string
           sort_order?: number
+          tipo?: string
         }
         Relationships: []
       }
