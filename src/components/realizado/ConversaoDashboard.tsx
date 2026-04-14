@@ -257,7 +257,7 @@ export function ConversaoDashboard({ schoolId }: Props) {
         <KpiSection
           title="ATIVO"
           kpi={ativoKpi}
-          thresholds={thresholds}
+          thresholds={ativoThresholds}
           iconMap={iconMap}
           prefix="ativo"
           bestWorst={ativoBW}
@@ -267,7 +267,7 @@ export function ConversaoDashboard({ schoolId }: Props) {
         <KpiSection
           title="RECEPTIVO"
           kpi={receptivoKpi}
-          thresholds={thresholds}
+          thresholds={receptivoThresholds}
           iconMap={iconMap}
           prefix="receptivo"
           bestWorst={receptivoBW}
@@ -276,10 +276,10 @@ export function ConversaoDashboard({ schoolId }: Props) {
 
       {/* Charts */}
       {shouldShow('ativo') && ativoEnriched.length > 1 && (
-        <ChartSection title="Conversão Ativa" data={ativoEnriched} thresholds={thresholds} years={years} yearFilter={yearFilter} />
+        <ChartSection title="Conversão Ativa" data={ativoEnriched} thresholds={ativoThresholds} years={years} yearFilter={yearFilter} />
       )}
       {shouldShow('receptivo') && receptivoEnriched.length > 1 && (
-        <ChartSection title="Conversão Receptiva" data={receptivoEnriched} thresholds={thresholds} years={years} yearFilter={yearFilter} />
+        <ChartSection title="Conversão Receptiva" data={receptivoEnriched} thresholds={receptivoThresholds} years={years} yearFilter={yearFilter} />
       )}
 
       {/* Matrículas & Contatos charts */}
