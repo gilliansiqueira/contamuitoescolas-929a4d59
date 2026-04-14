@@ -166,6 +166,10 @@ export function ConversaoDashboard({ schoolId }: Props) {
   const ativoData = useMemo(() => convData.filter(d => d.tipo === 'ativo').sort((a, b) => a.month.localeCompare(b.month)), [convData]);
   const receptivoData = useMemo(() => convData.filter(d => d.tipo === 'receptivo').sort((a, b) => a.month.localeCompare(b.month)), [convData]);
 
+  // Thresholds by tipo
+  const ativoThresholds = useMemo(() => thresholds.filter(t => t.tipo === 'ativo'), [thresholds]);
+  const receptivoThresholds = useMemo(() => thresholds.filter(t => t.tipo === 'receptivo'), [thresholds]);
+
   // Enrich with conversao
   const enrich = (data: ConversionRow[]) => data.map(d => ({
     ...d,
