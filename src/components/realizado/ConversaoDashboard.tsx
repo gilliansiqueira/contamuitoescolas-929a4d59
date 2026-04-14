@@ -34,6 +34,7 @@ interface Threshold {
   color: string;
   label: string;
   sort_order: number;
+  tipo: string;
 }
 
 interface ConversionIcon {
