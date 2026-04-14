@@ -47,12 +47,20 @@ interface ConversionIcon {
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const YEAR_COLORS = ['hsl(var(--primary))', 'hsl(217 91% 60%)', 'hsl(142 71% 45%)', 'hsl(45 93% 47%)', 'hsl(280 67% 55%)'];
 
-const DEFAULT_THRESHOLDS = [
-  { min_value: null, max_value: 10, color: 'hsl(0 84% 60%)', label: 'Ruim' },
-  { min_value: 10, max_value: 20, color: 'hsl(45 93% 47%)', label: 'Regular' },
-  { min_value: 20, max_value: 35, color: 'hsl(217 91% 60%)', label: 'Bom' },
-  { min_value: 35, max_value: null, color: 'hsl(142 71% 45%)', label: 'Ótimo' },
-];
+const DEFAULT_THRESHOLDS: Record<string, { min_value: number | null; max_value: number | null; color: string; label: string }[]> = {
+  ativo: [
+    { min_value: null, max_value: 3, color: 'hsl(0 84% 60%)', label: 'Ruim' },
+    { min_value: 3, max_value: 6, color: 'hsl(45 93% 47%)', label: 'Regular' },
+    { min_value: 6, max_value: 10, color: 'hsl(217 91% 60%)', label: 'Bom' },
+    { min_value: 10, max_value: null, color: 'hsl(142 71% 45%)', label: 'Ótimo' },
+  ],
+  receptivo: [
+    { min_value: null, max_value: 25, color: 'hsl(0 84% 60%)', label: 'Ruim' },
+    { min_value: 25, max_value: 33, color: 'hsl(45 93% 47%)', label: 'Regular' },
+    { min_value: 33, max_value: 38, color: 'hsl(217 91% 60%)', label: 'Bom' },
+    { min_value: 38, max_value: null, color: 'hsl(142 71% 45%)', label: 'Ótimo' },
+  ],
+};
 
 function getThresholdColor(thresholds: Threshold[], value: number | null): string {
   if (value === null || thresholds.length === 0) return 'hsl(var(--muted-foreground))';
