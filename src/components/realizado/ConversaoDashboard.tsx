@@ -670,33 +670,42 @@ function ConfigSheet({ open, onOpenChange, schoolId, thresholds, icons }: {
   icons: ConversionIcon[];
 }) {
   const queryClient = useQueryClient();
-  const [rows, setRows] = useState<{ min_value: string; max_value: string; color: string; label: string }[]>([]);
+  type RowShape = { min_value: string; max_value: string; color: string; label: string };
+  const [ativoRows, setAtivoRows] = useState<RowShape[]>([]);
+  const [receptivoRows, setReceptivoRows] = useState<RowShape[]>([]);
   const [initialized, setInitialized] = useState(false);
 
   useMemo(() => {
     if (!open) { setInitialized(false); return; }
     if (initialized) return;
-    const source = thresholds.length > 0 ? thresholds : DEFAULT_THRESHOLDS.map((d, i) => ({ ...d, sort_order: i }));
-    setRows(source.map(t => ({
-      min_value: t.min_value !== null ? String(t.min_value) : '',
-      max_value: t.max_value !== null ? String(t.max_value) : '',
-      color: t.color,
-      label: t.label,
-    })));
+    const toRows = (tipo: string) => {
+      const saved = thresholds.filter(t => t.tipo === tipo);
+      const source = saved.length > 0 ? saved : (DEFAULT_THRESHOLDS[tipo] || []).map((d: any, i: number) => ({ ...d, sort_order: i }));
+      return source.map((t: any) => ({
+        min_value: t.min_value !== null && t.min_value !== undefined ? String(t.min_value) : '',
+        max_value: t.max_value !== null && t.max_value !== undefined ? String(t.max_value) : '',
+        color: t.color,
+        label: t.label,
+      }));
+    };
+    setAtivoRows(toRows('ativo'));
+    setReceptivoRows(toRows('receptivo'));
     setInitialized(true);
   }, [open, thresholds, initialized]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       await supabase.from('conversion_thresholds').delete().eq('school_id', schoolId);
-      const inserts = rows.map((r, i) => ({
+      const mapRows = (rows: RowShape[], tipo: string) => rows.map((r, i) => ({
         school_id: schoolId,
         min_value: r.min_value !== '' ? parseFloat(r.min_value) : null,
         max_value: r.max_value !== '' ? parseFloat(r.max_value) : null,
         color: r.color,
         label: r.label,
         sort_order: i,
+        tipo,
       }));
+      const inserts = [...mapRows(ativoRows, 'ativo'), ...mapRows(receptivoRows, 'receptivo')];
       const { error } = await supabase.from('conversion_thresholds').insert(inserts);
       if (error) throw error;
     },
@@ -705,14 +714,6 @@ function ConfigSheet({ open, onOpenChange, schoolId, thresholds, icons }: {
       toast.success('Faixas salvas');
     },
   });
-
-  const addRow = () => setRows([...rows, { min_value: '', max_value: '', color: 'hsl(142 71% 45%)', label: '' }]);
-  const removeRow = (i: number) => setRows(rows.filter((_, idx) => idx !== i));
-  const updateRow = (i: number, field: string, val: string) => {
-    const next = [...rows];
-    (next[i] as any)[field] = val;
-    setRows(next);
-  };
 
   const colorOptions = [
     { value: 'hsl(0 84% 60%)', label: 'Vermelho' },
@@ -730,6 +731,51 @@ function ConfigSheet({ open, onOpenChange, schoolId, thresholds, icons }: {
     { key: 'receptivo_conversao', label: 'Conversão Receptivo' },
   ];
 
+  const renderThresholdGroup = (label: string, rows: RowShape[], setRows: (r: RowShape[]) => void) => {
+    const addRow = () => setRows([...rows, { min_value: '', max_value: '', color: 'hsl(142 71% 45%)', label: '' }]);
+    const removeRow = (i: number) => setRows(rows.filter((_, idx) => idx !== i));
+    const updateRow = (i: number, field: string, val: string) => {
+      const next = [...rows];
+      (next[i] as any)[field] = val;
+      setRows(next);
+    };
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{label}</p>
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-2 p-3 rounded-xl border bg-card">
+            <div className="flex-1 space-y-2">
+              <div className="flex gap-2">
+                <Input className="rounded-lg text-xs" placeholder="Mín" value={r.min_value} onChange={e => updateRow(i, 'min_value', e.target.value)} />
+                <Input className="rounded-lg text-xs" placeholder="Máx" value={r.max_value} onChange={e => updateRow(i, 'max_value', e.target.value)} />
+              </div>
+              <div className="flex gap-2 items-center">
+                <Input className="rounded-lg text-xs flex-1" placeholder="Label" value={r.label} onChange={e => updateRow(i, 'label', e.target.value)} />
+                <div className="flex gap-1">
+                  {colorOptions.map(c => (
+                    <button
+                      key={c.value}
+                      className={`w-5 h-5 rounded-full border-2 transition-all ${r.color === c.value ? 'border-foreground scale-110' : 'border-transparent'}`}
+                      style={{ background: c.value }}
+                      onClick={() => updateRow(i, 'color', c.value)}
+                      title={c.label}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <Button size="icon" variant="ghost" className="shrink-0" onClick={() => removeRow(i)}>
+              <Trash2 className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </div>
+        ))}
+        <Button size="sm" variant="outline" className="w-full rounded-xl" onClick={addRow}>
+          <Plus className="w-4 h-4 mr-1" /> Adicionar faixa
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -742,38 +788,10 @@ function ConfigSheet({ open, onOpenChange, schoolId, thresholds, icons }: {
             <TabsTrigger value="faixas" className="flex-1 text-xs">Faixas</TabsTrigger>
             <TabsTrigger value="icones" className="flex-1 text-xs">Ícones</TabsTrigger>
           </TabsList>
-          <TabsContent value="faixas" className="space-y-3 mt-4">
-            {rows.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 p-3 rounded-xl border bg-card">
-                <div className="flex-1 space-y-2">
-                  <div className="flex gap-2">
-                    <Input className="rounded-lg text-xs" placeholder="Mín" value={r.min_value} onChange={e => updateRow(i, 'min_value', e.target.value)} />
-                    <Input className="rounded-lg text-xs" placeholder="Máx" value={r.max_value} onChange={e => updateRow(i, 'max_value', e.target.value)} />
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <Input className="rounded-lg text-xs flex-1" placeholder="Label" value={r.label} onChange={e => updateRow(i, 'label', e.target.value)} />
-                    <div className="flex gap-1">
-                      {colorOptions.map(c => (
-                        <button
-                          key={c.value}
-                          className={`w-5 h-5 rounded-full border-2 transition-all ${r.color === c.value ? 'border-foreground scale-110' : 'border-transparent'}`}
-                          style={{ background: c.value }}
-                          onClick={() => updateRow(i, 'color', c.value)}
-                          title={c.label}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <Button size="icon" variant="ghost" className="shrink-0" onClick={() => removeRow(i)}>
-                  <Trash2 className="w-4 h-4 text-muted-foreground" />
-                </Button>
-              </div>
-            ))}
-            <Button size="sm" variant="outline" className="w-full rounded-xl" onClick={addRow}>
-              <Plus className="w-4 h-4 mr-1" /> Adicionar faixa
-            </Button>
-            <Button className="w-full rounded-xl mt-2" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <TabsContent value="faixas" className="space-y-6 mt-4">
+            {renderThresholdGroup('Faixas — Ativo', ativoRows, setAtivoRows)}
+            {renderThresholdGroup('Faixas — Receptivo', receptivoRows, setReceptivoRows)}
+            <Button className="w-full rounded-xl" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
               <Check className="w-4 h-4 mr-1" /> Salvar
             </Button>
           </TabsContent>
