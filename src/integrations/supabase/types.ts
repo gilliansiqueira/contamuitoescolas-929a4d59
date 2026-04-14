@@ -108,6 +108,7 @@ export type Database = {
           matriculas: number
           month: string
           school_id: string
+          tipo: string
         }
         Insert: {
           contatos?: number
@@ -116,6 +117,7 @@ export type Database = {
           matriculas?: number
           month: string
           school_id: string
+          tipo?: string
         }
         Update: {
           contatos?: number
@@ -123,6 +125,31 @@ export type Database = {
           id?: string
           matriculas?: number
           month?: string
+          school_id?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      conversion_icons: {
+        Row: {
+          card_key: string
+          created_at: string
+          file_url: string
+          id: string
+          school_id: string
+        }
+        Insert: {
+          card_key: string
+          created_at?: string
+          file_url: string
+          id?: string
+          school_id: string
+        }
+        Update: {
+          card_key?: string
+          created_at?: string
+          file_url?: string
+          id?: string
           school_id?: string
         }
         Relationships: []
