@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
@@ -61,6 +61,10 @@ const DEFAULT_THRESHOLDS: Record<string, { min_value: number | null; max_value: 
     { min_value: 38, max_value: null, color: 'hsl(142 71% 45%)', label: 'Ótimo' },
   ],
 };
+
+function sortConversionRows(rows: ConversionRow[]) {
+  return [...rows].sort((a, b) => a.month.localeCompare(b.month));
+}
 
 function getThresholdColor(thresholds: Threshold[], value: number | null): string {
   if (value === null || thresholds.length === 0) return 'hsl(var(--muted-foreground))';
@@ -139,16 +143,53 @@ export function ConversaoDashboard({ schoolId }: Props) {
   // Save mutation
   const saveCell = useMutation({
     mutationFn: async ({ month, contatos, matriculas, tipo }: { month: string; contatos: number; matriculas: number; tipo: string }) => {
-      const existing = convData.find(r => r.month === month && r.tipo === tipo);
-      if (existing) {
-        const { error } = await supabase.from('conversion_data').update({ contatos, matriculas }).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('conversion_data').insert({ school_id: schoolId, month, contatos, matriculas, tipo });
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from('conversion_data')
+        .upsert(
+          { school_id: schoolId, month, contatos, matriculas, tipo },
+          { onConflict: 'school_id,month,tipo' }
+        );
+      if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversion_data', schoolId] }),
+    onMutate: async ({ month, contatos, matriculas, tipo }) => {
+      await queryClient.cancelQueries({ queryKey: ['conversion_data', schoolId] });
+      const previousRows = queryClient.getQueryData<ConversionRow[]>(['conversion_data', schoolId]) ?? [];
+
+      queryClient.setQueryData<ConversionRow[]>(['conversion_data', schoolId], (current = []) => {
+        const existing = current.find(row => row.month === month && row.tipo === tipo);
+
+        if (existing) {
+          return sortConversionRows(
+            current.map(row =>
+              row.month === month && row.tipo === tipo
+                ? { ...row, contatos, matriculas }
+                : row
+            )
+          );
+        }
+
+        return sortConversionRows([
+          ...current,
+          {
+            id: `optimistic-${tipo}-${month}`,
+            school_id: schoolId,
+            month,
+            contatos,
+            matriculas,
+            tipo,
+          },
+        ]);
+      });
+
+      return { previousRows };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousRows) {
+        queryClient.setQueryData(['conversion_data', schoolId], context.previousRows);
+      }
+      toast.error('Erro ao salvar conversão');
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['conversion_data', schoolId] }),
   });
 
   const deleteRow = useMutation({
@@ -533,6 +574,8 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
 }) {
   const [addYear, setAddYear] = useState('');
   const [localYears, setLocalYears] = useState<string[]>([]);
+  const [draftRows, setDraftRows] = useState<Record<string, { contatos: string; matriculas: string }>>({});
+  const draftRowsRef = useRef<Record<string, { contatos: string; matriculas: string }>>({});
 
   const allYears = useMemo(() => {
     const s = new Set([...years, ...localYears]);
@@ -546,6 +589,35 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
     convData.forEach(d => { m[d.month] = d; });
     return m;
   }, [convData]);
+
+  useEffect(() => {
+    const nextDrafts = Object.fromEntries(
+      convData.map(row => [
+        row.month,
+        {
+          contatos: String(row.contatos),
+          matriculas: String(row.matriculas),
+        },
+      ])
+    ) as Record<string, { contatos: string; matriculas: string }>;
+
+    draftRowsRef.current = nextDrafts;
+    setDraftRows(nextDrafts);
+  }, [convData]);
+
+  const handleCellSave = useCallback((month: string, field: 'contatos' | 'matriculas', value: number) => {
+    const current = draftRowsRef.current[month] ?? { contatos: '', matriculas: '' };
+    const nextRow = { ...current, [field]: String(value) };
+    const nextDrafts = { ...draftRowsRef.current, [month]: nextRow };
+
+    draftRowsRef.current = nextDrafts;
+    setDraftRows(nextDrafts);
+    onSave(
+      month,
+      nextRow.contatos === '' ? 0 : Number(nextRow.contatos),
+      nextRow.matriculas === '' ? 0 : Number(nextRow.matriculas)
+    );
+  }, [onSave]);
 
   const handleAddYear = () => {
     const y = addYear.trim();
@@ -592,7 +664,12 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
                     const mo = String(mi + 1).padStart(2, '0');
                     const key = `${year}-${mo}`;
                     const row = dataMap[key];
-                    const conv = row && row.contatos > 0 ? ((row.matriculas / row.contatos) * 100).toFixed(1) : '';
+                     const draftRow = draftRows[key];
+                     const contatosValue = draftRow?.contatos ?? (row ? String(row.contatos) : '');
+                     const matriculasValue = draftRow?.matriculas ?? (row ? String(row.matriculas) : '');
+                     const contatos = contatosValue === '' ? 0 : Number(contatosValue);
+                     const matriculas = matriculasValue === '' ? 0 : Number(matriculasValue);
+                     const conv = contatos > 0 ? ((matriculas / contatos) * 100).toFixed(1) : '';
                     return (
                       <tr key={key} className="border-b border-border/30 hover:bg-muted/30">
                         {mi === 0 && (
@@ -604,15 +681,15 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
                         <td className="py-0.5 px-1">
                           <EditableCell
                             placeholder="0"
-                            value={row?.contatos ?? ''}
-                            onSave={v => onSave(key, v, row?.matriculas ?? 0)}
+                            value={contatosValue === '' ? '' : contatos}
+                            onSave={v => handleCellSave(key, 'contatos', v)}
                           />
                         </td>
                         <td className="py-0.5 px-1">
                           <EditableCell
                             placeholder="0"
-                            value={row?.matriculas ?? ''}
-                            onSave={v => onSave(key, row?.contatos ?? 0, v)}
+                            value={matriculasValue === '' ? '' : matriculas}
+                            onSave={v => handleCellSave(key, 'matriculas', v)}
                           />
                         </td>
                         <td className="py-1 px-1 text-center text-xs font-semibold" style={{ color: conv ? getThresholdColor(thresholds, parseFloat(conv)) : undefined }}>
@@ -643,12 +720,11 @@ function EditableCell({ value, placeholder, onSave }: { value: number | ''; plac
   const [draft, setDraft] = useState(value !== '' ? String(value) : '');
   const [dirty, setDirty] = useState(false);
 
-  // Sync when prop changes externally (e.g. after save + refetch)
-  const prevValue = useRef(value);
-  if (prevValue.current !== value && !dirty) {
-    setDraft(value !== '' ? String(value) : '');
-    prevValue.current = value;
-  }
+  useEffect(() => {
+    if (!dirty) {
+      setDraft(value !== '' ? String(value) : '');
+    }
+  }, [value, dirty]);
 
   const commit = useCallback(() => {
     if (!dirty) return;
