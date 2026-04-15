@@ -612,7 +612,7 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
                             onSave={v => onSave(key, row?.contatos ?? 0, v)}
                           />
                         </td>
-                        <td className="py-1 px-1 text-center text-xs font-semibold text-primary">
+                        <td className="py-1 px-1 text-center text-xs font-semibold" style={{ color: conv ? getThresholdColor(thresholds, parseFloat(conv)) : undefined }}>
                           {conv ? `${conv}%` : ''}
                         </td>
                         <td className="py-1 px-1">
@@ -639,6 +639,13 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
 function EditableCell({ value, placeholder, onSave }: { value: number | ''; placeholder: string; onSave: (v: number) => void }) {
   const [draft, setDraft] = useState(value !== '' ? String(value) : '');
   const [dirty, setDirty] = useState(false);
+
+  // Sync when prop changes externally (e.g. after save + refetch)
+  const prevValue = useRef(value);
+  if (prevValue.current !== value && !dirty) {
+    setDraft(value !== '' ? String(value) : '');
+    prevValue.current = value;
+  }
 
   const commit = useCallback(() => {
     if (!dirty) return;
