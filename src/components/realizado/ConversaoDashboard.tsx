@@ -300,6 +300,7 @@ export function ConversaoDashboard({ schoolId }: Props) {
           yearFilter={yearFilter}
           onSave={(month, contatos, matriculas) => saveCell.mutate({ month, contatos, matriculas, tipo: 'ativo' })}
           onDelete={(id) => deleteRow.mutate(id)}
+          thresholds={ativoThresholds}
         />
       )}
       {shouldShow('receptivo') && (
@@ -311,6 +312,7 @@ export function ConversaoDashboard({ schoolId }: Props) {
           yearFilter={yearFilter}
           onSave={(month, contatos, matriculas) => saveCell.mutate({ month, contatos, matriculas, tipo: 'receptivo' })}
           onDelete={(id) => deleteRow.mutate(id)}
+          thresholds={receptivoThresholds}
         />
       )}
 
@@ -519,7 +521,7 @@ function SimpleLineChart({ title, data, dataKey, color }: {
 }
 
 // ── History Table ──
-function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDelete }: {
+function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDelete, thresholds }: {
   title: string;
   tipo: string;
   convData: ConversionRow[];
@@ -527,6 +529,7 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
   yearFilter: string;
   onSave: (month: string, contatos: number, matriculas: number) => void;
   onDelete: (id: string) => void;
+  thresholds: Threshold[];
 }) {
   const [addYear, setAddYear] = useState('');
   const [localYears, setLocalYears] = useState<string[]>([]);
