@@ -465,9 +465,11 @@ interface TemplateItem {
   thresholds: any[];
 }
 
-function ModelosTab({ schoolId, mutations }: {
+function ModelosTab({ schoolId, mutations, definitions, icons }: {
   schoolId: string;
   mutations: ReturnType<typeof useKpiMutations>;
+  definitions?: KpiDefinitionWithThresholds[];
+  icons?: KpiIcon[];
 }) {
   const qc = useQueryClient();
 
