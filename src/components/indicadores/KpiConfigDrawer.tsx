@@ -622,7 +622,12 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
 
   return (
     <div className="space-y-4 p-1">
-      <Button size="sm" onClick={createTemplate}><Plus className="w-3.5 h-3.5 mr-1" /> Novo modelo</Button>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={createTemplate}><Plus className="w-3.5 h-3.5 mr-1" /> Novo modelo</Button>
+        {definitions && definitions.length > 0 && (
+          <Button size="sm" variant="outline" onClick={saveCurrentAsTemplate}><Save className="w-3.5 h-3.5 mr-1" /> Salvar atual</Button>
+        )}
+      </div>
 
       {templates.map(tpl => (
         <div key={tpl.id} className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-2">
