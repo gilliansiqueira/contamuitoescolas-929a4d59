@@ -1,0 +1,1 @@
+ALTER TABLE public.kpi_template_items ADD COLUMN icon_url TEXT;
