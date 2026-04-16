@@ -154,6 +154,65 @@ export type Database = {
         }
         Relationships: []
       }
+      conversion_template_items: {
+        Row: {
+          created_at: string
+          icon_contatos_url: string | null
+          icon_conversao_url: string | null
+          icon_matriculas_url: string | null
+          id: string
+          template_id: string
+          thresholds: Json
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          icon_contatos_url?: string | null
+          icon_conversao_url?: string | null
+          icon_matriculas_url?: string | null
+          id?: string
+          template_id: string
+          thresholds?: Json
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          icon_contatos_url?: string | null
+          icon_conversao_url?: string | null
+          icon_matriculas_url?: string | null
+          id?: string
+          template_id?: string
+          thresholds?: Json
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversion_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "conversion_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversion_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       conversion_thresholds: {
         Row: {
           color: string
