@@ -592,6 +592,34 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
     toast.success('Modelo criado!');
   };
 
+  const saveCurrentAsTemplate = async () => {
+    if (!definitions?.length) { toast.error('Nenhum indicador configurado'); return; }
+    try {
+      const { data: newTpl, error } = await supabase.from('kpi_templates').insert({ name: 'Modelo da Escola' } as any).select('id').single();
+      if (error) throw error;
+      const rows = definitions.map(d => ({
+        template_id: newTpl.id,
+        name: d.name,
+        value_type: d.value_type,
+        direction: d.direction,
+        sort_order: d.sort_order,
+        thresholds: d.thresholds.map(t => ({
+          min_value: t.min_value,
+          max_value: t.max_value,
+          color: t.color,
+          label: t.label,
+          sort_order: t.sort_order,
+        })),
+        icon_url: d.icon?.file_url || null,
+      }));
+      await supabase.from('kpi_template_items').insert(rows as any);
+      qc.invalidateQueries({ queryKey: ['kpi_templates'] });
+      toast.success('Configuração atual salva como modelo!');
+    } catch {
+      toast.error('Erro ao salvar modelo');
+    }
+  };
+
   return (
     <div className="space-y-4 p-1">
       <Button size="sm" onClick={createTemplate}><Plus className="w-3.5 h-3.5 mr-1" /> Novo modelo</Button>
