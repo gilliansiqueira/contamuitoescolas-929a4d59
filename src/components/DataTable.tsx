@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { getEffectiveClassification } from '@/lib/classificationUtils';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface DataTableProps {
   schoolId: string;
@@ -41,6 +42,7 @@ function standardizePaymentType(cat: string): string {
 }
 
 export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableProps) {
+  const { isPresentationMode } = usePresentation();
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
   const { data: allEntries = [] } = useEntries(schoolId);
@@ -248,10 +250,12 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-card z-10">
               <tr className="border-b border-border">
-                <th className="px-2 py-2.5 text-center w-8">
-                  <Checkbox checked={withBalance.length > 0 && selectedIds.size === withBalance.length}
-                    onCheckedChange={toggleSelectAll} />
-                </th>
+                {!isPresentationMode && (
+                  <th className="px-2 py-2.5 text-center w-8">
+                    <Checkbox checked={withBalance.length > 0 && selectedIds.size === withBalance.length}
+                      onCheckedChange={toggleSelectAll} />
+                  </th>
+                )}
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Data</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Tipo</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Class.</th>
@@ -261,7 +265,9 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Descrição</th>
                 <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">Valor</th>
                 <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">Saldo Acum.</th>
-                <th className="px-3 py-2.5 text-center font-medium text-muted-foreground w-20">Ações</th>
+                {!isPresentationMode && (
+                  <th className="px-3 py-2.5 text-center font-medium text-muted-foreground w-20">Ações</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -271,7 +277,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                 const clsColor = cls === 'receita' ? 'bg-primary/10 text-primary' : cls === 'despesa' ? 'bg-destructive/10 text-destructive' : cls === 'operacao' ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground';
                 return (
                   <tr key={e.id} className={`border-t border-border/30 hover:bg-muted/30 transition-colors ${e.saldo < 0 ? 'bg-destructive/5' : ''} ${cls === 'ignorar' ? 'opacity-40' : ''}`}>
-                    {editId === e.id ? (
+                    {editId === e.id && !isPresentationMode ? (
                       <>
                         <td className="px-2 py-1 text-center">
                           <Checkbox checked={selectedIds.has(e.id)} onCheckedChange={() => toggleSelect(e.id)} />
@@ -312,12 +318,21 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-2 text-center">
-                          <Checkbox checked={selectedIds.has(e.id)} onCheckedChange={() => toggleSelect(e.id)} />
-                        </td>
+                        {!isPresentationMode && (
+                          <td className="px-2 py-2 text-center">
+                            <Checkbox checked={selectedIds.has(e.id)} onCheckedChange={() => toggleSelect(e.id)} />
+                          </td>
+                        )}
                         <td className="px-3 py-2 font-medium text-foreground">{formatDate(e.data)}</td>
                         <td className="px-3 py-2">
-                          <Select value={e.tipo} onValueChange={(v) => handleTipoChange(e.id, v as 'entrada' | 'saida')}>
+                          {isPresentationMode ? (
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                              e.tipo === 'entrada' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-destructive/10 text-destructive border-destructive/20'
+                            }`}>
+                              {e.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                            </span>
+                          ) : (
+                            <Select value={e.tipo} onValueChange={(v) => handleTipoChange(e.id, v as 'entrada' | 'saida')}>
                             <SelectTrigger className={`h-6 w-[90px] text-[10px] font-semibold border-0 px-1.5 py-0.5 ${
                               e.tipo === 'entrada' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'
                             }`}>
@@ -328,6 +343,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                               <SelectItem value="saida">Saída</SelectItem>
                             </SelectContent>
                           </Select>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${clsColor}`}>{clsLabel}</span>
@@ -349,12 +365,14 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                         <td className={`px-3 py-2 text-right font-semibold ${e.saldo >= 0 ? 'text-primary' : 'text-destructive'}`}>
                           {formatCurrency(e.saldo)}
                         </td>
-                        <td className="px-3 py-2 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => startEdit(e)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => setDeleteId(e.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
-                          </div>
-                        </td>
+                        {!isPresentationMode && (
+                          <td className="px-3 py-2 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => startEdit(e)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setDeleteId(e.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </td>
+                        )}
                       </>
                     )}
                   </tr>

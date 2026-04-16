@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { School } from '@/types/financial';
 import { SchoolSelector } from '@/components/SchoolSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { PresentationToggle } from '@/components/PresentationToggle';
+import { usePresentation } from '@/components/presentation-provider';
 import { Dashboard } from '@/components/Dashboard';
 import { FileUpload } from '@/components/FileUpload';
 import { CashFlow } from '@/components/CashFlow';
@@ -60,6 +62,7 @@ const settingsTabs: { key: Tab; label: string }[] = [
 ];
 
 const Index = () => {
+  const { isPresentationMode } = usePresentation();
   const [school, setSchool] = useState<School | null>(null);
   const [appModule, setAppModule] = useState<AppModule>('projecao');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -70,6 +73,11 @@ const Index = () => {
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
+
+  // Se ativaram o modo apresentação e estamos numa aba de configuração, forçar ida para o dashboard
+  if (isPresentationMode && isSettingsTab) {
+    setActiveTab('dashboard');
+  }
 
   if (!school) {
     return (
@@ -88,7 +96,7 @@ const Index = () => {
       <header className="sticky top-0 z-50 bg-card/90 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg gradient-green flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg gradient-orange flex items-center justify-center">
               <BarChart3 className="w-4 h-4 text-primary-foreground" />
             </div>
             <h1 className="font-display font-bold text-lg hidden sm:block text-foreground">Projeção Financeira</h1>
@@ -98,6 +106,7 @@ const Index = () => {
               if (s?.id === school.id) setSchool(null);
               else setSchool(s);
             }} />
+            <PresentationToggle />
             <ThemeToggle />
           </div>
         </div>
@@ -151,26 +160,28 @@ const Index = () => {
                 </button>
               ))}
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ml-auto ${
-                    isSettingsTab
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}>
-                    <Settings className="w-4 h-4" />
-                    <span className="hidden sm:inline">Config</span>
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {settingsTabs.map(t => (
-                    <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
-                      {t.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {!isPresentationMode && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ml-auto ${
+                      isSettingsTab
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                    }`}>
+                      <Settings className="w-4 h-4" />
+                      <span className="hidden sm:inline">Config</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {settingsTabs.map(t => (
+                      <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
+                        {t.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </nav>
 
