@@ -463,6 +463,7 @@ interface TemplateItem {
   direction: string;
   sort_order: number;
   thresholds: any[];
+  icon_url?: string | null;
 }
 
 function ModelosTab({ schoolId, mutations, definitions, icons }: {
