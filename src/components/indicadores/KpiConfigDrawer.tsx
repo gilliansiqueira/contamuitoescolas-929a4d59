@@ -559,6 +559,7 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
           direction: i.direction,
           sort_order: i.sort_order,
           thresholds: i.thresholds,
+          icon_url: i.icon_url || null,
         }));
         await supabase.from('kpi_template_items').insert(rows as any);
       }
