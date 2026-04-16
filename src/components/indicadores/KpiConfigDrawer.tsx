@@ -50,7 +50,7 @@ export function KpiConfigDrawer({ open, onOpenChange, schoolId, definitions, ico
               <IconesTab icons={icons} schoolId={schoolId} mutations={mutations} />
             </TabsContent>
             <TabsContent value="modelos" className="mt-0">
-              <ModelosTab schoolId={schoolId} mutations={mutations} />
+              <ModelosTab schoolId={schoolId} mutations={mutations} definitions={definitions} icons={icons} />
             </TabsContent>
           </ScrollArea>
         </Tabs>
@@ -463,11 +463,14 @@ interface TemplateItem {
   direction: string;
   sort_order: number;
   thresholds: any[];
+  icon_url?: string | null;
 }
 
-function ModelosTab({ schoolId, mutations }: {
+function ModelosTab({ schoolId, mutations, definitions, icons }: {
   schoolId: string;
   mutations: ReturnType<typeof useKpiMutations>;
+  definitions?: KpiDefinitionWithThresholds[];
+  icons?: KpiIcon[];
 }) {
   const qc = useQueryClient();
 
@@ -492,6 +495,25 @@ function ModelosTab({ schoolId, mutations }: {
     try {
       for (let i = 0; i < tpl.items.length; i++) {
         const item = tpl.items[i];
+        
+        // If template item has an icon_url, find or create a matching kpi_icon
+        let iconId: string | null = null;
+        if (item.icon_url) {
+          // Check if icon already exists
+          const existingIcon = icons?.find(ic => ic.file_url === item.icon_url);
+          if (existingIcon) {
+            iconId = existingIcon.id;
+          } else {
+            // Create a new icon entry
+            const { data: newIcon } = await supabase.from('kpi_icons').insert({
+              school_id: schoolId,
+              name: item.name,
+              file_url: item.icon_url,
+            } as any).select('id').single();
+            if (newIcon) iconId = newIcon.id;
+          }
+        }
+
         const { data: inserted, error } = await supabase.from('kpi_definitions').insert({
           school_id: schoolId,
           name: item.name,
@@ -499,6 +521,7 @@ function ModelosTab({ schoolId, mutations }: {
           direction: item.direction,
           sort_order: item.sort_order,
           enabled: true,
+          icon_id: iconId,
         } as any).select('id').single();
         if (error) throw error;
 
@@ -517,6 +540,7 @@ function ModelosTab({ schoolId, mutations }: {
       }
       qc.invalidateQueries({ queryKey: ['kpi_definitions', schoolId] });
       qc.invalidateQueries({ queryKey: ['kpi_thresholds', schoolId] });
+      qc.invalidateQueries({ queryKey: ['kpiIcons', schoolId] });
       toast.success(`Modelo "${tpl.name}" aplicado com ${tpl.items.length} indicadores!`);
     } catch {
       toast.error('Erro ao aplicar modelo');
@@ -535,6 +559,7 @@ function ModelosTab({ schoolId, mutations }: {
           direction: i.direction,
           sort_order: i.sort_order,
           thresholds: i.thresholds,
+          icon_url: i.icon_url || null,
         }));
         await supabase.from('kpi_template_items').insert(rows as any);
       }
@@ -567,9 +592,42 @@ function ModelosTab({ schoolId, mutations }: {
     toast.success('Modelo criado!');
   };
 
+  const saveCurrentAsTemplate = async () => {
+    if (!definitions?.length) { toast.error('Nenhum indicador configurado'); return; }
+    try {
+      const { data: newTpl, error } = await supabase.from('kpi_templates').insert({ name: 'Modelo da Escola' } as any).select('id').single();
+      if (error) throw error;
+      const rows = definitions.map(d => ({
+        template_id: newTpl.id,
+        name: d.name,
+        value_type: d.value_type,
+        direction: d.direction,
+        sort_order: d.sort_order,
+        thresholds: d.thresholds.map(t => ({
+          min_value: t.min_value,
+          max_value: t.max_value,
+          color: t.color,
+          label: t.label,
+          sort_order: t.sort_order,
+        })),
+        icon_url: d.icon?.file_url || null,
+      }));
+      await supabase.from('kpi_template_items').insert(rows as any);
+      qc.invalidateQueries({ queryKey: ['kpi_templates'] });
+      toast.success('Configuração atual salva como modelo!');
+    } catch {
+      toast.error('Erro ao salvar modelo');
+    }
+  };
+
   return (
     <div className="space-y-4 p-1">
-      <Button size="sm" onClick={createTemplate}><Plus className="w-3.5 h-3.5 mr-1" /> Novo modelo</Button>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={createTemplate}><Plus className="w-3.5 h-3.5 mr-1" /> Novo modelo</Button>
+        {definitions && definitions.length > 0 && (
+          <Button size="sm" variant="outline" onClick={saveCurrentAsTemplate}><Save className="w-3.5 h-3.5 mr-1" /> Salvar atual</Button>
+        )}
+      </div>
 
       {templates.map(tpl => (
         <div key={tpl.id} className="p-3 rounded-xl bg-muted/30 border border-border/30 space-y-2">

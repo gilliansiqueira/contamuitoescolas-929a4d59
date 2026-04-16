@@ -5,13 +5,15 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, LabelList, PieChart, Pie, Cell,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Entry {
+  id?: string;
   data: string;
   valor: number;
   conta_nome: string;
+  descricao?: string;
 }
 
 interface Props {
@@ -21,11 +23,12 @@ interface Props {
   faturamento: number;
   allMonths: string[];
   index: number;
+  onEditEntry?: (entry: Entry) => void;
 }
 
 const COLORS = [
   'hsl(var(--primary))',
-  'hsl(25 95% 53%)',    // orange
+  'hsl(25 95% 53%)',
   'hsl(var(--destructive))',
   'hsl(210 40% 60%)',
   'hsl(150 40% 50%)',
@@ -49,8 +52,9 @@ function formatMonth(m: string) {
   return `${months[parseInt(mo) - 1]}/${y?.slice(2) || ''}`;
 }
 
-export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonths, index }: Props) {
+export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonths, index, onEditEntry }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [showEntries, setShowEntries] = useState(false);
   const total = useMemo(() => entries.reduce((s, e) => s + e.valor, 0), [entries]);
   const pct = totalGeral > 0 ? (total / totalGeral) * 100 : 0;
 
@@ -108,7 +112,6 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
       const pctFat = (total / faturamento) * 100;
       result.push({ text: `${pctFat.toFixed(1)}% do faturamento`, type: pctFat > 30 ? 'up' : 'neutral' });
     }
-    // Simple MoM from allMonths
     const monthTotals = allMonths.map(m => entries.filter(e => e.data?.startsWith(m)).reduce((s, e) => s + e.valor, 0));
     if (monthTotals.length >= 2) {
       const last = monthTotals[monthTotals.length - 1];
@@ -127,6 +130,12 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
   }, [bySubcat, total, faturamento, allMonths, entries]);
 
   const YEAR_COLORS = ['hsl(var(--primary))', 'hsl(25 95% 53%)', 'hsl(var(--destructive))', 'hsl(210 40% 60%)'];
+
+  // Sort entries for display
+  const sortedEntries = useMemo(() =>
+    [...entries].sort((a, b) => (b.data || '').localeCompare(a.data || '')),
+    [entries]
+  );
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
@@ -266,6 +275,64 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                           </span>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Entry list with edit */}
+                  {onEditEntry && (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => setShowEntries(!showEntries)}
+                        className="text-xs text-primary font-medium hover:underline flex items-center gap-1"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        {showEntries ? 'Ocultar lançamentos' : `Ver lançamentos (${entries.length})`}
+                      </button>
+                      <AnimatePresence>
+                        {showEntries && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-3 max-h-64 overflow-y-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b text-muted-foreground">
+                                    <th className="text-left py-1 px-1 font-medium">Data</th>
+                                    <th className="text-left py-1 px-1 font-medium">Descrição</th>
+                                    <th className="text-left py-1 px-1 font-medium">Categoria</th>
+                                    <th className="text-right py-1 px-1 font-medium">Valor</th>
+                                    <th className="w-8"></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {sortedEntries.map(e => (
+                                    <tr key={e.id || `${e.data}-${e.valor}`} className="border-b border-border/20 hover:bg-muted/30">
+                                      <td className="py-1.5 px-1 text-muted-foreground">{e.data}</td>
+                                      <td className="py-1.5 px-1 truncate max-w-[150px]">{e.descricao || '—'}</td>
+                                      <td className="py-1.5 px-1 text-muted-foreground truncate max-w-[100px]">{e.conta_nome}</td>
+                                      <td className="py-1.5 px-1 text-right font-medium">{formatCurrency(e.valor)}</td>
+                                      <td className="py-1.5 px-1">
+                                        {e.id && (
+                                          <button
+                                            onClick={() => onEditEntry(e)}
+                                            className="text-muted-foreground hover:text-primary transition-colors"
+                                            title="Editar"
+                                          >
+                                            <Pencil className="w-3 h-3" />
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   )}
                 </div>

@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { motion } from 'framer-motion';
 import { CategoryBlock } from './CategoryBlock';
+import { EditEntryDialog } from './EditEntryDialog';
 import { DollarSign, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -35,6 +36,8 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [mesFilter, setMesFilter] = useState('all');
   const [faturamentoInput, setFaturamentoInput] = useState('');
   const [editingFat, setEditingFat] = useState(false);
+  const [editEntry, setEditEntry] = useState<any>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
@@ -81,13 +84,26 @@ export function RelatorioRealizado({ schoolId }: Props) {
     },
   });
 
+  const updateEntry = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
+      const { error } = await supabase.from('realized_entries').update(updates).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
+    },
+  });
+
+  const handleEditSave = useCallback(async (id: string, updates: any) => {
+    await updateEntry.mutateAsync({ id, updates });
+  }, [updateEntry]);
+
   const mesesDisponiveis = useMemo(() => {
     const meses = new Set<string>();
     entries.forEach(e => { const m = e.data?.slice(0, 7); if (m && m.length === 7) meses.add(m); });
     return Array.from(meses).sort();
   }, [entries]);
 
-  // Auto-select latest month
   const activeMes = mesFilter === 'all'
     ? (mesesDisponiveis.length > 0 ? mesesDisponiveis[mesesDisponiveis.length - 1] : '')
     : mesFilter;
@@ -102,7 +118,6 @@ export function RelatorioRealizado({ schoolId }: Props) {
     return revenues.find(r => r.month === activeMes)?.value || 0;
   }, [revenues, activeMes]);
 
-  // Initialize faturamento input when month changes
   useMemo(() => {
     if (currentRevenue > 0 && !editingFat) {
       setFaturamentoInput(currentRevenue.toString());
@@ -122,22 +137,20 @@ export function RelatorioRealizado({ schoolId }: Props) {
   }, [contas]);
 
   const categoryBlocks = useMemo(() => {
-    const map: Record<string, { valor: number; conta_nome: string; data: string }[]> = {};
+    const map: Record<string, { id: string; valor: number; conta_nome: string; data: string; descricao: string }[]> = {};
     filtered.forEach(e => {
       const catName = e.conta_nome || '';
       const grupo = contaGrupoMap[normalizeStr(catName)] || 'Outros';
       if (!map[grupo]) map[grupo] = [];
-      map[grupo].push({ valor: Number(e.valor || 0), conta_nome: catName, data: e.data || '' });
+      map[grupo].push({ id: e.id, valor: Number(e.valor || 0), conta_nome: catName, data: e.data || '', descricao: e.descricao || '' });
     });
     return Object.entries(map)
       .map(([name, items]) => ({ name, entries: items, total: items.reduce((s, i) => s + i.valor, 0) }))
-      .sort((a, b) => a.total - b.total); // menor → maior
+      .sort((a, b) => a.total - b.total);
   }, [filtered, contaGrupoMap]);
 
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
-
-  // Data for top-level bar chart
   const barChartData = useMemo(() => {
     return [...categoryBlocks].map(b => ({
       name: b.name,
@@ -146,7 +159,6 @@ export function RelatorioRealizado({ schoolId }: Props) {
     }));
   }, [categoryBlocks, currentRevenue]);
 
-  // Revenue comparison data
   const revenueCompData = useMemo(() => {
     if (currentRevenue <= 0) return [];
     return categoryBlocks.map(b => ({
@@ -233,7 +245,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Despesas por Categoria Mãe - Horizontal Bar */}
+      {/* Despesas por Categoria Mãe */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
         <Card className="rounded-2xl">
           <CardContent className="p-5">
@@ -297,10 +309,19 @@ export function RelatorioRealizado({ schoolId }: Props) {
             faturamento={currentRevenue}
             allMonths={mesesDisponiveis}
             index={i}
+            onEditEntry={(entry) => { setEditEntry(entry); setEditOpen(true); }}
           />
         ))}
       </div>
 
+      {/* Edit Dialog */}
+      <EditEntryDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        entry={editEntry}
+        contas={contas as any}
+        onSave={handleEditSave}
+      />
     </div>
   );
 }
