@@ -494,6 +494,25 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
     try {
       for (let i = 0; i < tpl.items.length; i++) {
         const item = tpl.items[i];
+        
+        // If template item has an icon_url, find or create a matching kpi_icon
+        let iconId: string | null = null;
+        if (item.icon_url) {
+          // Check if icon already exists
+          const existingIcon = icons?.find(ic => ic.file_url === item.icon_url);
+          if (existingIcon) {
+            iconId = existingIcon.id;
+          } else {
+            // Create a new icon entry
+            const { data: newIcon } = await supabase.from('kpi_icons').insert({
+              school_id: schoolId,
+              name: item.name,
+              file_url: item.icon_url,
+            } as any).select('id').single();
+            if (newIcon) iconId = newIcon.id;
+          }
+        }
+
         const { data: inserted, error } = await supabase.from('kpi_definitions').insert({
           school_id: schoolId,
           name: item.name,
@@ -501,6 +520,7 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
           direction: item.direction,
           sort_order: item.sort_order,
           enabled: true,
+          icon_id: iconId,
         } as any).select('id').single();
         if (error) throw error;
 
@@ -519,6 +539,7 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
       }
       qc.invalidateQueries({ queryKey: ['kpi_definitions', schoolId] });
       qc.invalidateQueries({ queryKey: ['kpi_thresholds', schoolId] });
+      qc.invalidateQueries({ queryKey: ['kpiIcons', schoolId] });
       toast.success(`Modelo "${tpl.name}" aplicado com ${tpl.items.length} indicadores!`);
     } catch {
       toast.error('Erro ao aplicar modelo');
