@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { School } from '@/types/financial';
 import { SchoolSelector } from '@/components/SchoolSelector';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Dashboard } from '@/components/Dashboard';
 import { FileUpload } from '@/components/FileUpload';
 import { CashFlow } from '@/components/CashFlow';
@@ -97,6 +98,7 @@ const Index = () => {
               if (s?.id === school.id) setSchool(null);
               else setSchool(s);
             }} />
+            <ThemeToggle />
           </div>
         </div>
       </header>

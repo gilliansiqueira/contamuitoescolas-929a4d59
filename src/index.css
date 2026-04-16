@@ -44,6 +44,46 @@
     --surface: 180 8% 95%;
     --surface-foreground: 210 25% 15%;
   }
+
+  .dark {
+    --background: 200 20% 21%; /* #2a383f */
+    --foreground: 0 0% 95%;
+    --card: 200 22% 26%;
+    --card-foreground: 0 0% 95%;
+    --popover: 200 22% 26%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 174 55% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 28 90% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 200 20% 30%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 28 90% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 200 20% 30%;
+    --input: 200 20% 30%;
+    --ring: 174 55% 40%;
+    --radius: 0.75rem;
+    --sidebar-background: 200 20% 21%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 174 55% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 28 90% 55%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 200 20% 30%;
+    --sidebar-ring: 174 55% 40%;
+
+    --success: 174 55% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 28 90% 55%;
+    --warning-foreground: 0 0% 100%;
+    --info: 210 80% 55%;
+    --info-foreground: 0 0% 100%;
+    --surface: 200 20% 23%;
+    --surface-foreground: 0 0% 95%;
+  }
 }
 
 @layer base {
@@ -94,4 +134,24 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.35);
+}
+
+/* Recharts Dark Mode Overrides */
+.dark .recharts-cartesian-axis-tick-value {
+  fill: #e2e8f0;
+}
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line {
+  stroke: #475569;
+}
+.dark .recharts-text {
+  fill: #e2e8f0;
+}
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: hsl(200 22% 26%) !important;
+  border-color: hsl(200 20% 30%) !important;
+  color: #f1f5f9 !important;
+}
+.dark .recharts-tooltip-item {
+  color: #f1f5f9 !important;
 }
