@@ -867,12 +867,13 @@ function ConfigSheet({ open, onOpenChange, schoolId, thresholds, icons }: {
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Configurações — Conversão</SheetTitle>
-          <SheetDescription>Faixas de desempenho e ícones personalizados.</SheetDescription>
+          <SheetDescription>Faixas de desempenho, ícones e modelos reutilizáveis.</SheetDescription>
         </SheetHeader>
         <Tabs defaultValue="faixas" className="mt-4">
           <TabsList className="w-full">
             <TabsTrigger value="faixas" className="flex-1 text-xs">Faixas</TabsTrigger>
             <TabsTrigger value="icones" className="flex-1 text-xs">Ícones</TabsTrigger>
+            <TabsTrigger value="modelos" className="flex-1 text-xs">Modelos</TabsTrigger>
           </TabsList>
           <TabsContent value="faixas" className="space-y-6 mt-4">
             {renderThresholdGroup('Faixas — Ativo', ativoRows, setAtivoRows)}
@@ -886,9 +887,209 @@ function ConfigSheet({ open, onOpenChange, schoolId, thresholds, icons }: {
               <IconUploadRow key={ic.key} cardKey={ic.key} label={ic.label} schoolId={schoolId} currentIcon={icons.find(i => i.card_key === ic.key)} />
             ))}
           </TabsContent>
+          <TabsContent value="modelos" className="mt-4">
+            <ConversionModelsTab schoolId={schoolId} thresholds={thresholds} icons={icons} />
+          </TabsContent>
         </Tabs>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ── Conversion Models Tab ──
+function ConversionModelsTab({ schoolId, thresholds, icons }: {
+  schoolId: string;
+  thresholds: Threshold[];
+  icons: ConversionIcon[];
+}) {
+  const queryClient = useQueryClient();
+  const [newName, setNewName] = useState('');
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ['conversion_templates'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('conversion_templates').select('*').order('name');
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+  });
+
+  const { data: templateItems = [] } = useQuery({
+    queryKey: ['conversion_template_items'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('conversion_template_items').select('*');
+      if (error) throw error;
+      return data as { id: string; template_id: string; tipo: string; thresholds: any; icon_contatos_url: string | null; icon_matriculas_url: string | null; icon_conversao_url: string | null }[];
+    },
+  });
+
+  // Save current config as a new template
+  const saveAsTemplate = useMutation({
+    mutationFn: async (name: string) => {
+      const { data: tmpl, error: tErr } = await supabase.from('conversion_templates').insert({ name }).select().single();
+      if (tErr) throw tErr;
+
+      const items = ['ativo', 'receptivo'].map(tipo => {
+        const tipoThresholds = thresholds.filter(t => t.tipo === tipo).map(t => ({
+          min_value: t.min_value,
+          max_value: t.max_value,
+          color: t.color,
+          label: t.label,
+          sort_order: t.sort_order,
+        }));
+        const getIcon = (key: string) => icons.find(i => i.card_key === `${tipo}_${key}`)?.file_url || null;
+        return {
+          template_id: tmpl.id,
+          tipo,
+          thresholds: tipoThresholds,
+          icon_contatos_url: getIcon('contatos'),
+          icon_matriculas_url: getIcon('matriculas'),
+          icon_conversao_url: getIcon('conversao'),
+        };
+      });
+
+      const { error: iErr } = await supabase.from('conversion_template_items').insert(items);
+      if (iErr) throw iErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversion_templates'] });
+      queryClient.invalidateQueries({ queryKey: ['conversion_template_items'] });
+      toast.success('Modelo salvo');
+      setNewName('');
+    },
+    onError: () => toast.error('Erro ao salvar modelo'),
+  });
+
+  // Apply template to school
+  const applyTemplate = useMutation({
+    mutationFn: async (templateId: string) => {
+      const items = templateItems.filter(i => i.template_id === templateId);
+
+      // Clear existing thresholds
+      await supabase.from('conversion_thresholds').delete().eq('school_id', schoolId);
+
+      // Insert thresholds from template
+      const newThresholds: any[] = [];
+      for (const item of items) {
+        const parsedThresholds = Array.isArray(item.thresholds) ? item.thresholds : [];
+        parsedThresholds.forEach((t: any, idx: number) => {
+          newThresholds.push({
+            school_id: schoolId,
+            tipo: item.tipo,
+            min_value: t.min_value ?? null,
+            max_value: t.max_value ?? null,
+            color: t.color || 'hsl(142 71% 45%)',
+            label: t.label || '',
+            sort_order: t.sort_order ?? idx,
+          });
+        });
+
+        // Apply icons from template
+        const iconKeys = [
+          { field: 'icon_contatos_url', key: `${item.tipo}_contatos` },
+          { field: 'icon_matriculas_url', key: `${item.tipo}_matriculas` },
+          { field: 'icon_conversao_url', key: `${item.tipo}_conversao` },
+        ];
+        for (const ik of iconKeys) {
+          const url = (item as any)[ik.field];
+          if (url) {
+            const existing = icons.find(i => i.card_key === ik.key);
+            if (existing) {
+              await supabase.from('conversion_icons').update({ file_url: url }).eq('id', existing.id);
+            } else {
+              await supabase.from('conversion_icons').insert({ school_id: schoolId, card_key: ik.key, file_url: url });
+            }
+          }
+        }
+      }
+
+      if (newThresholds.length > 0) {
+        const { error } = await supabase.from('conversion_thresholds').insert(newThresholds);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversion_thresholds', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['conversion_icons', schoolId] });
+      toast.success('Modelo aplicado! Você pode personalizar faixas e ícones.');
+    },
+    onError: () => toast.error('Erro ao aplicar modelo'),
+  });
+
+  const deleteTemplate = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('conversion_templates').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversion_templates'] });
+      queryClient.invalidateQueries({ queryKey: ['conversion_template_items'] });
+      toast.success('Modelo removido');
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Salve a configuração atual como modelo reutilizável ou aplique um modelo existente. Após aplicar, você pode personalizar faixas, nomes e ícones sem alterar o modelo original.
+      </p>
+
+      {/* Save current as template */}
+      <div className="flex gap-2">
+        <Input
+          className="rounded-xl text-xs flex-1"
+          placeholder="Nome do modelo"
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && newName.trim() && saveAsTemplate.mutate(newName.trim())}
+        />
+        <Button
+          size="sm"
+          className="rounded-xl text-xs"
+          onClick={() => newName.trim() && saveAsTemplate.mutate(newName.trim())}
+          disabled={saveAsTemplate.isPending || !newName.trim()}
+        >
+          Salvar atual
+        </Button>
+      </div>
+
+      {/* Template list */}
+      {templates.length === 0 ? (
+        <div className="text-center py-8 text-sm text-muted-foreground">Nenhum modelo salvo.</div>
+      ) : (
+        <div className="space-y-2">
+          {templates.map(t => {
+            const items = templateItems.filter(i => i.template_id === t.id);
+            const totalThresholds = items.reduce((s, i) => s + (Array.isArray(i.thresholds) ? i.thresholds.length : 0), 0);
+            return (
+              <div key={t.id} className="flex items-center gap-3 p-3 rounded-xl border bg-card">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{t.name}</p>
+                  <p className="text-xs text-muted-foreground">{totalThresholds} faixas • {items.length} tipos</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-lg text-xs"
+                  onClick={() => applyTemplate.mutate(t.id)}
+                  disabled={applyTemplate.isPending}
+                >
+                  Aplicar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-lg text-xs text-red-500"
+                  onClick={() => deleteTemplate.mutate(t.id)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
