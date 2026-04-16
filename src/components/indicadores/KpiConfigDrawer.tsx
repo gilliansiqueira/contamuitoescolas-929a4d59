@@ -50,7 +50,7 @@ export function KpiConfigDrawer({ open, onOpenChange, schoolId, definitions, ico
               <IconesTab icons={icons} schoolId={schoolId} mutations={mutations} />
             </TabsContent>
             <TabsContent value="modelos" className="mt-0">
-              <ModelosTab schoolId={schoolId} mutations={mutations} />
+              <ModelosTab schoolId={schoolId} mutations={mutations} definitions={definitions} icons={icons} />
             </TabsContent>
           </ScrollArea>
         </Tabs>
