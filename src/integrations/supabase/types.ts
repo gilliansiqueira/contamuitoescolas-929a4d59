@@ -701,7 +701,7 @@ export type Database = {
           icon_url: string | null
           id: string
           name: string
-          school_id: string
+          school_id: string | null
           sort_order: number
         }
         Insert: {
@@ -709,7 +709,7 @@ export type Database = {
           icon_url?: string | null
           id?: string
           name: string
-          school_id: string
+          school_id?: string | null
           sort_order?: number
         }
         Update: {
@@ -717,7 +717,7 @@ export type Database = {
           icon_url?: string | null
           id?: string
           name?: string
-          school_id?: string
+          school_id?: string | null
           sort_order?: number
         }
         Relationships: []
