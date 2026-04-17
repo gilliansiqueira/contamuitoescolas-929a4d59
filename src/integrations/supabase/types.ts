@@ -695,6 +695,93 @@ export type Database = {
           },
         ]
       }
+      sales_card_brands: {
+        Row: {
+          created_at: string
+          icon_url: string | null
+          id: string
+          name: string
+          school_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          icon_url?: string | null
+          id?: string
+          name: string
+          school_id?: string | null
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          icon_url?: string | null
+          id?: string
+          name?: string
+          school_id?: string | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      sales_data: {
+        Row: {
+          brand_id: string | null
+          created_at: string
+          id: string
+          method_key: string
+          month: string
+          school_id: string
+          value: number
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          method_key: string
+          month: string
+          school_id: string
+          value?: number
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string
+          id?: string
+          method_key?: string
+          month?: string
+          school_id?: string
+          value?: number
+        }
+        Relationships: []
+      }
+      sales_payment_methods: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          label: string
+          method_key: string
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          label: string
+          method_key: string
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          label?: string
+          method_key?: string
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       school_kpis: {
         Row: {
           alunos_modalidade: number | null
