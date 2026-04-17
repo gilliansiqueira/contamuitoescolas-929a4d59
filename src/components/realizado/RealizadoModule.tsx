@@ -32,6 +32,7 @@ interface TabVisibility {
   relatorio: boolean;
   indicadores: boolean;
   conversao: boolean;
+  vendas: boolean;
 }
 
 function useTabVisibility(schoolId: string) {
