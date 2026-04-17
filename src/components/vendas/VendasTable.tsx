@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { SalesPaymentMethod, SalesData } from './vendas-types';
+import { SalesPaymentMethod, SalesData, SalesCardBrand } from './vendas-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,31 @@ interface Props {
 const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 const MONTHS_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
+// CellInput gerencia seu próprio estado enquanto digita, para não perder o foco ou o dado.
+function CellInput({ initialValue, onSave }: { initialValue: string, onSave: (val: number) => void }) {
+  const [val, setVal] = useState(initialValue);
+
+  // Sync prop changes if not focused
+  useEffect(() => {
+    setVal(initialValue);
+  }, [initialValue]);
+
+  const handleBlur = () => {
+    const numericValue = parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+    onSave(numericValue);
+  };
+
+  return (
+    <Input 
+      className="w-full h-8 text-right bg-transparent border-transparent hover:border-primary/50 focus:bg-background focus:border-primary px-2 transition-all shadow-none text-xs sm:text-sm"
+      placeholder="0,00"
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={handleBlur}
+    />
+  );
+}
+
 export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
   const queryClient = useQueryClient();
   const [selectedYear, setSelectedYear] = useState(defaultYear);
@@ -31,6 +56,15 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
     queryFn: async () => {
       const { data } = await supabase.from('sales_payment_methods').select('*').eq('school_id', schoolId).eq('enabled', true);
       return (data || []) as SalesPaymentMethod[];
+    },
+  });
+
+  // Buscamos as bandeiras para exibir os ícones
+  const { data: cardBrands = [] } = useQuery({
+    queryKey: ['sales_card_brands'],
+    queryFn: async () => {
+      const { data } = await supabase.from('sales_card_brands').select('*');
+      return (data || []) as SalesCardBrand[];
     },
   });
 
@@ -56,7 +90,6 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales_data', schoolId] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard_sales_data', schoolId] });
     },
     onError: () => {
       toast.error('Erro ao salvar valor');
@@ -66,17 +99,29 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
   const methodOptions = useMemo(() => {
     return methods.map(m => {
       let brandId = null;
-      if (m.method_key.startsWith('credit-')) {
-        brandId = m.method_key.replace('credit-', '');
+      let finalMethodKey = m.method_key;
+      let iconUrl = null;
+      
+      // Quando salvamos card brands no VendasConfig, usamos 'brand-ID' no method_key
+      if (m.method_key.startsWith('brand-')) {
+        brandId = m.method_key.replace('brand-', '');
+        finalMethodKey = 'credit'; // Para a tabela sales_data, isso conta como method_key: 'credit'
+        const matchedBrand = cardBrands.find(cb => cb.id === brandId);
+        if (matchedBrand && matchedBrand.icon_url) {
+          iconUrl = matchedBrand.icon_url;
+        }
       }
+
       return {
-        value: m.method_key,
-        method_key: m.method_key,
+        id: m.id,
+        value: m.method_key, // The raw key from Config
+        method_key: finalMethodKey, // The parsed key for DB
         brand_id: brandId,
-        label: m.label || m.method_key
+        label: m.label || m.method_key,
+        icon_url: iconUrl
       };
     });
-  }, [methods]);
+  }, [methods, cardBrands]);
 
   const [selectedMethod, setSelectedMethod] = useState<string>('todos');
 
@@ -87,23 +132,15 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
     return methodOptions.filter(o => o.value === selectedMethod);
   }, [selectedMethod, methodOptions]);
 
-  const handleBlur = (month: string, amountStr: string, activeMethod: any) => {
-    const value = parseFloat(amountStr.replace(/\./g, '').replace(',', '.')) || 0;
+  const handleSave = (month: string, value: number, activeRow: typeof methodOptions[0]) => {
     const monthKey = `${selectedYear}-${month}`;
     
-    let existing;
-    if (activeMethod.brand_id) {
-      existing = salesData.find(s => 
-        s.month === monthKey && 
-        s.method_key === activeMethod.method_key && 
-        s.brand_id === activeMethod.brand_id
-      );
-    } else {
-      existing = salesData.find(s => 
-        s.month === monthKey && 
-        s.method_key === activeMethod.method_key
-      );
-    }
+    // Procura registro existente
+    const existing = salesData.find(s => 
+      s.month === monthKey && 
+      s.method_key === activeRow.method_key && 
+      (s.brand_id === activeRow.brand_id || (!s.brand_id && !activeRow.brand_id))
+    );
 
     if (existing) {
       if (existing.value !== value) {
@@ -112,29 +149,20 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
     } else if (value > 0) {
       updateSale.mutate({
         month: monthKey,
-        method_key: activeMethod.method_key,
-        brand_id: activeMethod.brand_id,
+        method_key: activeRow.method_key,
+        brand_id: activeRow.brand_id,
         value
       });
     }
   };
 
-  const getAmountStr = (month: string, activeMethod: any) => {
+  const getAmountStr = (month: string, activeRow: typeof methodOptions[0]) => {
     const monthKey = `${selectedYear}-${month}`;
-    let existing;
-    if (activeMethod.brand_id) {
-      existing = salesData.find(s => 
-        s.month === monthKey && 
-        s.method_key === activeMethod.method_key && 
-        s.brand_id === activeMethod.brand_id
-      );
-    } else {
-      existing = salesData.find(s => 
-        s.month === monthKey && 
-        s.method_key === activeMethod.method_key
-      );
-    }
-
+    const existing = salesData.find(s => 
+      s.month === monthKey && 
+      s.method_key === activeRow.method_key && 
+      (s.brand_id === activeRow.brand_id || (!s.brand_id && !activeRow.brand_id))
+    );
     if (!existing || existing.value === 0) return '';
     return existing.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
@@ -151,7 +179,7 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
   }
 
   return (
-    <div className="glass-card rounded-xl p-6 space-y-4">
+    <div className="glass-card rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-bottom-2">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h3 className="font-display font-semibold text-lg">Histórico Mensal para Edição</h3>
@@ -188,27 +216,30 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border">
-              <th className="py-3 px-4 text-left font-medium text-muted-foreground bg-muted/20 min-w-[200px]">Forma de Pagamento</th>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="py-3 px-4 text-left font-medium text-muted-foreground min-w-[200px] whitespace-nowrap">Forma de Pagamento</th>
               {MONTHS_LABELS.map((m, i) => (
-                <th key={m} className={`py-3 px-2 text-center font-medium text-muted-foreground ${i % 2 === 0 ? 'bg-muted/5' : ''}`}>{m}</th>
+                <th key={m} className={`py-3 px-2 text-center font-medium text-muted-foreground ${i % 2 === 0 ? 'bg-muted/10' : ''}`}>{m}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {visibleRows.map((row, index) => (
               <tr key={row.value} className={`border-b border-border/50 hover:bg-muted/10 transition-colors ${index % 2 === 0 ? 'bg-background' : 'bg-muted/5'}`}>
-                <td className="py-3 px-4 font-medium text-xs sm:text-sm border-r border-border/30">{row.label}</td>
+                <td className="py-3 px-4 font-medium text-xs sm:text-sm border-r border-border/30 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    {row.icon_url && <img src={row.icon_url} alt={row.label} className="w-4 h-4 object-contain" />}
+                    {row.label}
+                  </div>
+                </td>
                 {MONTHS.map((month, i) => (
                   <td key={month} className={`py-2 px-1 ${i % 2 === 0 ? 'bg-muted/5' : ''}`}>
-                    <Input 
-                      className="w-full h-8 text-right bg-transparent border-transparent hover:border-border focus:bg-background focus:border-primary px-2 transition-all shadow-none text-xs sm:text-sm"
-                      placeholder="0,00"
-                      defaultValue={getAmountStr(month, row)}
-                      onBlur={(e) => handleBlur(month, e.target.value, row)}
+                    <CellInput 
+                      initialValue={getAmountStr(month, row)}
+                      onSave={(val) => handleSave(month, val, row)}
                     />
                   </td>
                 ))}

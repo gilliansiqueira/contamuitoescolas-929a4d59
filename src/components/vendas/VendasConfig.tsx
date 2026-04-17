@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { PaymentMethod, CardBrand, PAYMENT_METHODS, CARD_BRANDS, SalesPaymentMethod } from './vendas-types';
+import { PAYMENT_METHODS, SalesPaymentMethod, SalesCardBrand } from './vendas-types';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ interface Props {
 export function VendasConfig({ schoolId, onBack }: Props) {
   const queryClient = useQueryClient();
 
-  const { data: methods = [], isLoading } = useQuery({
+  const { data: methods = [], isLoading: loadingMethods } = useQuery({
     queryKey: ['sales_payment_methods', schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -24,6 +24,18 @@ export function VendasConfig({ schoolId, onBack }: Props) {
         .eq('school_id', schoolId);
       if (error) throw error;
       return data as SalesPaymentMethod[];
+    },
+  });
+
+  const { data: cardBrands = [], isLoading: loadingBrands } = useQuery({
+    queryKey: ['sales_card_brands'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sales_card_brands')
+        .select('*')
+        .order('sort_order');
+      if (error) throw error;
+      return data as SalesCardBrand[];
     },
   });
 
@@ -56,13 +68,14 @@ export function VendasConfig({ schoolId, onBack }: Props) {
     return methods.some(m => m.method_key === key && m.enabled);
   };
 
-  if (isLoading) return <div className="p-4 text-sm text-muted-foreground">Carregando configurações...</div>;
+  if (loadingMethods || loadingBrands) return <div className="p-4 text-sm text-muted-foreground">Carregando configurações...</div>;
 
-  const creditCardEnabled = isEnabled('credit');
+  const creditCardEnabled = isEnabled('credit') || isEnabled('credit_card');
 
   const getIcon = (method: string) => {
     switch (method) {
       case 'credit': return <CreditCard className="w-4 h-4" />;
+      case 'credit_card': return <CreditCard className="w-4 h-4" />;
       case 'debit': return <CreditCard className="w-4 h-4" />;
       case 'pix': return <Smartphone className="w-4 h-4" />;
       case 'boleto': return <FileText className="w-4 h-4" />;
@@ -73,7 +86,7 @@ export function VendasConfig({ schoolId, onBack }: Props) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -89,7 +102,7 @@ export function VendasConfig({ schoolId, onBack }: Props) {
 
         <div className="grid gap-4 md:grid-cols-2">
           {PAYMENT_METHODS.map(method => (
-            <div key={method.value} className="flex items-center justify-between p-4 border border-border rounded-lg bg-surface">
+            <div key={method.value} className="flex items-center justify-between p-4 border border-border rounded-lg bg-surface relative overflow-hidden transition-all hover:border-primary/50">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 text-primary rounded-full">
                   {getIcon(method.value)}
@@ -107,20 +120,26 @@ export function VendasConfig({ schoolId, onBack }: Props) {
           ))}
         </div>
 
-        {creditCardEnabled && (
+        {creditCardEnabled && cardBrands.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border">
-            <h4 className="font-medium mb-4">Bandeiras de Cartão de Crédito</h4>
+            <h4 className="font-medium mb-4">Bandeiras de Cartão</h4>
             <div className="grid gap-4 md:grid-cols-2">
-              {CARD_BRANDS.map(brand => (
-                <div key={brand.value} className="flex items-center justify-between p-3 pl-11 border border-border rounded-lg bg-surface relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary/50" />
-                  <Label htmlFor={`brand-${brand.value}`} className="font-medium cursor-pointer">
-                    {brand.label}
-                  </Label>
+              {cardBrands.map(brand => (
+                <div key={brand.id} className="flex items-center justify-between p-3 pl-4 border border-border rounded-lg bg-surface relative transition-all hover:border-primary/50">
+                  <div className="flex items-center gap-3">
+                    {brand.icon_url ? (
+                      <img src={brand.icon_url} alt={brand.name} className="w-6 h-6 object-contain" />
+                    ) : (
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary/50" />
+                    )}
+                    <Label htmlFor={`brand-${brand.id}`} className="font-medium cursor-pointer">
+                      {brand.name}
+                    </Label>
+                  </div>
                   <Switch
-                    id={`brand-${brand.value}`}
-                    checked={isEnabled(`credit-${brand.value}`)}
-                    onCheckedChange={(checked) => toggleMethod.mutate({ method_key: `credit-${brand.value}`, label: `Crédito - ${brand.label}`, enabled: checked })}
+                    id={`brand-${brand.id}`}
+                    checked={isEnabled(`brand-${brand.id}`)}
+                    onCheckedChange={(checked) => toggleMethod.mutate({ method_key: `brand-${brand.id}`, label: `${brand.name}`, enabled: checked })}
                   />
                 </div>
               ))}

@@ -1,5 +1,4 @@
 export type PaymentMethod = 'credit' | 'debit' | 'pix' | 'boleto' | 'check' | 'cash';
-export type CardBrand = 'visa' | 'mastercard' | 'elo' | 'amex';
 
 export interface SalesPaymentMethod {
   id: string;
@@ -7,6 +6,13 @@ export interface SalesPaymentMethod {
   method_key: string;
   label?: string;
   enabled: boolean;
+  sort_order?: number;
+}
+
+export interface SalesCardBrand {
+  id: string;
+  name: string;
+  icon_url: string | null;
   sort_order?: number;
 }
 
@@ -26,11 +32,4 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'boleto', label: 'Boleto' },
   { value: 'check', label: 'Cheque' },
   { value: 'cash', label: 'Dinheiro' },
-];
-
-export const CARD_BRANDS: { value: CardBrand; label: string }[] = [
-  { value: 'visa', label: 'Visa' },
-  { value: 'mastercard', label: 'Mastercard' },
-  { value: 'elo', label: 'Elo' },
-  { value: 'amex', label: 'American Express' },
 ];
