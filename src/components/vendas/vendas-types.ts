@@ -4,18 +4,19 @@ export type CardBrand = 'visa' | 'mastercard' | 'elo' | 'amex';
 export interface SalesPaymentMethod {
   id: string;
   school_id: string;
-  payment_method: PaymentMethod;
-  card_brand: CardBrand | null;
+  method_key: string;
+  label?: string;
   enabled: boolean;
+  sort_order?: number;
 }
 
 export interface SalesData {
   id: string;
   school_id: string;
   month: string;
-  payment_method: PaymentMethod;
-  card_brand: CardBrand | null;
-  amount: number;
+  method_key: string;
+  brand_id: string | null;
+  value: number;
 }
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [

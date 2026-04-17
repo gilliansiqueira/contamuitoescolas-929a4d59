@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { PAYMENT_METHODS, CARD_BRANDS, SalesPaymentMethod, SalesData } from './vendas-types';
+import { SalesPaymentMethod, SalesData } from './vendas-types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -26,9 +26,6 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
     return Array.from(new Set([...availableYears, ...extraYears, defaultYear])).sort().reverse();
   }, [availableYears, extraYears, defaultYear]);
 
-  // Se o ano atual do Dash mudar e não existir localmente, podemos sincronizar,
-  // mas como recebemos defaultYear apenas para o inicio, use-o se possível.
-
   const { data: methods = [] } = useQuery({
     queryKey: ['sales_payment_methods', schoolId],
     queryFn: async () => {
@@ -46,13 +43,13 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
   });
 
   const updateSale = useMutation({
-    mutationFn: async ({ id, month, payment_method, card_brand, amount }: Partial<SalesData>) => {
+    mutationFn: async ({ id, month, method_key, brand_id, value }: Partial<SalesData>) => {
       if (id) {
-        const { error } = await supabase.from('sales_data').update({ amount }).eq('id', id);
+        const { error } = await supabase.from('sales_data').update({ value }).eq('id', id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('sales_data').insert({
-          school_id: schoolId, month: month!, payment_method: payment_method!, card_brand, amount: amount!
+          school_id: schoolId, month: month!, method_key: method_key!, brand_id: brand_id || null, value: value!
         });
         if (error) throw error;
       }
@@ -68,13 +65,15 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
 
   const methodOptions = useMemo(() => {
     return methods.map(m => {
-      const pLabel = PAYMENT_METHODS.find(p => p.value === m.payment_method)?.label || m.payment_method;
-      const cLabel = m.card_brand ? CARD_BRANDS.find(c => c.value === m.card_brand)?.label : null;
+      let brandId = null;
+      if (m.method_key.startsWith('credit-')) {
+        brandId = m.method_key.replace('credit-', '');
+      }
       return {
-        value: `${m.payment_method}${m.card_brand ? '-' + m.card_brand : ''}`,
-        payment_method: m.payment_method,
-        card_brand: m.card_brand,
-        label: cLabel ? `${pLabel} - ${cLabel}` : pLabel
+        value: m.method_key,
+        method_key: m.method_key,
+        brand_id: brandId,
+        label: m.label || m.method_key
       };
     });
   }, [methods]);
@@ -89,38 +88,55 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
   }, [selectedMethod, methodOptions]);
 
   const handleBlur = (month: string, amountStr: string, activeMethod: any) => {
-    const amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.')) || 0;
+    const value = parseFloat(amountStr.replace(/\./g, '').replace(',', '.')) || 0;
     const monthKey = `${selectedYear}-${month}`;
     
-    const existing = salesData.find(s => 
-      s.month === monthKey && 
-      s.payment_method === activeMethod.payment_method && 
-      s.card_brand === activeMethod.card_brand
-    );
+    let existing;
+    if (activeMethod.brand_id) {
+      existing = salesData.find(s => 
+        s.month === monthKey && 
+        s.method_key === activeMethod.method_key && 
+        s.brand_id === activeMethod.brand_id
+      );
+    } else {
+      existing = salesData.find(s => 
+        s.month === monthKey && 
+        s.method_key === activeMethod.method_key
+      );
+    }
 
     if (existing) {
-      if (existing.amount !== amount) {
-        updateSale.mutate({ id: existing.id, amount });
+      if (existing.value !== value) {
+        updateSale.mutate({ id: existing.id, value });
       }
-    } else if (amount > 0) {
+    } else if (value > 0) {
       updateSale.mutate({
         month: monthKey,
-        payment_method: activeMethod.payment_method,
-        card_brand: activeMethod.card_brand,
-        amount
+        method_key: activeMethod.method_key,
+        brand_id: activeMethod.brand_id,
+        value
       });
     }
   };
 
   const getAmountStr = (month: string, activeMethod: any) => {
     const monthKey = `${selectedYear}-${month}`;
-    const existing = salesData.find(s => 
-      s.month === monthKey && 
-      s.payment_method === activeMethod.payment_method && 
-      s.card_brand === activeMethod.card_brand
-    );
-    if (!existing || existing.amount === 0) return '';
-    return existing.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let existing;
+    if (activeMethod.brand_id) {
+      existing = salesData.find(s => 
+        s.month === monthKey && 
+        s.method_key === activeMethod.method_key && 
+        s.brand_id === activeMethod.brand_id
+      );
+    } else {
+      existing = salesData.find(s => 
+        s.month === monthKey && 
+        s.method_key === activeMethod.method_key
+      );
+    }
+
+    if (!existing || existing.value === 0) return '';
+    return existing.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const handleAddYear = () => {

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { SalesData, PAYMENT_METHODS, PaymentMethod } from './vendas-types';
+import { SalesData, PAYMENT_METHODS } from './vendas-types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { CreditCard, Smartphone, Receipt, FileText, Banknote, HelpCircle } from 'lucide-react';
 
@@ -15,19 +15,26 @@ const MONTHS_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', '
 export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props) {
   // Dados do mês específico para o PieChart e Cards
   const monthData = useMemo(() => data.filter(s => s.month === selectedMonthStr), [data, selectedMonthStr]);
-  const monthTotal = monthData.reduce((acc, curr) => acc + curr.amount, 0);
+  const monthTotal = monthData.reduce((acc, curr) => acc + curr.value, 0);
 
   // Agrupamento por forma de pagamento no mês selecionado
   const byMethod = useMemo(() => {
     const acc: Record<string, number> = {};
     monthData.forEach(item => {
-      acc[item.payment_method] = (acc[item.payment_method] || 0) + item.amount;
+      // If method_key is like "credit-visa", sum into "credit" or keep it separated?
+      // Since it's byMethod, we group by base method format.
+      let baseMethod = item.method_key;
+      if (item.method_key.startsWith('credit-')) baseMethod = 'credit';
+      acc[baseMethod] = (acc[baseMethod] || 0) + item.value;
     });
-    return PAYMENT_METHODS.map(pm => ({
-      name: pm.label,
-      value: acc[pm.value] || 0,
-      method: pm.value
-    })).filter(item => item.value > 0).sort((a, b) => b.value - a.value);
+    return Object.keys(acc).map(key => {
+      const pmLabel = PAYMENT_METHODS.find(pm => pm.value === key)?.label || key;
+      return {
+        name: pmLabel,
+        value: acc[key],
+        method: key
+      }
+    }).filter(item => item.value > 0).sort((a, b) => b.value - a.value);
   }, [monthData]);
 
   // Evolução anual para o BarChart (Total de vendas de cada mês)
@@ -35,7 +42,7 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
     const yearData = data.filter(s => s.month.startsWith(selectedYearStr));
     return MONTHS_LABELS.map((label, index) => {
       const monthStr = `${selectedYearStr}-${(index + 1).toString().padStart(2, '0')}`;
-      const totalMes = yearData.filter(s => s.month === monthStr).reduce((acc, curr) => acc + curr.amount, 0);
+      const totalMes = yearData.filter(s => s.month === monthStr).reduce((acc, curr) => acc + curr.value, 0);
       return {
         name: label,
         Total: totalMes
@@ -43,7 +50,7 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
     });
   }, [data, selectedYearStr]);
 
-  const getIcon = (method: PaymentMethod) => {
+  const getIcon = (method: string) => {
     switch (method) {
       case 'credit': return <CreditCard className="w-5 h-5 text-primary" />;
       case 'debit': return <CreditCard className="w-5 h-5 text-primary" />;
@@ -86,7 +93,7 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
               {byMethod.map(item => (
                 <div key={item.name} className="flex items-center gap-3">
                   <div className="p-2 bg-background rounded-full border border-border">
-                    {getIcon(item.method as PaymentMethod)}
+                    {getIcon(item.method)}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">{item.name}</p>

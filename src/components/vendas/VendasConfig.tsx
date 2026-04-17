@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { PaymentMethod, CardBrand, PAYMENT_METHODS, CARD_BRANDS, SalesPaymentMethod } from './vendas-types';
@@ -29,8 +28,8 @@ export function VendasConfig({ schoolId, onBack }: Props) {
   });
 
   const toggleMethod = useMutation({
-    mutationFn: async ({ payment_method, card_brand, enabled }: { payment_method: PaymentMethod; card_brand: CardBrand | null; enabled: boolean }) => {
-      const existing = methods.find(m => m.payment_method === payment_method && m.card_brand === card_brand);
+    mutationFn: async ({ method_key, label, enabled }: { method_key: string; label: string; enabled: boolean }) => {
+      const existing = methods.find(m => m.method_key === method_key);
       if (existing) {
         const { error } = await supabase
           .from('sales_payment_methods')
@@ -40,7 +39,7 @@ export function VendasConfig({ schoolId, onBack }: Props) {
       } else {
         const { error } = await supabase
           .from('sales_payment_methods')
-          .insert({ school_id: schoolId, payment_method, card_brand, enabled });
+          .insert({ school_id: schoolId, method_key, label, enabled });
         if (error) throw error;
       }
     },
@@ -53,15 +52,15 @@ export function VendasConfig({ schoolId, onBack }: Props) {
     }
   });
 
-  const isEnabled = (pm: PaymentMethod, cb: CardBrand | null = null) => {
-    return methods.some(m => m.payment_method === pm && m.card_brand === cb && m.enabled);
+  const isEnabled = (key: string) => {
+    return methods.some(m => m.method_key === key && m.enabled);
   };
 
   if (isLoading) return <div className="p-4 text-sm text-muted-foreground">Carregando configurações...</div>;
 
   const creditCardEnabled = isEnabled('credit');
 
-  const getIcon = (method: PaymentMethod) => {
+  const getIcon = (method: string) => {
     switch (method) {
       case 'credit': return <CreditCard className="w-4 h-4" />;
       case 'debit': return <CreditCard className="w-4 h-4" />;
@@ -102,7 +101,7 @@ export function VendasConfig({ schoolId, onBack }: Props) {
               <Switch
                 id={`method-${method.value}`}
                 checked={isEnabled(method.value)}
-                onCheckedChange={(checked) => toggleMethod.mutate({ payment_method: method.value, card_brand: null, enabled: checked })}
+                onCheckedChange={(checked) => toggleMethod.mutate({ method_key: method.value, label: method.label, enabled: checked })}
               />
             </div>
           ))}
@@ -120,8 +119,8 @@ export function VendasConfig({ schoolId, onBack }: Props) {
                   </Label>
                   <Switch
                     id={`brand-${brand.value}`}
-                    checked={isEnabled('credit', brand.value)}
-                    onCheckedChange={(checked) => toggleMethod.mutate({ payment_method: 'credit', card_brand: brand.value, enabled: checked })}
+                    checked={isEnabled(`credit-${brand.value}`)}
+                    onCheckedChange={(checked) => toggleMethod.mutate({ method_key: `credit-${brand.value}`, label: `Crédito - ${brand.label}`, enabled: checked })}
                   />
                 </div>
               ))}
