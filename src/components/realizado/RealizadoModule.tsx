@@ -199,6 +199,19 @@ export function RealizadoModule({ schoolId }: Props) {
               Conversão
             </button>
           )}
+          {visibility.vendas && (
+            <button
+              onClick={() => setMainView('vendas')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeView === 'vendas'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Vendas
+            </button>
+          )}
         </div>
         {!isPresentationMode && (
           <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
@@ -210,6 +223,7 @@ export function RealizadoModule({ schoolId }: Props) {
         {activeView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
         {activeView === 'indicadores' && <IndicadoresDashboard schoolId={schoolId} />}
         {activeView === 'conversao' && <ConversaoDashboard schoolId={schoolId} />}
+        {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
       </motion.div>
     </div>
   );
