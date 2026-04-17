@@ -9,6 +9,7 @@ import { calculateTotals, filterActiveEntries, getSaldoImpact, getEffectiveClass
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, BarChart, Bar, Legend } from 'recharts';
 import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface DashboardProps {
   schoolId: string;
@@ -30,6 +31,7 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
 }
 
 export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
+  const { isPresentationMode } = usePresentation();
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
   const baseDate = school?.saldoInicialData;
