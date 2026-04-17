@@ -670,12 +670,12 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
                     const mo = String(mi + 1).padStart(2, '0');
                     const key = `${year}-${mo}`;
                     const row = dataMap[key];
-                     const draftRow = draftRows[key];
-                     const contatosValue = draftRow?.contatos ?? (row ? String(row.contatos) : '');
-                     const matriculasValue = draftRow?.matriculas ?? (row ? String(row.matriculas) : '');
-                     const contatos = contatosValue === '' ? 0 : Number(contatosValue);
-                     const matriculas = matriculasValue === '' ? 0 : Number(matriculasValue);
-                     const conv = contatos > 0 ? ((matriculas / contatos) * 100).toFixed(1) : '';
+                    const draftRow = draftRows[key];
+                    const contatosValue = draftRow?.contatos ?? (row ? String(row.contatos) : '');
+                    const matriculasValue = draftRow?.matriculas ?? (row ? String(row.matriculas) : '');
+                    const contatos = contatosValue === '' ? 0 : Number(contatosValue);
+                    const matriculas = matriculasValue === '' ? 0 : Number(matriculasValue);
+                    const conv = contatos > 0 ? ((matriculas / contatos) * 100).toFixed(1) : '';
                     return (
                       <tr key={key} className="border-b border-border/30 hover:bg-muted/30">
                         {mi === 0 && (
