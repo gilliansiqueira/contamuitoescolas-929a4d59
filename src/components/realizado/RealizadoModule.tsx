@@ -96,6 +96,7 @@ export function RealizadoModule({ schoolId }: Props) {
   const activeView = useMemo(() => {
     if (mainView === 'conversao' && !visibility.conversao) return 'relatorio';
     if (mainView === 'indicadores' && !visibility.indicadores) return 'relatorio';
+    if (mainView === 'vendas' && !visibility.vendas) return 'relatorio';
     return mainView;
   }, [mainView, visibility]);
 
@@ -116,6 +117,7 @@ export function RealizadoModule({ schoolId }: Props) {
               { key: 'relatorio', label: 'Análise de Despesas', locked: true },
               { key: 'indicadores', label: 'Indicadores' },
               { key: 'conversao', label: 'Conversão' },
+              { key: 'vendas', label: 'Vendas' },
             ].map(tab => (
               <label key={tab.key} className="flex items-center gap-2 text-sm">
                 <input
