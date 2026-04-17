@@ -19,7 +19,7 @@ interface Props {
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados';
-type MainView = 'relatorio' | 'indicadores' | 'conversao';
+type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas';
 
 const configTabs: { key: ConfigTab; label: string }[] = [
   { key: 'plano', label: 'Plano de Contas' },
