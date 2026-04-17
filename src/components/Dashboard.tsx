@@ -132,12 +132,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   return (
     <div className="space-y-6">
       {/* Insights toggle */}
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={() => setShowInsights(!showInsights)}>
-          {showInsights ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-          {showInsights ? 'Ocultar insights' : 'Mostrar insights'}
-        </Button>
-      </div>
+      {!isPresentationMode && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={() => setShowInsights(!showInsights)}>
+            {showInsights ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+            {showInsights ? 'Ocultar insights' : 'Mostrar insights'}
+          </Button>
+        </div>
+      )}
 
       {/* Cash Alerts */}
       {showInsights && firstNegativeDay && (

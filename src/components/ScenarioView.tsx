@@ -7,12 +7,14 @@ import { Input } from '@/components/ui/input';
 import { TrendingUp, TrendingDown, AlertTriangle, Plus, X } from 'lucide-react';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface ScenarioViewProps { schoolId: string; scenario: ScenarioType; selectedMonth: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 interface SaleSimulation { id: string; quantidade: number; valorUnitario: number; meses: number; }
 
 export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioViewProps) {
+  const { isPresentationMode } = usePresentation();
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, school?.saldoInicialData);
@@ -46,8 +48,69 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2"><span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${badgeClass}`}>Cenário: {scenarioLabel}</span>{scenario !== 'real' && <span className="text-xs text-muted-foreground italic">Dados simulados</span>}</div>
-      {scenario === 'pessimista' && (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-destructive/20"><h4 className="font-display font-semibold text-sm text-foreground mb-3">Configuração Pessimista</h4><div className="flex items-center gap-3"><label className="text-sm text-muted-foreground">Redução nas receitas (%):</label><Input type="number" min={0} max={100} value={reductionPct} onChange={e => setReductionPct(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))} className="w-20 h-9 text-sm text-center" /><span className="text-xs text-destructive font-medium">-{reductionPct}%</span></div></motion.div>)}
-      {scenario === 'otimista' && (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-primary/20"><div className="flex items-center justify-between mb-3"><h4 className="font-display font-semibold text-sm text-foreground">Simulação de Vendas</h4><button onClick={addSale} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"><Plus className="w-3 h-3" /> Adicionar</button></div>{sales.length === 0 && <p className="text-xs text-muted-foreground">Adicione vendas simuladas.</p>}<div className="space-y-2">{sales.map(s => (<div key={s.id} className="flex items-center gap-2 bg-muted/30 rounded-lg p-2"><div className="flex-1 grid grid-cols-3 gap-2"><div><label className="text-[10px] text-muted-foreground">Qtd</label><Input type="number" min={1} value={s.quantidade} onChange={e => updateSale(s.id, 'quantidade', parseInt(e.target.value) || 1)} className="h-7 text-xs" /></div><div><label className="text-[10px] text-muted-foreground">Valor</label><Input type="number" min={0} value={s.valorUnitario} onChange={e => updateSale(s.id, 'valorUnitario', parseFloat(e.target.value) || 0)} className="h-7 text-xs" /></div><div><label className="text-[10px] text-muted-foreground">Meses</label><Input type="number" min={1} value={s.meses} onChange={e => updateSale(s.id, 'meses', parseInt(e.target.value) || 1)} className="h-7 text-xs" /></div></div><div className="text-right min-w-[80px]"><p className="text-xs font-bold text-success">{formatCurrency(s.quantidade * s.valorUnitario)}</p></div><button onClick={() => removeSale(s.id)} className="p-1 rounded hover:bg-destructive/10"><X className="w-4 h-4 text-destructive" /></button></div>))}</div></motion.div>)}
+      
+      {scenario === 'pessimista' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-destructive/20">
+          <h4 className="font-display font-semibold text-sm text-foreground mb-3">Configuração Pessimista</h4>
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-muted-foreground">Redução nas receitas (%):</label>
+            {!isPresentationMode ? (
+              <Input type="number" min={0} max={100} value={reductionPct} onChange={e => setReductionPct(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))} className="w-20 h-9 text-sm text-center" />
+            ) : (
+              <span className="font-semibold">{reductionPct}%</span>
+            )}
+            <span className="text-xs text-destructive font-medium">-{reductionPct}%</span>
+          </div>
+        </motion.div>
+      )}
+
+      {scenario === 'otimista' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-primary/20">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-display font-semibold text-sm text-foreground">Simulação de Vendas</h4>
+            {!isPresentationMode && (
+              <button onClick={addSale} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"><Plus className="w-3 h-3" /> Adicionar</button>
+            )}
+          </div>
+          {sales.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma venda simulada.</p>}
+          <div className="space-y-2">
+            {sales.map(s => (
+              <div key={s.id} className="flex items-center gap-2 bg-muted/30 rounded-lg p-2">
+                <div className="flex-1 grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Qtd</label>
+                    {!isPresentationMode ? (
+                      <Input type="number" min={1} value={s.quantidade} onChange={e => updateSale(s.id, 'quantidade', parseInt(e.target.value) || 1)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{s.quantidade}</div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Valor (R$)</label>
+                    {!isPresentationMode ? (
+                      <Input type="number" min={0} value={s.valorUnitario} onChange={e => updateSale(s.id, 'valorUnitario', parseFloat(e.target.value) || 0)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{formatCurrency(s.valorUnitario)}</div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Meses (Recorrência)</label>
+                    {!isPresentationMode ? (
+                      <Input type="number" min={1} value={s.meses} onChange={e => updateSale(s.id, 'meses', parseInt(e.target.value) || 1)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{s.meses}x</div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right min-w-[80px]"><p className="text-xs font-bold text-success">{formatCurrency(s.quantidade * s.valorUnitario)}</p></div>
+                {!isPresentationMode && (
+                  <button onClick={() => removeSale(s.id)} className="p-1 rounded hover:bg-destructive/10"><X className="w-4 h-4 text-destructive" /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receitas</span><TrendingUp className="w-5 h-5 text-success" /></div><p className="text-2xl font-display font-bold text-success">{formatCurrency(totalEntradas)}</p></motion.div>
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card rounded-xl p-5"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesas</span><TrendingDown className="w-5 h-5 text-destructive" /></div><p className="text-2xl font-display font-bold text-destructive">{formatCurrency(totalSaidas)}</p></motion.div>

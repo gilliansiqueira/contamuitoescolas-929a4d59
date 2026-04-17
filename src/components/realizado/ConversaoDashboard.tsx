@@ -12,6 +12,7 @@ import { ArrowUp, ArrowDown, Minus, Settings, Check, Plus, Trash2, Upload, Troph
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface Props {
   schoolId: string;
@@ -101,6 +102,7 @@ function ThresholdDot(props: any & { thresholds: Threshold[] }) {
 
 // ── Main Component ──
 export function ConversaoDashboard({ schoolId }: Props) {
+  const { isPresentationMode } = usePresentation();
   const queryClient = useQueryClient();
   const [configOpen, setConfigOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState<string>('todos');
@@ -287,9 +289,11 @@ export function ConversaoDashboard({ schoolId }: Props) {
               {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setConfigOpen(true)}>
-            <Settings className="w-4 h-4 mr-1" /> Configurar
-          </Button>
+          {!isPresentationMode && (
+            <Button size="sm" variant="outline" className="rounded-xl" onClick={() => setConfigOpen(true)}>
+              <Settings className="w-4 h-4 mr-1" /> Configurar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -633,18 +637,20 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <div className="flex items-center gap-2">
-              <Input
-                className="w-20 h-8 text-xs rounded-lg"
-                placeholder="Ano"
-                value={addYear}
-                onChange={e => setAddYear(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddYear()}
-              />
-              <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={handleAddYear}>
-                <Plus className="w-3 h-3 mr-1" /> Ano
-              </Button>
-            </div>
+            {!isPresentationMode && (
+              <div className="flex items-center gap-2">
+                <Input
+                  className="w-20 h-8 text-xs rounded-lg"
+                  placeholder="Ano"
+                  value={addYear}
+                  onChange={e => setAddYear(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddYear()}
+                />
+                <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={handleAddYear}>
+                  <Plus className="w-3 h-3 mr-1" /> Ano
+                </Button>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -696,7 +702,7 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
                           {conv ? `${conv}%` : ''}
                         </td>
                         <td className="py-1 px-1">
-                          {row && (
+                          {row && !isPresentationMode && (
                             <button onClick={() => onDelete(row.id)} className="text-muted-foreground hover:text-red-500 transition-colors">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -717,6 +723,7 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
 
 // ── Editable Cell ──
 function EditableCell({ value, placeholder, onSave }: { value: number | ''; placeholder: string; onSave: (v: number) => void }) {
+  const { isPresentationMode } = usePresentation();
   const [draft, setDraft] = useState(value !== '' ? String(value) : '');
   const [dirty, setDirty] = useState(false);
 
@@ -734,6 +741,10 @@ function EditableCell({ value, placeholder, onSave }: { value: number | ''; plac
       setDirty(false);
     }
   }, [draft, dirty, onSave]);
+
+  if (isPresentationMode) {
+    return <div className="text-center text-xs font-medium py-1">{value !== '' ? value : '—'}</div>;
+  }
 
   return (
     <input

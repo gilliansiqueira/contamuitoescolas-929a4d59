@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface Props {
   schoolId: string;
@@ -76,6 +77,12 @@ export function RealizadoModule({ schoolId }: Props) {
   const [mainView, setMainView] = useState<MainView>('relatorio');
   const queryClient = useQueryClient();
   const { visibility, toggle } = useTabVisibility(schoolId);
+  const { isPresentationMode } = usePresentation();
+
+  // Força sair das configurações se ligar apresentação
+  if (isPresentationMode && showConfig) {
+    setShowConfig(false);
+  }
 
   const handleBackToReport = useCallback(() => {
     setShowConfig(false);
@@ -189,9 +196,11 @@ export function RealizadoModule({ schoolId }: Props) {
             </button>
           )}
         </div>
-        <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
-          <Settings className="w-4 h-4 mr-1" /> Configurações
-        </Button>
+        {!isPresentationMode && (
+          <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
+            <Settings className="w-4 h-4 mr-1" /> Configurações
+          </Button>
+        )}
       </div>
       <motion.div key={activeView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
         {activeView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}

@@ -5,6 +5,7 @@ import { useKpiDefinitions, useKpiValues } from './useKpiData';
 import { KpiCard } from './KpiCard';
 import { KpiConfigDrawer } from './KpiConfigDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface Props {
   schoolId: string;
@@ -27,6 +28,7 @@ function generateMonths(values: { month: string }[]): string[] {
 }
 
 export function IndicadoresDashboard({ schoolId }: Props) {
+  const { isPresentationMode } = usePresentation();
   const [configOpen, setConfigOpen] = useState(false);
   const { definitions, isLoading, icons } = useKpiDefinitions(schoolId);
   const { data: allValues = [] } = useKpiValues(schoolId);
@@ -44,22 +46,26 @@ export function IndicadoresDashboard({ schoolId }: Props) {
 
   return (
     <div className="relative">
-      <Button
-        size="icon"
-        variant="ghost"
-        className="absolute top-0 right-0 z-10 h-8 w-8 text-muted-foreground hover:text-foreground"
-        onClick={() => setConfigOpen(true)}
-        title="Configurar indicadores"
-      >
-        <Settings className="w-4 h-4" />
-      </Button>
+      {!isPresentationMode && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="absolute top-0 right-0 z-10 h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={() => setConfigOpen(true)}
+          title="Configurar indicadores"
+        >
+          <Settings className="w-4 h-4" />
+        </Button>
+      )}
 
       {enabledDefs.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-muted-foreground mb-3">Nenhum indicador configurado ainda.</p>
-          <Button size="sm" variant="outline" onClick={() => setConfigOpen(true)}>
-            <Settings className="w-4 h-4 mr-1" /> Configurar indicadores
-          </Button>
+          {!isPresentationMode && (
+            <Button size="sm" variant="outline" onClick={() => setConfigOpen(true)}>
+              <Settings className="w-4 h-4 mr-1" /> Configurar indicadores
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 pt-2">

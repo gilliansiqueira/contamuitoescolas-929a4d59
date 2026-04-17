@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Calculator, Plus, Trash2, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface SimulationProps { schoolId: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 interface SimEntry { id: string; descricao: string; valor: number; tipo: 'entrada' | 'saida'; }
 
 export function Simulation({ schoolId }: SimulationProps) {
+  const { isPresentationMode } = usePresentation();
   const { data: entries = [] } = useEntries(schoolId);
   const [matriculas, setMatriculas] = useState(0);
   const [ticketMedio, setTicketMedio] = useState(0);
@@ -32,9 +34,10 @@ export function Simulation({ schoolId }: SimulationProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="glass-card rounded-xl p-6 space-y-4">
-          <h3 className="font-display font-semibold flex items-center gap-2"><Calculator className="w-5 h-5 text-secondary" />Parâmetros da Simulação</h3>
+      <div className={`grid grid-cols-1 ${!isPresentationMode ? 'lg:grid-cols-2' : ''} gap-6`}>
+        {!isPresentationMode && (
+          <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="glass-card rounded-xl p-6 space-y-4">
+            <h3 className="font-display font-semibold flex items-center gap-2"><Calculator className="w-5 h-5 text-secondary" />Parâmetros da Simulação</h3>
           <div className="space-y-3">
             <div><label className="text-xs font-medium text-muted-foreground">Novas Matrículas</label><Input type="number" value={matriculas || ''} onChange={e => setMatriculas(Number(e.target.value))} className="bg-surface mt-1" /></div>
             <div><label className="text-xs font-medium text-muted-foreground">Ticket Médio (R$)</label><Input type="number" value={ticketMedio || ''} onChange={e => setTicketMedio(Number(e.target.value))} className="bg-surface mt-1" /></div>
@@ -55,7 +58,8 @@ export function Simulation({ schoolId }: SimulationProps) {
             ))}
           </div>
         </motion.div>
-        <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
+        )}
+        <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className={isPresentationMode ? 'max-w-xl mx-auto w-full space-y-4' : 'space-y-4'}>
           <div className="glass-card rounded-xl p-6 space-y-3">
             <h3 className="font-display font-semibold">Resultado da Simulação</h3>
             <div className="space-y-2 text-sm">
