@@ -576,6 +576,7 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
   onDelete: (id: string) => void;
   thresholds: Threshold[];
 }) {
+  const { isPresentationMode } = usePresentation();
   const [addYear, setAddYear] = useState('');
   const [localYears, setLocalYears] = useState<string[]>([]);
   const [draftRows, setDraftRows] = useState<Record<string, { contatos: string; matriculas: string }>>({});
