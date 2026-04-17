@@ -5,9 +5,9 @@ import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
 import { ExportacaoDados } from './ExportacaoDados';
 import { ConversaoDashboard } from './ConversaoDashboard';
-import { VendasDashboard } from './VendasDashboard';
 import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft, ShoppingCart } from 'lucide-react';
+import { VendasDashboard } from '@/components/vendas/VendasDashboard';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
@@ -208,7 +208,7 @@ export function RealizadoModule({ schoolId }: Props) {
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
-              <ShoppingCart className="w-4 h-4" />
+              <CreditCard className="w-4 h-4" />
               Vendas
             </button>
           )}
