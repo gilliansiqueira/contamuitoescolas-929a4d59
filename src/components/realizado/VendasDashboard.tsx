@@ -35,7 +35,7 @@ interface PaymentMethod {
 
 interface CardBrand {
   id: string;
-  school_id: string;
+  school_id: string | null;
   name: string;
   icon_url: string | null;
   sort_order: number;
@@ -79,6 +79,9 @@ const METHOD_COLORS: Record<string, string> = {
   dinheiro: 'hsl(180 60% 45%)',
 };
 
+// Methods that support brand breakdown
+const METHODS_WITH_BRANDS = new Set(['credito', 'debito']);
+
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
@@ -110,13 +113,13 @@ export function VendasDashboard({ schoolId }: Props) {
     },
   });
 
+  // Brands are GLOBAL (shared across all schools)
   const { data: brands = [] } = useQuery({
-    queryKey: ['sales_card_brands', schoolId],
+    queryKey: ['sales_card_brands_global'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales_card_brands')
         .select('*')
-        .eq('school_id', schoolId)
         .order('sort_order');
       if (error) throw error;
       return data as CardBrand[];
@@ -166,13 +169,14 @@ export function VendasDashboard({ schoolId }: Props) {
   const addBrand = useMutation({
     mutationFn: async (name: string) => {
       const sortOrder = brands.length;
+      // Global brand: school_id = null
       const { error } = await supabase.from('sales_card_brands').insert({
-        school_id: schoolId, name, sort_order: sortOrder,
+        school_id: null, name, sort_order: sortOrder,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales_card_brands', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['sales_card_brands_global'] });
       toast.success('Bandeira adicionada');
     },
   });
@@ -182,7 +186,7 @@ export function VendasDashboard({ schoolId }: Props) {
       const { error } = await supabase.from('sales_card_brands').update(patch).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sales_card_brands', schoolId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sales_card_brands_global'] }),
   });
 
   const deleteBrand = useMutation({
@@ -191,7 +195,7 @@ export function VendasDashboard({ schoolId }: Props) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales_card_brands', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['sales_card_brands_global'] });
       queryClient.invalidateQueries({ queryKey: ['sales_data', schoolId] });
       toast.success('Bandeira removida');
     },
@@ -219,6 +223,39 @@ export function VendasDashboard({ schoolId }: Props) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sales_data', schoolId] }),
   });
 
+  // Quick-set: replaces a method/brand total by distributing as a single entry in current month
+  const quickSetTotal = useMutation({
+    mutationFn: async ({ method_key, brand_id, value }: {
+      method_key: string; brand_id: string | null; value: number;
+    }) => {
+      // Strategy: store as a single entry on current month, removing other rows for same method/brand
+      const targets = salesData.filter(s =>
+        s.method_key === method_key &&
+        (s.brand_id ?? null) === (brand_id ?? null)
+      );
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      // Delete all existing rows for this method/brand
+      if (targets.length > 0) {
+        const ids = targets.map(t => t.id);
+        const { error: delErr } = await supabase.from('sales_data').delete().in('id', ids);
+        if (delErr) throw delErr;
+      }
+      // Insert new single row if value > 0
+      if (value > 0) {
+        const { error } = await supabase.from('sales_data').insert({
+          school_id: schoolId, method_key, brand_id, month: currentMonth, value,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales_data', schoolId] });
+      toast.success('Valor atualizado');
+    },
+  });
+
   // ── Derived data ──
   const enabledMethods = useMemo(() => methods.filter(m => m.enabled), [methods]);
 
@@ -235,7 +272,7 @@ export function VendasDashboard({ schoolId }: Props) {
     return salesData.filter(s => s.month.startsWith(yearFilter));
   }, [salesData, yearFilter]);
 
-  // Total per method (sum brands for credit)
+  // Total per method (sum brands for credit/debit)
   const totalByMethod = useMemo(() => {
     const map: Record<string, number> = {};
     enabledMethods.forEach(m => {
@@ -246,12 +283,15 @@ export function VendasDashboard({ schoolId }: Props) {
     return map;
   }, [filteredData, enabledMethods]);
 
-  const totalByBrand = useMemo(() => {
+  // Total per (method_key, brand_id) pair — used for credito and debito breakdowns
+  const totalByMethodBrand = useMemo(() => {
     const map: Record<string, number> = {};
-    brands.forEach(b => {
-      map[b.id] = filteredData
-        .filter(s => s.method_key === 'credito' && s.brand_id === b.id)
-        .reduce((acc, s) => acc + Number(s.value), 0);
+    ['credito', 'debito'].forEach(mk => {
+      brands.forEach(b => {
+        map[`${mk}:${b.id}`] = filteredData
+          .filter(s => s.method_key === mk && s.brand_id === b.id)
+          .reduce((acc, s) => acc + Number(s.value), 0);
+      });
     });
     return map;
   }, [filteredData, brands]);
@@ -270,12 +310,13 @@ export function VendasDashboard({ schoolId }: Props) {
     [enabledMethods, totalByMethod]
   );
 
+  // Brand chart aggregates credit + debit per brand
   const brandChartData = useMemo(() =>
     brands.map(b => ({
       name: b.name,
-      valor: totalByBrand[b.id] || 0,
+      valor: (totalByMethodBrand[`credito:${b.id}`] || 0) + (totalByMethodBrand[`debito:${b.id}`] || 0),
     })).filter(d => d.valor > 0),
-    [brands, totalByBrand]
+    [brands, totalByMethodBrand]
   );
 
   if (lm || ls) {
@@ -328,6 +369,8 @@ export function VendasDashboard({ schoolId }: Props) {
           {enabledMethods.map(m => {
             const Icon = METHOD_ICONS[m.method_key] || Wallet;
             const total = totalByMethod[m.method_key] || 0;
+            const hasBrandBreakdown = METHODS_WITH_BRANDS.has(m.method_key);
+            const showBrands = hasBrandBreakdown && brands.length > 0;
             return (
               <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                 <Card className="rounded-2xl">
@@ -343,20 +386,43 @@ export function VendasDashboard({ schoolId }: Props) {
                         <div className="font-medium text-sm">{m.label}</div>
                       </div>
                     </div>
-                    <div className="text-2xl font-bold mt-3">{formatCurrency(total)}</div>
-                    {m.method_key === 'credito' && brands.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-border/50 space-y-1.5">
+                    {/* Total: editable when no brand breakdown, read-only otherwise */}
+                    {hasBrandBreakdown ? (
+                      <div className="text-2xl font-bold mt-3">{formatCurrency(total)}</div>
+                    ) : (
+                      <div className="mt-3">
+                        <QuickTotalInput
+                          value={total}
+                          disabled={isPresentationMode}
+                          onSave={(v) => quickSetTotal.mutate({
+                            method_key: m.method_key, brand_id: null, value: v,
+                          })}
+                        />
+                      </div>
+                    )}
+                    {/* Brands breakdown for credito/debito */}
+                    {showBrands && (
+                      <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
                         {brands.map(b => (
-                          <div key={b.id} className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5">
+                          <div key={b.id} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
                               {b.icon_url ? (
-                                <img src={b.icon_url} alt={b.name} className="w-5 h-5 object-contain" />
+                                <img src={b.icon_url} alt={b.name} className="w-7 h-7 object-contain shrink-0" />
                               ) : (
-                                <div className="w-5 h-5 rounded bg-muted" />
+                                <div className="w-7 h-7 rounded bg-muted flex items-center justify-center shrink-0">
+                                  <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
+                                </div>
                               )}
-                              <span className="text-muted-foreground">{b.name}</span>
+                              <span className="text-sm font-medium truncate">{b.name}</span>
                             </div>
-                            <span className="font-medium">{formatCurrency(totalByBrand[b.id] || 0)}</span>
+                            <QuickTotalInput
+                              compact
+                              value={totalByMethodBrand[`${m.method_key}:${b.id}`] || 0}
+                              disabled={isPresentationMode}
+                              onSave={(v) => quickSetTotal.mutate({
+                                method_key: m.method_key, brand_id: b.id, value: v,
+                              })}
+                            />
                           </div>
                         ))}
                       </div>
@@ -403,7 +469,7 @@ export function VendasDashboard({ schoolId }: Props) {
 
         <Card className="rounded-2xl">
           <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Vendas por bandeira (Crédito)</h3>
+            <h3 className="text-sm font-semibold mb-3">Vendas por bandeira (Crédito + Débito)</h3>
             {brandChartData.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">
                 Sem dados de bandeiras
@@ -437,7 +503,7 @@ export function VendasDashboard({ schoolId }: Props) {
         <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Configurações de Vendas</SheetTitle>
-            <SheetDescription>Formas de pagamento e bandeiras de cartão</SheetDescription>
+            <SheetDescription>Formas de pagamento e bandeiras de cartão (compartilhadas)</SheetDescription>
           </SheetHeader>
           <Tabs defaultValue="methods" className="mt-6">
             <TabsList>
@@ -463,7 +529,6 @@ export function VendasDashboard({ schoolId }: Props) {
             </TabsContent>
             <TabsContent value="brands" className="mt-4">
               <BrandsManager
-                schoolId={schoolId}
                 brands={brands}
                 onAdd={(name) => addBrand.mutate(name)}
                 onUpdate={(id, patch) => updateBrand.mutate({ id, patch })}
@@ -478,12 +543,75 @@ export function VendasDashboard({ schoolId }: Props) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Brands Manager
+// Quick Total Input — inline editor for card totals
+// ──────────────────────────────────────────────────────────────────────────
+function QuickTotalInput({
+  value, onSave, disabled, compact = false,
+}: {
+  value: number;
+  onSave: (v: number) => void;
+  disabled?: boolean;
+  compact?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const display = value > 0 ? formatCurrency(value) : '—';
+
+  if (disabled) {
+    return (
+      <div className={compact ? 'text-sm font-semibold' : 'text-2xl font-bold'}>
+        {display}
+      </div>
+    );
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(value > 0 ? value.toString().replace('.', ',') : '');
+          setEditing(true);
+        }}
+        className={
+          compact
+            ? 'text-sm font-semibold hover:bg-muted/50 rounded-md px-2 py-0.5 transition-colors'
+            : 'text-2xl font-bold hover:bg-muted/50 rounded-md px-2 py-0.5 transition-colors text-left w-full'
+        }
+      >
+        {value > 0 ? display : <span className="text-muted-foreground">Clique para inserir</span>}
+      </button>
+    );
+  }
+
+  return (
+    <Input
+      autoFocus
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onFocus={e => e.target.select()}
+      onBlur={() => {
+        const n = parseBR(draft);
+        if (n !== value) onSave(n);
+        setEditing(false);
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') setEditing(false);
+      }}
+      placeholder="0,00"
+      className={compact ? 'h-8 text-sm w-28 text-right' : 'h-10 text-xl font-bold'}
+    />
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Brands Manager (global brands)
 // ──────────────────────────────────────────────────────────────────────────
 function BrandsManager({
-  schoolId, brands, onAdd, onUpdate, onDelete,
+  brands, onAdd, onUpdate, onDelete,
 }: {
-  schoolId: string;
   brands: CardBrand[];
   onAdd: (name: string) => void;
   onUpdate: (id: string, patch: Partial<CardBrand>) => void;
@@ -494,7 +622,7 @@ function BrandsManager({
 
   const handleUpload = async (brand: CardBrand, file: File) => {
     const ext = file.name.split('.').pop();
-    const path = `${schoolId}/${brand.id}-${Date.now()}.${ext}`;
+    const path = `global/${brand.id}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('card-brand-icons').upload(path, file, { upsert: true });
     if (error) {
       toast.error('Erro no upload: ' + error.message);
@@ -507,6 +635,9 @@ function BrandsManager({
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Bandeiras e ícones são compartilhados entre todas as escolas.
+      </p>
       <div className="flex gap-2">
         <Input
           value={newName}
@@ -618,9 +749,9 @@ function SalesHistoryTable({
     return row ? Number(row.value) : 0;
   };
 
-  const isCredito = selectedKey === 'credito';
+  const supportsBrands = METHODS_WITH_BRANDS.has(selectedKey);
   const brandFilter: string | null =
-    !isCredito ? null
+    !supportsBrands ? null
     : selectedBrand === 'all' ? null
     : selectedBrand;
 
@@ -649,7 +780,7 @@ function SalesHistoryTable({
                 <option key={m.id} value={m.method_key}>{m.label}</option>
               ))}
             </select>
-            {isCredito && brands.length > 0 && (
+            {supportsBrands && brands.length > 0 && (
               <select
                 value={selectedBrand}
                 onChange={e => setSelectedBrand(e.target.value)}
