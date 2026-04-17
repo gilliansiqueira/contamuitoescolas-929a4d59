@@ -5,8 +5,9 @@ import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
 import { ExportacaoDados } from './ExportacaoDados';
 import { ConversaoDashboard } from './ConversaoDashboard';
+import { VendasDashboard } from './VendasDashboard';
 import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft } from 'lucide-react';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
@@ -18,7 +19,7 @@ interface Props {
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados';
-type MainView = 'relatorio' | 'indicadores' | 'conversao';
+type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas';
 
 const configTabs: { key: ConfigTab; label: string }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -31,6 +32,7 @@ interface TabVisibility {
   relatorio: boolean;
   indicadores: boolean;
   conversao: boolean;
+  vendas: boolean;
 }
 
 function useTabVisibility(schoolId: string) {
@@ -46,7 +48,7 @@ function useTabVisibility(schoolId: string) {
   });
 
   const visibility = useMemo<TabVisibility>(() => {
-    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true };
+    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true };
     if (!tabs) return defaults;
     tabs.forEach(t => {
       if (t.tab_key in defaults) {
@@ -94,6 +96,7 @@ export function RealizadoModule({ schoolId }: Props) {
   const activeView = useMemo(() => {
     if (mainView === 'conversao' && !visibility.conversao) return 'relatorio';
     if (mainView === 'indicadores' && !visibility.indicadores) return 'relatorio';
+    if (mainView === 'vendas' && !visibility.vendas) return 'relatorio';
     return mainView;
   }, [mainView, visibility]);
 
@@ -114,6 +117,7 @@ export function RealizadoModule({ schoolId }: Props) {
               { key: 'relatorio', label: 'Análise de Despesas', locked: true },
               { key: 'indicadores', label: 'Indicadores' },
               { key: 'conversao', label: 'Conversão' },
+              { key: 'vendas', label: 'Vendas' },
             ].map(tab => (
               <label key={tab.key} className="flex items-center gap-2 text-sm">
                 <input
@@ -195,6 +199,19 @@ export function RealizadoModule({ schoolId }: Props) {
               Conversão
             </button>
           )}
+          {visibility.vendas && (
+            <button
+              onClick={() => setMainView('vendas')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeView === 'vendas'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Vendas
+            </button>
+          )}
         </div>
         {!isPresentationMode && (
           <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
@@ -206,6 +223,7 @@ export function RealizadoModule({ schoolId }: Props) {
         {activeView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
         {activeView === 'indicadores' && <IndicadoresDashboard schoolId={schoolId} />}
         {activeView === 'conversao' && <ConversaoDashboard schoolId={schoolId} />}
+        {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
       </motion.div>
     </div>
   );
