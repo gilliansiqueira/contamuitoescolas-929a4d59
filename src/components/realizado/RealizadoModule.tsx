@@ -48,7 +48,7 @@ function useTabVisibility(schoolId: string) {
   });
 
   const visibility = useMemo<TabVisibility>(() => {
-    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true };
+    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true };
     if (!tabs) return defaults;
     tabs.forEach(t => {
       if (t.tab_key in defaults) {
