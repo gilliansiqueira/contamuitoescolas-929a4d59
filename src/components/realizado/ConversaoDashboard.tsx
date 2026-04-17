@@ -566,7 +566,7 @@ function SimpleLineChart({ title, data, dataKey, color }: {
 }
 
 // ── History Table ──
-function HistoryTableInner({ title, tipo, convData, years, yearFilter, onSave, onDelete, thresholds }: {
+function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDelete, thresholds }: {
   title: string;
   tipo: string;
   convData: ConversionRow[];
