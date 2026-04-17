@@ -179,14 +179,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
-            { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-primary' },
+            { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-success' },
             { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive' },
-            { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-primary' : 'text-destructive' },
-            { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-primary' : 'text-destructive' },
+            { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
+            { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-success' : 'text-destructive' },
           ].map((kpi, i) => (
             <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-5">
               <div className="flex items-center gap-2 mb-2">
-                <kpi.icon className={`w-4 h-4 ${i === 0 ? 'text-muted-foreground' : i === 1 ? 'text-primary' : i === 2 ? 'text-destructive' : 'text-muted-foreground'}`} />
+                <kpi.icon className={`w-4 h-4 ${i === 0 ? 'text-muted-foreground' : i === 1 ? 'text-success' : i === 2 ? 'text-destructive' : 'text-muted-foreground'}`} />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
               </div>
               <p className={`text-2xl font-display font-bold ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
@@ -201,7 +201,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           className="glass-card rounded-xl p-4">
           <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">💼 Operações (não entram no resultado)</h4>
           <div className="flex gap-6 text-sm">
-            <span className="text-primary">Entradas: {formatCurrency(totals.operacoesIn)}</span>
+            <span className="text-success">Entradas: {formatCurrency(totals.operacoesIn)}</span>
             <span className="text-destructive">Saídas: {formatCurrency(totals.operacoesOut)}</span>
             <span className="text-muted-foreground">Líquido: {formatCurrency(totals.operacoesIn - totals.operacoesOut)}</span>
           </div>
@@ -216,7 +216,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="text-[10px] text-muted-foreground uppercase">Receitas</span>
-                <p className="text-lg font-display font-bold text-primary">{formatCurrency(realizadoTotals.receitas)}</p>
+                <p className="text-lg font-display font-bold text-success">{formatCurrency(realizadoTotals.receitas)}</p>
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground uppercase">Despesas</span>
@@ -225,7 +225,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             </div>
             <div className="mt-2 pt-2 border-t border-border/30">
               <span className="text-[10px] text-muted-foreground uppercase">Resultado Realizado</span>
-              <p className={`text-lg font-display font-bold ${realizadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              <p className={`text-lg font-display font-bold ${realizadoTotals.resultado >= 0 ? 'text-success' : 'text-destructive'}`}>
                 {formatCurrency(realizadoTotals.resultado)}
               </p>
             </div>
@@ -236,7 +236,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="text-[10px] text-muted-foreground uppercase">Receitas Futuras</span>
-                <p className="text-lg font-display font-bold text-primary">{formatCurrency(projetadoTotals.receitas)}</p>
+                <p className="text-lg font-display font-bold text-success">{formatCurrency(projetadoTotals.receitas)}</p>
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground uppercase">Despesas Futuras</span>
@@ -245,7 +245,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             </div>
             <div className="mt-2 pt-2 border-t border-border/30">
               <span className="text-[10px] text-muted-foreground uppercase">Resultado Projetado</span>
-              <p className={`text-lg font-display font-bold ${projetadoTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              <p className={`text-lg font-display font-bold ${projetadoTotals.resultado >= 0 ? 'text-success' : 'text-destructive'}`}>
                 {formatCurrency(projetadoTotals.resultado)}
               </p>
             </div>
@@ -268,7 +268,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                   backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px',
                 }} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
-                <Bar dataKey="entradas" name="Entradas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="entradas" name="Entradas" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="saidas" name="Saídas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -286,8 +286,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
               <AreaChart data={projectionData}>
                 <defs>
                   <linearGradient id="saldoGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -296,7 +296,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                 <Tooltip formatter={(value: number) => formatCurrency(value)} labelFormatter={(label) => `Data: ${label}`}
                   contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
                 <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="3 3" />
-                <Area type="monotone" dataKey="saldo" stroke="hsl(var(--primary))" fill="url(#saldoGrad)" strokeWidth={2} name="Saldo" />
+                <Area type="monotone" dataKey="saldo" stroke="hsl(var(--success))" fill="url(#saldoGrad)" strokeWidth={2} name="Saldo" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

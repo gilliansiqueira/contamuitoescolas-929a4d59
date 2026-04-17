@@ -274,7 +274,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
               {withBalance.map(e => {
                 const cls = getEffectiveClassification(e, classifications);
                 const clsLabel = cls === 'receita' ? 'Receita' : cls === 'despesa' ? 'Despesa' : cls === 'operacao' ? 'Operação' : 'Ignorar';
-                const clsColor = cls === 'receita' ? 'bg-primary/10 text-primary' : cls === 'despesa' ? 'bg-destructive/10 text-destructive' : cls === 'operacao' ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground';
+                const clsColor = cls === 'receita' ? 'bg-success/10 text-success' : cls === 'despesa' ? 'bg-destructive/10 text-destructive' : cls === 'operacao' ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground';
                 return (
                   <tr key={e.id} className={`border-t border-border/30 hover:bg-muted/30 transition-colors ${e.saldo < 0 ? 'bg-destructive/5' : ''} ${cls === 'ignorar' ? 'opacity-40' : ''}`}>
                     {editId === e.id && !isPresentationMode ? (
@@ -327,14 +327,14 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                         <td className="px-3 py-2">
                           {isPresentationMode ? (
                             <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                              e.tipo === 'entrada' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-destructive/10 text-destructive border-destructive/20'
+                              e.tipo === 'entrada' ? 'bg-success/10 text-success border-success/20' : 'bg-destructive/10 text-destructive border-destructive/20'
                             }`}>
                               {e.tipo === 'entrada' ? 'Entrada' : 'Saída'}
                             </span>
                           ) : (
                             <Select value={e.tipo} onValueChange={(v) => handleTipoChange(e.id, v as 'entrada' | 'saida')}>
                             <SelectTrigger className={`h-6 w-[90px] text-[10px] font-semibold border-0 px-1.5 py-0.5 ${
-                              e.tipo === 'entrada' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'
+                              e.tipo === 'entrada' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
                             }`}>
                               <SelectValue />
                             </SelectTrigger>
@@ -359,10 +359,10 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                           {e.descricao}
                           {e.editadoManualmente && <span className="ml-1 text-[9px] text-amber-600 font-semibold">✎</span>}
                         </td>
-                        <td className={`px-3 py-2 text-right font-semibold ${e.tipo === 'entrada' ? 'text-primary' : 'text-destructive'}`}>
+                        <td className={`px-3 py-2 text-right font-semibold ${e.tipo === 'entrada' ? 'text-success' : 'text-destructive'}`}>
                           {formatCurrency(e.valor)}
                         </td>
-                        <td className={`px-3 py-2 text-right font-semibold ${e.saldo >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                        <td className={`px-3 py-2 text-right font-semibold ${e.saldo >= 0 ? 'text-success' : 'text-destructive'}`}>
                           {formatCurrency(e.saldo)}
                         </td>
                         {!isPresentationMode && (

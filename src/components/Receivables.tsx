@@ -116,7 +116,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <span className="text-[10px] text-muted-foreground uppercase">Total</span>
-            <p className="text-lg font-display font-bold text-primary">{formatCurrency(totalGeral)}</p>
+            <p className="text-lg font-display font-bold text-success">{formatCurrency(totalGeral)}</p>
           </div>
           <div>
             <span className="text-[10px] text-muted-foreground uppercase">Realizado</span>
@@ -148,7 +148,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                   </p>
                 </div>
               </div>
-              <p className="text-lg font-display font-bold text-primary">{formatCurrency(total)}</p>
+              <p className="text-lg font-display font-bold text-success">{formatCurrency(total)}</p>
             </div>
             <div className="max-h-64 overflow-y-auto">
               <table className="w-full text-xs"><thead><tr className="bg-surface">
@@ -168,7 +168,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                       {e.tipoRegistro === 'realizado' ? 'Real.' : 'Proj.'}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-right font-semibold text-primary">{formatCurrency(e.valor)}</td>
+                  <td className="px-4 py-2 text-right font-semibold text-success">{formatCurrency(e.valor)}</td>
                 </tr>
               ))}</tbody></table>
             </div>
