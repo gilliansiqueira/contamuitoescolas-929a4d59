@@ -24,7 +24,8 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
       // If method_key is like "credit-visa", sum into "credit" or keep it separated?
       // Since it's byMethod, we group by base method format.
       let baseMethod = item.method_key;
-      if (item.method_key.startsWith('credit-')) baseMethod = 'credit';
+      if (item.method_key.startsWith('brand-')) baseMethod = 'credito'; // Since we map brand-<id> to credito in the grouping too just in case
+      else if (item.method_key === 'credito') baseMethod = 'credito';
       acc[baseMethod] = (acc[baseMethod] || 0) + item.value;
     });
     return Object.keys(acc).map(key => {
@@ -52,12 +53,12 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
 
   const getIcon = (method: string) => {
     switch (method) {
-      case 'credit': return <CreditCard className="w-5 h-5 text-primary" />;
-      case 'debit': return <CreditCard className="w-5 h-5 text-primary" />;
+      case 'credito': return <CreditCard className="w-5 h-5 text-primary" />;
+      case 'debito': return <CreditCard className="w-5 h-5 text-primary" />;
       case 'pix': return <Smartphone className="w-5 h-5 text-primary" />;
       case 'boleto': return <FileText className="w-5 h-5 text-primary" />;
-      case 'check': return <Receipt className="w-5 h-5 text-primary" />;
-      case 'cash': return <Banknote className="w-5 h-5 text-primary" />;
+      case 'cheque': return <Receipt className="w-5 h-5 text-primary" />;
+      case 'dinheiro': return <Banknote className="w-5 h-5 text-primary" />;
       default: return <HelpCircle className="w-5 h-5 text-primary" />;
     }
   };

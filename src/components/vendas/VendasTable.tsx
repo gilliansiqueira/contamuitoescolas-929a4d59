@@ -105,7 +105,7 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
       // Quando salvamos card brands no VendasConfig, usamos 'brand-ID' no method_key
       if (m.method_key.startsWith('brand-')) {
         brandId = m.method_key.replace('brand-', '');
-        finalMethodKey = 'credit'; // Para a tabela sales_data, isso conta como method_key: 'credit'
+        finalMethodKey = 'credito'; // Para a tabela sales_data, isso conta como method_key: 'credito'
         const matchedBrand = cardBrands.find(cb => cb.id === brandId);
         if (matchedBrand && matchedBrand.icon_url) {
           iconUrl = matchedBrand.icon_url;

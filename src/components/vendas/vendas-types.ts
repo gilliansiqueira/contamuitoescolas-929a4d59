@@ -1,4 +1,4 @@
-export type PaymentMethod = 'credit' | 'debit' | 'pix' | 'boleto' | 'check' | 'cash';
+export type PaymentMethod = 'credito' | 'debito' | 'pix' | 'boleto' | 'cheque' | 'dinheiro';
 
 export interface SalesPaymentMethod {
   id: string;
@@ -26,10 +26,10 @@ export interface SalesData {
 }
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'credit', label: 'Cartão de Crédito' },
-  { value: 'debit', label: 'Cartão de Débito' },
+  { value: 'credito', label: 'Cartão de Crédito' },
+  { value: 'debito', label: 'Cartão de Débito' },
   { value: 'pix', label: 'Pix' },
   { value: 'boleto', label: 'Boleto' },
-  { value: 'check', label: 'Cheque' },
-  { value: 'cash', label: 'Dinheiro' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'dinheiro', label: 'Dinheiro' },
 ];

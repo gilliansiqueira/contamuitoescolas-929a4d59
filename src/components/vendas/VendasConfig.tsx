@@ -70,17 +70,16 @@ export function VendasConfig({ schoolId, onBack }: Props) {
 
   if (loadingMethods || loadingBrands) return <div className="p-4 text-sm text-muted-foreground">Carregando configurações...</div>;
 
-  const creditCardEnabled = isEnabled('credit') || isEnabled('credit_card');
+  const creditCardEnabled = isEnabled('credito');
 
   const getIcon = (method: string) => {
     switch (method) {
-      case 'credit': return <CreditCard className="w-4 h-4" />;
-      case 'credit_card': return <CreditCard className="w-4 h-4" />;
-      case 'debit': return <CreditCard className="w-4 h-4" />;
+      case 'credito': return <CreditCard className="w-4 h-4" />;
+      case 'debito': return <CreditCard className="w-4 h-4" />;
       case 'pix': return <Smartphone className="w-4 h-4" />;
       case 'boleto': return <FileText className="w-4 h-4" />;
-      case 'check': return <Receipt className="w-4 h-4" />;
-      case 'cash': return <Banknote className="w-4 h-4" />;
+      case 'cheque': return <Receipt className="w-4 h-4" />;
+      case 'dinheiro': return <Banknote className="w-4 h-4" />;
       default: return <HelpCircle className="w-4 h-4" />;
     }
   };
