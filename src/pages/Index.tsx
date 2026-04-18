@@ -29,6 +29,7 @@ import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
   CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart,
 } from 'lucide-react';
+import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -96,10 +97,8 @@ const Index = () => {
       <header className="sticky top-0 z-50 bg-card/90 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg gradient-orange flex items-center justify-center">
-              <BarChart3 className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <h1 className="font-display font-bold text-lg hidden sm:block text-foreground">Projeção Financeira</h1>
+            <img src={contaMuitoLogo} alt="Conta Muito" className="h-10 w-auto object-contain" />
+            <h1 className="font-display font-bold text-lg hidden sm:block text-foreground">Relatório Financeiro</h1>
           </div>
           <div className="flex items-center gap-3">
             <SchoolSelector selectedSchool={school} onSelect={(s) => {
