@@ -103,10 +103,16 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
   }, [isLoading, onReady, school]);
 
   // 2. Data Processing
-  const enabledTabs = new Set(tabs.filter(t => t.enabled).map(t => t.tab_key));
-  const hasVendas = enabledTabs.has('vendas');
-  const hasConversao = enabledTabs.has('conversao');
-  const hasIndicadores = enabledTabs.has('indicadores');
+  const visibility = { relatorio: true, indicadores: true, conversao: true, vendas: true };
+  tabs.forEach(t => {
+     if (t.tab_key in visibility) {
+        (visibility as any)[t.tab_key] = t.enabled;
+     }
+  });
+
+  const hasVendas = visibility.vendas;
+  const hasConversao = visibility.conversao;
+  const hasIndicadores = visibility.indicadores;
 
   const monthSales = useMemo(() => sales.filter(s => s.month === monthStr), [sales, monthStr]);
   const monthSalesTotal = monthSales.reduce((a, b) => a + Number(b.value), 0);
