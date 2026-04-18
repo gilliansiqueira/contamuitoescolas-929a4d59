@@ -8,6 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, Tooltip,
 } from 'recharts';
 import { CreditCard } from 'lucide-react';
+import contaMuitoLogo from '@/assets/conta-muito-logo.png';
 
 interface Props {
   schoolId: string;
@@ -330,19 +331,12 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
         </div>
       </div>
       <div style={{ textAlign: 'right' }}>
-        <div
-          style={{
-            display: 'inline-block',
-            padding: '6px 14px',
-            borderRadius: '999px',
-            background: `${colors.primary}20`,
-            color: colors.primary,
-            fontSize: '12px',
-            fontWeight: 600,
-          }}
-        >
-          Conta Muito
-        </div>
+        <img
+          src={contaMuitoLogo}
+          alt="Conta Muito"
+          crossOrigin="anonymous"
+          style={{ height: '64px', width: 'auto', objectFit: 'contain', display: 'inline-block' }}
+        />
         <div style={{ fontSize: '11px', color: colors.muted, marginTop: '8px' }}>
           Gerado em {format(new Date(), "dd/MM/yyyy 'às' HH:mm")}
         </div>
