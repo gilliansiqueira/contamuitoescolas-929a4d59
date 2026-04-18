@@ -7,7 +7,8 @@ import { ExportacaoDados } from './ExportacaoDados';
 import { ConversaoDashboard } from './ConversaoDashboard';
 import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
 import { VendasDashboard } from '@/components/vendas/VendasDashboard';
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard } from 'lucide-react';
+import { ExportPdfDialog } from './ExportPdfDialog';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
@@ -77,6 +78,12 @@ export function RealizadoModule({ schoolId }: Props) {
   const [showConfig, setShowConfig] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>('importacao');
   const [mainView, setMainView] = useState<MainView>('relatorio');
+  const [showPdfExport, setShowPdfExport] = useState(false);
+
+  const now = new Date();
+  const [exportMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
+  const [exportYear] = useState(now.getFullYear().toString());
+
   const queryClient = useQueryClient();
   const { visibility, toggle } = useTabVisibility(schoolId);
   const { isPresentationMode } = usePresentation();
@@ -213,11 +220,18 @@ export function RealizadoModule({ schoolId }: Props) {
             </button>
           )}
         </div>
-        {!isPresentationMode && (
-          <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
-            <Settings className="w-4 h-4 mr-1" /> Configurações
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!isPresentationMode && (
+            <Button size="sm" variant="outline" onClick={() => setShowPdfExport(true)} className="rounded-xl">
+              <FileDown className="w-4 h-4 mr-1" /> Exportar PDF
+            </Button>
+          )}
+          {!isPresentationMode && (
+            <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
+              <Settings className="w-4 h-4 mr-1" /> Configurações
+            </Button>
+          )}
+        </div>
       </div>
       <motion.div key={activeView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
         {activeView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
@@ -225,6 +239,14 @@ export function RealizadoModule({ schoolId }: Props) {
         {activeView === 'conversao' && <ConversaoDashboard schoolId={schoolId} />}
         {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
       </motion.div>
+
+      <ExportPdfDialog 
+        open={showPdfExport} 
+        onOpenChange={setShowPdfExport} 
+        schoolId={schoolId} 
+        selectedMonth={exportMonth}
+        selectedYear={exportYear}
+      />
     </div>
   );
 }
