@@ -67,18 +67,18 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
     }
   });
 
-  const { data: kpis = [], isLoading: load5 } = useQuery({
-    queryKey: ['school_kpis_print', schoolId],
+  const { data: kpiDefs = [], isLoading: load5 } = useQuery({
+    queryKey: ['kpi_definitions_print', schoolId],
     queryFn: async () => {
-      const { data } = await supabase.from('school_kpis').select('*').eq('school_id', schoolId);
+      const { data } = await supabase.from('kpi_definitions').select('*').eq('school_id', schoolId).eq('enabled', true);
       return data || [];
     }
   });
 
-  const { data: kpiMeta = [], isLoading: load6 } = useQuery({
-    queryKey: ['kpis_metadata_print'],
+  const { data: kpiValues = [], isLoading: load6 } = useQuery({
+    queryKey: ['kpi_values_print', schoolId],
     queryFn: async () => {
-      const { data } = await supabase.from('kpis_metadata').select('*');
+      const { data } = await supabase.from('kpi_values').select('*').eq('school_id', schoolId);
       return data || [];
     }
   });
