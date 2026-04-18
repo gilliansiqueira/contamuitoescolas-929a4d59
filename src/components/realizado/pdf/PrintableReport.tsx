@@ -22,7 +22,7 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
   const { data: school, isLoading: load0 } = useQuery({
     queryKey: ['school', schoolId],
     queryFn: async () => {
-      const { data } = await supabase.from('schools').select('nome_franquia').eq('id', schoolId).single();
+      const { data } = await supabase.from('schools').select('nome').eq('id', schoolId).single();
       return data;
     }
   });
