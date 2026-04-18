@@ -234,15 +234,17 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
             Indicadores Chave
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-            {kpis.filter(k => k.month === monthStr).map(kpi => {
-              const meta = kpiMeta.find(m => m.id === kpi.kpi_id);
-              if (!meta) return null;
+            {kpiDefs.map(def => {
+              const kv = kpiValues.find(v => v.kpi_definition_id === def.id && v.month === monthStr);
+              if (!kv) return null;
+              const isCurrency = def.value_type === 'currency';
+              const isPercent = def.value_type === 'percent';
               return (
-                <div key={kpi.id} style={{ border: `1px solid ${border}`, padding: '16px', borderRadius: '10px' }}>
-                  <div style={{ fontSize: '12px', color: muted, marginBottom: '8px' }}>{meta.name}</div>
+                <div key={def.id} style={{ border: `1px solid ${border}`, padding: '16px', borderRadius: '10px' }}>
+                  <div style={{ fontSize: '12px', color: muted, marginBottom: '8px' }}>{def.name}</div>
                   <div style={{ fontSize: '20px', fontWeight: 700 }}>
-                    {meta.format === 'currency' ? Number(kpi.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) :
-                     meta.format === 'percentage' ? `${kpi.value}%` : kpi.value}
+                    {isCurrency ? Number(kv.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) :
+                     isPercent ? `${Number(kv.value).toLocaleString('pt-BR')}%` : Number(kv.value).toLocaleString('pt-BR')}
                   </div>
                 </div>
               );
