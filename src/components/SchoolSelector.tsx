@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { School } from '@/types/financial';
 import { useSchools, useAddSchool, useDeleteSchool } from '@/hooks/useFinancialData';
 import { Search, Plus, Building2, Trash2 } from 'lucide-react';
+import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -79,7 +80,7 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Excluir escola</AlertDialogTitle>
+              <AlertDialogTitle>Excluir empresa</AlertDialogTitle>
               <AlertDialogDescription>
                 Tem certeza? Todos os dados vinculados serão removidos permanentemente.
               </AlertDialogDescription>
@@ -104,17 +105,15 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
     >
       <div className="w-full max-w-lg glass-card rounded-2xl p-8 space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 rounded-2xl gradient-green flex items-center justify-center mx-auto mb-4">
-            <Building2 className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Projeção Financeira</h1>
-          <p className="text-muted-foreground text-sm">Selecione ou crie uma escola para começar</p>
+          <img src={contaMuitoLogo} alt="Conta Muito" className="h-24 w-auto object-contain mx-auto mb-2" />
+          <h1 className="text-2xl font-display font-bold text-foreground">Relatório Financeiro</h1>
+          <p className="text-muted-foreground text-sm">Selecione ou crie uma empresa para começar</p>
         </div>
 
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar escola..."
+            placeholder="Buscar empresa..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-10 bg-surface border-border"
@@ -141,10 +140,10 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
             ))}
           </AnimatePresence>
           {!isLoading && filtered.length === 0 && schools.length > 0 && (
-            <p className="text-center text-muted-foreground text-sm py-4">Nenhuma escola encontrada</p>
+            <p className="text-center text-muted-foreground text-sm py-4">Nenhuma empresa encontrada</p>
           )}
           {!isLoading && schools.length === 0 && (
-            <p className="text-center text-muted-foreground text-sm py-4">Nenhuma escola cadastrada</p>
+            <p className="text-center text-muted-foreground text-sm py-4">Nenhuma empresa cadastrada</p>
           )}
         </div>
 
@@ -152,7 +151,7 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
           {showCreate ? (
             <div className="flex gap-2">
               <Input
-                placeholder="Nome da escola"
+                placeholder="Nome da empresa"
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCreate()}
@@ -172,7 +171,7 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
               className="w-full gradient-orange text-secondary-foreground"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Nova Escola
+              Nova Empresa
             </Button>
           )}
         </div>
