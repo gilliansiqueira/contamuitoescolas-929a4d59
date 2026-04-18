@@ -203,7 +203,7 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
       <div style={{ borderBottom: `2px solid ${border}`, paddingBottom: '30px', marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: '32px', fontWeight: 800, margin: 0, color: brandPri }}>Relatório Realizado</h1>
-          <h2 style={{ fontSize: '24px', fontWeight: 600, margin: '8px 0 0 0' }}>{school?.nome_franquia || 'Franquia Conta Muito'}</h2>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, margin: '8px 0 0 0' }}>{school?.nome || 'Franquia Conta Muito'}</h2>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '18px', fontWeight: 600 }}>{format(new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1), 'MMMM yyyy', { locale: ptBR })}</div>
