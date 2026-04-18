@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { SalesData, PAYMENT_METHODS } from './vendas-types';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { CreditCard, Smartphone, Receipt, FileText, Banknote, HelpCircle } from 'lucide-react';
 
 interface Props {
@@ -38,18 +38,30 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
     }).filter(item => item.value > 0).sort((a, b) => b.value - a.value);
   }, [monthData]);
 
-  // Evolução anual para o BarChart (Total de vendas de cada mês)
+  // Evolução anual para o LineChart (Todos os anos com dados)
   const annualTrend = useMemo(() => {
-    const yearData = data.filter(s => s.month.startsWith(selectedYearStr));
+    // Identificar todos os anos que existem nos dados + o ano selecionado
+    const yearsSet = new Set<string>();
+    data.forEach(s => yearsSet.add(s.month.split('-')[0]));
+    yearsSet.add(selectedYearStr);
+    const orderedYears = Array.from(yearsSet).sort();
+
     return MONTHS_LABELS.map((label, index) => {
-      const monthStr = `${selectedYearStr}-${(index + 1).toString().padStart(2, '0')}`;
-      const totalMes = yearData.filter(s => s.month === monthStr).reduce((acc, curr) => acc + curr.value, 0);
-      return {
-        name: label,
-        Total: totalMes
-      };
+      const mStr = (index + 1).toString().padStart(2, '0');
+      const row: any = { name: label };
+      
+      orderedYears.forEach(yr => {
+        const monthFilter = `${yr}-${mStr}`;
+        const totalMes = data.filter(s => s.month === monthFilter).reduce((acc, curr) => acc + curr.value, 0);
+        // Só renderiza a linha se o ano já aconteceu até este mês (ou mostra zero). Retornar undefined quebra a linha, vamos retornar o valor ou 0.
+        row[yr] = totalMes;
+      });
+      return row;
     });
   }, [data, selectedYearStr]);
+
+  const activeYears = Object.keys(annualTrend[0]).filter(k => k !== 'name');
+  const LINE_COLORS = ['#8B5CF6', '#F59E0B', '#10B981', '#ea384c', '#0EA5E9'];
 
   const getIcon = (method: string) => {
     switch (method) {
@@ -138,25 +150,36 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
         </div>
 
         <div className="glass-card p-4 rounded-xl min-h-[300px] flex flex-col">
-          <h4 className="text-sm font-semibold mb-4 ml-2">Total de Vendas por Mês ({selectedYearStr})</h4>
+          <h4 className="text-sm font-semibold mb-4 ml-2">Total de Vendas Mensal (Ao Longo dos Anos)</h4>
           <div className="flex-1 w-full relative min-h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={annualTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <LineChart data={annualTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tickFormatter={(val) => `R$${val/1000}k`}
+                  tickFormatter={(val) => val === 0 ? '0' : `R$${val/1000}k`}
                   tick={{ fontSize: 12 }}
                 />
                 <Tooltip 
                   formatter={(value: number) => formatCurrency(value)}
-                  cursor={{ fill: 'var(--muted)' }}
                   contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--background)' }}
                 />
-                <Bar dataKey="Total" fill="#ea384c" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              </BarChart>
+                <Legend wrapperStyle={{ fontSize: 12, marginTop: 10 }} />
+                {activeYears.map((yr, i) => (
+                  <Line 
+                    key={yr} 
+                    type="monotone" 
+                    dataKey={yr} 
+                    name={yr} 
+                    stroke={yr === selectedYearStr ? '#ea384c' : (LINE_COLORS[i % LINE_COLORS.length])} 
+                    strokeWidth={yr === selectedYearStr ? 3 : 2} 
+                    dot={{ r: 3 }} 
+                    activeDot={{ r: 6 }} 
+                  />
+                ))}
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>

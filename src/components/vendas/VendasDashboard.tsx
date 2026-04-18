@@ -20,6 +20,7 @@ export function VendasDashboard({ schoolId }: Props) {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
+  const [hasManuallySelected, setHasManuallySelected] = useState(false);
 
   const { data: salesData = [] } = useQuery({
     queryKey: ['sales_data', schoolId],
@@ -35,6 +36,23 @@ export function VendasDashboard({ schoolId }: Props) {
     return Array.from(years).sort().reverse();
   }, [salesData, now]);
 
+  useEffect(() => {
+    if (salesData.length > 0 && !hasManuallySelected) {
+      // Filtrar linhas que contém preenchimentos acima de zero
+      const activeRows = salesData.filter(s => s.value > 0);
+      if (activeRows.length > 0) {
+        // Ordena para pegar a data mais recente
+        const sorted = activeRows.sort((a, b) => b.month.localeCompare(a.month));
+        const latest = sorted[0].month;
+        const [y, m] = latest.split('-');
+        if (y !== selectedYear || m !== selectedMonth) {
+          setSelectedYear(y);
+          setSelectedMonth(m);
+        }
+      }
+    }
+  }, [salesData, hasManuallySelected, selectedYear, selectedMonth]);
+
   if (showConfig) {
     return <VendasConfig schoolId={schoolId} onBack={() => setShowConfig(false)} />;
   }
@@ -48,7 +66,10 @@ export function VendasDashboard({ schoolId }: Props) {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+          <Select 
+            value={selectedMonth} 
+            onValueChange={(v) => { setHasManuallySelected(true); setSelectedMonth(v); }}
+          >
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Mês" />
             </SelectTrigger>
@@ -60,7 +81,10 @@ export function VendasDashboard({ schoolId }: Props) {
             </SelectContent>
           </Select>
           
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <Select 
+            value={selectedYear} 
+            onValueChange={(v) => { setHasManuallySelected(true); setSelectedYear(v); }}
+          >
             <SelectTrigger className="w-[100px]">
               <SelectValue placeholder="Ano" />
             </SelectTrigger>
