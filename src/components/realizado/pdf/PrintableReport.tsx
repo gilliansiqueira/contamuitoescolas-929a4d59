@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, Tooltip, ComposedChart } from 'recharts';
 import { ArrowUpRight, ArrowDownRight, Minus, CreditCard, Smartphone, Receipt, FileText, Banknote } from 'lucide-react';
 
 interface Props {
@@ -22,7 +22,7 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
   const { data: school, isLoading: load0 } = useQuery({
     queryKey: ['school', schoolId],
     queryFn: async () => {
-      const { data } = await supabase.from('schools').select('nome_franquia').eq('id', schoolId).single();
+      const { data } = await supabase.from('schools').select('nome').eq('id', schoolId).single();
       return data;
     }
   });
@@ -67,18 +67,18 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
     }
   });
 
-  const { data: kpis = [], isLoading: load5 } = useQuery({
-    queryKey: ['school_kpis_print', schoolId],
+  const { data: kpiDefs = [], isLoading: load5 } = useQuery({
+    queryKey: ['kpi_definitions_print', schoolId],
     queryFn: async () => {
-      const { data } = await supabase.from('school_kpis').select('*').eq('school_id', schoolId);
+      const { data } = await supabase.from('kpi_definitions').select('*').eq('school_id', schoolId).eq('enabled', true);
       return data || [];
     }
   });
 
-  const { data: kpiMeta = [], isLoading: load6 } = useQuery({
-    queryKey: ['kpis_metadata_print'],
+  const { data: kpiValues = [], isLoading: load6 } = useQuery({
+    queryKey: ['kpi_values_print', schoolId],
     queryFn: async () => {
-      const { data } = await supabase.from('kpis_metadata').select('*');
+      const { data } = await supabase.from('kpi_values').select('*').eq('school_id', schoolId);
       return data || [];
     }
   });
@@ -96,7 +96,7 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
   useEffect(() => {
     if (!isLoading && ref.current) {
       const t = setTimeout(() => {
-        onReady(ref.current!, school?.nome_franquia || 'Escola');
+        onReady(ref.current!, school?.nome || 'Escola');
       }, 1000); // 1s for fonts/recharts
       return () => clearTimeout(t);
     }
@@ -203,7 +203,7 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
       <div style={{ borderBottom: `2px solid ${border}`, paddingBottom: '30px', marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: '32px', fontWeight: 800, margin: 0, color: brandPri }}>Relatório Realizado</h1>
-          <h2 style={{ fontSize: '24px', fontWeight: 600, margin: '8px 0 0 0' }}>{school?.nome_franquia || 'Franquia Conta Muito'}</h2>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, margin: '8px 0 0 0' }}>{school?.nome || 'Franquia Conta Muito'}</h2>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '18px', fontWeight: 600 }}>{format(new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1), 'MMMM yyyy', { locale: ptBR })}</div>
@@ -234,15 +234,17 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
             Indicadores Chave
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-            {kpis.filter(k => k.month === monthStr).map(kpi => {
-              const meta = kpiMeta.find(m => m.id === kpi.kpi_id);
-              if (!meta) return null;
+            {kpiDefs.map(def => {
+              const kv = kpiValues.find(v => v.kpi_definition_id === def.id && v.month === monthStr);
+              if (!kv) return null;
+              const isCurrency = def.value_type === 'currency';
+              const isPercent = def.value_type === 'percent';
               return (
-                <div key={kpi.id} style={{ border: `1px solid ${border}`, padding: '16px', borderRadius: '10px' }}>
-                  <div style={{ fontSize: '12px', color: muted, marginBottom: '8px' }}>{meta.name}</div>
+                <div key={def.id} style={{ border: `1px solid ${border}`, padding: '16px', borderRadius: '10px' }}>
+                  <div style={{ fontSize: '12px', color: muted, marginBottom: '8px' }}>{def.name}</div>
                   <div style={{ fontSize: '20px', fontWeight: 700 }}>
-                    {meta.format === 'currency' ? Number(kpi.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) :
-                     meta.format === 'percentage' ? `${kpi.value}%` : kpi.value}
+                    {isCurrency ? Number(kv.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) :
+                     isPercent ? `${Number(kv.value).toLocaleString('pt-BR')}%` : Number(kv.value).toLocaleString('pt-BR')}
                   </div>
                 </div>
               );
