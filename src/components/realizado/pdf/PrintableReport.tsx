@@ -96,7 +96,7 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
   useEffect(() => {
     if (!isLoading && ref.current) {
       const t = setTimeout(() => {
-        onReady(ref.current!, school?.nome_franquia || 'Escola');
+        onReady(ref.current!, school?.nome || 'Escola');
       }, 1000); // 1s for fonts/recharts
       return () => clearTimeout(t);
     }
