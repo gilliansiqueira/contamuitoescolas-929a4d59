@@ -69,6 +69,8 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
 
 const Index = () => {
   const { isPresentationMode } = usePresentation();
+  const { isAdmin, profile, signOut } = useAuth();
+  const { data: allSchools = [] } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
   const [appModule, setAppModule] = useState<AppModule>('projecao');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -78,7 +80,17 @@ const Index = () => {
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
+  // Filtra abas de configuração conforme papel
+  const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
+
+  // Auto-seleção: cliente vai direto para sua única empresa
+  useEffect(() => {
+    if (!school && !isAdmin && profile?.school_id) {
+      const mine = allSchools.find(s => s.id === profile.school_id);
+      if (mine) setSchool(mine);
+    }
+  }, [school, isAdmin, profile?.school_id, allSchools]);
 
   // Se ativaram o modo apresentação e estamos numa aba de configuração, forçar ida para o dashboard
   if (isPresentationMode && isSettingsTab) {
