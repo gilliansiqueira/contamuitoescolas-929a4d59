@@ -76,6 +76,7 @@ function useTabVisibility(schoolId: string) {
 }
 
 export function RealizadoModule({ schoolId }: Props) {
+  const { isAdmin } = useAuth();
   const [showConfig, setShowConfig] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>('importacao');
   const [mainView, setMainView] = useState<MainView>('relatorio');
