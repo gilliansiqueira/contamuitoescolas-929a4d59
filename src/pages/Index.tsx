@@ -188,7 +188,7 @@ const Index = () => {
                 </button>
               ))}
 
-              {!isPresentationMode && (
+              {!isPresentationMode && isAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ml-auto ${
