@@ -349,6 +349,44 @@ export type Database = {
           },
         ]
       }
+      historical_monthly: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          school_id: string
+          tipo_valor: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          school_id: string
+          tipo_valor: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          school_id?: string
+          tipo_valor?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_monthly_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kpi_definitions: {
         Row: {
           created_at: string
