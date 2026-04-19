@@ -156,33 +156,36 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
           )}
         </div>
 
-        <div className="border-t border-border pt-4">
-          {showCreate ? (
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nome da empresa"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                className="bg-surface"
-                autoFocus
-              />
-              <Button onClick={handleCreate} disabled={addSchoolMut.isPending} className="gradient-green text-primary-foreground shrink-0">
-                {addSchoolMut.isPending ? '...' : 'Criar'}
+        {isAdmin && (
+          <div className="border-t border-border pt-4">
+            {showCreate ? (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nome da empresa"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                  className="bg-surface"
+                  autoFocus
+                />
+                <Button onClick={handleCreate} disabled={addSchoolMut.isPending} className="gradient-green text-primary-foreground shrink-0">
+                  {addSchoolMut.isPending ? '...' : 'Criar'}
+                </Button>
+                <Button variant="ghost" onClick={() => setShowCreate(false)} className="shrink-0">
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={() => setShowCreate(true)}
+                className="w-full gradient-orange text-secondary-foreground"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Empresa
               </Button>
-              <Button variant="ghost" onClick={() => setShowCreate(false)} className="shrink-0">
-                Cancelar
-              </Button>
-            </div>
-          ) : (
-            <Button
-              onClick={() => setShowCreate(true)}
-              className="w-full gradient-orange text-secondary-foreground"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Empresa
-            </Button>
-          )}
+            )}
+          </div>
+        )}
         </div>
       </div>
     </motion.div>
