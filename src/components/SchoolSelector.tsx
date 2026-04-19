@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { School } from '@/types/financial';
 import { useSchools, useAddSchool, useDeleteSchool } from '@/hooks/useFinancialData';
+import { useAuth } from '@/hooks/useAuth';
 import { Search, Plus, Building2, Trash2 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,13 @@ interface SchoolSelectorProps {
 }
 
 export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps) {
-  const { data: schools = [], isLoading } = useSchools();
+  const { isAdmin, profile } = useAuth();
+  const { data: allSchools = [], isLoading } = useSchools();
+  // Cliente só vê sua própria empresa (RLS já garante, mas filtramos visualmente também)
+  const schools = useMemo(
+    () => isAdmin ? allSchools : allSchools.filter(s => s.id === profile?.school_id),
+    [allSchools, isAdmin, profile?.school_id]
+  );
   const addSchoolMut = useAddSchool();
   const deleteSchoolMut = useDeleteSchool();
   const [search, setSearch] = useState('');
@@ -70,13 +77,15 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
           <Building2 className="w-4 h-4" />
           {selectedSchool.nome}
         </button>
-        <button
-          onClick={() => setDeleteId(selectedSchool.id)}
-          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-          title="Excluir escola"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setDeleteId(selectedSchool.id)}
+            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Excluir empresa"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -147,34 +156,36 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
           )}
         </div>
 
-        <div className="border-t border-border pt-4">
-          {showCreate ? (
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nome da empresa"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                className="bg-surface"
-                autoFocus
-              />
-              <Button onClick={handleCreate} disabled={addSchoolMut.isPending} className="gradient-green text-primary-foreground shrink-0">
-                {addSchoolMut.isPending ? '...' : 'Criar'}
+        {isAdmin && (
+          <div className="border-t border-border pt-4">
+            {showCreate ? (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nome da empresa"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                  className="bg-surface"
+                  autoFocus
+                />
+                <Button onClick={handleCreate} disabled={addSchoolMut.isPending} className="gradient-green text-primary-foreground shrink-0">
+                  {addSchoolMut.isPending ? '...' : 'Criar'}
+                </Button>
+                <Button variant="ghost" onClick={() => setShowCreate(false)} className="shrink-0">
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={() => setShowCreate(true)}
+                className="w-full gradient-orange text-secondary-foreground"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Empresa
               </Button>
-              <Button variant="ghost" onClick={() => setShowCreate(false)} className="shrink-0">
-                Cancelar
-              </Button>
-            </div>
-          ) : (
-            <Button
-              onClick={() => setShowCreate(true)}
-              className="w-full gradient-orange text-secondary-foreground"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nova Empresa
-            </Button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );

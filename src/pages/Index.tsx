@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { School } from '@/types/financial';
 import { SchoolSelector } from '@/components/SchoolSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { PresentationToggle } from '@/components/PresentationToggle';
 import { usePresentation } from '@/components/presentation-provider';
+import { useAuth } from '@/hooks/useAuth';
+import { useSchools } from '@/hooks/useFinancialData';
 import { Dashboard } from '@/components/Dashboard';
 import { FileUpload } from '@/components/FileUpload';
 import { CashFlow } from '@/components/CashFlow';
@@ -23,11 +25,13 @@ import { TypeClassificationConfig } from '@/components/TypeClassificationConfig'
 import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
 import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
+import { UsersConfig } from '@/components/UsersConfig';
+import { Button } from '@/components/ui/button';
 
 import { RealizadoModule } from '@/components/realizado/RealizadoModule';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,7 +39,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -50,7 +54,8 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'simulation', label: 'Simulação', icon: Calculator },
 ];
 
-const settingsTabs: { key: Tab; label: string }[] = [
+const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
+  { key: 'users', label: 'Usuários', adminOnly: true },
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
   { key: 'type_classification', label: 'Classificação de Tipos' },
   { key: 'payment_delays', label: 'Prazos de Cobrança' },
@@ -64,6 +69,8 @@ const settingsTabs: { key: Tab; label: string }[] = [
 
 const Index = () => {
   const { isPresentationMode } = usePresentation();
+  const { isAdmin, profile, signOut } = useAuth();
+  const { data: allSchools = [] } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
   const [appModule, setAppModule] = useState<AppModule>('projecao');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -73,7 +80,17 @@ const Index = () => {
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
+  // Filtra abas de configuração conforme papel
+  const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
+
+  // Auto-seleção: cliente vai direto para sua única empresa
+  useEffect(() => {
+    if (!school && !isAdmin && profile?.school_id) {
+      const mine = allSchools.find(s => s.id === profile.school_id);
+      if (mine) setSchool(mine);
+    }
+  }, [school, isAdmin, profile?.school_id, allSchools]);
 
   // Se ativaram o modo apresentação e estamos numa aba de configuração, forçar ida para o dashboard
   if (isPresentationMode && isSettingsTab) {
@@ -102,11 +119,23 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-3">
             <SchoolSelector selectedSchool={school} onSelect={(s) => {
+              // Cliente não pode trocar de empresa
+              if (!isAdmin) return;
               if (s?.id === school.id) setSchool(null);
               else setSchool(s);
             }} />
             <PresentationToggle />
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={signOut}
+              title={profile?.email}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden md:inline ml-1">Sair</span>
+            </Button>
           </div>
         </div>
       </header>
@@ -223,6 +252,7 @@ const Index = () => {
                 {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
+                {activeTab === 'users' && <UsersConfig />}
                 
               </motion.div>
             </AnimatePresence>
