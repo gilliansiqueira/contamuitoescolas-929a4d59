@@ -14,6 +14,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePresentation } from '@/components/presentation-provider';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
   schoolId: string;
