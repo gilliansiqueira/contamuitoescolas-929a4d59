@@ -455,18 +455,20 @@ export function useFluxoTipos(schoolId: string) {
   });
 }
 
-// ─── Available months (derived from entries) ────────
+// ─── Available months (derived from entries + histórico financeiro) ────────
 export function useAvailableMonths(schoolId: string) {
   return useQuery({
     queryKey: ['availableMonths', schoolId],
     queryFn: async (): Promise<string[]> => {
-      const { data, error } = await supabase
-        .from('financial_entries')
-        .select('data')
-        .eq('school_id', schoolId);
-      if (error) throw error;
+      const [entriesRes, histRes] = await Promise.all([
+        supabase.from('financial_entries').select('data').eq('school_id', schoolId),
+        supabase.from('historical_monthly' as any).select('month').eq('school_id', schoolId),
+      ]);
+      if (entriesRes.error) throw entriesRes.error;
+      if (histRes.error) throw histRes.error;
       const set = new Set<string>();
-      (data ?? []).forEach(e => set.add(e.data.slice(0, 7)));
+      (entriesRes.data ?? []).forEach((e: any) => set.add(e.data.slice(0, 7)));
+      (histRes.data ?? []).forEach((r: any) => { if (r.month) set.add(r.month); });
       return Array.from(set).sort();
     },
     enabled: !!schoolId,
