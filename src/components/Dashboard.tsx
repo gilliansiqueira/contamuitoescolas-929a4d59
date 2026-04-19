@@ -10,6 +10,8 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceL
 import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
 import { usePresentation } from '@/components/presentation-provider';
+import { InsightsBar, type Insight } from '@/components/InsightsBar';
+import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 
 interface DashboardProps {
   schoolId: string;
