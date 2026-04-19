@@ -308,14 +308,19 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
           <Target className="w-4 h-4" /> {hasRealizado ? 'Resultado do Período' : 'Projeção do Período'}
+          {useHistoricalKpis && (
+            <span className="ml-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold normal-case tracking-normal">
+              Histórico
+            </span>
+          )}
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
-            { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-success' },
-            { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive' },
-            { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
-            { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-success' : 'text-destructive' },
+            { icon: ArrowUp, label: 'Receitas', value: displayReceitas, color: 'text-success' },
+            { icon: ArrowDown, label: 'Despesas', value: displayDespesas, color: 'text-destructive' },
+            { icon: Target, label: 'Resultado', value: displayResultado, color: displayResultado >= 0 ? 'text-success' : 'text-destructive' },
+            { icon: CalendarCheck, label: 'Saldo Final', value: displaySaldoFinal, color: displaySaldoFinal >= 0 ? 'text-success' : 'text-destructive' },
           ].map((kpi, i) => (
             <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-5">
               <div className="flex items-center gap-2 mb-2">
