@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { FinancialEntry } from '@/types/financial';
+import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
-import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
@@ -24,6 +24,10 @@ function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function normalize(s: string) {
+  return s.toLowerCase().trim().replace(/\s+/g, '_');
+}
+
 function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; prazo: number }[]): FinancialEntry[] {
   return entries.map(e => {
     if (e.origem !== 'sponte' || e.tipo !== 'entrada') return e;
@@ -32,6 +36,32 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
     if (!rule || rule.prazo === 0) return e;
     return { ...e, data: addDaysAndAdjust(e.data, rule.prazo) };
   });
+}
+
+// Resolve the classification of a "tipo_valor" key (from upload or histórico).
+// Falls back to fixed defaults when no classification exists yet.
+function resolveTipoMeta(tipoKey: string, classifications: TypeClassification[]) {
+  const key = normalize(tipoKey);
+  const cls = classifications.find(c => normalize(c.tipoValor) === key);
+  if (cls) {
+    return {
+      classificacao: cls.classificacao,
+      entraNoResultado: cls.entraNoResultado,
+      impactaCaixa: cls.impactaCaixa,
+      isEntrada: cls.classificacao === 'receita' || (cls.classificacao === 'operacao' && /entrada|recebimento|aplicacao|aporte|resgate/.test(key)),
+      label: cls.label || tipoKey,
+    };
+  }
+  // Fallbacks for well-known types
+  const isReceita = key === 'receita' || key === 'entrada';
+  const isDespesa = key === 'despesa' || key === 'saida' || key === 'investimento';
+  return {
+    classificacao: (isReceita ? 'receita' : isDespesa ? 'despesa' : 'operacao') as 'receita' | 'despesa' | 'operacao' | 'ignorar',
+    entraNoResultado: isReceita || isDespesa,
+    impactaCaixa: true,
+    isEntrada: isReceita,
+    label: tipoKey,
+  };
 }
 
 export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
@@ -47,31 +77,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const allEntries = useMemo(() => applyDelays(rawEntries, delayRules), [rawEntries, delayRules]);
   const activeEntries = useMemo(() => filterActiveEntries(allEntries, classifications), [allEntries, classifications]);
 
-  const entries = useMemo(() =>
-    activeEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
-    [activeEntries, selectedMonth]
-  );
-
-  const totals = useMemo(() => calculateTotals(entries, classifications), [entries, classifications]);
-
-  // Dynamic saldo inicial: accumulate all entries before the selected month
-  const saldoInicialCalculado = useMemo(() => {
-    if (selectedMonth === 'all') return saldoInicial;
-    const monthStart = `${selectedMonth}-01`;
-    let saldo = saldoInicial;
-    for (const e of activeEntries) {
-      if (e.data < monthStart) saldo += getSaldoImpact(e, classifications);
-    }
-    return saldo;
-  }, [activeEntries, classifications, saldoInicial, selectedMonth]);
-
-  const saldoFinal = useMemo(() => {
-    let saldo = saldoInicialCalculado;
-    for (const e of entries) saldo += getSaldoImpact(e, classifications);
-    return saldo;
-  }, [entries, classifications, saldoInicialCalculado]);
-
-  // Histórico Financeiro: busca valores consolidados por mês (override de KPIs)
+  // ─── Histórico Financeiro (consolidado mensal) ───
   const { data: historicalRows = [] } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
     queryFn: async () => {
@@ -85,51 +91,194 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     enabled: !!schoolId,
   });
 
-  const historicalAgg = useMemo(() => {
-    const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, '_');
-    const monthsList = selectedMonth === 'all'
-      ? Array.from(new Set(historicalRows.map(r => r.month)))
-      : selectedMonth.split(',').map(m => m.trim()).filter(Boolean);
-    const monthsSet = new Set(monthsList);
-    const filtered = historicalRows.filter(r => monthsSet.has(r.month));
+  // ─── Determina meses selecionados ───
+  const selectedMonths = useMemo<string[]>(() => {
+    if (selectedMonth === 'all') {
+      const fromEntries = activeEntries.map(e => e.data.slice(0, 7));
+      const fromHist = historicalRows.map(r => r.month);
+      return Array.from(new Set([...fromEntries, ...fromHist])).sort();
+    }
+    return selectedMonth.split(',').map(m => m.trim()).filter(Boolean);
+  }, [selectedMonth, activeEntries, historicalRows]);
+
+  // ─── Classifica cada mês por fonte: upload > histórico > projeção ───
+  const monthSources = useMemo(() => {
+    const result: Record<string, 'upload' | 'historico' | 'projecao' | 'vazio'> = {};
+    for (const m of selectedMonths) {
+      const hasUpload = activeEntries.some(e => e.data.startsWith(m) && e.origem === 'fluxo');
+      const hasHist = historicalRows.some(r => r.month === m);
+      const hasOther = activeEntries.some(e => e.data.startsWith(m) && e.origem !== 'fluxo');
+      if (hasUpload) result[m] = 'upload';
+      else if (hasHist) result[m] = 'historico';
+      else if (hasOther) result[m] = 'projecao';
+      else result[m] = 'vazio';
+    }
+    return result;
+  }, [selectedMonths, activeEntries, historicalRows]);
+
+  // ─── KPIs DINÂMICOS por tipo (agregado de todas as fontes ativas no período) ───
+  type TipoAgg = { key: string; label: string; valor: number; isEntrada: boolean; entraNoResultado: boolean; impactaCaixa: boolean; classificacao: string };
+  const tipoAggregations = useMemo<TipoAgg[]>(() => {
+    const map: Record<string, TipoAgg> = {};
+
+    const ensure = (key: string): TipoAgg => {
+      const k = normalize(key);
+      if (!map[k]) {
+        const meta = resolveTipoMeta(key, classifications);
+        map[k] = { key: k, label: meta.label, valor: 0, isEntrada: meta.isEntrada, entraNoResultado: meta.entraNoResultado, impactaCaixa: meta.impactaCaixa, classificacao: meta.classificacao };
+      }
+      return map[k];
+    };
+
+    for (const m of selectedMonths) {
+      const src = monthSources[m];
+      if (src === 'historico') {
+        // Usa histórico
+        for (const r of historicalRows.filter(x => x.month === m)) {
+          const agg = ensure(r.tipo_valor);
+          agg.valor += Number(r.valor) || 0;
+        }
+      } else if (src === 'upload' || src === 'projecao') {
+        // Usa lançamentos (upload tem prioridade implícita pois ambos estão em activeEntries; projeção só aparece se não há upload)
+        const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
+        for (const e of monthEntries) {
+          // Se é mês de upload, ignora lançamentos não-fluxo (prioridade do upload)
+          if (src === 'upload' && e.origem !== 'fluxo') continue;
+          const tipoKey = e.tipoOriginal || e.tipo;
+          const agg = ensure(tipoKey);
+          agg.valor += e.valor;
+        }
+      }
+    }
+
+    return Object.values(map)
+      .filter(a => a.valor > 0 && a.classificacao !== 'ignorar')
+      .sort((a, b) => {
+        // Receitas primeiro, depois despesas, depois operações
+        const order = { receita: 0, despesa: 1, operacao: 2, ignorar: 3 } as Record<string, number>;
+        return (order[a.classificacao] ?? 9) - (order[b.classificacao] ?? 9) || b.valor - a.valor;
+      });
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications]);
+
+  // ─── Totais agregados (Receitas, Despesas, Resultado) usando KPIs dinâmicos ───
+  const totals = useMemo(() => {
     let receitas = 0;
     let despesas = 0;
-    for (const r of filtered) {
-      const tipo = norm(r.tipo_valor);
-      const v = Number(r.valor) || 0;
-      if (tipo === 'receita') receitas += v;
-      else if (tipo === 'despesa' || tipo === 'investimento') despesas += v;
+    let operacoesIn = 0;
+    let operacoesOut = 0;
+    for (const a of tipoAggregations) {
+      if (a.classificacao === 'receita') receitas += a.valor;
+      else if (a.classificacao === 'despesa') despesas += a.valor;
+      else if (a.classificacao === 'operacao') {
+        if (a.isEntrada) operacoesIn += a.valor;
+        else operacoesOut += a.valor;
+      }
     }
-    return { receitas, despesas, resultado: receitas - despesas, hasData: filtered.length > 0 };
-  }, [historicalRows, selectedMonth]);
+    return { receitas, despesas, resultado: receitas - despesas, operacoesIn, operacoesOut };
+  }, [tipoAggregations]);
 
-  const useHistoricalKpis = historicalAgg.hasData;
-  const displayReceitas = useHistoricalKpis ? historicalAgg.receitas : totals.receitas;
-  const displayDespesas = useHistoricalKpis ? historicalAgg.despesas : totals.despesas;
-  const displayResultado = useHistoricalKpis ? historicalAgg.resultado : totals.resultado;
-  const displaySaldoFinal = useHistoricalKpis
-    ? saldoInicialCalculado + historicalAgg.resultado
-    : saldoFinal;
+  // ─── Saldo inicial: acumula tudo antes do primeiro mês selecionado ───
+  const saldoInicialCalculado = useMemo(() => {
+    if (selectedMonth === 'all' || selectedMonths.length === 0) return saldoInicial;
+    const monthStart = `${selectedMonths[0]}-01`;
+    let saldo = saldoInicial;
+    // Acumula lançamentos anteriores (apenas meses sem histórico)
+    const histMonths = new Set(historicalRows.map(r => r.month));
+    for (const e of activeEntries) {
+      if (e.data >= monthStart) continue;
+      const m = e.data.slice(0, 7);
+      // Se mês tem upload, usa upload; se mês só tem histórico, ignora lançamentos não-fluxo
+      const hasUpload = activeEntries.some(x => x.data.startsWith(m) && x.origem === 'fluxo');
+      if (!hasUpload && histMonths.has(m)) continue;
+      if (hasUpload && e.origem !== 'fluxo') continue;
+      saldo += getSaldoImpact(e, classifications);
+    }
+    // Acumula histórico anterior (apenas meses sem upload)
+    for (const r of historicalRows) {
+      if (r.month >= selectedMonths[0]) continue;
+      const hasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
+      if (hasUpload) continue;
+      const meta = resolveTipoMeta(r.tipo_valor, classifications);
+      if (!meta.impactaCaixa) continue;
+      const v = Number(r.valor) || 0;
+      saldo += meta.isEntrada ? v : -v;
+    }
+    return saldo;
+  }, [activeEntries, classifications, saldoInicial, selectedMonth, selectedMonths, historicalRows]);
 
-  const hasRealizado = useMemo(() => entries.some(e => e.tipoRegistro === 'realizado'), [entries]);
+  const saldoFinal = useMemo(() => {
+    let saldo = saldoInicialCalculado;
+    for (const a of tipoAggregations) {
+      if (!a.impactaCaixa) continue;
+      saldo += a.isEntrada ? a.valor : -a.valor;
+    }
+    return saldo;
+  }, [saldoInicialCalculado, tipoAggregations]);
+
+  // ─── Bandeiras para condicionar UI ───
+  const sourcesUsed = useMemo(() => {
+    const set = new Set(Object.values(monthSources));
+    return {
+      hasUpload: set.has('upload'),
+      hasHistorico: set.has('historico'),
+      hasProjecao: set.has('projecao'),
+      onlyHistorico: set.has('historico') && !set.has('upload') && !set.has('projecao'),
+    };
+  }, [monthSources]);
+
+  const hasRealizado = sourcesUsed.hasUpload || sourcesUsed.hasHistorico;
+
+  // ─── Realizado vs Projetado (apenas para meses de upload/projeção, não histórico) ───
+  const entriesForRealVsProj = useMemo(() => {
+    return activeEntries.filter(e => {
+      const m = e.data.slice(0, 7);
+      const src = monthSources[m];
+      if (!src) return false;
+      if (src === 'historico') return false;
+      if (src === 'upload') return e.origem === 'fluxo';
+      return true;
+    });
+  }, [activeEntries, monthSources]);
 
   const realizadoTotals = useMemo(() =>
-    calculateTotals(entries.filter(e => e.tipoRegistro === 'realizado'), classifications),
-    [entries, classifications]
+    calculateTotals(entriesForRealVsProj.filter(e => e.tipoRegistro === 'realizado'), classifications),
+    [entriesForRealVsProj, classifications]
   );
   const projetadoTotals = useMemo(() =>
-    calculateTotals(entries.filter(e => e.tipoRegistro === 'projetado'), classifications),
-    [entries, classifications]
+    calculateTotals(entriesForRealVsProj.filter(e => e.tipoRegistro === 'projetado'), classifications),
+    [entriesForRealVsProj, classifications]
   );
 
-  // Projection chart
+  // ─── Projeção de saldo diário (somente se NÃO for só-histórico) ───
   const projectionData = useMemo(() => {
+    if (sourcesUsed.onlyHistorico) return [];
     const today = new Date().toISOString().slice(0, 10);
-    const futureEntries = activeEntries.filter(e => e.data >= today);
+    const futureEntries = activeEntries.filter(e => {
+      if (e.data < today) return false;
+      const m = e.data.slice(0, 7);
+      const src = monthSources[m];
+      // Não desenha dias para meses cujo source é histórico
+      return src !== 'historico';
+    });
     if (futureEntries.length === 0) return [];
 
     let saldoToday = saldoInicialCalculado;
-    for (const e of activeEntries.filter(e => e.data < today)) saldoToday += getSaldoImpact(e, classifications);
+    for (const a of tipoAggregations) {
+      // Aplica apenas o que já passou (estimativa simples: saldoToday = saldoInicial + tudo já agregado até hoje)
+      // Para precisão diária, recomputamos abaixo
+    }
+    // Recomputa saldoToday percorrendo entries pré-hoje das fontes válidas
+    saldoToday = saldoInicialCalculado;
+    const histMonthsSet = new Set(historicalRows.map(r => r.month));
+    for (const e of activeEntries.filter(x => x.data < today)) {
+      const m = e.data.slice(0, 7);
+      const src = monthSources[m];
+      if (src === 'historico') continue;
+      if (src === 'upload' && e.origem !== 'fluxo') continue;
+      // Mês atual fora do filtro: pula
+      if (!selectedMonths.includes(m) && selectedMonth !== 'all') continue;
+      saldoToday += getSaldoImpact(e, classifications);
+    }
 
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
     for (const e of futureEntries) {
@@ -147,47 +296,60 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       saldo += d.entradas - d.saidas;
       return { data: data.slice(5).split('-').reverse().join('/'), fullDate: data, entradas: d.entradas, saidas: d.saidas, saldo };
     });
-  }, [activeEntries, classifications, saldoInicialCalculado]);
+  }, [activeEntries, classifications, saldoInicialCalculado, monthSources, sourcesUsed.onlyHistorico, historicalRows, selectedMonths, selectedMonth, tipoAggregations]);
 
-  // Entradas vs Saídas bar chart (monthly)
+  // ─── Gráfico de barras mensal: Receitas vs Despesas (combina upload + histórico) ───
   const monthlyChart = useMemo(() => {
     const map: Record<string, { entradas: number; saidas: number }> = {};
-    for (const e of entries) {
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls === 'ignorar' || cls === 'operacao') continue;
-      const m = e.data.slice(0, 7);
+    for (const m of selectedMonths) {
+      const src = monthSources[m];
       if (!map[m]) map[m] = { entradas: 0, saidas: 0 };
-      if (cls === 'receita') map[m].entradas += e.valor;
-      else if (cls === 'despesa') map[m].saidas += e.valor;
+      if (src === 'historico') {
+        for (const r of historicalRows.filter(x => x.month === m)) {
+          const meta = resolveTipoMeta(r.tipo_valor, classifications);
+          if (!meta.entraNoResultado) continue;
+          const v = Number(r.valor) || 0;
+          if (meta.classificacao === 'receita') map[m].entradas += v;
+          else if (meta.classificacao === 'despesa') map[m].saidas += v;
+        }
+      } else if (src === 'upload' || src === 'projecao') {
+        for (const e of activeEntries.filter(x => x.data.startsWith(m))) {
+          if (src === 'upload' && e.origem !== 'fluxo') continue;
+          const cls = getEffectiveClassification(e, classifications);
+          if (cls === 'receita') map[m].entradas += e.valor;
+          else if (cls === 'despesa') map[m].saidas += e.valor;
+        }
+      }
     }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([mes, v]) => ({
-      mes: mes.split('-').reverse().join('/'),
-      entradas: v.entradas,
-      saidas: v.saidas,
-    }));
-  }, [entries, classifications]);
+    return Object.entries(map)
+      .filter(([, v]) => v.entradas > 0 || v.saidas > 0)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, v]) => ({ mes: mes.split('-').reverse().join('/'), entradas: v.entradas, saidas: v.saidas }));
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications]);
 
   const negativeDays = useMemo(() => projectionData.filter(d => d.saldo < 0), [projectionData]);
   const firstNegativeDay = negativeDays.length > 0 ? negativeDays[0] : null;
-
-  // Days with highest outflow
   const topOutflowDays = useMemo(() => {
     return [...projectionData].sort((a, b) => b.saidas - a.saidas).slice(0, 3).filter(d => d.saidas > 0);
   }, [projectionData]);
 
-  // Top expense categories
+  // Top expense categories (apenas de lançamentos)
   const topExpenseCategories = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const e of entries) {
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls !== 'despesa') continue;
-      const cat = e.categoria || 'Sem categoria';
-      map[cat] = (map[cat] || 0) + e.valor;
+    for (const m of selectedMonths) {
+      const src = monthSources[m];
+      if (src === 'historico' || src === 'vazio') continue;
+      for (const e of activeEntries.filter(x => x.data.startsWith(m))) {
+        if (src === 'upload' && e.origem !== 'fluxo') continue;
+        const cls = getEffectiveClassification(e, classifications);
+        if (cls !== 'despesa') continue;
+        const cat = e.categoria || 'Sem categoria';
+        map[cat] = (map[cat] || 0) + e.valor;
+      }
     }
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 3);
-  }, [entries, classifications]);
+  }, [selectedMonths, monthSources, activeEntries, classifications]);
 
-  // Best/worst month from monthlyChart
   const monthExtremes = useMemo(() => {
     if (monthlyChart.length < 2) return null;
     const withResult = monthlyChart.map(m => ({ ...m, resultado: m.entradas - m.saidas }));
@@ -196,101 +358,70 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return { best, worst };
   }, [monthlyChart]);
 
-  // Build insights list
+  // Insights
   const insights = useMemo<Insight[]>(() => {
     const list: Insight[] = [];
-
     if (firstNegativeDay) {
       list.push({
-        id: 'neg-saldo',
-        tone: 'danger',
-        icon: AlertTriangle,
+        id: 'neg-saldo', tone: 'danger', icon: AlertTriangle,
         title: `Saldo ficará negativo em ${firstNegativeDay.fullDate.split('-').reverse().join('/')}`,
         description: `Saldo projetado: ${formatCurrency(firstNegativeDay.saldo)}${negativeDays.length > 1 ? ` — ${negativeDays.length} dias críticos` : ''}`,
       });
     }
-
     if (saldoFinal < saldoInicialCalculado) {
-      const diff = saldoInicialCalculado - saldoFinal;
-      list.push({
-        id: 'queda-saldo',
-        tone: 'warning',
-        icon: TrendingDown,
-        title: `Queda de caixa no período`,
-        description: `Saldo cai ${formatCurrency(diff)} até o fim do período selecionado.`,
-      });
+      list.push({ id: 'queda-saldo', tone: 'warning', icon: TrendingDown,
+        title: 'Queda de caixa no período',
+        description: `Saldo cai ${formatCurrency(saldoInicialCalculado - saldoFinal)} até o fim do período.` });
     } else if (saldoFinal > saldoInicialCalculado) {
-      list.push({
-        id: 'cresce-saldo',
-        tone: 'success',
-        icon: TrendingUp,
+      list.push({ id: 'cresce-saldo', tone: 'success', icon: TrendingUp,
         title: 'Caixa em crescimento',
-        description: `Saldo cresce ${formatCurrency(saldoFinal - saldoInicialCalculado)} no período.`,
-      });
+        description: `Saldo cresce ${formatCurrency(saldoFinal - saldoInicialCalculado)} no período.` });
     }
-
     if (totals.despesas > 0 && totals.receitas > 0) {
       const ratio = (totals.despesas / totals.receitas) * 100;
       if (ratio > 90) {
-        list.push({
-          id: 'comprometimento',
-          tone: 'warning',
-          icon: Flame,
+        list.push({ id: 'comprometimento', tone: 'warning', icon: Flame,
           title: `Despesas comprometem ${ratio.toFixed(0)}% das receitas`,
-          description: 'Margem operacional está apertada — atenção a gastos extras.',
-        });
+          description: 'Margem operacional está apertada — atenção a gastos extras.' });
       } else if (ratio < 70) {
-        list.push({
-          id: 'margem-folga',
-          tone: 'success',
-          icon: PiggyBank,
+        list.push({ id: 'margem-folga', tone: 'success', icon: PiggyBank,
           title: `Boa margem: despesas em ${ratio.toFixed(0)}% das receitas`,
-          description: 'Sobra de caixa saudável no período.',
-        });
+          description: 'Sobra de caixa saudável no período.' });
       }
     }
-
     if (topExpenseCategories.length > 0) {
       const [cat, val] = topExpenseCategories[0];
       const pct = totals.despesas > 0 ? (val / totals.despesas) * 100 : 0;
       if (pct > 30) {
-        list.push({
-          id: 'maior-categoria',
-          tone: 'info',
-          icon: Sparkles,
+        list.push({ id: 'maior-categoria', tone: 'info', icon: Sparkles,
           title: `${cat} concentra ${pct.toFixed(0)}% das despesas`,
-          description: `Total: ${formatCurrency(val)}`,
-        });
+          description: `Total: ${formatCurrency(val)}` });
       }
     }
-
     if (topOutflowDays.length > 0) {
-      list.push({
-        id: 'top-saidas',
-        tone: 'warning',
-        icon: AlertTriangle,
+      list.push({ id: 'top-saidas', tone: 'warning', icon: AlertTriangle,
         title: `Maior saída prevista em ${topOutflowDays[0].fullDate.split('-').reverse().join('/')}`,
-        description: `${formatCurrency(topOutflowDays[0].saidas)} concentrado em um único dia.`,
-      });
+        description: `${formatCurrency(topOutflowDays[0].saidas)} concentrado em um único dia.` });
     }
-
     if (monthExtremes && monthlyChart.length >= 2) {
-      list.push({
-        id: 'melhor-mes',
-        tone: 'success',
-        icon: TrendingUp,
+      list.push({ id: 'melhor-mes', tone: 'success', icon: TrendingUp,
         title: `Melhor mês: ${monthExtremes.best.mes}`,
-        description: `Resultado: ${formatCurrency(monthExtremes.best.resultado)}`,
-      });
+        description: `Resultado: ${formatCurrency(monthExtremes.best.resultado)}` });
     }
-
     return list;
   }, [firstNegativeDay, negativeDays, saldoFinal, saldoInicialCalculado, totals, topExpenseCategories, topOutflowDays, monthExtremes, monthlyChart]);
 
+  // Badge label de fonte
+  const sourceBadge = useMemo(() => {
+    const parts: string[] = [];
+    if (sourcesUsed.hasUpload) parts.push('Upload');
+    if (sourcesUsed.hasHistorico) parts.push('Histórico');
+    if (sourcesUsed.hasProjecao) parts.push('Projeção');
+    return parts.join(' + ');
+  }, [sourcesUsed]);
 
   return (
     <div className="space-y-6">
-      {/* Insights toggle */}
       {!isPresentationMode && (
         <div className="flex justify-end">
           <Button variant="ghost" size="sm" onClick={() => setShowInsights(!showInsights)}>
@@ -300,31 +431,27 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       )}
 
-      {/* Insights */}
       {showInsights && <InsightsBar insights={insights} title="Insights & Alertas" emptyHint="Sem alertas relevantes para este período." />}
 
-
-      {/* Main KPIs */}
+      {/* KPIs Fixos: Saldo Inicial + Resultado + Saldo Final */}
       <div>
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
           <Target className="w-4 h-4" /> {hasRealizado ? 'Resultado do Período' : 'Projeção do Período'}
-          {useHistoricalKpis && (
+          {sourceBadge && (
             <span className="ml-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold normal-case tracking-normal">
-              Histórico
+              {sourceBadge}
             </span>
           )}
         </h3>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
-            { icon: ArrowUp, label: 'Receitas', value: displayReceitas, color: 'text-success' },
-            { icon: ArrowDown, label: 'Despesas', value: displayDespesas, color: 'text-destructive' },
-            { icon: Target, label: 'Resultado', value: displayResultado, color: displayResultado >= 0 ? 'text-success' : 'text-destructive' },
-            { icon: CalendarCheck, label: 'Saldo Final', value: displaySaldoFinal, color: displaySaldoFinal >= 0 ? 'text-success' : 'text-destructive' },
+            { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
+            { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-success' : 'text-destructive' },
           ].map((kpi, i) => (
             <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-5">
               <div className="flex items-center gap-2 mb-2">
-                <kpi.icon className={`w-4 h-4 ${i === 0 ? 'text-muted-foreground' : i === 1 ? 'text-success' : i === 2 ? 'text-destructive' : 'text-muted-foreground'}`} />
+                <kpi.icon className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
               </div>
               <p className={`text-2xl font-display font-bold ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
@@ -333,12 +460,43 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       </div>
 
+      {/* KPIs DINÂMICOS por tipo */}
+      {tipoAggregations.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Layers className="w-4 h-4" /> Por Tipo Financeiro
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {tipoAggregations.map((a, i) => {
+              const Icon = a.classificacao === 'receita' ? ArrowUp : a.classificacao === 'despesa' ? ArrowDown : Coins;
+              const color = a.classificacao === 'receita' ? 'text-success' : a.classificacao === 'despesa' ? 'text-destructive' : 'text-muted-foreground';
+              const accent = a.classificacao === 'receita' ? 'bg-success/10 text-success' : a.classificacao === 'despesa' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground';
+              return (
+                <motion.div key={a.key} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="glass-card rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${color}`} />
+                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">{a.label}</span>
+                    </div>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase ${accent}`}>{a.classificacao}</span>
+                  </div>
+                  <p className={`text-xl font-display font-bold ${color}`}>{formatCurrency(a.valor)}</p>
+                  {!a.entraNoResultado && (
+                    <p className="text-[10px] text-muted-foreground mt-1">Não entra no resultado</p>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Operações */}
       {(totals.operacoesIn > 0 || totals.operacoesOut > 0) && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           className="glass-card rounded-xl p-4">
           <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">💼 Operações (não entram no resultado)</h4>
-          <div className="flex gap-6 text-sm">
+          <div className="flex flex-wrap gap-6 text-sm">
             <span className="text-success">Entradas: {formatCurrency(totals.operacoesIn)}</span>
             <span className="text-destructive">Saídas: {formatCurrency(totals.operacoesOut)}</span>
             <span className="text-muted-foreground">Líquido: {formatCurrency(totals.operacoesIn - totals.operacoesOut)}</span>
@@ -346,8 +504,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
-      {/* Realizado vs Projetado - only show if there's data for both */}
-      {hasRealizado && (
+      {/* Realizado vs Projetado - apenas se houver lançamentos (não para meses só-histórico) */}
+      {hasRealizado && (sourcesUsed.hasUpload || sourcesUsed.hasProjecao) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
             <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
@@ -391,7 +549,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       )}
 
-      {/* Entradas vs Saídas Bar Chart */}
+      {/* Entradas vs Saídas Bar Chart (mensal — sempre disponível, inclusive só-histórico) */}
       {monthlyChart.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
           className="glass-card rounded-xl p-5">
@@ -414,8 +572,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
-      {/* Projection Chart */}
-      {projectionData.length > 0 && (
+      {/* Projeção de Saldo Diário — OCULTO em meses só-histórico */}
+      {!sourcesUsed.onlyHistorico && projectionData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
           className="glass-card rounded-xl p-5">
           <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">📈 Projeção de Saldo</h4>
@@ -441,13 +599,15 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
-      {/* Receivables Section - embedded */}
-      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-          💳 Recebíveis por Origem
-        </h3>
-        <Receivables schoolId={schoolId} selectedMonth={selectedMonth} />
-      </motion.div>
+      {/* Recebíveis — apenas quando há lançamentos (não em só-histórico) */}
+      {!sourcesUsed.onlyHistorico && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+            💳 Recebíveis por Origem
+          </h3>
+          <Receivables schoolId={schoolId} selectedMonth={selectedMonth} />
+        </motion.div>
+      )}
     </div>
   );
 }
