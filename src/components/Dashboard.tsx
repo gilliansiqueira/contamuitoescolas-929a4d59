@@ -80,7 +80,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         .select('month, tipo_valor, valor')
         .eq('school_id', schoolId);
       if (error) throw error;
-      return (data ?? []) as Array<{ month: string; tipo_valor: string; valor: number }>;
+      return (data ?? []) as unknown as Array<{ month: string; tipo_valor: string; valor: number }>;
     },
     enabled: !!schoolId,
   });
