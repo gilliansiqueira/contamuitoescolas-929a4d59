@@ -133,6 +133,119 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return [...projectionData].sort((a, b) => b.saidas - a.saidas).slice(0, 3).filter(d => d.saidas > 0);
   }, [projectionData]);
 
+  // Top expense categories
+  const topExpenseCategories = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const e of entries) {
+      const cls = getEffectiveClassification(e, classifications);
+      if (cls !== 'despesa') continue;
+      const cat = e.categoria || 'Sem categoria';
+      map[cat] = (map[cat] || 0) + e.valor;
+    }
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  }, [entries, classifications]);
+
+  // Best/worst month from monthlyChart
+  const monthExtremes = useMemo(() => {
+    if (monthlyChart.length < 2) return null;
+    const withResult = monthlyChart.map(m => ({ ...m, resultado: m.entradas - m.saidas }));
+    const best = [...withResult].sort((a, b) => b.resultado - a.resultado)[0];
+    const worst = [...withResult].sort((a, b) => a.resultado - b.resultado)[0];
+    return { best, worst };
+  }, [monthlyChart]);
+
+  // Build insights list
+  const insights = useMemo<Insight[]>(() => {
+    const list: Insight[] = [];
+
+    if (firstNegativeDay) {
+      list.push({
+        id: 'neg-saldo',
+        tone: 'danger',
+        icon: AlertTriangle,
+        title: `Saldo ficará negativo em ${firstNegativeDay.fullDate.split('-').reverse().join('/')}`,
+        description: `Saldo projetado: ${formatCurrency(firstNegativeDay.saldo)}${negativeDays.length > 1 ? ` — ${negativeDays.length} dias críticos` : ''}`,
+      });
+    }
+
+    if (saldoFinal < saldoInicialCalculado) {
+      const diff = saldoInicialCalculado - saldoFinal;
+      list.push({
+        id: 'queda-saldo',
+        tone: 'warning',
+        icon: TrendingDown,
+        title: `Queda de caixa no período`,
+        description: `Saldo cai ${formatCurrency(diff)} até o fim do período selecionado.`,
+      });
+    } else if (saldoFinal > saldoInicialCalculado) {
+      list.push({
+        id: 'cresce-saldo',
+        tone: 'success',
+        icon: TrendingUp,
+        title: 'Caixa em crescimento',
+        description: `Saldo cresce ${formatCurrency(saldoFinal - saldoInicialCalculado)} no período.`,
+      });
+    }
+
+    if (totals.despesas > 0 && totals.receitas > 0) {
+      const ratio = (totals.despesas / totals.receitas) * 100;
+      if (ratio > 90) {
+        list.push({
+          id: 'comprometimento',
+          tone: 'warning',
+          icon: Flame,
+          title: `Despesas comprometem ${ratio.toFixed(0)}% das receitas`,
+          description: 'Margem operacional está apertada — atenção a gastos extras.',
+        });
+      } else if (ratio < 70) {
+        list.push({
+          id: 'margem-folga',
+          tone: 'success',
+          icon: PiggyBank,
+          title: `Boa margem: despesas em ${ratio.toFixed(0)}% das receitas`,
+          description: 'Sobra de caixa saudável no período.',
+        });
+      }
+    }
+
+    if (topExpenseCategories.length > 0) {
+      const [cat, val] = topExpenseCategories[0];
+      const pct = totals.despesas > 0 ? (val / totals.despesas) * 100 : 0;
+      if (pct > 30) {
+        list.push({
+          id: 'maior-categoria',
+          tone: 'info',
+          icon: Sparkles,
+          title: `${cat} concentra ${pct.toFixed(0)}% das despesas`,
+          description: `Total: ${formatCurrency(val)}`,
+        });
+      }
+    }
+
+    if (topOutflowDays.length > 0) {
+      list.push({
+        id: 'top-saidas',
+        tone: 'warning',
+        icon: AlertTriangle,
+        title: `Maior saída prevista em ${topOutflowDays[0].fullDate.split('-').reverse().join('/')}`,
+        description: `${formatCurrency(topOutflowDays[0].saidas)} concentrado em um único dia.`,
+      });
+    }
+
+    if (monthExtremes && monthlyChart.length >= 2) {
+      list.push({
+        id: 'melhor-mes',
+        tone: 'success',
+        icon: TrendingUp,
+        title: `Melhor mês: ${monthExtremes.best.mes}`,
+        description: `Resultado: ${formatCurrency(monthExtremes.best.resultado)}`,
+      });
+    }
+
+    return list;
+  }, [firstNegativeDay, negativeDays, saldoFinal, saldoInicialCalculado, totals, topExpenseCategories, topOutflowDays, monthExtremes, monthlyChart]);
+
+
   return (
     <div className="space-y-6">
       {/* Insights toggle */}
