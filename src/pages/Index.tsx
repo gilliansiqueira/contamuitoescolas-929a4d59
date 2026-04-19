@@ -54,7 +54,8 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'simulation', label: 'Simulação', icon: Calculator },
 ];
 
-const settingsTabs: { key: Tab; label: string }[] = [
+const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
+  { key: 'users', label: 'Usuários', adminOnly: true },
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
   { key: 'type_classification', label: 'Classificação de Tipos' },
   { key: 'payment_delays', label: 'Prazos de Cobrança' },
