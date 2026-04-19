@@ -133,15 +133,18 @@ export function IndicadoresDashboard({ schoolId }: Props) {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 pt-2">
-          {enabledDefs.map(def => (
-            <KpiCard
-              key={def.id}
-              definition={def}
-              values={allValues.filter(v => v.kpi_definition_id === def.id)}
-              months={months}
-            />
-          ))}
+        <div className="space-y-5 pt-2">
+          {insights.length > 0 && <InsightsBar insights={insights} title="Destaques dos indicadores" />}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            {enabledDefs.map(def => (
+              <KpiCard
+                key={def.id}
+                definition={def}
+                values={allValues.filter(v => v.kpi_definition_id === def.id)}
+                months={months}
+              />
+            ))}
+          </div>
         </div>
       )}
 
