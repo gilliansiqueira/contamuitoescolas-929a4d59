@@ -40,7 +40,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -59,6 +59,7 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
   { key: 'users', label: 'Usuários', adminOnly: true },
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
   { key: 'type_classification', label: 'Classificação de Tipos' },
+  { key: 'historico_financeiro', label: 'Histórico Financeiro' },
   { key: 'payment_delays', label: 'Prazos de Cobrança' },
   { key: 'upload', label: 'Upload de Dados' },
   { key: 'uploads_history', label: 'Histórico de Uploads' },
@@ -254,6 +255,7 @@ const Index = () => {
                 {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
                 {activeTab === 'users' && <UsersConfig />}
+                {activeTab === 'historico_financeiro' && <HistoricoFinanceiroConfig schoolId={school.id} onChanged={refresh} />}
                 
               </motion.div>
             </AnimatePresence>
