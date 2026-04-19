@@ -283,6 +283,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
 
   if (isLoading) {
     return (
+      <div className="space-y-4">
         <Skeleton className="h-16 w-full rounded-2xl" />
         <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
