@@ -228,7 +228,7 @@ export function RealizadoModule({ schoolId }: Props) {
               <FileDown className="w-4 h-4 mr-1" /> Exportar PDF
             </Button>
           )}
-          {!isPresentationMode && (
+          {!isPresentationMode && isAdmin && (
             <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
               <Settings className="w-4 h-4 mr-1" /> Configurações
             </Button>
