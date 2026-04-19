@@ -26,6 +26,7 @@ import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
 import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
 import { UsersConfig } from '@/components/UsersConfig';
+import { HistoricoFinanceiroConfig } from '@/components/HistoricoFinanceiroConfig';
 import { Button } from '@/components/ui/button';
 
 import { RealizadoModule } from '@/components/realizado/RealizadoModule';
