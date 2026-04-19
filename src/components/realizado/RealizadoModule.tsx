@@ -14,6 +14,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePresentation } from '@/components/presentation-provider';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
   schoolId: string;
@@ -75,6 +76,7 @@ function useTabVisibility(schoolId: string) {
 }
 
 export function RealizadoModule({ schoolId }: Props) {
+  const { isAdmin } = useAuth();
   const [showConfig, setShowConfig] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>('importacao');
   const [mainView, setMainView] = useState<MainView>('relatorio');
@@ -226,7 +228,7 @@ export function RealizadoModule({ schoolId }: Props) {
               <FileDown className="w-4 h-4 mr-1" /> Exportar PDF
             </Button>
           )}
-          {!isPresentationMode && (
+          {!isPresentationMode && isAdmin && (
             <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} className="rounded-xl">
               <Settings className="w-4 h-4 mr-1" /> Configurações
             </Button>
