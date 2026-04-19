@@ -314,6 +314,9 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Select>
       </div>
 
+      {/* Insights */}
+      <InsightsBar insights={insights} title="Insights do mês" />
+
       {/* Faturamento input */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="rounded-2xl bg-gradient-to-r from-primary/5 to-transparent border-primary/20">
