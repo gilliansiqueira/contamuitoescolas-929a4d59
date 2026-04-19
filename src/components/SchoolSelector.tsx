@@ -77,13 +77,15 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
           <Building2 className="w-4 h-4" />
           {selectedSchool.nome}
         </button>
-        <button
-          onClick={() => setDeleteId(selectedSchool.id)}
-          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-          title="Excluir escola"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setDeleteId(selectedSchool.id)}
+            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Excluir empresa"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
