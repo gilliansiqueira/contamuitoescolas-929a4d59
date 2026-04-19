@@ -252,6 +252,7 @@ const Index = () => {
                 {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
+                {activeTab === 'users' && <UsersConfig />}
                 
               </motion.div>
             </AnimatePresence>
