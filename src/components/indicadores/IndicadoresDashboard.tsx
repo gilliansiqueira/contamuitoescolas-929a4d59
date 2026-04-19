@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Settings } from 'lucide-react';
+import { Settings, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useKpiDefinitions, useKpiValues } from './useKpiData';
 import { KpiCard } from './KpiCard';
 import { KpiConfigDrawer } from './KpiConfigDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
+import { InsightsBar, type Insight } from '@/components/InsightsBar';
 
 interface Props {
   schoolId: string;
