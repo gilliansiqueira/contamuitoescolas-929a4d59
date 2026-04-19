@@ -3,7 +3,7 @@ import { School } from '@/types/financial';
 import { useSchools, useAddSchool, useDeleteSchool } from '@/hooks/useFinancialData';
 import { useAuth } from '@/hooks/useAuth';
 import { Search, Plus, Building2, Trash2 } from 'lucide-react';
-import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
+import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
