@@ -258,37 +258,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       )}
 
-      {/* Cash Alerts */}
-      {showInsights && firstNegativeDay && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-destructive mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-destructive">
-              ⚠️ Atenção: saldo ficará negativo em {firstNegativeDay.fullDate.split('-').reverse().join('/')}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Saldo projetado: {formatCurrency(firstNegativeDay.saldo)}
-              {negativeDays.length > 1 && ` — ${negativeDays.length} dias com saldo negativo`}
-            </p>
-          </div>
-        </motion.div>
-      )}
+      {/* Insights */}
+      {showInsights && <InsightsBar insights={insights} title="Insights & Alertas" emptyHint="Sem alertas relevantes para este período." />}
 
-      {/* Top outflow days insight */}
-      {showInsights && topOutflowDays.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="rounded-xl border border-amber-300/30 bg-amber-50/50 dark:bg-amber-950/20 p-4">
-          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-1">📊 Dias com maior saída projetada</p>
-          <div className="flex flex-wrap gap-3 text-xs">
-            {topOutflowDays.map(d => (
-              <span key={d.fullDate} className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-1 rounded">
-                {d.fullDate.split('-').reverse().join('/')}: {formatCurrency(d.saidas)}
-              </span>
-            ))}
-          </div>
-        </motion.div>
-      )}
 
       {/* Main KPIs */}
       <div>
