@@ -186,7 +186,6 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
             )}
           </div>
         )}
-        </div>
       </div>
     </motion.div>
   );
