@@ -71,6 +71,46 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return saldo;
   }, [entries, classifications, saldoInicialCalculado]);
 
+  // Histórico Financeiro: busca valores consolidados por mês (override de KPIs)
+  const { data: historicalRows = [] } = useQuery({
+    queryKey: ['historicalMonthly', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('historical_monthly' as any)
+        .select('month, tipo_valor, valor')
+        .eq('school_id', schoolId);
+      if (error) throw error;
+      return (data ?? []) as Array<{ month: string; tipo_valor: string; valor: number }>;
+    },
+    enabled: !!schoolId,
+  });
+
+  const historicalAgg = useMemo(() => {
+    const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, '_');
+    const monthsList = selectedMonth === 'all'
+      ? Array.from(new Set(historicalRows.map(r => r.month)))
+      : selectedMonth.split(',').map(m => m.trim()).filter(Boolean);
+    const monthsSet = new Set(monthsList);
+    const filtered = historicalRows.filter(r => monthsSet.has(r.month));
+    let receitas = 0;
+    let despesas = 0;
+    for (const r of filtered) {
+      const tipo = norm(r.tipo_valor);
+      const v = Number(r.valor) || 0;
+      if (tipo === 'receita') receitas += v;
+      else if (tipo === 'despesa' || tipo === 'investimento') despesas += v;
+    }
+    return { receitas, despesas, resultado: receitas - despesas, hasData: filtered.length > 0 };
+  }, [historicalRows, selectedMonth]);
+
+  const useHistoricalKpis = historicalAgg.hasData;
+  const displayReceitas = useHistoricalKpis ? historicalAgg.receitas : totals.receitas;
+  const displayDespesas = useHistoricalKpis ? historicalAgg.despesas : totals.despesas;
+  const displayResultado = useHistoricalKpis ? historicalAgg.resultado : totals.resultado;
+  const displaySaldoFinal = useHistoricalKpis
+    ? saldoInicialCalculado + historicalAgg.resultado
+    : saldoFinal;
+
   const hasRealizado = useMemo(() => entries.some(e => e.tipoRegistro === 'realizado'), [entries]);
 
   const realizadoTotals = useMemo(() =>
