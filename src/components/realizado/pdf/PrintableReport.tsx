@@ -8,7 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, Tooltip,
 } from 'recharts';
 import { CreditCard } from 'lucide-react';
-import contaMuitoLogo from '@/assets/conta-muito-logo.png';
+import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 
 interface Props {
   schoolId: string;

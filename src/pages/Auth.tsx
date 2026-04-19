@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Lock, Mail } from 'lucide-react';
-import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
+import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 
 export default function AuthPage() {
   const navigate = useNavigate();

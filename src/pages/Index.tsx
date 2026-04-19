@@ -33,7 +33,7 @@ import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
   CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut,
 } from 'lucide-react';
-import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
+import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
