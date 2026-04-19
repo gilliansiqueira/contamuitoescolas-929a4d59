@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { School } from '@/types/financial';
 import { SchoolSelector } from '@/components/SchoolSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { PresentationToggle } from '@/components/PresentationToggle';
 import { usePresentation } from '@/components/presentation-provider';
+import { useAuth } from '@/hooks/useAuth';
+import { useSchools } from '@/hooks/useFinancialData';
 import { Dashboard } from '@/components/Dashboard';
 import { FileUpload } from '@/components/FileUpload';
 import { CashFlow } from '@/components/CashFlow';
@@ -23,11 +25,13 @@ import { TypeClassificationConfig } from '@/components/TypeClassificationConfig'
 import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
 import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
+import { UsersConfig } from '@/components/UsersConfig';
+import { Button } from '@/components/ui/button';
 
 import { RealizadoModule } from '@/components/realizado/RealizadoModule';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,7 +39,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users';
 
 type AppModule = 'projecao' | 'realizado';
 
