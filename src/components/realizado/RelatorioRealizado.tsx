@@ -178,9 +178,111 @@ export function RelatorioRealizado({ schoolId }: Props) {
     saveFaturamento.mutate({ month: activeMes, value: val });
   }, [activeMes, faturamentoInput, saveFaturamento]);
 
+  // Compare current month to previous (total despesas)
+  const prevMonthTotal = useMemo(() => {
+    if (!activeMes || mesesDisponiveis.length < 2) return null;
+    const idx = mesesDisponiveis.indexOf(activeMes);
+    if (idx <= 0) return null;
+    const prev = mesesDisponiveis[idx - 1];
+    return entries.filter(e => e.data?.startsWith(prev)).reduce((s, e) => s + Number(e.valor || 0), 0);
+  }, [entries, mesesDisponiveis, activeMes]);
+
+  const insights = useMemo<Insight[]>(() => {
+    const list: Insight[] = [];
+
+    // Top expense category concentration
+    if (categoryBlocks.length > 0 && totalDespesas > 0) {
+      const top = [...categoryBlocks].sort((a, b) => b.total - a.total)[0];
+      const pct = (top.total / totalDespesas) * 100;
+      if (pct > 25) {
+        list.push({
+          id: 'top-cat',
+          tone: pct > 40 ? 'warning' : 'info',
+          icon: Flame,
+          title: `${top.name} concentra ${pct.toFixed(0)}% das despesas`,
+          description: `Total: ${formatCurrency(top.total)} de ${formatCurrency(totalDespesas)}`,
+        });
+      }
+    }
+
+    // Categorias acima de 30% do faturamento
+    if (currentRevenue > 0) {
+      const overLimit = revenueCompData.filter(d => d.overLimit);
+      if (overLimit.length > 0) {
+        list.push({
+          id: 'over-fat',
+          tone: 'danger',
+          icon: AlertTriangle,
+          title: `${overLimit.length} categoria${overLimit.length > 1 ? 's' : ''} acima de 30% do faturamento`,
+          description: overLimit.map(c => `${c.name} (${c.pct.toFixed(0)}%)`).join(' · '),
+        });
+      }
+
+      const ratio = (totalDespesas / currentRevenue) * 100;
+      if (ratio > 90) {
+        list.push({
+          id: 'comp-tot',
+          tone: 'danger',
+          icon: Flame,
+          title: `Despesas consomem ${ratio.toFixed(0)}% do faturamento`,
+          description: 'Margem operacional muito apertada.',
+        });
+      } else if (ratio < 70) {
+        list.push({
+          id: 'comp-ok',
+          tone: 'success',
+          icon: PiggyBank,
+          title: `Boa margem: despesas em ${ratio.toFixed(0)}% do faturamento`,
+          description: `Sobra estimada: ${formatCurrency(currentRevenue - totalDespesas)}`,
+        });
+      }
+    } else {
+      list.push({
+        id: 'sem-fat',
+        tone: 'neutral',
+        icon: Sparkles,
+        title: 'Informe o faturamento do mês',
+        description: 'Compare gastos com receita para liberar mais insights.',
+      });
+    }
+
+    // Variação vs mês anterior
+    if (prevMonthTotal !== null && prevMonthTotal > 0) {
+      const diff = totalDespesas - prevMonthTotal;
+      const pct = (diff / prevMonthTotal) * 100;
+      if (Math.abs(pct) >= 5) {
+        list.push({
+          id: 'vs-prev',
+          tone: pct > 0 ? 'warning' : 'success',
+          icon: pct > 0 ? TrendingUp : TrendingDown,
+          title: `Despesas ${pct > 0 ? 'subiram' : 'caíram'} ${Math.abs(pct).toFixed(0)}% vs mês anterior`,
+          description: `${formatCurrency(prevMonthTotal)} → ${formatCurrency(totalDespesas)}`,
+        });
+      }
+    }
+
+    // Maior lançamento individual
+    if (filtered.length > 0) {
+      const biggest = [...filtered].sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0))[0];
+      if (Number(biggest.valor || 0) > 0 && totalDespesas > 0) {
+        const pct = (Number(biggest.valor) / totalDespesas) * 100;
+        if (pct > 10) {
+          list.push({
+            id: 'big-entry',
+            tone: 'info',
+            icon: AlertTriangle,
+            title: `Maior despesa: ${formatCurrency(Number(biggest.valor))}`,
+            description: `${biggest.conta_nome || biggest.descricao || 'Lançamento'} (${pct.toFixed(0)}% do total)`,
+          });
+        }
+      }
+    }
+
+    return list;
+  }, [categoryBlocks, totalDespesas, currentRevenue, revenueCompData, prevMonthTotal, filtered]);
+
   if (isLoading) {
     return (
-      <div className="space-y-4">
         <Skeleton className="h-16 w-full rounded-2xl" />
         <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
