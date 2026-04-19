@@ -9,9 +9,10 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelL
 import { motion } from 'framer-motion';
 import { CategoryBlock } from './CategoryBlock';
 import { EditEntryDialog } from './EditEntryDialog';
-import { DollarSign, Check } from 'lucide-react';
+import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { InsightsBar, type Insight } from '@/components/InsightsBar';
 
 interface Props {
   schoolId: string;
