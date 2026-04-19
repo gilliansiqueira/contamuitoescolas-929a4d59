@@ -119,11 +119,23 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-3">
             <SchoolSelector selectedSchool={school} onSelect={(s) => {
+              // Cliente não pode trocar de empresa
+              if (!isAdmin) return;
               if (s?.id === school.id) setSchool(null);
               else setSchool(s);
             }} />
             <PresentationToggle />
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={signOut}
+              title={profile?.email}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden md:inline ml-1">Sair</span>
+            </Button>
           </div>
         </div>
       </header>
