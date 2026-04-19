@@ -54,35 +54,25 @@ export function UsersConfig() {
 
   const createUser = useMutation({
     mutationFn: async () => {
-      if (!email.trim() || !password) throw new Error('Preencha email e senha');
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail || !password) throw new Error('Preencha email e senha');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        throw new Error('Email inválido. Use formato com domínio (ex: usuario@empresa.com)');
+      }
       if (password.length < 6) throw new Error('Senha deve ter no mínimo 6 caracteres');
       if (role === 'cliente' && !schoolId) throw new Error('Selecione uma empresa para o cliente');
 
-      // Cria via signUp (signup público está desabilitado, então fazemos direto pelo admin client não disponível;
-      // usamos signUp regular que ainda funciona quando feito por um admin autenticado)
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: { school_id: role === 'admin' ? null : schoolId },
+      // Usa edge function com privilégios de admin (signup público está desabilitado)
+      const { data, error } = await supabase.functions.invoke('create-admin-user', {
+        body: {
+          email: cleanEmail,
+          password,
+          role,
+          school_id: role === 'cliente' ? schoolId : null,
         },
       });
-      if (error) throw new Error(error.message);
-      const newUserId = data.user?.id;
-      if (!newUserId) throw new Error('Falha ao criar usuário');
-
-      // Atualiza school_id do profile (caso admin sem school)
-      await supabase.from('profiles').update({
-        school_id: role === 'admin' ? null : schoolId,
-      }).eq('user_id', newUserId);
-
-      // Insere role
-      const { error: roleErr } = await supabase.from('user_roles').insert({
-        user_id: newUserId,
-        role,
-      });
-      if (roleErr) throw new Error(roleErr.message);
+      if (error) throw new Error(error.message ?? 'Erro ao criar usuário');
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       toast.success('Usuário criado com sucesso');
