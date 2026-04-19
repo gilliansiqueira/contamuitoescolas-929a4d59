@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { School } from '@/types/financial';
 import { useSchools, useAddSchool, useDeleteSchool } from '@/hooks/useFinancialData';
+import { useAuth } from '@/hooks/useAuth';
 import { Search, Plus, Building2, Trash2 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/conta-muito-logo.jpeg';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,13 @@ interface SchoolSelectorProps {
 }
 
 export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps) {
-  const { data: schools = [], isLoading } = useSchools();
+  const { isAdmin, profile } = useAuth();
+  const { data: allSchools = [], isLoading } = useSchools();
+  // Cliente só vê sua própria empresa (RLS já garante, mas filtramos visualmente também)
+  const schools = useMemo(
+    () => isAdmin ? allSchools : allSchools.filter(s => s.id === profile?.school_id),
+    [allSchools, isAdmin, profile?.school_id]
+  );
   const addSchoolMut = useAddSchool();
   const deleteSchoolMut = useDeleteSchool();
   const [search, setSearch] = useState('');
