@@ -96,32 +96,75 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
     }
   });
 
-  const methodOptions = useMemo(() => {
-    return methods.map(m => {
-      let brandId = null;
-      let finalMethodKey = m.method_key;
-      let iconUrl = null;
-      
-      // Quando salvamos card brands no VendasConfig, usamos 'brand-ID' no method_key
-      if (m.method_key.startsWith('brand-')) {
-        brandId = m.method_key.replace('brand-', '');
-        finalMethodKey = 'credito'; // Para a tabela sales_data, isso conta como method_key: 'credito'
-        const matchedBrand = cardBrands.find(cb => cb.id === brandId);
-        if (matchedBrand && matchedBrand.icon_url) {
-          iconUrl = matchedBrand.icon_url;
-        }
-      }
+  // Build display rows. Brands (method_key='brand-<id>') are NOT standalone rows.
+  // They expand within Crédito and Débito (when those methods are enabled).
+  const METHODS_WITH_BRANDS = new Set(['credito', 'debito']);
 
-      return {
-        id: m.id,
-        value: m.method_key, // The raw key from Config
-        method_key: finalMethodKey, // The parsed key for DB
-        brand_id: brandId,
-        label: m.label || m.method_key,
-        icon_url: iconUrl
-      };
-    });
-  }, [methods, cardBrands]);
+  const enabledBrandIds = useMemo(() => {
+    return methods
+      .filter(m => m.method_key.startsWith('brand-'))
+      .map(m => m.method_key.replace('brand-', ''));
+  }, [methods]);
+
+  const enabledBrands = useMemo(() => {
+    return cardBrands
+      .filter(cb => enabledBrandIds.includes(cb.id))
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }, [cardBrands, enabledBrandIds]);
+
+  const methodOptions = useMemo(() => {
+    const rows: Array<{
+      id: string;
+      value: string;          // unique row key (used in select filter)
+      method_key: string;     // key persisted in sales_data
+      brand_id: string | null;
+      label: string;          // display label
+      icon_url: string | null;
+      method_label: string;   // base method (Crédito / Débito / Pix...)
+    }> = [];
+
+    methods
+      .filter(m => !m.method_key.startsWith('brand-'))
+      .forEach(m => {
+        const baseLabel = m.label || m.method_key;
+        if (METHODS_WITH_BRANDS.has(m.method_key) && enabledBrands.length > 0) {
+          // One row per active brand
+          enabledBrands.forEach(brand => {
+            rows.push({
+              id: `${m.id}-${brand.id}`,
+              value: `${m.method_key}-${brand.id}`,
+              method_key: m.method_key,
+              brand_id: brand.id,
+              label: `${baseLabel} · ${brand.name}`,
+              icon_url: brand.icon_url || null,
+              method_label: baseLabel,
+            });
+          });
+          // Also a "no brand" catch-all row so legacy/unknown entries can be edited
+          rows.push({
+            id: `${m.id}-none`,
+            value: `${m.method_key}-none`,
+            method_key: m.method_key,
+            brand_id: null,
+            label: `${baseLabel} · Sem bandeira`,
+            icon_url: null,
+            method_label: baseLabel,
+          });
+        } else {
+          rows.push({
+            id: m.id,
+            value: m.method_key,
+            method_key: m.method_key,
+            brand_id: null,
+            label: baseLabel,
+            icon_url: null,
+            method_label: baseLabel,
+          });
+        }
+      });
+
+    return rows;
+  }, [methods, enabledBrands]);
 
   const [selectedMethod, setSelectedMethod] = useState<string>('todos');
 
