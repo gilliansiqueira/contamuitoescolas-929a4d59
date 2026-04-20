@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTypeClassifications, useFluxoTipos } from '@/hooks/useFinancialData';
 import { motion } from 'framer-motion';
-import { History, Upload, Plus, Trash2, Download, Info } from 'lucide-react';
+import { History, Upload, Plus, Trash2, Download, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -83,6 +83,24 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         .eq('school_id', schoolId);
       if (error) throw error;
       return (data ?? []) as any;
+    },
+    enabled: !!schoolId,
+  });
+
+  // Detecta meses que possuem upload de fluxo — nesses meses o histórico
+  // é IGNORADO no Dashboard (upload tem prioridade). Apenas avisa o usuário.
+  const { data: uploadMonths = new Set<string>() } = useQuery({
+    queryKey: ['fluxoUploadMonths', schoolId],
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await supabase
+        .from('financial_entries')
+        .select('data')
+        .eq('school_id', schoolId)
+        .eq('origem', 'fluxo');
+      if (error) throw error;
+      const s = new Set<string>();
+      (data ?? []).forEach((e: any) => { if (e.data) s.add(e.data.slice(0, 7)); });
+      return s;
     },
     enabled: !!schoolId,
   });
@@ -295,14 +313,39 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           <History className="w-5 h-5 text-primary" />
           <h3 className="font-display font-semibold text-foreground">Histórico Financeiro Mensal</h3>
         </div>
-        <div className="flex items-start gap-2 mb-4 bg-muted/30 rounded-lg p-3">
+        <div className="flex items-start gap-2 mb-3 bg-muted/30 rounded-lg p-3">
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground leading-relaxed">
             Registre valores mensais consolidados (sem detalhe diário) por tipo. Útil para anos de histórico antigo,
-            evitando importar lançamento a lançamento. Quando há valor aqui para um mês, ele tem prioridade nas
-            análises de evolução. Edite cada célula clicando nela; salva automaticamente ao sair do campo.
+            evitando importar lançamento a lançamento. <strong>Atenção:</strong> meses que possuem upload de Fluxo de
+            Caixa ignoram o histórico — o upload sempre tem prioridade no Dashboard. Edite cada célula clicando nela;
+            salva automaticamente ao sair do campo.
           </p>
         </div>
+
+        {/* Aviso de conflito Histórico × Upload */}
+        {(() => {
+          const conflicts = Array.from(uploadMonths).filter(m =>
+            rows.some(r => r.month === m)
+          ).sort();
+          if (conflicts.length === 0) return null;
+          return (
+            <div className="flex items-start gap-2 mb-4 rounded-lg p-3 border border-warning/40 bg-warning/10">
+              <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+              <div className="text-xs leading-relaxed">
+                <p className="font-semibold text-foreground mb-0.5">
+                  {conflicts.length} {conflicts.length === 1 ? 'mês com conflito' : 'meses com conflito'}: histórico será ignorado
+                </p>
+                <p className="text-muted-foreground">
+                  Estes meses já possuem dados de upload e o histórico não será considerado no Dashboard:{' '}
+                  <span className="font-medium text-foreground">
+                    {conflicts.map(m => m.split('-').reverse().join('/')).join(', ')}
+                  </span>
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-border/40">

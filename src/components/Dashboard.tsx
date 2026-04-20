@@ -7,7 +7,7 @@ import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, 
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
-import { calculateTotals, filterActiveEntries, getSaldoImpact, getEffectiveClassification } from '@/lib/classificationUtils';
+import { calculateTotals, filterActiveEntries, getSaldoImpact, getEffectiveClassification, classifyTipoName, getCanonicalKey, getCanonicalLabel } from '@/lib/classificationUtils';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, BarChart, Bar, Legend } from 'recharts';
 import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
@@ -39,28 +39,43 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
 }
 
 // Resolve the classification of a "tipo_valor" key (from upload or histórico).
-// Falls back to fixed defaults when no classification exists yet.
+// Uses synonym map (despesa/despesas/saida → despesa, receita/entrada → receita)
+// before falling back to user-defined classifications.
 function resolveTipoMeta(tipoKey: string, classifications: TypeClassification[]) {
   const key = normalize(tipoKey);
-  const cls = classifications.find(c => normalize(c.tipoValor) === key);
-  if (cls) {
+  const canonicalKey = getCanonicalKey(tipoKey);
+  const synonymCls = classifyTipoName(tipoKey, classifications);
+  // User config (only if not a fixed synonym)
+  const userCls = classifications.find(c => normalize(c.tipoValor) === key);
+
+  if (synonymCls === 'receita' || synonymCls === 'despesa') {
     return {
-      classificacao: cls.classificacao,
-      entraNoResultado: cls.entraNoResultado,
-      impactaCaixa: cls.impactaCaixa,
-      isEntrada: cls.classificacao === 'receita' || (cls.classificacao === 'operacao' && /entrada|recebimento|aplicacao|aporte|resgate/.test(key)),
-      label: cls.label || tipoKey,
+      classificacao: synonymCls,
+      entraNoResultado: true,
+      impactaCaixa: true,
+      isEntrada: synonymCls === 'receita',
+      label: getCanonicalLabel(tipoKey),
+      canonicalKey,
     };
   }
-  // Fallbacks for well-known types
-  const isReceita = key === 'receita' || key === 'entrada';
-  const isDespesa = key === 'despesa' || key === 'saida' || key === 'investimento';
+  if (userCls) {
+    return {
+      classificacao: userCls.classificacao,
+      entraNoResultado: userCls.entraNoResultado,
+      impactaCaixa: userCls.impactaCaixa,
+      isEntrada: userCls.classificacao === 'receita' || (userCls.classificacao === 'operacao' && /entrada|recebimento|aplicacao|aporte|resgate/.test(key)),
+      label: userCls.label || tipoKey,
+      canonicalKey,
+    };
+  }
+  // Fallback for unknown tipos
   return {
-    classificacao: (isReceita ? 'receita' : isDespesa ? 'despesa' : 'operacao') as 'receita' | 'despesa' | 'operacao' | 'ignorar',
-    entraNoResultado: isReceita || isDespesa,
+    classificacao: 'operacao' as const,
+    entraNoResultado: false,
     impactaCaixa: true,
-    isEntrada: isReceita,
+    isEntrada: false,
     label: tipoKey,
+    canonicalKey,
   };
 }
 
@@ -122,7 +137,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const map: Record<string, TipoAgg> = {};
 
     const ensure = (key: string): TipoAgg => {
-      const k = normalize(key);
+      // Use canonical key so synonyms (despesa/despesas/saida) merge into one bucket
+      const k = getCanonicalKey(key);
       if (!map[k]) {
         const meta = resolveTipoMeta(key, classifications);
         map[k] = { key: k, label: meta.label, valor: 0, isEntrada: meta.isEntrada, entraNoResultado: meta.entraNoResultado, impactaCaixa: meta.impactaCaixa, classificacao: meta.classificacao };
