@@ -92,7 +92,7 @@ function ThresholdDot(props: any) {
   return <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />;
 }
 
-export function KpiCard({ definition: def, values, months }: Props) {
+export function KpiCard({ definition: def, values, months, insights = [] }: Props) {
   // Group values by year
   const years = useMemo(() => {
     const allMonths = new Set<string>();
