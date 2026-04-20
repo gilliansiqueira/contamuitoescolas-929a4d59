@@ -22,6 +22,60 @@ function normalize(s: string): string {
 }
 
 /**
+ * Mapa canônico de sinônimos → classificação fixa.
+ * Garante que "despesa", "despesas", "saida", "saidas" sejam tratados como Saída,
+ * e "receita", "entrada", "entradas" como Entrada — evitando KPIs duplicados.
+ */
+const SYNONYM_TO_CLASSIFICATION: Record<string, EffectiveClassification> = {
+  receita: 'receita',
+  receitas: 'receita',
+  entrada: 'receita',
+  entradas: 'receita',
+  despesa: 'despesa',
+  despesas: 'despesa',
+  saida: 'despesa',
+  saidas: 'despesa',
+  'saída': 'despesa',
+  'saídas': 'despesa',
+};
+
+/**
+ * Chave canônica usada em agregações (ex: "despesa" e "despesas" => mesmo bucket).
+ * Mantém o nome original para exibição via `getCanonicalLabel`.
+ */
+export function getCanonicalKey(rawTipo: string): string {
+  const n = normalize(rawTipo);
+  const cls = SYNONYM_TO_CLASSIFICATION[n];
+  if (cls === 'receita') return 'receita';
+  if (cls === 'despesa') return 'despesa';
+  return n;
+}
+
+export function getCanonicalLabel(rawTipo: string): string {
+  const n = normalize(rawTipo);
+  const cls = SYNONYM_TO_CLASSIFICATION[n];
+  if (cls === 'receita') return 'Receita';
+  if (cls === 'despesa') return 'Despesa';
+  return rawTipo;
+}
+
+/**
+ * Classifica um nome de tipo (sinônimo ou customizado) usando o mapa canônico
+ * antes de cair na tabela de TypeClassification.
+ */
+export function classifyTipoName(
+  rawTipo: string,
+  classifications: TypeClassification[]
+): EffectiveClassification | null {
+  const n = normalize(rawTipo);
+  const synonym = SYNONYM_TO_CLASSIFICATION[n];
+  if (synonym) return synonym;
+  const cls = classifications.find(c => normalize(c.tipoValor) === n);
+  if (cls) return cls.classificacao as EffectiveClassification;
+  return null;
+}
+
+/**
  * Get the effective classification for an entry.
  * Uses TypeClassification table for fluxo entries, falls back to tipo field.
  */
@@ -29,13 +83,11 @@ export function getEffectiveClassification(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): EffectiveClassification {
-  // For fluxo entries, check TypeClassification table first
+  // For fluxo entries, check TypeClassification table first (with synonym fallback)
   if (entry.origem === 'fluxo' && !entry.editadoManualmente) {
     const tipoKey = entry.tipoOriginal || entry.tipo;
-    const cls = classifications.find(c => normalize(c.tipoValor) === normalize(tipoKey));
-    if (cls) {
-      return cls.classificacao as EffectiveClassification;
-    }
+    const resolved = classifyTipoName(tipoKey, classifications);
+    if (resolved) return resolved;
   }
 
   // For non-fluxo entries or when no classification found, use tipo field
