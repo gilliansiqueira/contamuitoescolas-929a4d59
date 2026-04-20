@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { SalesData, PAYMENT_METHODS } from './vendas-types';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { SalesData, SalesCardBrand, PAYMENT_METHODS } from './vendas-types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { CreditCard, Smartphone, Receipt, FileText, Banknote, HelpCircle } from 'lucide-react';
 
@@ -11,6 +13,7 @@ interface Props {
 
 const COLORS = ['#ea384c', '#0EA5E9', '#F59E0B', '#10B981', '#8B5CF6', '#64748B'];
 const MONTHS_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const METHODS_WITH_BRANDS = new Set(['credito', 'debito']);
 
 export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props) {
   // Dados do mês específico para o PieChart e Cards
