@@ -330,15 +330,15 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           ).sort();
           if (conflicts.length === 0) return null;
           return (
-            <div className="flex items-start gap-2 mb-4 rounded-lg p-3 border border-amber-300/60 bg-amber-50 dark:bg-amber-950/20">
-              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <div className="flex items-start gap-2 mb-4 rounded-lg p-3 border border-warning/40 bg-warning/10">
+              <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
               <div className="text-xs leading-relaxed">
-                <p className="font-semibold text-amber-800 dark:text-amber-300 mb-0.5">
+                <p className="font-semibold text-foreground mb-0.5">
                   {conflicts.length} {conflicts.length === 1 ? 'mês com conflito' : 'meses com conflito'}: histórico será ignorado
                 </p>
-                <p className="text-amber-700 dark:text-amber-400">
+                <p className="text-muted-foreground">
                   Estes meses já possuem dados de upload e o histórico não será considerado no Dashboard:{' '}
-                  <span className="font-medium">
+                  <span className="font-medium text-foreground">
                     {conflicts.map(m => m.split('-').reverse().join('/')).join(', ')}
                   </span>
                 </p>
