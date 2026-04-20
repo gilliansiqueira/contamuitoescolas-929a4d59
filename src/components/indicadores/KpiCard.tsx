@@ -161,6 +161,34 @@ export function KpiCard({ definition: def, values, months, insights = [] }: Prop
       animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col"
     >
+      {/* Per-KPI insights */}
+      {insights.length > 0 && (
+        <div className="flex flex-col gap-1.5 mb-3">
+          {insights.map(ins => {
+            const styles = TONE_STYLES[ins.tone];
+            const Icon = ins.icon;
+            return (
+              <div
+                key={ins.id}
+                className={`flex items-start gap-2 rounded-lg border px-2.5 py-1.5 ${styles.container}`}
+              >
+                {Icon && (
+                  <div className={`shrink-0 rounded-md p-1 ${styles.iconWrap}`}>
+                    <Icon className={`w-3.5 h-3.5 ${styles.icon}`} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[11px] font-semibold leading-tight ${styles.title}`}>{ins.title}</p>
+                  {ins.description && (
+                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{ins.description}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col items-center gap-2 mb-3">
         {def.icon?.file_url ? (
