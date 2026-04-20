@@ -148,6 +148,36 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
         </div>
       </div>
 
+      {byBrand.length > 0 && (
+        <div className="glass-card p-6 rounded-xl">
+          <h4 className="text-sm font-medium text-muted-foreground mb-4">
+            Vendas por Bandeira ({monthLabel}) <span className="text-xs">— Crédito + Débito</span>
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {byBrand.map(brand => (
+              <div key={brand.brand_id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:border-primary/40 transition-colors">
+                {brand.icon_url ? (
+                  <img
+                    src={brand.icon_url}
+                    alt={brand.name}
+                    className="w-10 h-10 object-contain rounded shrink-0"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                    {brand.name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">{brand.name}</p>
+                  <p className="font-semibold text-sm">{formatCurrency(brand.value)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-card p-4 rounded-xl min-h-[300px] flex flex-col">
           <h4 className="text-sm font-semibold mb-4 ml-2">Participação ({monthLabel})</h4>
