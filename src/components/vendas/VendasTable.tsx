@@ -274,8 +274,16 @@ export function VendasTable({ schoolId, defaultYear, availableYears }: Props) {
               <tr key={row.value} className={`border-b border-border/50 hover:bg-muted/10 transition-colors ${index % 2 === 0 ? 'bg-background' : 'bg-muted/5'}`}>
                 <td className="py-3 px-4 font-medium text-xs sm:text-sm border-r border-border/30 whitespace-nowrap">
                   <div className="flex items-center gap-2">
-                    {row.icon_url && <img src={row.icon_url} alt={row.label} className="w-4 h-4 object-contain" />}
-                    {row.label}
+                    {row.brand_id ? (
+                      row.icon_url ? (
+                        <img src={row.icon_url} alt={row.label} className="w-6 h-6 object-contain rounded" />
+                      ) : (
+                        <div className="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold shrink-0">
+                          {row.label.split('·').pop()?.trim().slice(0, 2).toUpperCase()}
+                        </div>
+                      )
+                    ) : null}
+                    <span>{row.label}</span>
                   </div>
                 </td>
                 {MONTHS.map((month, i) => (
