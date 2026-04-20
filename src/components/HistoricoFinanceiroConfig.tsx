@@ -313,14 +313,39 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           <History className="w-5 h-5 text-primary" />
           <h3 className="font-display font-semibold text-foreground">Histórico Financeiro Mensal</h3>
         </div>
-        <div className="flex items-start gap-2 mb-4 bg-muted/30 rounded-lg p-3">
+        <div className="flex items-start gap-2 mb-3 bg-muted/30 rounded-lg p-3">
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground leading-relaxed">
             Registre valores mensais consolidados (sem detalhe diário) por tipo. Útil para anos de histórico antigo,
-            evitando importar lançamento a lançamento. Quando há valor aqui para um mês, ele tem prioridade nas
-            análises de evolução. Edite cada célula clicando nela; salva automaticamente ao sair do campo.
+            evitando importar lançamento a lançamento. <strong>Atenção:</strong> meses que possuem upload de Fluxo de
+            Caixa ignoram o histórico — o upload sempre tem prioridade no Dashboard. Edite cada célula clicando nela;
+            salva automaticamente ao sair do campo.
           </p>
         </div>
+
+        {/* Aviso de conflito Histórico × Upload */}
+        {(() => {
+          const conflicts = Array.from(uploadMonths).filter(m =>
+            rows.some(r => r.month === m)
+          ).sort();
+          if (conflicts.length === 0) return null;
+          return (
+            <div className="flex items-start gap-2 mb-4 rounded-lg p-3 border border-amber-300/60 bg-amber-50 dark:bg-amber-950/20">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <div className="text-xs leading-relaxed">
+                <p className="font-semibold text-amber-800 dark:text-amber-300 mb-0.5">
+                  {conflicts.length} {conflicts.length === 1 ? 'mês com conflito' : 'meses com conflito'}: histórico será ignorado
+                </p>
+                <p className="text-amber-700 dark:text-amber-400">
+                  Estes meses já possuem dados de upload e o histórico não será considerado no Dashboard:{' '}
+                  <span className="font-medium">
+                    {conflicts.map(m => m.split('-').reverse().join('/')).join(', ')}
+                  </span>
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-border/40">
