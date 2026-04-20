@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import { SalesData, PAYMENT_METHODS } from './vendas-types';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { SalesData, SalesCardBrand, PAYMENT_METHODS } from './vendas-types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { CreditCard, Smartphone, Receipt, FileText, Banknote, HelpCircle } from 'lucide-react';
 
@@ -11,32 +13,57 @@ interface Props {
 
 const COLORS = ['#ea384c', '#0EA5E9', '#F59E0B', '#10B981', '#8B5CF6', '#64748B'];
 const MONTHS_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const METHODS_WITH_BRANDS = new Set(['credito', 'debito']);
 
 export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props) {
+  // Card brands (used to render brand-level summary)
+  const { data: cardBrands = [] } = useQuery({
+    queryKey: ['sales_card_brands'],
+    queryFn: async () => {
+      const { data } = await supabase.from('sales_card_brands').select('*').order('sort_order');
+      return (data || []) as SalesCardBrand[];
+    },
+  });
+
   // Dados do mês específico para o PieChart e Cards
   const monthData = useMemo(() => data.filter(s => s.month === selectedMonthStr), [data, selectedMonthStr]);
   const monthTotal = monthData.reduce((acc, curr) => acc + curr.value, 0);
 
   // Agrupamento por forma de pagamento no mês selecionado
+  // Mapeia method_key (credito, debito, pix...). Trata 'brand-<id>' (legado) como crédito.
   const byMethod = useMemo(() => {
     const acc: Record<string, number> = {};
     monthData.forEach(item => {
-      // If method_key is like "credit-visa", sum into "credit" or keep it separated?
-      // Since it's byMethod, we group by base method format.
       let baseMethod = item.method_key;
-      if (item.method_key.startsWith('brand-')) baseMethod = 'credito'; // Since we map brand-<id> to credito in the grouping too just in case
-      else if (item.method_key === 'credito') baseMethod = 'credito';
+      if (baseMethod.startsWith('brand-')) baseMethod = 'credito';
       acc[baseMethod] = (acc[baseMethod] || 0) + item.value;
     });
     return Object.keys(acc).map(key => {
       const pmLabel = PAYMENT_METHODS.find(pm => pm.value === key)?.label || key;
-      return {
-        name: pmLabel,
-        value: acc[key],
-        method: key
-      }
+      return { name: pmLabel, value: acc[key], method: key };
     }).filter(item => item.value > 0).sort((a, b) => b.value - a.value);
   }, [monthData]);
+
+  // Agrupamento por bandeira no mês (soma crédito + débito)
+  const byBrand = useMemo(() => {
+    const acc: Record<string, number> = {};
+    monthData.forEach(item => {
+      if (!item.brand_id) return;
+      acc[item.brand_id] = (acc[item.brand_id] || 0) + item.value;
+    });
+    return Object.entries(acc)
+      .map(([brand_id, value]) => {
+        const brand = cardBrands.find(b => b.id === brand_id);
+        return {
+          brand_id,
+          name: brand?.name || 'Bandeira',
+          icon_url: brand?.icon_url || null,
+          value,
+        };
+      })
+      .filter(b => b.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [monthData, cardBrands]);
 
   // Evolução anual para o LineChart (Todos os anos com dados)
   const annualTrend = useMemo(() => {
@@ -120,6 +147,36 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
           )}
         </div>
       </div>
+
+      {byBrand.length > 0 && (
+        <div className="glass-card p-6 rounded-xl">
+          <h4 className="text-sm font-medium text-muted-foreground mb-4">
+            Vendas por Bandeira ({monthLabel}) <span className="text-xs">— Crédito + Débito</span>
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {byBrand.map(brand => (
+              <div key={brand.brand_id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:border-primary/40 transition-colors">
+                {brand.icon_url ? (
+                  <img
+                    src={brand.icon_url}
+                    alt={brand.name}
+                    className="w-10 h-10 object-contain rounded shrink-0"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                    {brand.name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">{brand.name}</p>
+                  <p className="font-semibold text-sm">{formatCurrency(brand.value)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-card p-4 rounded-xl min-h-[300px] flex flex-col">

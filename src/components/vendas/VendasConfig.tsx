@@ -71,6 +71,8 @@ export function VendasConfig({ schoolId, onBack }: Props) {
   if (loadingMethods || loadingBrands) return <div className="p-4 text-sm text-muted-foreground">Carregando configurações...</div>;
 
   const creditCardEnabled = isEnabled('credito');
+  const debitCardEnabled = isEnabled('debito');
+  const showBrands = creditCardEnabled || debitCardEnabled;
 
   const getIcon = (method: string) => {
     switch (method) {
@@ -119,17 +121,22 @@ export function VendasConfig({ schoolId, onBack }: Props) {
           ))}
         </div>
 
-        {creditCardEnabled && cardBrands.length > 0 && (
+        {showBrands && cardBrands.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border">
-            <h4 className="font-medium mb-4">Bandeiras de Cartão</h4>
+            <h4 className="font-medium mb-1">Bandeiras de Cartão</h4>
+            <p className="text-xs text-muted-foreground mb-4">
+              Bandeiras ativas aparecem na tabela tanto para Cartão de Crédito quanto Débito (quando habilitados).
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
               {cardBrands.map(brand => (
                 <div key={brand.id} className="flex items-center justify-between p-3 pl-4 border border-border rounded-lg bg-surface relative transition-all hover:border-primary/50">
                   <div className="flex items-center gap-3">
                     {brand.icon_url ? (
-                      <img src={brand.icon_url} alt={brand.name} className="w-6 h-6 object-contain" />
+                      <img src={brand.icon_url} alt={brand.name} className="w-7 h-7 object-contain rounded" />
                     ) : (
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary/50" />
+                      <div className="w-7 h-7 rounded bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                        {brand.name.slice(0, 2).toUpperCase()}
+                      </div>
                     )}
                     <Label htmlFor={`brand-${brand.id}`} className="font-medium cursor-pointer">
                       {brand.name}
