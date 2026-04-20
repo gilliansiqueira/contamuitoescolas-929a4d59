@@ -137,7 +137,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const map: Record<string, TipoAgg> = {};
 
     const ensure = (key: string): TipoAgg => {
-      const k = normalize(key);
+      // Use canonical key so synonyms (despesa/despesas/saida) merge into one bucket
+      const k = getCanonicalKey(key);
       if (!map[k]) {
         const meta = resolveTipoMeta(key, classifications);
         map[k] = { key: k, label: meta.label, valor: 0, isEntrada: meta.isEntrada, entraNoResultado: meta.entraNoResultado, impactaCaixa: meta.impactaCaixa, classificacao: meta.classificacao };
