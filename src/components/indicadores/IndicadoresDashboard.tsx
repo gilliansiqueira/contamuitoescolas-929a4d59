@@ -6,7 +6,7 @@ import { KpiCard } from './KpiCard';
 import { KpiConfigDrawer } from './KpiConfigDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
-import { InsightsBar, type Insight } from '@/components/InsightsBar';
+import type { Insight } from '@/components/InsightsBar';
 
 interface Props {
   schoolId: string;
@@ -37,9 +37,9 @@ export function IndicadoresDashboard({ schoolId }: Props) {
   const months = useMemo(() => generateMonths(allValues), [allValues]);
   const enabledDefs = useMemo(() => definitions.filter(d => d.enabled), [definitions]);
 
-  // Compute insights based on KPI status (thresholds + trend)
-  const insights = useMemo<Insight[]>(() => {
-    const list: Insight[] = [];
+  // Compute insights grouped by KPI definition id (so each card shows its own)
+  const insightsByDef = useMemo<Record<string, Insight[]>>(() => {
+    const map: Record<string, Insight[]> = {};
     const currentMonth = months[months.length - 1];
     const prevMonth = months[months.length - 2];
 
@@ -55,9 +55,13 @@ export function IndicadoresDashboard({ schoolId }: Props) {
     }
 
     enabledDefs.forEach(def => {
+      const list: Insight[] = [];
       const current = allValues.find(v => v.kpi_definition_id === def.id && v.month === currentMonth)?.value ?? null;
       const prev = prevMonth ? allValues.find(v => v.kpi_definition_id === def.id && v.month === prevMonth)?.value ?? null : null;
-      if (current === null) return;
+      if (current === null) {
+        map[def.id] = list;
+        return;
+      }
 
       const t = thresholdLabel(def, current);
       // Critical (worst tier — toneIdx 0 by convention "ruim")
@@ -96,9 +100,11 @@ export function IndicadoresDashboard({ schoolId }: Props) {
           });
         }
       }
+
+      map[def.id] = list;
     });
 
-    return list.slice(0, 6);
+    return map;
   }, [enabledDefs, allValues, months]);
 
   if (isLoading) {
@@ -133,8 +139,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
           )}
         </div>
       ) : (
-        <div className="space-y-5 pt-2">
-          {insights.length > 0 && <InsightsBar insights={insights} title="Destaques dos indicadores" />}
+        <div className="pt-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
             {enabledDefs.map(def => (
               <KpiCard
@@ -142,6 +147,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
                 definition={def}
                 values={allValues.filter(v => v.kpi_definition_id === def.id)}
                 months={months}
+                insights={insightsByDef[def.id] ?? []}
               />
             ))}
           </div>

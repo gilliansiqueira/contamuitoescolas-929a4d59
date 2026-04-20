@@ -5,11 +5,46 @@ import {
 } from 'recharts';
 import type { KpiDefinitionWithThresholds, KpiValue } from './types';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import type { Insight } from '@/components/InsightsBar';
+
+const TONE_STYLES: Record<Insight['tone'], { container: string; iconWrap: string; icon: string; title: string }> = {
+  success: {
+    container: 'border-emerald-500/30 bg-emerald-500/10',
+    iconWrap: 'bg-emerald-500/15',
+    icon: 'text-emerald-600 dark:text-emerald-400',
+    title: 'text-emerald-700 dark:text-emerald-300',
+  },
+  warning: {
+    container: 'border-amber-500/30 bg-amber-500/10',
+    iconWrap: 'bg-amber-500/15',
+    icon: 'text-amber-600 dark:text-amber-400',
+    title: 'text-amber-700 dark:text-amber-300',
+  },
+  danger: {
+    container: 'border-red-500/30 bg-red-500/10',
+    iconWrap: 'bg-red-500/15',
+    icon: 'text-red-600 dark:text-red-400',
+    title: 'text-red-700 dark:text-red-300',
+  },
+  info: {
+    container: 'border-sky-500/30 bg-sky-500/10',
+    iconWrap: 'bg-sky-500/15',
+    icon: 'text-sky-600 dark:text-sky-400',
+    title: 'text-sky-700 dark:text-sky-300',
+  },
+  neutral: {
+    container: 'border-border bg-muted/40',
+    iconWrap: 'bg-muted',
+    icon: 'text-muted-foreground',
+    title: 'text-foreground',
+  },
+};
 
 interface Props {
   definition: KpiDefinitionWithThresholds;
   values: KpiValue[];
   months: string[];
+  insights?: Insight[];
 }
 
 function formatMonth(m: string) {
@@ -57,7 +92,7 @@ function ThresholdDot(props: any) {
   return <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />;
 }
 
-export function KpiCard({ definition: def, values, months }: Props) {
+export function KpiCard({ definition: def, values, months, insights = [] }: Props) {
   // Group values by year
   const years = useMemo(() => {
     const allMonths = new Set<string>();
@@ -126,6 +161,34 @@ export function KpiCard({ definition: def, values, months }: Props) {
       animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col"
     >
+      {/* Per-KPI insights */}
+      {insights.length > 0 && (
+        <div className="flex flex-col gap-1.5 mb-3">
+          {insights.map(ins => {
+            const styles = TONE_STYLES[ins.tone];
+            const Icon = ins.icon;
+            return (
+              <div
+                key={ins.id}
+                className={`flex items-start gap-2 rounded-lg border px-2.5 py-1.5 ${styles.container}`}
+              >
+                {Icon && (
+                  <div className={`shrink-0 rounded-md p-1 ${styles.iconWrap}`}>
+                    <Icon className={`w-3.5 h-3.5 ${styles.icon}`} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[11px] font-semibold leading-tight ${styles.title}`}>{ins.title}</p>
+                  {ins.description && (
+                    <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{ins.description}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col items-center gap-2 mb-3">
         {def.icon?.file_url ? (
