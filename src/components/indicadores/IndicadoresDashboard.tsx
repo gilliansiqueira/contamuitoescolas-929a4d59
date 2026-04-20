@@ -6,7 +6,7 @@ import { KpiCard } from './KpiCard';
 import { KpiConfigDrawer } from './KpiConfigDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
-import { InsightsBar, type Insight } from '@/components/InsightsBar';
+import type { Insight } from '@/components/InsightsBar';
 
 interface Props {
   schoolId: string;
