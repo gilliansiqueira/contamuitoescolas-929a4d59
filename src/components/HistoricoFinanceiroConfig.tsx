@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTypeClassifications, useFluxoTipos } from '@/hooks/useFinancialData';
 import { motion } from 'framer-motion';
-import { History, Upload, Plus, Trash2, Download, Info } from 'lucide-react';
+import { History, Upload, Plus, Trash2, Download, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -83,6 +83,24 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         .eq('school_id', schoolId);
       if (error) throw error;
       return (data ?? []) as any;
+    },
+    enabled: !!schoolId,
+  });
+
+  // Detecta meses que possuem upload de fluxo — nesses meses o histórico
+  // é IGNORADO no Dashboard (upload tem prioridade). Apenas avisa o usuário.
+  const { data: uploadMonths = new Set<string>() } = useQuery({
+    queryKey: ['fluxoUploadMonths', schoolId],
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await supabase
+        .from('financial_entries')
+        .select('data')
+        .eq('school_id', schoolId)
+        .eq('origem', 'fluxo');
+      if (error) throw error;
+      const s = new Set<string>();
+      (data ?? []).forEach((e: any) => { if (e.data) s.add(e.data.slice(0, 7)); });
+      return s;
     },
     enabled: !!schoolId,
   });
