@@ -432,21 +432,31 @@ export function useAddAuditLog() {
   });
 }
 
-// ─── Fluxo Tipos (derived from entries) ─────────────
+// ─── Fluxo Tipos (derived from entries + histórico financeiro) ──────
 export function useFluxoTipos(schoolId: string) {
   return useQuery({
     queryKey: ['fluxoTipos', schoolId],
     queryFn: async (): Promise<string[]> => {
-      const { data, error } = await supabase
-        .from('financial_entries')
-        .select('tipo, tipo_original')
-        .eq('school_id', schoolId)
-        .eq('origem', 'fluxo');
-      if (error) throw error;
+      const [entriesRes, histRes] = await Promise.all([
+        supabase
+          .from('financial_entries')
+          .select('tipo, tipo_original')
+          .eq('school_id', schoolId)
+          .eq('origem', 'fluxo'),
+        supabase
+          .from('historical_monthly' as any)
+          .select('tipo_valor')
+          .eq('school_id', schoolId),
+      ]);
+      if (entriesRes.error) throw entriesRes.error;
+      if (histRes.error) throw histRes.error;
       const set = new Set<string>();
-      (data ?? []).forEach(e => {
+      (entriesRes.data ?? []).forEach(e => {
         if (e.tipo_original) set.add(e.tipo_original.toLowerCase().trim());
         set.add(e.tipo.toLowerCase().trim());
+      });
+      (histRes.data ?? []).forEach((r: any) => {
+        if (r.tipo_valor) set.add(String(r.tipo_valor).toLowerCase().trim());
       });
       return Array.from(set).sort();
     },
