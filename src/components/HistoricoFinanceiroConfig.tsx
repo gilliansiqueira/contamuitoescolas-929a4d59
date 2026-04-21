@@ -139,6 +139,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
+      qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
       onChanged?.();
     },
   });
@@ -163,6 +164,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
+      qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
       onChanged?.();
     },
   });
@@ -180,6 +182,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
+      qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
       onChanged?.();
     },
   });
