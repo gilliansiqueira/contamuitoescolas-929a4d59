@@ -232,6 +232,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
       if (error) throw error;
       setExtraTipos(prev => prev.filter(t => t !== tipoKey));
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
+      qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
       toast.success('Tipo removido');
     } catch (e: any) {
       toast.error(e.message);
