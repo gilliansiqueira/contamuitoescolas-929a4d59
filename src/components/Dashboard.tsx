@@ -41,6 +41,7 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
 // Resolve the classification of a "tipo_valor" key (from upload or histórico).
 // Uses synonym map (despesa/despesas/saida → despesa, receita/entrada → receita)
 // before falling back to user-defined classifications.
+// `operacaoSinal` define o impacto no saldo para operações: 'somar' | 'subtrair' | 'auto'.
 function resolveTipoMeta(tipoKey: string, classifications: TypeClassification[]) {
   const key = normalize(tipoKey);
   const canonicalKey = getCanonicalKey(tipoKey);
@@ -54,16 +55,27 @@ function resolveTipoMeta(tipoKey: string, classifications: TypeClassification[])
       entraNoResultado: true,
       impactaCaixa: true,
       isEntrada: synonymCls === 'receita',
+      operacaoSinal: 'auto' as 'auto' | 'somar' | 'subtrair',
       label: getCanonicalLabel(tipoKey),
       canonicalKey,
     };
   }
   if (userCls) {
+    const operacaoSinal = (userCls.operacaoSinal ?? 'auto') as 'auto' | 'somar' | 'subtrair';
+    // Para operações: prioriza o sinal configurado; só cai no nome se 'auto'.
+    let isEntrada: boolean;
+    if (userCls.classificacao === 'receita') isEntrada = true;
+    else if (userCls.classificacao === 'operacao') {
+      if (operacaoSinal === 'somar') isEntrada = true;
+      else if (operacaoSinal === 'subtrair') isEntrada = false;
+      else isEntrada = /entrada|recebimento|aplicacao|aporte|resgate/.test(key);
+    } else isEntrada = false;
     return {
       classificacao: userCls.classificacao,
       entraNoResultado: userCls.entraNoResultado,
       impactaCaixa: userCls.impactaCaixa,
-      isEntrada: userCls.classificacao === 'receita' || (userCls.classificacao === 'operacao' && /entrada|recebimento|aplicacao|aporte|resgate/.test(key)),
+      isEntrada,
+      operacaoSinal,
       label: userCls.label || tipoKey,
       canonicalKey,
     };
@@ -74,6 +86,7 @@ function resolveTipoMeta(tipoKey: string, classifications: TypeClassification[])
     entraNoResultado: false,
     impactaCaixa: true,
     isEntrada: false,
+    operacaoSinal: 'auto' as 'auto' | 'somar' | 'subtrair',
     label: tipoKey,
     canonicalKey,
   };
