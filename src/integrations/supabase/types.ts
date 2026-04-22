@@ -928,6 +928,7 @@ export type Database = {
           id: string
           impacta_caixa: boolean
           label: string
+          operacao_sinal: string
           school_id: string
           tipo_valor: string
         }
@@ -938,6 +939,7 @@ export type Database = {
           id?: string
           impacta_caixa?: boolean
           label?: string
+          operacao_sinal?: string
           school_id: string
           tipo_valor: string
         }
@@ -948,6 +950,7 @@ export type Database = {
           id?: string
           impacta_caixa?: boolean
           label?: string
+          operacao_sinal?: string
           school_id?: string
           tipo_valor?: string
         }
