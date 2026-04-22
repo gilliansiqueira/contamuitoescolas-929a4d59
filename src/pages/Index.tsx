@@ -71,7 +71,7 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
 
 const Index = () => {
   const { isPresentationMode } = usePresentation();
-  const { isAdmin, profile, signOut } = useAuth();
+  const { isAdmin, profile, accessibleSchoolIds, signOut } = useAuth();
   const { data: allSchools = [] } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
   const [appModule, setAppModule] = useState<AppModule>('projecao');
@@ -86,13 +86,15 @@ const Index = () => {
   const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
 
-  // Auto-seleção: cliente vai direto para sua única empresa
+  // Auto-seleção: cliente vai direto se tiver UMA única empresa acessível.
+  // Se tiver múltiplas, mostra o seletor para escolher.
   useEffect(() => {
-    if (!school && !isAdmin && profile?.school_id) {
-      const mine = allSchools.find(s => s.id === profile.school_id);
+    if (school || isAdmin) return;
+    if (accessibleSchoolIds.length === 1) {
+      const mine = allSchools.find(s => s.id === accessibleSchoolIds[0]);
       if (mine) setSchool(mine);
     }
-  }, [school, isAdmin, profile?.school_id, allSchools]);
+  }, [school, isAdmin, accessibleSchoolIds, allSchools]);
 
   // Se ativaram o modo apresentação e estamos numa aba de configuração, forçar ida para o dashboard
   if (isPresentationMode && isSettingsTab) {
@@ -121,8 +123,8 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-3">
             <SchoolSelector selectedSchool={school} onSelect={(s) => {
-              // Cliente não pode trocar de empresa
-              if (!isAdmin) return;
+              // Cliente só pode trocar se tiver acesso a 2+ empresas
+              if (!isAdmin && accessibleSchoolIds.length < 2) return;
               if (s?.id === school.id) setSchool(null);
               else setSchool(s);
             }} />

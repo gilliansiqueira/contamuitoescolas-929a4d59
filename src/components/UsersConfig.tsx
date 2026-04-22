@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Trash2, UserPlus, Shield, User as UserIcon } from 'lucide-react';
+import { Trash2, UserPlus, Shield, User as UserIcon, Building2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UserRow {
@@ -20,6 +21,7 @@ interface UserRow {
   school_id: string | null;
   role: 'admin' | 'cliente';
   school_nome?: string;
+  extra_school_ids: string[];
 }
 
 export function UsersConfig() {
@@ -32,13 +34,16 @@ export function UsersConfig() {
   const [schoolId, setSchoolId] = useState<string>('');
   const [role, setRole] = useState<'admin' | 'cliente'>('cliente');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [extraToAdd, setExtraToAdd] = useState<Record<string, string>>({});
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['app_users'],
     queryFn: async (): Promise<UserRow[]> => {
-      const [{ data: profiles }, { data: roles }] = await Promise.all([
+      const [{ data: profiles }, { data: roles }, { data: extras }] = await Promise.all([
         supabase.from('profiles').select('user_id, email, school_id'),
         supabase.from('user_roles').select('user_id, role'),
+        supabase.from('user_schools').select('user_id, school_id'),
       ]);
       const schoolMap = new Map(schools.map(s => [s.id, s.nome]));
       return (profiles ?? []).map(p => ({
@@ -47,6 +52,9 @@ export function UsersConfig() {
         school_id: p.school_id,
         role: (roles?.find(r => r.user_id === p.user_id)?.role as 'admin' | 'cliente') ?? 'cliente',
         school_nome: p.school_id ? schoolMap.get(p.school_id) : undefined,
+        extra_school_ids: (extras ?? [])
+          .filter((e: any) => e.user_id === p.user_id)
+          .map((e: any) => e.school_id),
       }));
     },
     enabled: isAdmin,
@@ -60,9 +68,8 @@ export function UsersConfig() {
         throw new Error('Email inválido. Use formato com domínio (ex: usuario@empresa.com)');
       }
       if (password.length < 6) throw new Error('Senha deve ter no mínimo 6 caracteres');
-      if (role === 'cliente' && !schoolId) throw new Error('Selecione uma empresa para o cliente');
+      if (role === 'cliente' && !schoolId) throw new Error('Selecione uma empresa principal para o cliente');
 
-      // Usa edge function com privilégios de admin (signup público está desabilitado)
       const { data, error } = await supabase.functions.invoke('create-admin-user', {
         body: {
           email: cleanEmail,
@@ -84,7 +91,7 @@ export function UsersConfig() {
 
   const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
-      // Apaga profile e role; o usuário em auth.users permanece (admin Cloud pode remover manualmente)
+      await supabase.from('user_schools').delete().eq('user_id', userId);
       await supabase.from('user_roles').delete().eq('user_id', userId);
       await supabase.from('profiles').delete().eq('user_id', userId);
     },
@@ -95,6 +102,35 @@ export function UsersConfig() {
     onError: () => toast.error('Erro ao remover usuário'),
   });
 
+  const addExtraSchool = useMutation({
+    mutationFn: async ({ userId, schoolIdToAdd }: { userId: string; schoolIdToAdd: string }) => {
+      const { error } = await supabase.from('user_schools').insert({ user_id: userId, school_id: schoolIdToAdd });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      toast.success('Empresa adicional vinculada');
+      setExtraToAdd(prev => ({ ...prev, [vars.userId]: '' }));
+      qc.invalidateQueries({ queryKey: ['app_users'] });
+    },
+    onError: (e: any) => toast.error(e.message?.includes('duplicate') ? 'Empresa já vinculada' : 'Erro ao vincular empresa'),
+  });
+
+  const removeExtraSchool = useMutation({
+    mutationFn: async ({ userId, schoolIdToRemove }: { userId: string; schoolIdToRemove: string }) => {
+      const { error } = await supabase
+        .from('user_schools')
+        .delete()
+        .eq('user_id', userId)
+        .eq('school_id', schoolIdToRemove);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Empresa desvinculada');
+      qc.invalidateQueries({ queryKey: ['app_users'] });
+    },
+    onError: () => toast.error('Erro ao desvincular empresa'),
+  });
+
   if (!isAdmin) {
     return (
       <div className="p-8 text-center text-muted-foreground">
@@ -102,6 +138,8 @@ export function UsersConfig() {
       </div>
     );
   }
+
+  const schoolNameById = (id: string) => schools.find(s => s.id === id)?.nome ?? '—';
 
   return (
     <div className="space-y-6">
@@ -123,14 +161,16 @@ export function UsersConfig() {
             <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'cliente')}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="cliente">Cliente (vê só sua empresa)</SelectItem>
-                <SelectItem value="admin">Admin (vê todas)</SelectItem>
+                <SelectItem value="cliente">Cliente</SelectItem>
+                <SelectItem value="admin">Admin (vê todas as empresas)</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Empresa {role === 'admin' && <span className="text-xs text-muted-foreground">(opcional)</span>}</Label>
-            <Select value={schoolId} onValueChange={setSchoolId} disabled={role === 'admin' && !schoolId}>
+            <Label>
+              Empresa principal {role === 'admin' && <span className="text-xs text-muted-foreground">(opcional)</span>}
+            </Label>
+            <Select value={schoolId} onValueChange={setSchoolId}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
               <SelectContent>
                 {schools.map(s => (
@@ -140,6 +180,9 @@ export function UsersConfig() {
             </Select>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Após criar, você pode vincular <strong>empresas adicionais</strong> ao usuário expandindo o card dele abaixo.
+        </p>
         <Button
           onClick={() => createUser.mutate()}
           disabled={createUser.isPending}
@@ -157,31 +200,129 @@ export function UsersConfig() {
           <p className="text-muted-foreground text-sm">Nenhum usuário cadastrado.</p>
         ) : (
           <div className="space-y-2">
-            {users.map(u => (
-              <div key={u.user_id} className="flex items-center justify-between p-3 rounded-lg bg-surface border border-border">
-                <div className="flex items-center gap-3">
-                  {u.role === 'admin' ? (
-                    <Shield className="w-4 h-4 text-secondary" />
-                  ) : (
-                    <UserIcon className="w-4 h-4 text-primary" />
-                  )}
-                  <div>
-                    <p className="font-medium text-sm">{u.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {u.role === 'admin' ? 'Administrador' : `Cliente · ${u.school_nome ?? 'sem empresa'}`}
-                    </p>
+            {users.map(u => {
+              const expanded = expandedUserId === u.user_id;
+              const availableExtras = schools.filter(
+                s => s.id !== u.school_id && !u.extra_school_ids.includes(s.id)
+              );
+              return (
+                <div key={u.user_id} className="rounded-lg bg-surface border border-border overflow-hidden">
+                  <div className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-3">
+                      {u.role === 'admin' ? (
+                        <Shield className="w-4 h-4 text-secondary" />
+                      ) : (
+                        <UserIcon className="w-4 h-4 text-primary" />
+                      )}
+                      <div>
+                        <p className="font-medium text-sm">{u.email}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                          {u.role === 'admin' ? 'Administrador' : 'Cliente'}
+                          {u.school_nome && (
+                            <Badge variant="outline" className="text-[10px] py-0 h-4">
+                              <Building2 className="w-2.5 h-2.5 mr-0.5" />
+                              {u.school_nome}
+                            </Badge>
+                          )}
+                          {u.extra_school_ids.length > 0 && (
+                            <Badge variant="secondary" className="text-[10px] py-0 h-4">
+                              +{u.extra_school_ids.length} extra{u.extra_school_ids.length > 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setExpandedUserId(expanded ? null : u.user_id)}
+                        title={expanded ? 'Recolher' : 'Gerenciar empresas'}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteId(u.user_id)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
+
+                  {expanded && (
+                    <div className="border-t border-border p-3 space-y-3 bg-background/50">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                          Empresas vinculadas
+                        </Label>
+                        <div className="flex flex-wrap gap-2">
+                          {u.school_id && (
+                            <Badge variant="default" className="gap-1">
+                              <Building2 className="w-3 h-3" />
+                              {schoolNameById(u.school_id)}
+                              <span className="text-[9px] opacity-70 ml-1">principal</span>
+                            </Badge>
+                          )}
+                          {u.extra_school_ids.map(sid => (
+                            <Badge key={sid} variant="secondary" className="gap-1 pr-1">
+                              <Building2 className="w-3 h-3" />
+                              {schoolNameById(sid)}
+                              <button
+                                onClick={() => removeExtraSchool.mutate({ userId: u.user_id, schoolIdToRemove: sid })}
+                                className="ml-1 hover:bg-destructive/20 rounded-sm p-0.5"
+                                title="Remover acesso"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                          {!u.school_id && u.extra_school_ids.length === 0 && (
+                            <span className="text-xs text-muted-foreground">Nenhuma empresa vinculada.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                          Adicionar empresa
+                        </Label>
+                        <div className="flex gap-2">
+                          <Select
+                            value={extraToAdd[u.user_id] ?? ''}
+                            onValueChange={(v) => setExtraToAdd(prev => ({ ...prev, [u.user_id]: v }))}
+                            disabled={availableExtras.length === 0}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder={availableExtras.length === 0 ? 'Sem empresas para adicionar' : 'Selecione...'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableExtras.map(s => (
+                                <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            disabled={!extraToAdd[u.user_id] || addExtraSchool.isPending}
+                            onClick={() => addExtraSchool.mutate({
+                              userId: u.user_id,
+                              schoolIdToAdd: extraToAdd[u.user_id],
+                            })}
+                            className="gradient-green text-primary-foreground"
+                          >
+                            <Plus className="w-4 h-4 mr-1" /> Vincular
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteId(u.user_id)}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
