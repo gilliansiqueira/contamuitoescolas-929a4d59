@@ -343,6 +343,65 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .map(([mes, v]) => ({ mes: mes.split('-').reverse().join('/'), entradas: v.entradas, saidas: v.saidas }));
   }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications]);
 
+  // ─── Gráfico de linhas ANUAL: Entradas/Saídas por mês, com acúmulo de anos ───
+  // Independe do filtro de período — usa TODOS os dados disponíveis (uploads + histórico).
+  const annualLineChart = useMemo(() => {
+    // Agrega todos meses (YYYY-MM) → entradas/saidas, considerando upload > histórico > projeção como prioridade
+    const histMonthsSet = new Set(historicalRows.map(r => r.month));
+    const uploadMonthsSet = new Set(activeEntries.filter(e => e.origem === 'fluxo').map(e => e.data.slice(0, 7)));
+
+    const map: Record<string, { entradas: number; saidas: number }> = {};
+    const ensure = (m: string) => {
+      if (!map[m]) map[m] = { entradas: 0, saidas: 0 };
+      return map[m];
+    };
+
+    // Lançamentos
+    for (const e of activeEntries) {
+      const m = e.data.slice(0, 7);
+      // Se mês tem upload, ignora projeções (não-fluxo) para evitar dupla contagem
+      if (uploadMonthsSet.has(m) && e.origem !== 'fluxo') continue;
+      // Se mês só tem histórico (sem upload), ignora lançamentos não-fluxo (histórico já cobre)
+      if (!uploadMonthsSet.has(m) && histMonthsSet.has(m) && e.origem !== 'fluxo') continue;
+      const cls = getEffectiveClassification(e, classifications);
+      if (cls === 'receita') ensure(m).entradas += e.valor;
+      else if (cls === 'despesa') ensure(m).saidas += e.valor;
+    }
+
+    // Histórico (apenas para meses sem upload)
+    for (const r of historicalRows) {
+      if (uploadMonthsSet.has(r.month)) continue;
+      const meta = resolveTipoMeta(r.tipo_valor, classifications);
+      if (!meta.entraNoResultado) continue;
+      const v = Number(r.valor) || 0;
+      if (meta.classificacao === 'receita') ensure(r.month).entradas += v;
+      else if (meta.classificacao === 'despesa') ensure(r.month).saidas += v;
+    }
+
+    // Reorganiza por (mês 01-12) com séries por ano
+    // Ex: { mes: 'Jan', 'entradas_2024': 1000, 'saidas_2024': 500, 'entradas_2025': 1500, ... }
+    const yearsSet = new Set<string>();
+    const monthBuckets: Record<string, Record<string, number>> = {};
+    const MES_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    for (let i = 1; i <= 12; i++) {
+      const mm = String(i).padStart(2, '0');
+      monthBuckets[mm] = { __label: MES_LABELS[i - 1] as any };
+    }
+    for (const [ym, vals] of Object.entries(map)) {
+      const [yyyy, mm] = ym.split('-');
+      if (!monthBuckets[mm]) continue;
+      yearsSet.add(yyyy);
+      monthBuckets[mm][`entradas_${yyyy}`] = (monthBuckets[mm][`entradas_${yyyy}`] || 0) + vals.entradas;
+      monthBuckets[mm][`saidas_${yyyy}`] = (monthBuckets[mm][`saidas_${yyyy}`] || 0) + vals.saidas;
+    }
+    const years = Array.from(yearsSet).sort();
+    const data = Object.keys(monthBuckets)
+      .sort()
+      .map(mm => ({ mes: monthBuckets[mm].__label as any, ...monthBuckets[mm] }))
+      .map(({ __label, ...rest }: any) => rest);
+    return { data, years };
+  }, [activeEntries, historicalRows, classifications]);
+
   const negativeDays = useMemo(() => projectionData.filter(d => d.saldo < 0), [projectionData]);
   const firstNegativeDay = negativeDays.length > 0 ? negativeDays[0] : null;
   const topOutflowDays = useMemo(() => {
