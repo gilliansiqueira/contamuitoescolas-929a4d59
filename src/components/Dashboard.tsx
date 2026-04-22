@@ -647,6 +647,76 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
+      {/* Comparativo Anual de Entradas vs Saídas (linhas, série por ano) */}
+      {annualLineChart.years.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}
+          className="glass-card rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              📈 Comparativo Anual — Entradas vs Saídas
+            </h4>
+            <span className="text-[10px] text-muted-foreground">
+              {annualLineChart.years.length} ano{annualLineChart.years.length > 1 ? 's' : ''} acumulado{annualLineChart.years.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={annualLineChart.data}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="mes" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                {annualLineChart.years.map((year, idx) => {
+                  // Tons mais escuros para anos mais recentes
+                  const opacity = 0.4 + (0.6 * (idx + 1)) / annualLineChart.years.length;
+                  return (
+                    <>
+                      <Line
+                        key={`entradas-${year}`}
+                        type="monotone"
+                        dataKey={`entradas_${year}`}
+                        name={`Entradas ${year}`}
+                        stroke="hsl(var(--success))"
+                        strokeWidth={2}
+                        strokeOpacity={opacity}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                        connectNulls
+                      />
+                      <Line
+                        key={`saidas-${year}`}
+                        type="monotone"
+                        dataKey={`saidas_${year}`}
+                        name={`Saídas ${year}`}
+                        stroke="hsl(var(--destructive))"
+                        strokeWidth={2}
+                        strokeOpacity={opacity}
+                        strokeDasharray="4 2"
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                        connectNulls
+                      />
+                    </>
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Linhas contínuas = Entradas · linhas tracejadas = Saídas · tons mais intensos = anos mais recentes.
+          </p>
+        </motion.div>
+      )}
+
       {/* Projeção de Saldo Diário — OCULTO em meses só-histórico */}
       {!sourcesUsed.onlyHistorico && projectionData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
