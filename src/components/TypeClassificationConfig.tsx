@@ -35,6 +35,7 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
       classificacao: isFixed || isEntradaSaida
         ? (normalize(tipo) === 'despesa' || normalize(tipo) === 'saida' ? 'despesa' : 'receita')
         : 'operacao',
+      operacaoSinal: 'auto',
       label: tipo,
     };
   };
@@ -52,6 +53,7 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
       classificacao,
       entraNoResultado: classificacao === 'receita' || classificacao === 'despesa',
       impactaCaixa: classificacao !== 'ignorar',
+      operacaoSinal: classificacao === 'operacao' ? (current.operacaoSinal || 'auto') : 'auto',
     };
     try {
       await saveMut.mutateAsync(updated);
@@ -59,6 +61,19 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
       toast.success(`Classificação de "${tipo}" atualizada`);
     } catch {
       toast.error('Erro ao salvar classificação');
+    }
+  };
+
+  const handleSinalChange = async (tipo: string, sinal: 'auto' | 'somar' | 'subtrair') => {
+    const current = getClassification(tipo);
+    if (current.classificacao !== 'operacao') return;
+    const updated: TypeClassification = { ...current, operacaoSinal: sinal };
+    try {
+      await saveMut.mutateAsync(updated);
+      onChanged();
+      toast.success(`Sinal de "${tipo}" definido como ${sinal}`);
+    } catch {
+      toast.error('Erro ao salvar sinal da operação');
     }
   };
 
