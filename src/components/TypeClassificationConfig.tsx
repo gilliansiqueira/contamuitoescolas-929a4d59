@@ -83,6 +83,8 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
           <p className="text-xs text-muted-foreground">
             Configure como cada tipo do fluxo de caixa realizado é tratado.
             Demais tipos podem ser: <strong>Receita</strong>, <strong>Despesa</strong>, <strong>Operação</strong> ou <strong>Ignorar</strong>.
+            Quando for <strong>Operação</strong>, escolha o <strong>Sinal no caixa</strong>:
+            <em> Auto</em> (segue entrada/saída do lançamento), <em>Somar</em> (sempre entra) ou <em>Subtrair</em> (sempre sai).
             Tipos marcados como "Ignorar" não aparecem em nenhum cálculo.
           </p>
         </div>
@@ -93,6 +95,7 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
               <tr className="border-b border-border">
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tipo</th>
                 <th className="px-3 py-2 text-center font-medium text-muted-foreground">Classificação</th>
+                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Sinal no caixa</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Efeito</th>
               </tr>
             </thead>
@@ -100,11 +103,17 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
               {allTipos.map(tipo => {
                 const cls = getClassification(tipo);
                 const isFixed = FIXED_RESULT_TYPES.includes(normalize(tipo));
+                const isOperacao = cls.classificacao === 'operacao';
+
+                const sinalLabel =
+                  cls.operacaoSinal === 'somar' ? ' (somando)' :
+                  cls.operacaoSinal === 'subtrair' ? ' (subtraindo)' :
+                  ' (auto: entrada/saída do lançamento)';
 
                 const effectLabel = {
                   receita: '📊 Entra no resultado como receita',
                   despesa: '📊 Entra no resultado como despesa',
-                  operacao: '🔁 Impacta caixa, não entra no resultado',
+                  operacao: `🔁 Impacta caixa${sinalLabel}, não entra no resultado`,
                   ignorar: '⚪ Ignorado completamente',
                 }[cls.classificacao];
 
@@ -132,6 +141,22 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                         <option value="operacao">Operação</option>
                         <option value="ignorar">Ignorar</option>
                       </select>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {isOperacao ? (
+                        <select
+                          value={cls.operacaoSinal}
+                          onChange={e => handleSinalChange(tipo, e.target.value as 'auto' | 'somar' | 'subtrair')}
+                          className="h-8 text-xs border rounded px-2 bg-background"
+                          title="Define como esse tipo afeta o saldo final"
+                        >
+                          <option value="auto">Auto (entrada/saída)</option>
+                          <option value="somar">Sempre somar (+)</option>
+                          <option value="subtrair">Sempre subtrair (−)</option>
+                        </select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/60">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       {effectLabel}
