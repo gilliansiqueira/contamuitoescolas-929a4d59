@@ -150,8 +150,13 @@ export function isOperacao(
 
 /**
  * Get the saldo impact of an entry (positive = money in, negative = money out)
- * Operacao entries still affect saldo based on their tipo field.
- * Ignorar entries have zero impact.
+ * - 'ignorar'  → zero
+ * - 'receita'  → +valor (money in)
+ * - 'despesa'  → -valor (money out)
+ * - 'operacao' → respeita o `operacaoSinal` configurado:
+ *      • 'somar'    → +valor
+ *      • 'subtrair' → -valor
+ *      • 'auto'     → segue o tipo do lançamento (entrada=+, saida=-)
  */
 export function getSaldoImpact(
   entry: FinancialEntry,
@@ -159,9 +164,21 @@ export function getSaldoImpact(
 ): number {
   const cls = getEffectiveClassification(entry, classifications);
   if (cls === 'ignorar') return 0;
-  // For saldo: receita/operacao with tipo=entrada add, despesa/operacao with tipo=saida subtract
-  if (entry.tipo === 'entrada') return entry.valor;
-  return -entry.valor;
+  if (cls === 'receita') return entry.valor;
+  if (cls === 'despesa') return -entry.valor;
+  // operacao: usa configuração explícita quando existir
+  if (entry.origem === 'fluxo' && !entry.editadoManualmente) {
+    const tipoKey = entry.tipoOriginal || entry.tipo;
+    const cfg = classifications.find(
+      c => c.tipoValor.toLowerCase().trim() === tipoKey.toLowerCase().trim()
+    );
+    if (cfg?.classificacao === 'operacao') {
+      if (cfg.operacaoSinal === 'somar') return entry.valor;
+      if (cfg.operacaoSinal === 'subtrair') return -entry.valor;
+    }
+  }
+  // fallback 'auto' → segue o tipo do lançamento
+  return entry.tipo === 'entrada' ? entry.valor : -entry.valor;
 }
 
 /**
@@ -192,8 +209,10 @@ export function calculateTotals(
     if (cls === 'receita') receitas += e.valor;
     else if (cls === 'despesa') despesas += e.valor;
     else if (cls === 'operacao') {
-      if (e.tipo === 'entrada') operacoesIn += e.valor;
-      else operacoesOut += e.valor;
+      // Respeita o sinal configurado para operação
+      const impact = getSaldoImpact(e, classifications);
+      if (impact >= 0) operacoesIn += Math.abs(impact);
+      else operacoesOut += Math.abs(impact);
     }
   }
 
