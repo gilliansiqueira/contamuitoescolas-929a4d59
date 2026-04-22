@@ -126,7 +126,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       const fromHist = historicalRows.map(r => r.month);
       return Array.from(new Set([...fromEntries, ...fromHist])).sort();
     }
-    return selectedMonth.split(',').map(m => m.trim()).filter(Boolean);
+    // Sempre ordenar para que selectedMonths[0] seja o mês mais antigo
+    return selectedMonth.split(',').map(m => m.trim()).filter(Boolean).sort();
   }, [selectedMonth, activeEntries, historicalRows]);
 
   // ─── Classifica cada mês por fonte: upload > histórico > projeção ───
