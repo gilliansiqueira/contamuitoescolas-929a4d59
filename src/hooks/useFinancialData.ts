@@ -268,13 +268,14 @@ export function useTypeClassifications(schoolId: string) {
         .select('*')
         .eq('school_id', schoolId);
       if (error) throw error;
-      return (data ?? []).map(t => ({
+      return (data ?? []).map((t: any) => ({
         id: t.id,
         school_id: t.school_id,
         tipoValor: t.tipo_valor,
         entraNoResultado: t.entra_no_resultado,
         impactaCaixa: t.impacta_caixa,
         classificacao: t.classificacao as TypeClassification['classificacao'],
+        operacaoSinal: (t.operacao_sinal as TypeClassification['operacaoSinal']) || 'auto',
         label: t.label,
       }));
     },
@@ -293,8 +294,9 @@ export function useSaveTypeClassification() {
         entra_no_resultado: tc.entraNoResultado,
         impacta_caixa: tc.impactaCaixa,
         classificacao: tc.classificacao,
+        operacao_sinal: tc.operacaoSinal || 'auto',
         label: tc.label,
-      }, { onConflict: 'school_id,tipo_valor' });
+      } as any, { onConflict: 'school_id,tipo_valor' });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['typeClassifications'] }),

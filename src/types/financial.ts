@@ -40,6 +40,13 @@ export interface TypeClassification {
   entraNoResultado: boolean; // counts towards resultado (receita/despesa)
   impactaCaixa: boolean; // impacts cash balance
   classificacao: 'receita' | 'despesa' | 'operacao' | 'ignorar';
+  /**
+   * Apenas para classificacao = 'operacao':
+   *  - 'auto'      → segue o tipo do lançamento (entrada=soma, saida=subtrai)
+   *  - 'somar'     → sempre soma no saldo
+   *  - 'subtrair'  → sempre subtrai do saldo
+   */
+  operacaoSinal: 'auto' | 'somar' | 'subtrair';
   label: string; // display label
 }
 
