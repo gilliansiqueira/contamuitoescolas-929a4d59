@@ -45,6 +45,8 @@ interface Props {
   values: KpiValue[];
   months: string[];
   insights?: Insight[];
+  /** Mês de referência para o valor exibido no card. Default: último mês de `months`. */
+  referenceMonth?: string;
 }
 
 function formatMonth(m: string) {
@@ -92,7 +94,7 @@ function ThresholdDot(props: any) {
   return <circle cx={cx} cy={cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />;
 }
 
-export function KpiCard({ definition: def, values, months, insights = [] }: Props) {
+export function KpiCard({ definition: def, values, months, insights = [], referenceMonth }: Props) {
   // Group values by year
   const years = useMemo(() => {
     const allMonths = new Set<string>();
@@ -129,8 +131,10 @@ export function KpiCard({ definition: def, values, months, insights = [] }: Prop
     });
   }, [values, years, isMultiYear]);
 
-  const currentMonth = months[months.length - 1];
-  const prevMonth = months[months.length - 2];
+  // Mês "atual" exibido no card: usa referenceMonth se fornecido, senão último de `months`
+  const currentMonth = referenceMonth ?? months[months.length - 1];
+  const currentIdx = months.indexOf(currentMonth);
+  const prevMonth = currentIdx > 0 ? months[currentIdx - 1] : undefined;
   const currentVal = values.find(v => v.month === currentMonth)?.value ?? null;
   const prevVal = prevMonth ? values.find(v => v.month === prevMonth)?.value ?? null : null;
 
