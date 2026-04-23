@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Settings, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2 } from 'lucide-react';
+import { Settings, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useKpiDefinitions, useKpiValues } from './useKpiData';
 import { KpiCard } from './KpiCard';
@@ -7,6 +7,7 @@ import { KpiConfigDrawer } from './KpiConfigDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
 import type { Insight } from '@/components/InsightsBar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Props {
   schoolId: string;
@@ -31,17 +32,35 @@ function generateMonths(values: { month: string }[]): string[] {
 export function IndicadoresDashboard({ schoolId }: Props) {
   const { isPresentationMode } = usePresentation();
   const [configOpen, setConfigOpen] = useState(false);
+  const [referenceMonth, setReferenceMonth] = useState<string>(''); // '' = mais recente
   const { definitions, isLoading, icons } = useKpiDefinitions(schoolId);
   const { data: allValues = [] } = useKpiValues(schoolId);
   
   const months = useMemo(() => generateMonths(allValues), [allValues]);
   const enabledDefs = useMemo(() => definitions.filter(d => d.enabled), [definitions]);
 
+  // Mês de referência efetivo (default: mais recente disponível)
+  const effectiveRefMonth = referenceMonth || months[months.length - 1];
+
+  // Lista de meses com dados (para o seletor)
+  const monthsWithData = useMemo(() => {
+    const set = new Set(allValues.map(v => v.month));
+    return Array.from(set).sort();
+  }, [allValues]);
+
+  function formatMonthLabel(m: string) {
+    if (!m) return '';
+    const [y, mo] = m.split('-');
+    const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return `${names[parseInt(mo, 10) - 1]}/${y}`;
+  }
+
   // Compute insights grouped by KPI definition id (so each card shows its own)
   const insightsByDef = useMemo<Record<string, Insight[]>>(() => {
     const map: Record<string, Insight[]> = {};
-    const currentMonth = months[months.length - 1];
-    const prevMonth = months[months.length - 2];
+    const currentMonth = effectiveRefMonth;
+    const currentIdx = months.indexOf(currentMonth);
+    const prevMonth = currentIdx > 0 ? months[currentIdx - 1] : undefined;
 
     function thresholdLabel(def: any, value: number | null): { label: string; toneIdx: number } | null {
       if (value === null || !def.thresholds?.length) return null;
