@@ -768,6 +768,86 @@ export type Database = {
           },
         ]
       }
+      receivable_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          icon_url: string | null
+          id: string
+          name: string
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          icon_url?: string | null
+          id?: string
+          name: string
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          icon_url?: string | null
+          id?: string
+          name?: string
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receivable_categories_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receivable_category_values: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          month: string
+          school_id: string
+          value: number
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          month: string
+          school_id: string
+          value?: number
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          month?: string
+          school_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receivable_category_values_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "receivable_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receivable_category_values_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sa_icons: {
         Row: {
           created_at: string
