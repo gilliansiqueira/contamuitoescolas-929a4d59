@@ -81,8 +81,8 @@ function getThresholdLabel(def: KpiDefinitionWithThresholds, value: number | nul
 
 const NEUTRAL_LINE_COLOR = '#6b7280'; // gray-500
 
-// Year line colors for multi-year support
-const YEAR_COLORS = ['#6b7280', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981'];
+// Year line colors for multi-year support — paleta distinta por ano (alto contraste)
+const YEAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
 // Custom dot that uses threshold color
 function ThresholdDot(props: any) {
@@ -265,9 +265,8 @@ export function KpiCard({ definition: def, values, months, insights = [] }: Prop
                   dataKey={year}
                   name={year}
                   stroke={YEAR_COLORS[idx % YEAR_COLORS.length]}
-                  strokeWidth={idx === years.length - 1 ? 2.5 : 1.5}
-                  strokeDasharray={idx === years.length - 1 ? undefined : '5 3'}
-                  dot={{ r: 3, strokeWidth: 0 }}
+                  strokeWidth={2.5}
+                  dot={{ r: 3, strokeWidth: 0, fill: YEAR_COLORS[idx % YEAR_COLORS.length] }}
                   connectNulls
                   activeDot={{ r: 5 }}
                 />

@@ -690,43 +690,40 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                 />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 {annualLineChart.years.map((year, idx) => {
-                  // Tons mais escuros para anos mais recentes
-                  const opacity = 0.4 + (0.6 * (idx + 1)) / annualLineChart.years.length;
-                  return (
-                    <>
-                      <Line
-                        key={`entradas-${year}`}
-                        type="monotone"
-                        dataKey={`entradas_${year}`}
-                        name={`Entradas ${year}`}
-                        stroke="hsl(var(--success))"
-                        strokeWidth={2}
-                        strokeOpacity={opacity}
-                        dot={{ r: 3 }}
-                        activeDot={{ r: 5 }}
-                        connectNulls
-                      />
-                      <Line
-                        key={`saidas-${year}`}
-                        type="monotone"
-                        dataKey={`saidas_${year}`}
-                        name={`Saídas ${year}`}
-                        stroke="hsl(var(--destructive))"
-                        strokeWidth={2}
-                        strokeOpacity={opacity}
-                        strokeDasharray="4 2"
-                        dot={{ r: 3 }}
-                        activeDot={{ r: 5 }}
-                        connectNulls
-                      />
-                    </>
-                  );
+                  // Cor distinta por ano (paleta diversa, alto contraste)
+                  const YEAR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+                  const color = YEAR_PALETTE[idx % YEAR_PALETTE.length];
+                  return [
+                    <Line
+                      key={`entradas-${year}`}
+                      type="monotone"
+                      dataKey={`entradas_${year}`}
+                      name={`Entradas ${year}`}
+                      stroke={color}
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: color }}
+                      activeDot={{ r: 5 }}
+                      connectNulls
+                    />,
+                    <Line
+                      key={`saidas-${year}`}
+                      type="monotone"
+                      dataKey={`saidas_${year}`}
+                      name={`Saídas ${year}`}
+                      stroke={color}
+                      strokeWidth={2}
+                      strokeDasharray="5 4"
+                      dot={{ r: 3, fill: color }}
+                      activeDot={{ r: 5 }}
+                      connectNulls
+                    />,
+                  ];
                 })}
               </LineChart>
             </ResponsiveContainer>
           </div>
           <p className="text-[10px] text-muted-foreground mt-2">
-            Linhas contínuas = Entradas · linhas tracejadas = Saídas · tons mais intensos = anos mais recentes.
+            Cada ano tem uma cor distinta · linhas contínuas = Entradas · linhas tracejadas = Saídas.
           </p>
         </motion.div>
       )}
