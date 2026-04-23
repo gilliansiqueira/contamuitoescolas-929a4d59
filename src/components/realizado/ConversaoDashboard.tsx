@@ -205,6 +205,24 @@ export function ConversaoDashboard({ schoolId }: Props) {
     },
   });
 
+  const deleteYear = useMutation({
+    mutationFn: async ({ year, tipo }: { year: string; tipo: string }) => {
+      const { error } = await supabase
+        .from('conversion_data')
+        .delete()
+        .eq('school_id', schoolId)
+        .eq('tipo', tipo)
+        .gte('month', `${year}-01`)
+        .lte('month', `${year}-12`);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['conversion_data', schoolId] });
+      toast.success(`Ano ${vars.year} removido`);
+    },
+    onError: () => toast.error('Erro ao excluir ano'),
+  });
+
   // Separate by tipo
   const ativoData = useMemo(() => convData.filter(d => d.tipo === 'ativo').sort((a, b) => a.month.localeCompare(b.month)), [convData]);
   const receptivoData = useMemo(() => convData.filter(d => d.tipo === 'receptivo').sort((a, b) => a.month.localeCompare(b.month)), [convData]);
