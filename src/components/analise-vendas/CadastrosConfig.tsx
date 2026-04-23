@@ -8,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2, Plus, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSAChannels, useSAPaymentMethods, useSAProducts } from './useAnaliseVendasData';
+import { IconPicker } from './IconPicker';
+import { IconesGallery } from './IconesGallery';
+import { ImportacaoVendas } from './ImportacaoVendas';
 
 interface Props {
   schoolId: string;
@@ -81,6 +84,11 @@ export function CadastrosConfig({ schoolId, onBack }: Props) {
     qc.invalidateQueries({ queryKey: ['sa_products', schoolId] });
   }
 
+  async function updateProductIcon(id: string, iconUrl: string | null) {
+    await supabase.from('sales_analysis_products').update({ icon_url: iconUrl }).eq('id', id);
+    qc.invalidateQueries({ queryKey: ['sa_products', schoolId] });
+  }
+
   return (
     <div className="space-y-4">
       <Button size="sm" variant="ghost" onClick={onBack} className="rounded-xl">
@@ -88,17 +96,19 @@ export function CadastrosConfig({ schoolId, onBack }: Props) {
       </Button>
 
       <Tabs defaultValue="produtos">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="produtos">Produtos</TabsTrigger>
           <TabsTrigger value="canais">Canais</TabsTrigger>
           <TabsTrigger value="formas">Formas de pagamento</TabsTrigger>
+          <TabsTrigger value="importacao">Importação</TabsTrigger>
+          <TabsTrigger value="icones">Ícones</TabsTrigger>
         </TabsList>
 
         <TabsContent value="produtos" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Produtos</CardTitle>
-              <p className="text-sm text-muted-foreground">Cadastre produtos com custo padrão. O custo será sugerido automaticamente nos pedidos.</p>
+              <p className="text-sm text-muted-foreground">Cadastre produtos com custo padrão e ícone. O custo será sugerido nos pedidos.</p>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">
@@ -110,6 +120,7 @@ export function CadastrosConfig({ schoolId, onBack }: Props) {
                 {products.length === 0 && <p className="text-sm text-muted-foreground">Nenhum produto cadastrado.</p>}
                 {products.map(p => (
                   <div key={p.id} className="flex items-center gap-2 p-2 rounded-md border bg-card">
+                    <IconPicker schoolId={schoolId} value={p.icon_url} onChange={url => updateProductIcon(p.id, url)} />
                     <span className="flex-1 text-sm">{p.name}</span>
                     <Input
                       defaultValue={p.default_cost.toString().replace('.', ',')}
@@ -171,6 +182,14 @@ export function CadastrosConfig({ schoolId, onBack }: Props) {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="importacao" className="mt-4">
+          <ImportacaoVendas schoolId={schoolId} />
+        </TabsContent>
+
+        <TabsContent value="icones" className="mt-4">
+          <IconesGallery schoolId={schoolId} />
         </TabsContent>
       </Tabs>
     </div>

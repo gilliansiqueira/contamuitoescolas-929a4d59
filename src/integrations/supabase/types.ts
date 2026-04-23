@@ -768,6 +768,41 @@ export type Database = {
           },
         ]
       }
+      sa_icons: {
+        Row: {
+          created_at: string
+          file_url: string
+          id: string
+          is_global: boolean
+          name: string
+          school_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_url: string
+          id?: string
+          is_global?: boolean
+          name: string
+          school_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_url?: string
+          id?: string
+          is_global?: boolean
+          name?: string
+          school_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sa_icons_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_analysis_channels: {
         Row: {
           active: boolean
@@ -964,6 +999,7 @@ export type Database = {
           active: boolean
           created_at: string
           default_cost: number
+          icon_url: string | null
           id: string
           name: string
           school_id: string
@@ -973,6 +1009,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           default_cost?: number
+          icon_url?: string | null
           id?: string
           name: string
           school_id: string
@@ -982,6 +1019,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           default_cost?: number
+          icon_url?: string | null
           id?: string
           name?: string
           school_id?: string

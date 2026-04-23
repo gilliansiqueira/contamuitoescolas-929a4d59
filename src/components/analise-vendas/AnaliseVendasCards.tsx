@@ -8,8 +8,9 @@ import {
   DollarSign, TrendingUp, ShoppingCart, Receipt, Crown, Star,
   Percent, BadgeDollarSign, CreditCard, Radio, Settings2,
 } from 'lucide-react';
-import type { SAChannel, SACardVisibility, SAOrder, SAOrderItem, SAPaymentMethod } from './types';
+import type { SAChannel, SACardVisibility, SAOrder, SAOrderItem, SAPaymentMethod, SAProduct } from './types';
 import { DEFAULT_CARD_VISIBILITY } from './types';
+import { useSAProducts } from './useAnaliseVendasData';
 
 interface Props {
   schoolId: string;
@@ -52,13 +53,20 @@ interface KpiCardProps {
   value: string;
   hint?: string;
   accent?: string;
+  iconUrl?: string | null;
 }
-function KpiCard({ icon, label, value, hint, accent = 'text-primary' }: KpiCardProps) {
+function KpiCard({ icon, label, value, hint, accent = 'text-primary', iconUrl }: KpiCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className={`p-2 rounded-lg bg-primary/10 ${accent}`}>{icon}</div>
+          {iconUrl ? (
+            <div className="p-1.5 rounded-lg bg-primary/10 w-10 h-10 flex items-center justify-center overflow-hidden">
+              <img src={iconUrl} alt="" className="max-w-full max-h-full object-contain" />
+            </div>
+          ) : (
+            <div className={`p-2 rounded-lg bg-primary/10 ${accent}`}>{icon}</div>
+          )}
         </div>
         <div className="mt-3">
           <p className="text-xs text-muted-foreground font-medium">{label}</p>
@@ -72,6 +80,7 @@ function KpiCard({ icon, label, value, hint, accent = 'text-primary' }: KpiCardP
 
 export function AnaliseVendasCards({ schoolId, orders, items, channels, methods }: Props) {
   const [visibility, setVisibility] = useState<SACardVisibility>(() => loadVisibility(schoolId));
+  const { data: products = [] } = useSAProducts(schoolId);
 
   useEffect(() => { setVisibility(loadVisibility(schoolId)); }, [schoolId]);
 
@@ -107,6 +116,10 @@ export function AnaliseVendasCards({ schoolId, orders, items, channels, methods 
     const topVendido = [...productQty.entries()].sort((a, b) => b[1] - a[1])[0];
     const topLucrativo = [...productProfit.entries()].sort((a, b) => b[1] - a[1])[0];
 
+    // helper to find icon by product name
+    const productIconByName = (name: string) =>
+      products.find((p: SAProduct) => p.name.toLowerCase() === name.toLowerCase())?.icon_url ?? null;
+
     // Forma de pagamento mais usada
     const methodCount = new Map<string, number>();
     validOrders.forEach(o => {
@@ -131,9 +144,11 @@ export function AnaliseVendasCards({ schoolId, orders, items, channels, methods 
       faturamentoBruto, faturamentoLiquido, qtdPedidos, ticketMedio,
       margemBruta, lucroBruto, totalCusto,
       topVendido, topLucrativo, topMethod, topChannel,
+      topVendidoIcon: topVendido ? productIconByName(topVendido[0]) : null,
+      topLucrativoIcon: topLucrativo ? productIconByName(topLucrativo[0]) : null,
       hasCost, hasChannel, hasMethod,
     };
-  }, [orders, items, channels, methods]);
+  }, [orders, items, channels, methods, products]);
 
   // Determine which cards make sense (data-aware)
   function canShow(key: keyof SACardVisibility): boolean {
@@ -188,10 +203,10 @@ export function AnaliseVendasCards({ schoolId, orders, items, channels, methods 
           <KpiCard icon={<Percent className="w-5 h-5" />} label="Margem bruta" value={`${stats.margemBruta.toFixed(1)}%`} />
         )}
         {canShow('produto_mais_vendido') && stats.topVendido && (
-          <KpiCard icon={<Crown className="w-5 h-5" />} label="Produto mais vendido" value={stats.topVendido[0]} hint={`${stats.topVendido[1]} unidades`} />
+          <KpiCard icon={<Crown className="w-5 h-5" />} label="Produto mais vendido" value={stats.topVendido[0]} hint={`${stats.topVendido[1]} unidades`} iconUrl={stats.topVendidoIcon} />
         )}
         {canShow('produto_mais_lucrativo') && stats.topLucrativo && (
-          <KpiCard icon={<Star className="w-5 h-5" />} label="Produto mais lucrativo" value={stats.topLucrativo[0]} hint={fmtBRL(stats.topLucrativo[1])} />
+          <KpiCard icon={<Star className="w-5 h-5" />} label="Produto mais lucrativo" value={stats.topLucrativo[0]} hint={fmtBRL(stats.topLucrativo[1])} iconUrl={stats.topLucrativoIcon} />
         )}
         {canShow('forma_mais_usada') && stats.topMethod && (
           <KpiCard icon={<CreditCard className="w-5 h-5" />} label="Forma mais usada" value={stats.topMethod} />
