@@ -38,6 +38,7 @@ interface TabVisibility {
   conversao: boolean;
   vendas: boolean;
   analise_vendas: boolean;
+  recebimento_categoria: boolean;
 }
 
 function useTabVisibility(schoolId: string) {
@@ -53,7 +54,7 @@ function useTabVisibility(schoolId: string) {
   });
 
   const visibility = useMemo<TabVisibility>(() => {
-    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true, analise_vendas: true };
+    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true, analise_vendas: true, recebimento_categoria: true };
     if (!tabs) return defaults;
     tabs.forEach(t => {
       if (t.tab_key in defaults) {
