@@ -111,6 +111,7 @@ export function RealizadoModule({ schoolId }: Props) {
     if (mainView === 'indicadores' && !visibility.indicadores) return 'relatorio';
     if (mainView === 'vendas' && !visibility.vendas) return 'relatorio';
     if (mainView === 'analise_vendas' && !visibility.analise_vendas) return 'relatorio';
+    if (mainView === 'recebimento_categoria' && !visibility.recebimento_categoria) return 'relatorio';
     return mainView;
   }, [mainView, visibility]);
 
