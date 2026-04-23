@@ -372,7 +372,7 @@ export function ImportacaoVendas({ schoolId }: Props) {
           <div className="space-y-4">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="inline-flex items-center gap-1.5 text-sm">
-                <CheckCircle2 className="w-4 h-4 text-green-600" /> {validCount} válidos
+                <CheckCircle2 className="w-4 h-4 text-primary" /> {validCount} válidos
               </span>
               {errorCount > 0 && (
                 <span className="inline-flex items-center gap-1.5 text-sm">
