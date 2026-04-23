@@ -58,6 +58,8 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
   const [filterRegistro, setFilterRegistro] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [dateFrom, setDateFrom] = useState<string>(''); // YYYY-MM-DD
+  const [dateTo, setDateTo] = useState<string>('');     // YYYY-MM-DD
 
   // Selection states
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -69,8 +71,10 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
       const months = selectedMonth.split(',');
       result = result.filter(e => months.includes(e.data.slice(0, 7)));
     }
+    if (dateFrom) result = result.filter(e => e.data >= dateFrom);
+    if (dateTo) result = result.filter(e => e.data <= dateTo);
     return result.sort((a, b) => a.data.localeCompare(b.data));
-  }, [allEntries, selectedMonth]);
+  }, [allEntries, selectedMonth, dateFrom, dateTo]);
 
   const filtered = useMemo(() => {
     let result = entries;
@@ -196,6 +200,19 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
         {/* Filter row */}
         {showFilters && (
           <div className="flex flex-wrap gap-3 pt-2 border-t border-border/30">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">De</span>
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 w-[140px] text-xs" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Até</span>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 w-[140px] text-xs" />
+            </div>
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                Limpar datas
+              </Button>
+            )}
             <Select value={filterTipo} onValueChange={setFilterTipo}>
               <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger>
               <SelectContent>

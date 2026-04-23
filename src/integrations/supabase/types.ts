@@ -436,22 +436,25 @@ export type Database = {
           created_at: string
           file_url: string
           id: string
+          is_global: boolean
           name: string
-          school_id: string
+          school_id: string | null
         }
         Insert: {
           created_at?: string
           file_url: string
           id?: string
+          is_global?: boolean
           name: string
-          school_id: string
+          school_id?: string | null
         }
         Update: {
           created_at?: string
           file_url?: string
           id?: string
+          is_global?: boolean
           name?: string
-          school_id?: string
+          school_id?: string | null
         }
         Relationships: []
       }

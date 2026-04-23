@@ -1,8 +1,9 @@
 export interface KpiIcon {
   id: string;
-  school_id: string;
+  school_id: string | null;
   name: string;
   file_url: string;
+  is_global?: boolean;
 }
 
 export interface KpiDefinition {

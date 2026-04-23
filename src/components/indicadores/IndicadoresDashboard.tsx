@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Settings, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2 } from 'lucide-react';
+import { Settings, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useKpiDefinitions, useKpiValues } from './useKpiData';
 import { KpiCard } from './KpiCard';
@@ -7,6 +7,7 @@ import { KpiConfigDrawer } from './KpiConfigDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
 import type { Insight } from '@/components/InsightsBar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Props {
   schoolId: string;
@@ -31,17 +32,35 @@ function generateMonths(values: { month: string }[]): string[] {
 export function IndicadoresDashboard({ schoolId }: Props) {
   const { isPresentationMode } = usePresentation();
   const [configOpen, setConfigOpen] = useState(false);
+  const [referenceMonth, setReferenceMonth] = useState<string>(''); // '' = mais recente
   const { definitions, isLoading, icons } = useKpiDefinitions(schoolId);
   const { data: allValues = [] } = useKpiValues(schoolId);
   
   const months = useMemo(() => generateMonths(allValues), [allValues]);
   const enabledDefs = useMemo(() => definitions.filter(d => d.enabled), [definitions]);
 
+  // Mês de referência efetivo (default: mais recente disponível)
+  const effectiveRefMonth = referenceMonth || months[months.length - 1];
+
+  // Lista de meses com dados (para o seletor)
+  const monthsWithData = useMemo(() => {
+    const set = new Set(allValues.map(v => v.month));
+    return Array.from(set).sort();
+  }, [allValues]);
+
+  function formatMonthLabel(m: string) {
+    if (!m) return '';
+    const [y, mo] = m.split('-');
+    const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return `${names[parseInt(mo, 10) - 1]}/${y}`;
+  }
+
   // Compute insights grouped by KPI definition id (so each card shows its own)
   const insightsByDef = useMemo<Record<string, Insight[]>>(() => {
     const map: Record<string, Insight[]> = {};
-    const currentMonth = months[months.length - 1];
-    const prevMonth = months[months.length - 2];
+    const currentMonth = effectiveRefMonth;
+    const currentIdx = months.indexOf(currentMonth);
+    const prevMonth = currentIdx > 0 ? months[currentIdx - 1] : undefined;
 
     function thresholdLabel(def: any, value: number | null): { label: string; toneIdx: number } | null {
       if (value === null || !def.thresholds?.length) return null;
@@ -105,7 +124,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
     });
 
     return map;
-  }, [enabledDefs, allValues, months]);
+  }, [enabledDefs, allValues, months, effectiveRefMonth]);
 
   if (isLoading) {
     return (
@@ -117,17 +136,39 @@ export function IndicadoresDashboard({ schoolId }: Props) {
 
   return (
     <div className="relative">
-      {!isPresentationMode && (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="absolute top-0 right-0 z-10 h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => setConfigOpen(true)}
-          title="Configurar indicadores"
-        >
-          <Settings className="w-4 h-4" />
-        </Button>
-      )}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        {/* Filtro de mês de referência */}
+        {monthsWithData.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Mês de referência:
+            </span>
+            <Select value={referenceMonth || '__latest__'} onValueChange={(v) => setReferenceMonth(v === '__latest__' ? '' : v)}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__latest__">Mais recente ({formatMonthLabel(months[months.length - 1])})</SelectItem>
+                {[...monthsWithData].reverse().map(m => (
+                  <SelectItem key={m} value={m}>{formatMonthLabel(m)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {!isPresentationMode && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setConfigOpen(true)}
+            title="Configurar indicadores"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
 
       {enabledDefs.length === 0 ? (
         <div className="text-center py-16">
@@ -148,6 +189,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
                 values={allValues.filter(v => v.kpi_definition_id === def.id)}
                 months={months}
                 insights={insightsByDef[def.id] ?? []}
+                referenceMonth={effectiveRefMonth}
               />
             ))}
           </div>
