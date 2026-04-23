@@ -363,6 +363,7 @@ export function ConversaoDashboard({ schoolId }: Props) {
           yearFilter={yearFilter}
           onSave={(month, contatos, matriculas) => saveCell.mutate({ month, contatos, matriculas, tipo: 'ativo' })}
           onDelete={(id) => deleteRow.mutate(id)}
+          onDeleteYear={(year) => deleteYear.mutate({ year, tipo: 'ativo' })}
           thresholds={ativoThresholds}
         />
       )}
@@ -375,6 +376,7 @@ export function ConversaoDashboard({ schoolId }: Props) {
           yearFilter={yearFilter}
           onSave={(month, contatos, matriculas) => saveCell.mutate({ month, contatos, matriculas, tipo: 'receptivo' })}
           onDelete={(id) => deleteRow.mutate(id)}
+          onDeleteYear={(year) => deleteYear.mutate({ year, tipo: 'receptivo' })}
           thresholds={receptivoThresholds}
         />
       )}
@@ -584,7 +586,7 @@ function SimpleLineChart({ title, data, dataKey, color }: {
 }
 
 // ── History Table ──
-function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDelete, thresholds }: {
+function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDelete, onDeleteYear, thresholds }: {
   title: string;
   tipo: string;
   convData: ConversionRow[];
@@ -592,6 +594,7 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
   yearFilter: string;
   onSave: (month: string, contatos: number, matriculas: number) => void;
   onDelete: (id: string) => void;
+  onDeleteYear?: (year: string) => void;
   thresholds: Threshold[];
 }) {
   const { isPresentationMode } = usePresentation();
@@ -599,6 +602,7 @@ function HistoryTable({ title, tipo, convData, years, yearFilter, onSave, onDele
   const [localYears, setLocalYears] = useState<string[]>([]);
   const [draftRows, setDraftRows] = useState<Record<string, { contatos: string; matriculas: string }>>({});
   const draftRowsRef = useRef<Record<string, { contatos: string; matriculas: string }>>({});
+  const [yearToDelete, setYearToDelete] = useState<string | null>(null);
 
   const allYears = useMemo(() => {
     const s = new Set([...years, ...localYears]);
