@@ -124,7 +124,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
     });
 
     return map;
-  }, [enabledDefs, allValues, months]);
+  }, [enabledDefs, allValues, months, effectiveRefMonth]);
 
   if (isLoading) {
     return (
@@ -136,17 +136,39 @@ export function IndicadoresDashboard({ schoolId }: Props) {
 
   return (
     <div className="relative">
-      {!isPresentationMode && (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="absolute top-0 right-0 z-10 h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => setConfigOpen(true)}
-          title="Configurar indicadores"
-        >
-          <Settings className="w-4 h-4" />
-        </Button>
-      )}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        {/* Filtro de mês de referência */}
+        {monthsWithData.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Mês de referência:
+            </span>
+            <Select value={referenceMonth || '__latest__'} onValueChange={(v) => setReferenceMonth(v === '__latest__' ? '' : v)}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__latest__">Mais recente ({formatMonthLabel(months[months.length - 1])})</SelectItem>
+                {[...monthsWithData].reverse().map(m => (
+                  <SelectItem key={m} value={m}>{formatMonthLabel(m)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {!isPresentationMode && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setConfigOpen(true)}
+            title="Configurar indicadores"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
 
       {enabledDefs.length === 0 ? (
         <div className="text-center py-16">
@@ -167,6 +189,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
                 values={allValues.filter(v => v.kpi_definition_id === def.id)}
                 months={months}
                 insights={insightsByDef[def.id] ?? []}
+                referenceMonth={effectiveRefMonth}
               />
             ))}
           </div>
