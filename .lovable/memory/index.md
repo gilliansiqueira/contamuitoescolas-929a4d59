@@ -33,4 +33,5 @@ Updated: agora
 - [Isolamento de Módulos](mem://projeto/diretrizes-isolamento-modulos) — Separação estrita Projeção vs Relatório Realizado
 - [Abas Modulares](mem://features/relatorio-realizado-modularidade-abas) — Ativação/desativação por escola persistida em module_tabs
 - [Faixas de Conversão](mem://features/relatorio-realizado-conversao-thresholds) — Limites percentuais para origens Ativo e Receptivo
+- [Análise de Vendas](mem://features/relatorio-realizado-analise-vendas) — Aba MVP com pedidos, cards dinâmicos, filtros e cadastros (produtos/canais/formas)
 - [Aba Vendas](mem://features/relatorio-realizado-vendas) — Receitas por forma de pagamento + bandeiras de cartão com ícones

@@ -7,8 +7,9 @@ import { ExportacaoDados } from './ExportacaoDados';
 import { ConversaoDashboard } from './ConversaoDashboard';
 import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
 import { VendasDashboard } from '@/components/vendas/VendasDashboard';
+import { AnaliseVendasDashboard } from '@/components/analise-vendas/AnaliseVendasDashboard';
 import { ExportPdfDialog } from './ExportPdfDialog';
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown } from 'lucide-react';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
@@ -21,7 +22,7 @@ interface Props {
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados';
-type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas';
+type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas';
 
 const configTabs: { key: ConfigTab; label: string }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -35,6 +36,7 @@ interface TabVisibility {
   indicadores: boolean;
   conversao: boolean;
   vendas: boolean;
+  analise_vendas: boolean;
 }
 
 function useTabVisibility(schoolId: string) {
@@ -50,7 +52,7 @@ function useTabVisibility(schoolId: string) {
   });
 
   const visibility = useMemo<TabVisibility>(() => {
-    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true };
+    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true, analise_vendas: true };
     if (!tabs) return defaults;
     tabs.forEach(t => {
       if (t.tab_key in defaults) {
@@ -106,6 +108,7 @@ export function RealizadoModule({ schoolId }: Props) {
     if (mainView === 'conversao' && !visibility.conversao) return 'relatorio';
     if (mainView === 'indicadores' && !visibility.indicadores) return 'relatorio';
     if (mainView === 'vendas' && !visibility.vendas) return 'relatorio';
+    if (mainView === 'analise_vendas' && !visibility.analise_vendas) return 'relatorio';
     return mainView;
   }, [mainView, visibility]);
 
@@ -127,6 +130,7 @@ export function RealizadoModule({ schoolId }: Props) {
               { key: 'indicadores', label: 'Indicadores' },
               { key: 'conversao', label: 'Conversão' },
               { key: 'vendas', label: 'Vendas' },
+              { key: 'analise_vendas', label: 'Análise de Vendas' },
             ].map(tab => (
               <label key={tab.key} className="flex items-center gap-2 text-sm">
                 <input
@@ -221,6 +225,19 @@ export function RealizadoModule({ schoolId }: Props) {
               Vendas
             </button>
           )}
+          {visibility.analise_vendas && (
+            <button
+              onClick={() => setMainView('analise_vendas')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeView === 'analise_vendas'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Análise de Vendas
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!isPresentationMode && (
@@ -240,6 +257,7 @@ export function RealizadoModule({ schoolId }: Props) {
         {activeView === 'indicadores' && <IndicadoresDashboard schoolId={schoolId} />}
         {activeView === 'conversao' && <ConversaoDashboard schoolId={schoolId} />}
         {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
+        {activeView === 'analise_vendas' && <AnaliseVendasDashboard schoolId={schoolId} />}
       </motion.div>
 
       <ExportPdfDialog 

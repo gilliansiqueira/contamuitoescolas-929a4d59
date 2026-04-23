@@ -768,6 +768,235 @@ export type Database = {
           },
         ]
       }
+      sales_analysis_channels: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_analysis_channels_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_analysis_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          product_id: string | null
+          product_name: string
+          quantity: number
+          unit_cost: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          unit_cost?: number
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          unit_cost?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_analysis_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_analysis_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_analysis_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "sales_analysis_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_analysis_orders: {
+        Row: {
+          channel_id: string | null
+          cost_total: number
+          created_at: string
+          customer_name: string
+          fees: number
+          gross_value: number
+          id: string
+          notes: string
+          order_date: string
+          payment_method_id: string | null
+          school_id: string
+          shipping: number
+          shipping_paid_by_customer: boolean
+          status: string
+        }
+        Insert: {
+          channel_id?: string | null
+          cost_total?: number
+          created_at?: string
+          customer_name?: string
+          fees?: number
+          gross_value?: number
+          id?: string
+          notes?: string
+          order_date: string
+          payment_method_id?: string | null
+          school_id: string
+          shipping?: number
+          shipping_paid_by_customer?: boolean
+          status?: string
+        }
+        Update: {
+          channel_id?: string | null
+          cost_total?: number
+          created_at?: string
+          customer_name?: string
+          fees?: number
+          gross_value?: number
+          id?: string
+          notes?: string
+          order_date?: string
+          payment_method_id?: string | null
+          school_id?: string
+          shipping?: number
+          shipping_paid_by_customer?: boolean
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_analysis_orders_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "sales_analysis_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_analysis_orders_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "sales_analysis_payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_analysis_orders_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_analysis_payment_methods: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_analysis_payment_methods_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_analysis_products: {
+        Row: {
+          active: boolean
+          created_at: string
+          default_cost: number
+          id: string
+          name: string
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          default_cost?: number
+          id?: string
+          name: string
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          default_cost?: number
+          id?: string
+          name?: string
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_analysis_products_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_card_brands: {
         Row: {
           created_at: string
