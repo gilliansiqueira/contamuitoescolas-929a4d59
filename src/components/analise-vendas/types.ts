@@ -3,8 +3,17 @@ export interface SAProduct {
   school_id: string;
   name: string;
   default_cost: number;
+  icon_url: string | null;
   active: boolean;
   sort_order: number;
+}
+
+export interface SAIcon {
+  id: string;
+  school_id: string | null;
+  name: string;
+  file_url: string;
+  is_global: boolean;
 }
 
 export interface SAChannel {
