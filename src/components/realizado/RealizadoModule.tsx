@@ -275,6 +275,7 @@ export function RealizadoModule({ schoolId }: Props) {
         {activeView === 'conversao' && <ConversaoDashboard schoolId={schoolId} />}
         {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
         {activeView === 'analise_vendas' && <AnaliseVendasDashboard schoolId={schoolId} />}
+        {activeView === 'recebimento_categoria' && <RecebimentoCategoria schoolId={schoolId} />}
       </motion.div>
 
       <ExportPdfDialog 
