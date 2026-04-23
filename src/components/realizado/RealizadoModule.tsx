@@ -242,6 +242,19 @@ export function RealizadoModule({ schoolId }: Props) {
               Análise de Vendas
             </button>
           )}
+          {visibility.recebimento_categoria && (
+            <button
+              onClick={() => setMainView('recebimento_categoria')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeView === 'recebimento_categoria'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              Recebimento por Categoria
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!isPresentationMode && (
