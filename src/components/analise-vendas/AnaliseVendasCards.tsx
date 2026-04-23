@@ -203,10 +203,10 @@ export function AnaliseVendasCards({ schoolId, orders, items, channels, methods 
           <KpiCard icon={<Percent className="w-5 h-5" />} label="Margem bruta" value={`${stats.margemBruta.toFixed(1)}%`} />
         )}
         {canShow('produto_mais_vendido') && stats.topVendido && (
-          <KpiCard icon={<Crown className="w-5 h-5" />} label="Produto mais vendido" value={stats.topVendido[0]} hint={`${stats.topVendido[1]} unidades`} />
+          <KpiCard icon={<Crown className="w-5 h-5" />} label="Produto mais vendido" value={stats.topVendido[0]} hint={`${stats.topVendido[1]} unidades`} iconUrl={stats.topVendidoIcon} />
         )}
         {canShow('produto_mais_lucrativo') && stats.topLucrativo && (
-          <KpiCard icon={<Star className="w-5 h-5" />} label="Produto mais lucrativo" value={stats.topLucrativo[0]} hint={fmtBRL(stats.topLucrativo[1])} />
+          <KpiCard icon={<Star className="w-5 h-5" />} label="Produto mais lucrativo" value={stats.topLucrativo[0]} hint={fmtBRL(stats.topLucrativo[1])} iconUrl={stats.topLucrativoIcon} />
         )}
         {canShow('forma_mais_usada') && stats.topMethod && (
           <KpiCard icon={<CreditCard className="w-5 h-5" />} label="Forma mais usada" value={stats.topMethod} />
