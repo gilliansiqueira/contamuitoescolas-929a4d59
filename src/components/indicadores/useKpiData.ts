@@ -7,13 +7,14 @@ export function useKpiIcons(schoolId: string) {
   return useQuery({
     queryKey: ['kpi_icons', schoolId],
     queryFn: async () => {
+      // Busca ícones da escola E ícones globais (school_id IS NULL OR is_global = true)
       const { data, error } = await supabase
         .from('kpi_icons')
         .select('*')
-        .eq('school_id', schoolId)
+        .or(`school_id.eq.${schoolId},is_global.eq.true`)
         .order('name');
       if (error) throw error;
-      return data as KpiIcon[];
+      return (data ?? []) as KpiIcon[];
     },
   });
 }
@@ -138,12 +139,19 @@ export function useKpiMutations(schoolId: string) {
   });
 
   const saveIcon = useMutation({
-    mutationFn: async (icon: { name: string; file_url: string; id?: string }) => {
+    mutationFn: async (icon: { name: string; file_url: string; id?: string; is_global?: boolean }) => {
       if (icon.id) {
         const { error } = await supabase.from('kpi_icons').update(icon).eq('id', icon.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('kpi_icons').insert({ ...icon, school_id: schoolId } as any);
+        // Se é global, school_id = null; senão usa schoolId atual
+        const payload: any = {
+          name: icon.name,
+          file_url: icon.file_url,
+          is_global: !!icon.is_global,
+          school_id: icon.is_global ? null : schoolId,
+        };
+        const { error } = await supabase.from('kpi_icons').insert(payload);
         if (error) throw error;
       }
     },
