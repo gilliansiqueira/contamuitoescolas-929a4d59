@@ -134,6 +134,7 @@ export function RealizadoModule({ schoolId }: Props) {
               { key: 'conversao', label: 'Conversão' },
               { key: 'vendas', label: 'Vendas' },
               { key: 'analise_vendas', label: 'Análise de Vendas' },
+              { key: 'recebimento_categoria', label: 'Recebimento por Categoria' },
             ].map(tab => (
               <label key={tab.key} className="flex items-center gap-2 text-sm">
                 <input
