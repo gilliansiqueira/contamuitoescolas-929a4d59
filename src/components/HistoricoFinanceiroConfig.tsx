@@ -58,6 +58,48 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   const [extraTipos, setExtraTipos] = useState<string[]>([]);
   const [newTipoInput, setNewTipoInput] = useState('');
 
+  // Fechamento de períodos (módulo projeção)
+  const { isAdmin } = useAuth();
+  const closedMonths = useClosedMonths(schoolId, 'projecao');
+  const { data: closuresProj = [] } = usePeriodClosures(schoolId, 'projecao');
+  const closeMut = useCloseMonths(schoolId, 'projecao');
+  const reopenMut = useReopenMonth(schoolId, 'projecao');
+  const closureMap = useMemo(() => {
+    const m = new Map<string, PeriodClosure>();
+    closuresProj.filter(c => c.status === 'closed').forEach(c => m.set(c.month, c));
+    return m;
+  }, [closuresProj]);
+  const [confirmClose, setConfirmClose] = useState<string | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<PeriodClosure | null>(null);
+  const [reopenReason, setReopenReason] = useState('');
+
+  const handleCloseMonth = async (month: string) => {
+    try {
+      await closeMut.mutateAsync([month]);
+      toast.success(`Mês ${month} fechado.`);
+      setConfirmClose(null);
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao fechar mês');
+    }
+  };
+
+  const handleReopenMonth = async () => {
+    if (!reopenTarget) return;
+    try {
+      await reopenMut.mutateAsync({
+        closureId: reopenTarget.id,
+        month: reopenTarget.month,
+        reason: reopenReason.trim(),
+      });
+      toast.success(`Mês ${reopenTarget.month} reaberto.`);
+      setReopenTarget(null);
+      setReopenReason('');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao reabrir mês');
+    }
+  };
+
+
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const { data: fluxoTipos = [] } = useFluxoTipos(schoolId);
 
