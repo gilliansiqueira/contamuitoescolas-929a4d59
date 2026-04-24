@@ -156,8 +156,8 @@ export function RealizadoModule({ schoolId }: Props) {
           </div>
         </div>
 
-        <div className="flex gap-1 mb-4 border-b border-border/50">
-          {configTabs.map(t => (
+        <div className="flex gap-1 mb-4 border-b border-border/50 flex-wrap">
+          {configTabs.filter(t => !t.adminOnly || isAdmin).map(t => (
             <button
               key={t.key}
               onClick={() => setConfigTab(t.key)}
