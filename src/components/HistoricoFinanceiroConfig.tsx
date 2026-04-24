@@ -3,10 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTypeClassifications, useFluxoTipos } from '@/hooks/useFinancialData';
 import { motion } from 'framer-motion';
-import { History, Upload, Plus, Trash2, Download, Info, AlertTriangle } from 'lucide-react';
+import { History, Upload, Plus, Trash2, Download, Info, AlertTriangle, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { usePeriodClosures, useClosedMonths, useCloseMonths, useReopenMonth, type PeriodClosure } from '@/hooks/usePeriodClosures';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
   schoolId: string;
