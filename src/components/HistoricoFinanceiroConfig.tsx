@@ -478,9 +478,39 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
               {years.map(year => (
                 <>
                   <tr key={`year-${year}`} className="bg-muted/40">
-                    <td colSpan={14} className="px-2 py-1.5 font-bold text-primary text-sm sticky left-0 bg-muted/40">
+                    <td className="px-2 py-1.5 font-bold text-primary text-sm sticky left-0 bg-muted/40 z-10">
                       {year}
                     </td>
+                    {MONTH_LABELS.map((_, idx) => {
+                      const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
+                      const closure = closureMap.get(month);
+                      const isClosed = !!closure;
+                      return (
+                        <td key={`act-${month}`} className="px-0.5 py-0.5 text-center">
+                          {isClosed ? (
+                            <button
+                              type="button"
+                              onClick={() => isAdmin && setReopenTarget(closure)}
+                              disabled={!isAdmin}
+                              title={isAdmin ? 'Mês fechado — clique para reabrir' : 'Mês fechado'}
+                              className="inline-flex items-center justify-center gap-1 h-6 px-1.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border hover:bg-muted/70 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                              <Lock className="w-3 h-3" /> Fechado
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmClose(month)}
+                              title={`Fechar ${month}`}
+                              className="inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            >
+                              <Lock className="w-3 h-3" />
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1.5 bg-muted/40" />
                   </tr>
                   {tipos.map(tipoKey => {
                     let totalRow = 0;
@@ -502,10 +532,12 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                           const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
                           const v = valueMap.get(`${month}|${tipoKey}`) ?? 0;
                           totalRow += v;
+                          const isClosed = closedMonths.has(month) && !isAdmin;
                           return (
-                            <td key={idx} className="px-0.5 py-0.5">
+                            <td key={idx} className={`px-0.5 py-0.5 ${closedMonths.has(month) ? 'bg-muted/30' : ''}`}>
                               <CellInput
                                 initial={v}
+                                disabled={isClosed}
                                 onCommit={raw => handleCellBlur(year, idx, tipoKey, raw)}
                               />
                             </td>
