@@ -238,6 +238,10 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const handleCellBlur = async (year: number, monthIdx: number, tipoKey: string, raw: string) => {
     const month = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+    if (closedMonths.has(month) && !isAdmin) {
+      toast.error(`Mês ${month} está fechado. Reabra antes de editar.`);
+      return;
+    }
     const valor = parseBRNumber(raw);
     const key = `${month}|${tipoKey}`;
     const prev = valueMap.get(key) ?? 0;
