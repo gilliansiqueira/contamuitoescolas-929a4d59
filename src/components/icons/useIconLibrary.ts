@@ -68,7 +68,7 @@ export function useUpdateLibraryIcon() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, name, folder_id }: { id: string; name?: string; folder_id?: string | null }) => {
-      const patch: Record<string, any> = {};
+      const patch: { name?: string; folder_id?: string | null } = {};
       if (name !== undefined) patch.name = name;
       if (folder_id !== undefined) patch.folder_id = folder_id;
       const { error } = await supabase.from('icons_library').update(patch).eq('id', id);
