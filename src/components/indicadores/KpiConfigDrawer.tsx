@@ -543,22 +543,37 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
     try {
       for (let i = 0; i < tpl.items.length; i++) {
         const item = tpl.items[i];
-        
-        // If template item has an icon_url, find or create a matching kpi_icon
+
+        // Resolve icon: prefer existing entry in the global library; otherwise insert it once
+        // and mirror in kpi_icons (same id) so the FK kpi_definitions.icon_id -> kpi_icons stays valid.
         let iconId: string | null = null;
         if (item.icon_url) {
-          // Check if icon already exists
-          const existingIcon = icons?.find(ic => ic.file_url === item.icon_url);
-          if (existingIcon) {
-            iconId = existingIcon.id;
+          const { data: lib } = await supabase
+            .from('icons_library')
+            .select('id, name')
+            .eq('file_url', item.icon_url)
+            .maybeSingle();
+          if (lib) {
+            iconId = lib.id;
           } else {
-            // Create a new icon entry
-            const { data: newIcon } = await supabase.from('kpi_icons').insert({
-              school_id: schoolId,
+            const newId = crypto.randomUUID();
+            await supabase.from('icons_library').insert({
+              id: newId,
               name: item.name,
               file_url: item.icon_url,
-            } as any).select('id').single();
-            if (newIcon) iconId = newIcon.id;
+            } as any);
+            iconId = newId;
+          }
+          // Mirror into kpi_icons (legacy FK target) if missing
+          const { data: legacy } = await supabase.from('kpi_icons').select('id').eq('id', iconId).maybeSingle();
+          if (!legacy) {
+            await supabase.from('kpi_icons').insert({
+              id: iconId,
+              name: item.name,
+              file_url: item.icon_url,
+              is_global: true,
+              school_id: null,
+            } as any);
           }
         }
 
@@ -589,6 +604,7 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
       qc.invalidateQueries({ queryKey: ['kpi_definitions', schoolId] });
       qc.invalidateQueries({ queryKey: ['kpi_thresholds', schoolId] });
       qc.invalidateQueries({ queryKey: ['kpiIcons', schoolId] });
+      qc.invalidateQueries({ queryKey: ['icons_library'] });
       toast.success(`Modelo "${tpl.name}" aplicado com ${tpl.items.length} indicadores!`);
     } catch {
       toast.error('Erro ao aplicar modelo');
