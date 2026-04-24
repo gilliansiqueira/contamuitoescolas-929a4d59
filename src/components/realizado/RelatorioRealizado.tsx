@@ -5,14 +5,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { motion } from 'framer-motion';
 import { CategoryBlock } from './CategoryBlock';
 import { EditEntryDialog } from './EditEntryDialog';
-import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles } from 'lucide-react';
+import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
+import { useClosedMonths } from '@/hooks/usePeriodClosures';
 
 interface Props {
   schoolId: string;
@@ -34,6 +36,7 @@ function normalizeStr(s: string) {
 
 export function RelatorioRealizado({ schoolId }: Props) {
   const queryClient = useQueryClient();
+  const closedMonths = useClosedMonths(schoolId);
   const [mesFilter, setMesFilter] = useState('all');
   const [faturamentoInput, setFaturamentoInput] = useState('');
   const [editingFat, setEditingFat] = useState(false);
