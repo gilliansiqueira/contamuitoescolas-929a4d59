@@ -559,7 +559,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   );
 }
 
-function CellInput({ initial, onCommit }: { initial: number; onCommit: (raw: string) => void }) {
+function CellInput({ initial, onCommit, disabled = false }: { initial: number; onCommit: (raw: string) => void; disabled?: boolean }) {
   const [val, setVal] = useState(initial ? formatBR(initial) : '');
   useEffect(() => {
     setVal(initial ? formatBR(initial) : '');
@@ -569,13 +569,18 @@ function CellInput({ initial, onCommit }: { initial: number; onCommit: (raw: str
       type="text"
       inputMode="decimal"
       value={val}
+      disabled={disabled}
       onChange={e => setVal(e.target.value)}
-      onBlur={() => onCommit(val)}
+      onBlur={() => !disabled && onCommit(val)}
       onKeyDown={e => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
       }}
-      className="w-full h-7 text-xs text-right tabular-nums border border-transparent hover:border-border focus:border-primary rounded px-1 bg-transparent focus:bg-background outline-none"
-      placeholder="—"
+      className={`w-full h-7 text-xs text-right tabular-nums border border-transparent rounded px-1 bg-transparent outline-none ${
+        disabled
+          ? 'cursor-not-allowed text-muted-foreground'
+          : 'hover:border-border focus:border-primary focus:bg-background'
+      }`}
+      placeholder={disabled ? '🔒' : '—'}
     />
   );
 }
