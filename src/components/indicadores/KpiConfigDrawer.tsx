@@ -7,13 +7,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Trash2, Upload, Save, Image, Copy, FileDown, Globe } from 'lucide-react';
+import { Plus, Trash2, Save, Copy, FileDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { KpiDefinitionWithThresholds, KpiIcon } from './types';
 import { useKpiMutations } from './useKpiData';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/hooks/useAuth';
+import { IconLibraryPicker } from '@/components/icons/IconLibraryPicker';
+import { useIconLibrary } from '@/components/icons/useIconLibrary';
 
 interface Props {
   open: boolean;
@@ -67,28 +68,51 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
   schoolId: string;
   mutations: ReturnType<typeof useKpiMutations>;
 }) {
+  const { data: libIcons = [] } = useIconLibrary();
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [thresholds, setThresholds] = useState<any[]>([]);
 
+  // Helper: from icon URL → existing kpi_icons row id (mirrored from icons_library).
+  // Ensures kpi_definitions.icon_id keeps its FK to kpi_icons valid.
+  const resolveIconId = useCallback(async (url: string | null): Promise<string | null> => {
+    if (!url) return null;
+    const lib = libIcons.find(i => i.file_url === url);
+    if (!lib) return null;
+    // ensure mirror in kpi_icons
+    const { data: legacy } = await supabase.from('kpi_icons').select('id').eq('id', lib.id).maybeSingle();
+    if (!legacy) {
+      await supabase.from('kpi_icons').insert({
+        id: lib.id,
+        name: lib.name,
+        file_url: lib.file_url,
+        is_global: true,
+        school_id: null,
+      } as any);
+    }
+    return lib.id;
+  }, [libIcons]);
+
   const startEdit = (def: KpiDefinitionWithThresholds) => {
     setEditing(def.id);
-    setForm({ name: def.name, icon_id: def.icon_id || '', value_type: def.value_type, direction: def.direction });
+    const url = def.icon?.file_url || libIcons.find(i => i.id === def.icon_id)?.file_url || '';
+    setForm({ name: def.name, icon_url: url, value_type: def.value_type, direction: def.direction });
     setThresholds(def.thresholds.map(t => ({ min_value: t.min_value ?? '', max_value: t.max_value ?? '', color: t.color, label: t.label })));
   };
 
   const startNew = () => {
     setEditing('new');
-    setForm({ name: '', icon_id: '', value_type: 'percent', direction: 'higher_is_better' });
+    setForm({ name: '', icon_url: '', value_type: 'percent', direction: 'higher_is_better' });
     setThresholds([]);
   };
 
   const handleSave = async () => {
     if (!form.name) { toast.error('Nome é obrigatório'); return; }
     try {
+      const iconId = await resolveIconId(form.icon_url || null);
       const defPayload: any = {
         name: form.name,
-        icon_id: form.icon_id || null,
+        icon_id: iconId,
         value_type: form.value_type,
         direction: form.direction,
         sort_order: definitions.length,
@@ -130,19 +154,14 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
         </div>
         <div>
           <Label>Ícone</Label>
-          <Select value={form.icon_id} onValueChange={v => setForm({ ...form, icon_id: v })}>
-            <SelectTrigger><SelectValue placeholder="Selecionar ícone" /></SelectTrigger>
-            <SelectContent>
-              {icons.map(ic => (
-                <SelectItem key={ic.id} value={ic.id}>
-                  <div className="flex items-center gap-2">
-                    <img src={ic.file_url} alt={ic.name} className="w-5 h-5 object-contain" />
-                    {ic.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 mt-1">
+            <IconLibraryPicker
+              value={form.icon_url || null}
+              onChange={url => setForm({ ...form, icon_url: url })}
+              size="md"
+            />
+            <span className="text-xs text-muted-foreground">Escolha da biblioteca global</span>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -392,107 +411,20 @@ function EditableCell({ value, onSave }: { value: number | string; onSave: (v: s
   );
 }
 
-/* ─── Ícones Tab ─── */
-function IconesTab({ icons, schoolId, mutations }: {
-  icons: KpiIcon[];
-  schoolId: string;
-  mutations: ReturnType<typeof useKpiMutations>;
-}) {
-  const { isAdmin } = useAuth();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadAsGlobal, setUploadAsGlobal] = useState(false);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const isGlobal = isAdmin && uploadAsGlobal;
-      const ext = file.name.split('.').pop();
-      const path = `${isGlobal ? 'global' : schoolId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('kpi-icons').upload(path, file);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from('kpi-icons').getPublicUrl(path);
-      const name = file.name.replace(/\.[^.]+$/, '');
-      await mutations.saveIcon.mutateAsync({ name, file_url: urlData.publicUrl, is_global: isGlobal });
-      toast.success(isGlobal ? 'Ícone global adicionado!' : 'Ícone adicionado!');
-    } catch {
-      toast.error('Erro no upload');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
-
-  const globals = icons.filter(i => i.is_global);
-  const locals = icons.filter(i => !i.is_global);
-
+/* ─── Ícones Tab (delega para a biblioteca global unificada) ─── */
+function IconesTab(_: { icons: KpiIcon[]; schoolId: string; mutations: ReturnType<typeof useKpiMutations> }) {
   return (
-    <div className="space-y-4 p-1">
-      <input ref={fileRef} type="file" accept=".png,.svg" onChange={handleUpload} className="hidden" />
-      <div className="flex items-center gap-3 flex-wrap">
-        <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-          <Upload className="w-3.5 h-3.5 mr-1" /> {uploading ? 'Enviando...' : 'Upload de ícone'}
-        </Button>
-        {isAdmin && (
-          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-            <Checkbox checked={uploadAsGlobal} onCheckedChange={(v) => setUploadAsGlobal(!!v)} />
-            <Globe className="w-3.5 h-3.5" />
-            Adicionar à biblioteca global (todas as empresas)
-          </label>
-        )}
+    <div className="space-y-3 p-1">
+      <p className="text-sm text-muted-foreground">
+        A biblioteca de ícones agora é <strong>global e unificada</strong> entre Indicadores, Vendas e Categorias.
+      </p>
+      <div className="rounded-xl border bg-muted/30 p-4 text-sm">
+        <p className="font-medium mb-1">Como gerenciar?</p>
+        <p className="text-muted-foreground">
+          Vá em <strong>Relatório Realizado → Configurações → Biblioteca de Ícones</strong> (apenas administradores).
+          Você pode criar pastas, fazer upload e reutilizar os mesmos ícones em qualquer lugar.
+        </p>
       </div>
-
-      {globals.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-            <Globe className="w-3 h-3" /> Biblioteca global ({globals.length})
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            {globals.map(ic => (
-              <div key={ic.id} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-primary/5 border border-primary/20 relative group">
-                <img src={ic.file_url} alt={ic.name} className="w-12 h-12 object-contain" />
-                <span className="text-[10px] text-muted-foreground truncate max-w-full">{ic.name}</span>
-                <span className="text-[9px] px-1.5 py-0 rounded bg-primary/10 text-primary font-semibold">GLOBAL</span>
-                {isAdmin && (
-                  <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
-                    onClick={() => { if (confirm('Excluir este ícone global? Todas as empresas que o usam perderão a referência.')) mutations.deleteIcon.mutate(ic.id); }}>
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {locals.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Ícones desta empresa ({locals.length})
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            {locals.map(ic => (
-              <div key={ic.id} className="flex flex-col items-center gap-1 p-3 rounded-xl bg-muted/30 border border-border/30 relative group">
-                <img src={ic.file_url} alt={ic.name} className="w-12 h-12 object-contain" />
-                <span className="text-[10px] text-muted-foreground truncate max-w-full">{ic.name}</span>
-                <Button size="icon" variant="ghost" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
-                  onClick={() => mutations.deleteIcon.mutate(ic.id)}>
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!icons.length && (
-        <div className="text-center py-8">
-          <Image className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
-          <p className="text-sm text-muted-foreground">Nenhum ícone na biblioteca.</p>
-        </div>
-      )}
     </div>
   );
 }
@@ -543,22 +475,37 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
     try {
       for (let i = 0; i < tpl.items.length; i++) {
         const item = tpl.items[i];
-        
-        // If template item has an icon_url, find or create a matching kpi_icon
+
+        // Resolve icon: prefer existing entry in the global library; otherwise insert it once
+        // and mirror in kpi_icons (same id) so the FK kpi_definitions.icon_id -> kpi_icons stays valid.
         let iconId: string | null = null;
         if (item.icon_url) {
-          // Check if icon already exists
-          const existingIcon = icons?.find(ic => ic.file_url === item.icon_url);
-          if (existingIcon) {
-            iconId = existingIcon.id;
+          const { data: lib } = await supabase
+            .from('icons_library')
+            .select('id, name')
+            .eq('file_url', item.icon_url)
+            .maybeSingle();
+          if (lib) {
+            iconId = lib.id;
           } else {
-            // Create a new icon entry
-            const { data: newIcon } = await supabase.from('kpi_icons').insert({
-              school_id: schoolId,
+            const newId = crypto.randomUUID();
+            await supabase.from('icons_library').insert({
+              id: newId,
               name: item.name,
               file_url: item.icon_url,
-            } as any).select('id').single();
-            if (newIcon) iconId = newIcon.id;
+            } as any);
+            iconId = newId;
+          }
+          // Mirror into kpi_icons (legacy FK target) if missing
+          const { data: legacy } = await supabase.from('kpi_icons').select('id').eq('id', iconId).maybeSingle();
+          if (!legacy) {
+            await supabase.from('kpi_icons').insert({
+              id: iconId,
+              name: item.name,
+              file_url: item.icon_url,
+              is_global: true,
+              school_id: null,
+            } as any);
           }
         }
 
@@ -589,6 +536,7 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
       qc.invalidateQueries({ queryKey: ['kpi_definitions', schoolId] });
       qc.invalidateQueries({ queryKey: ['kpi_thresholds', schoolId] });
       qc.invalidateQueries({ queryKey: ['kpiIcons', schoolId] });
+      qc.invalidateQueries({ queryKey: ['icons_library'] });
       toast.success(`Modelo "${tpl.name}" aplicado com ${tpl.items.length} indicadores!`);
     } catch {
       toast.error('Erro ao aplicar modelo');
