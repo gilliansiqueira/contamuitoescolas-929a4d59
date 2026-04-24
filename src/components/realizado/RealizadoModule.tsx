@@ -10,6 +10,7 @@ import { VendasDashboard } from '@/components/vendas/VendasDashboard';
 import { AnaliseVendasDashboard } from '@/components/analise-vendas/AnaliseVendasDashboard';
 import { RecebimentoCategoria } from './RecebimentoCategoria';
 import { ExportPdfDialog } from './ExportPdfDialog';
+import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -22,14 +23,15 @@ interface Props {
   schoolId: string;
 }
 
-type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados';
+type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados' | 'icones';
 type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria';
 
-const configTabs: { key: ConfigTab; label: string }[] = [
+const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
   { key: 'importacao', label: 'Importação' },
   { key: 'historico', label: 'Histórico' },
   { key: 'dados', label: 'Exportar Dados' },
+  { key: 'icones', label: 'Biblioteca de Ícones', adminOnly: true },
 ];
 
 interface TabVisibility {
