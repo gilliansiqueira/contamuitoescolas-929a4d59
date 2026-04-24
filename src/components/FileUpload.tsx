@@ -375,7 +375,14 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   };
 
   const handleConfirm = async () => {
-    if (errors.length > 0 || preview.length === 0 || !selectedType) return;
+    if (!selectedType) {
+      toast.error('Selecione o tipo de arquivo antes de importar.');
+      return;
+    }
+    if (preview.length === 0) {
+      toast.error('Nenhum registro válido para importar.');
+      return;
+    }
     setIsUploading(true);
     try {
       const uploadId = crypto.randomUUID();
@@ -399,9 +406,11 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       setSelectedType(null);
       setFileName('');
       onImported();
-      toast.success(`${preview.length} registros importados com sucesso!`);
-    } catch (err) {
-      toast.error('Erro ao salvar dados');
+      const skipped = errors.length > 0 ? ` (${errors.length} linhas com erro ignoradas)` : '';
+      toast.success(`${preview.length} registros importados com sucesso!${skipped}`);
+    } catch (err: any) {
+      console.error('Erro ao salvar dados:', err);
+      toast.error(`Erro ao salvar dados: ${err?.message ?? 'desconhecido'}`);
     } finally {
       setIsUploading(false);
     }
