@@ -68,28 +68,51 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
   schoolId: string;
   mutations: ReturnType<typeof useKpiMutations>;
 }) {
+  const { data: libIcons = [] } = useIconLibrary();
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [thresholds, setThresholds] = useState<any[]>([]);
 
+  // Helper: from icon URL → existing kpi_icons row id (mirrored from icons_library).
+  // Ensures kpi_definitions.icon_id keeps its FK to kpi_icons valid.
+  const resolveIconId = useCallback(async (url: string | null): Promise<string | null> => {
+    if (!url) return null;
+    const lib = libIcons.find(i => i.file_url === url);
+    if (!lib) return null;
+    // ensure mirror in kpi_icons
+    const { data: legacy } = await supabase.from('kpi_icons').select('id').eq('id', lib.id).maybeSingle();
+    if (!legacy) {
+      await supabase.from('kpi_icons').insert({
+        id: lib.id,
+        name: lib.name,
+        file_url: lib.file_url,
+        is_global: true,
+        school_id: null,
+      } as any);
+    }
+    return lib.id;
+  }, [libIcons]);
+
   const startEdit = (def: KpiDefinitionWithThresholds) => {
     setEditing(def.id);
-    setForm({ name: def.name, icon_id: def.icon_id || '', value_type: def.value_type, direction: def.direction });
+    const url = def.icon?.file_url || libIcons.find(i => i.id === def.icon_id)?.file_url || '';
+    setForm({ name: def.name, icon_url: url, value_type: def.value_type, direction: def.direction });
     setThresholds(def.thresholds.map(t => ({ min_value: t.min_value ?? '', max_value: t.max_value ?? '', color: t.color, label: t.label })));
   };
 
   const startNew = () => {
     setEditing('new');
-    setForm({ name: '', icon_id: '', value_type: 'percent', direction: 'higher_is_better' });
+    setForm({ name: '', icon_url: '', value_type: 'percent', direction: 'higher_is_better' });
     setThresholds([]);
   };
 
   const handleSave = async () => {
     if (!form.name) { toast.error('Nome é obrigatório'); return; }
     try {
+      const iconId = await resolveIconId(form.icon_url || null);
       const defPayload: any = {
         name: form.name,
-        icon_id: form.icon_id || null,
+        icon_id: iconId,
         value_type: form.value_type,
         direction: form.direction,
         sort_order: definitions.length,
@@ -131,19 +154,14 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
         </div>
         <div>
           <Label>Ícone</Label>
-          <Select value={form.icon_id} onValueChange={v => setForm({ ...form, icon_id: v })}>
-            <SelectTrigger><SelectValue placeholder="Selecionar ícone" /></SelectTrigger>
-            <SelectContent>
-              {icons.map(ic => (
-                <SelectItem key={ic.id} value={ic.id}>
-                  <div className="flex items-center gap-2">
-                    <img src={ic.file_url} alt={ic.name} className="w-5 h-5 object-contain" />
-                    {ic.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 mt-1">
+            <IconLibraryPicker
+              value={form.icon_url || null}
+              onChange={url => setForm({ ...form, icon_url: url })}
+              size="md"
+            />
+            <span className="text-xs text-muted-foreground">Escolha da biblioteca global</span>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
