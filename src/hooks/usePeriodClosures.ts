@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
+export type ClosureModule = 'realizado' | 'projecao';
+
 export interface PeriodClosure {
   id: string;
   school_id: string;
@@ -12,17 +14,19 @@ export interface PeriodClosure {
   reopened_by: string | null;
   reopen_reason: string | null;
   status: 'closed' | 'reopened';
+  module: ClosureModule;
 }
 
-/** Lista todos os fechamentos (incluindo reabertos) da escola */
-export function usePeriodClosures(schoolId: string) {
+/** Lista todos os fechamentos (incluindo reabertos) da escola, opcionalmente filtrando por módulo */
+export function usePeriodClosures(schoolId: string, module: ClosureModule = 'realizado') {
   return useQuery({
-    queryKey: ['period_closures', schoolId],
+    queryKey: ['period_closures', schoolId, module],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('period_closures')
         .select('*')
         .eq('school_id', schoolId)
+        .eq('module', module)
         .order('month', { ascending: false });
       if (error) throw error;
       return (data || []) as PeriodClosure[];
@@ -31,25 +35,25 @@ export function usePeriodClosures(schoolId: string) {
   });
 }
 
-/** Set rápido de meses fechados (status=closed) */
-export function useClosedMonths(schoolId: string): Set<string> {
-  const { data } = usePeriodClosures(schoolId);
+/** Set rápido de meses fechados (status=closed) por módulo */
+export function useClosedMonths(schoolId: string, module: ClosureModule = 'realizado'): Set<string> {
+  const { data } = usePeriodClosures(schoolId, module);
   return new Set((data || []).filter(c => c.status === 'closed').map(c => c.month));
 }
 
 /** Verifica se um mês específico está fechado */
-export function useIsMonthClosed(schoolId: string, month: string): boolean {
-  const closed = useClosedMonths(schoolId);
+export function useIsMonthClosed(schoolId: string, month: string, module: ClosureModule = 'realizado'): boolean {
+  const closed = useClosedMonths(schoolId, module);
   return closed.has(month);
 }
 
 /** Verifica se uma data YYYY-MM-DD está em mês fechado */
-export function useIsDateClosed(schoolId: string, date: string): boolean {
-  const closed = useClosedMonths(schoolId);
+export function useIsDateClosed(schoolId: string, date: string, module: ClosureModule = 'realizado'): boolean {
+  const closed = useClosedMonths(schoolId, module);
   return closed.has(date.slice(0, 7));
 }
 
-export function useCloseMonths(schoolId: string) {
+export function useCloseMonths(schoolId: string, module: ClosureModule = 'realizado') {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
@@ -59,23 +63,23 @@ export function useCloseMonths(schoolId: string) {
         month: m,
         closed_by: user?.id || null,
         status: 'closed' as const,
+        module,
       }));
       const { error } = await supabase.from('period_closures').insert(rows);
       if (error) throw error;
-      // audit log
       await supabase.from('audit_log').insert({
         school_id: schoolId,
         action: 'config',
-        description: `Fechou mês(es): ${months.join(', ')}`,
+        description: `[${module}] Fechou mês(es): ${months.join(', ')}`,
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['period_closures', schoolId] });
+      qc.invalidateQueries({ queryKey: ['period_closures', schoolId, module] });
     },
   });
 }
 
-export function useReopenMonth(schoolId: string) {
+export function useReopenMonth(schoolId: string, module: ClosureModule = 'realizado') {
   const qc = useQueryClient();
   const { user, isAdmin } = useAuth();
   return useMutation({
@@ -94,11 +98,11 @@ export function useReopenMonth(schoolId: string) {
       await supabase.from('audit_log').insert({
         school_id: schoolId,
         action: 'config',
-        description: `Reabriu mês ${month}${reason ? ` — motivo: ${reason}` : ''}`,
+        description: `[${module}] Reabriu mês ${month}${reason ? ` — motivo: ${reason}` : ''}`,
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['period_closures', schoolId] });
+      qc.invalidateQueries({ queryKey: ['period_closures', schoolId, module] });
     },
   });
 }

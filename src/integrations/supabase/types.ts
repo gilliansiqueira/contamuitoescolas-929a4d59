@@ -735,6 +735,7 @@ export type Database = {
           closed_by: string | null
           created_at: string
           id: string
+          module: string
           month: string
           reopen_reason: string | null
           reopened_at: string | null
@@ -747,6 +748,7 @@ export type Database = {
           closed_by?: string | null
           created_at?: string
           id?: string
+          module?: string
           month: string
           reopen_reason?: string | null
           reopened_at?: string | null
@@ -759,6 +761,7 @@ export type Database = {
           closed_by?: string | null
           created_at?: string
           id?: string
+          module?: string
           month?: string
           reopen_reason?: string | null
           reopened_at?: string | null
@@ -1517,8 +1520,16 @@ export type Database = {
         Args: { _date: string; _school_id: string }
         Returns: boolean
       }
+      is_date_in_closed_month_for_module: {
+        Args: { _date: string; _module: string; _school_id: string }
+        Returns: boolean
+      }
       is_month_closed: {
         Args: { _month: string; _school_id: string }
+        Returns: boolean
+      }
+      is_month_closed_for_module: {
+        Args: { _module: string; _month: string; _school_id: string }
         Returns: boolean
       }
       user_has_school_access: {

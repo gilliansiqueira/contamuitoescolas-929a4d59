@@ -3,10 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTypeClassifications, useFluxoTipos } from '@/hooks/useFinancialData';
 import { motion } from 'framer-motion';
-import { History, Upload, Plus, Trash2, Download, Info, AlertTriangle } from 'lucide-react';
+import { History, Upload, Plus, Trash2, Download, Info, AlertTriangle, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { usePeriodClosures, useClosedMonths, useCloseMonths, useReopenMonth, type PeriodClosure } from '@/hooks/usePeriodClosures';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
   schoolId: string;
@@ -50,6 +57,48 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   });
   const [extraTipos, setExtraTipos] = useState<string[]>([]);
   const [newTipoInput, setNewTipoInput] = useState('');
+
+  // Fechamento de períodos (módulo projeção)
+  const { isAdmin } = useAuth();
+  const closedMonths = useClosedMonths(schoolId, 'projecao');
+  const { data: closuresProj = [] } = usePeriodClosures(schoolId, 'projecao');
+  const closeMut = useCloseMonths(schoolId, 'projecao');
+  const reopenMut = useReopenMonth(schoolId, 'projecao');
+  const closureMap = useMemo(() => {
+    const m = new Map<string, PeriodClosure>();
+    closuresProj.filter(c => c.status === 'closed').forEach(c => m.set(c.month, c));
+    return m;
+  }, [closuresProj]);
+  const [confirmClose, setConfirmClose] = useState<string | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<PeriodClosure | null>(null);
+  const [reopenReason, setReopenReason] = useState('');
+
+  const handleCloseMonth = async (month: string) => {
+    try {
+      await closeMut.mutateAsync([month]);
+      toast.success(`Mês ${month} fechado.`);
+      setConfirmClose(null);
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao fechar mês');
+    }
+  };
+
+  const handleReopenMonth = async () => {
+    if (!reopenTarget) return;
+    try {
+      await reopenMut.mutateAsync({
+        closureId: reopenTarget.id,
+        month: reopenTarget.month,
+        reason: reopenReason.trim(),
+      });
+      toast.success(`Mês ${reopenTarget.month} reaberto.`);
+      setReopenTarget(null);
+      setReopenReason('');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao reabrir mês');
+    }
+  };
+
 
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const { data: fluxoTipos = [] } = useFluxoTipos(schoolId);
@@ -189,6 +238,10 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const handleCellBlur = async (year: number, monthIdx: number, tipoKey: string, raw: string) => {
     const month = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+    if (closedMonths.has(month) && !isAdmin) {
+      toast.error(`Mês ${month} está fechado. Reabra antes de editar.`);
+      return;
+    }
     const valor = parseBRNumber(raw);
     const key = `${month}|${tipoKey}`;
     const prev = valueMap.get(key) ?? 0;
@@ -425,9 +478,39 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
               {years.map(year => (
                 <>
                   <tr key={`year-${year}`} className="bg-muted/40">
-                    <td colSpan={14} className="px-2 py-1.5 font-bold text-primary text-sm sticky left-0 bg-muted/40">
+                    <td className="px-2 py-1.5 font-bold text-primary text-sm sticky left-0 bg-muted/40 z-10">
                       {year}
                     </td>
+                    {MONTH_LABELS.map((_, idx) => {
+                      const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
+                      const closure = closureMap.get(month);
+                      const isClosed = !!closure;
+                      return (
+                        <td key={`act-${month}`} className="px-0.5 py-0.5 text-center">
+                          {isClosed ? (
+                            <button
+                              type="button"
+                              onClick={() => isAdmin && setReopenTarget(closure)}
+                              disabled={!isAdmin}
+                              title={isAdmin ? 'Mês fechado — clique para reabrir' : 'Mês fechado'}
+                              className="inline-flex items-center justify-center gap-1 h-6 px-1.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border hover:bg-muted/70 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                              <Lock className="w-3 h-3" /> Fechado
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmClose(month)}
+                              title={`Fechar ${month}`}
+                              className="inline-flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            >
+                              <Lock className="w-3 h-3" />
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1.5 bg-muted/40" />
                   </tr>
                   {tipos.map(tipoKey => {
                     let totalRow = 0;
@@ -449,10 +532,12 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                           const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
                           const v = valueMap.get(`${month}|${tipoKey}`) ?? 0;
                           totalRow += v;
+                          const isClosed = closedMonths.has(month) && !isAdmin;
                           return (
-                            <td key={idx} className="px-0.5 py-0.5">
+                            <td key={idx} className={`px-0.5 py-0.5 ${closedMonths.has(month) ? 'bg-muted/30' : ''}`}>
                               <CellInput
                                 initial={v}
+                                disabled={isClosed}
                                 onCommit={raw => handleCellBlur(year, idx, tipoKey, raw)}
                               />
                             </td>
@@ -470,11 +555,65 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           </table>
         )}
       </div>
+
+      {/* Confirmar fechamento */}
+      <AlertDialog open={!!confirmClose} onOpenChange={o => !o && setConfirmClose(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Fechar mês {confirmClose}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Após o fechamento, todos os valores deste mês na Projeção (Histórico, lançamentos, vendas, conversão)
+              ficarão bloqueados para edição. Apenas administradores poderão reabrir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl"
+              onClick={() => confirmClose && handleCloseMonth(confirmClose)}
+              disabled={closeMut.isPending}
+            >
+              Fechar período
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reabrir */}
+      <AlertDialog open={!!reopenTarget} onOpenChange={o => { if (!o) { setReopenTarget(null); setReopenReason(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Unlock className="w-5 h-5 text-primary" />
+              Reabrir {reopenTarget?.month}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Informe o motivo da reabertura (será registrado em auditoria).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={reopenReason}
+            onChange={e => setReopenReason(e.target.value)}
+            placeholder="Ex.: Correção de lançamento errado"
+            className="rounded-xl"
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="rounded-xl" onClick={handleReopenMonth} disabled={reopenMut.isPending}>
+              Reabrir mês
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }
 
-function CellInput({ initial, onCommit }: { initial: number; onCommit: (raw: string) => void }) {
+function CellInput({ initial, onCommit, disabled = false }: { initial: number; onCommit: (raw: string) => void; disabled?: boolean }) {
   const [val, setVal] = useState(initial ? formatBR(initial) : '');
   useEffect(() => {
     setVal(initial ? formatBR(initial) : '');
@@ -484,13 +623,18 @@ function CellInput({ initial, onCommit }: { initial: number; onCommit: (raw: str
       type="text"
       inputMode="decimal"
       value={val}
+      disabled={disabled}
       onChange={e => setVal(e.target.value)}
-      onBlur={() => onCommit(val)}
+      onBlur={() => !disabled && onCommit(val)}
       onKeyDown={e => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
       }}
-      className="w-full h-7 text-xs text-right tabular-nums border border-transparent hover:border-border focus:border-primary rounded px-1 bg-transparent focus:bg-background outline-none"
-      placeholder="—"
+      className={`w-full h-7 text-xs text-right tabular-nums border border-transparent rounded px-1 bg-transparent outline-none ${
+        disabled
+          ? 'cursor-not-allowed text-muted-foreground'
+          : 'hover:border-border focus:border-primary focus:bg-background'
+      }`}
+      placeholder={disabled ? '🔒' : '—'}
     />
   );
 }
