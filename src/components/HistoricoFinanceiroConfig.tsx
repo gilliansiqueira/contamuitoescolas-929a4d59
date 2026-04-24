@@ -555,6 +555,60 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           </table>
         )}
       </div>
+
+      {/* Confirmar fechamento */}
+      <AlertDialog open={!!confirmClose} onOpenChange={o => !o && setConfirmClose(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Fechar mês {confirmClose}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Após o fechamento, todos os valores deste mês na Projeção (Histórico, lançamentos, vendas, conversão)
+              ficarão bloqueados para edição. Apenas administradores poderão reabrir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl"
+              onClick={() => confirmClose && handleCloseMonth(confirmClose)}
+              disabled={closeMut.isPending}
+            >
+              Fechar período
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reabrir */}
+      <AlertDialog open={!!reopenTarget} onOpenChange={o => { if (!o) { setReopenTarget(null); setReopenReason(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Unlock className="w-5 h-5 text-primary" />
+              Reabrir {reopenTarget?.month}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Informe o motivo da reabertura (será registrado em auditoria).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={reopenReason}
+            onChange={e => setReopenReason(e.target.value)}
+            placeholder="Ex.: Correção de lançamento errado"
+            className="rounded-xl"
+            autoFocus
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="rounded-xl" onClick={handleReopenMonth} disabled={reopenMut.isPending}>
+              Reabrir mês
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }
