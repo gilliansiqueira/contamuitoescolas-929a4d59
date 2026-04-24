@@ -428,7 +428,14 @@ export function RelatorioRealizado({ schoolId }: Props) {
             faturamento={currentRevenue}
             allMonths={mesesDisponiveis}
             index={i}
-            onEditEntry={(entry) => { setEditEntry(entry); setEditOpen(true); }}
+            onEditEntry={(entry) => {
+              if (entry.data && closedMonths.has(entry.data.slice(0, 7))) {
+                toast.error('Mês fechado. Edição bloqueada.');
+                return;
+              }
+              setEditEntry(entry);
+              setEditOpen(true);
+            }}
           />
         ))}
       </div>
