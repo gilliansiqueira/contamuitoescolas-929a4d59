@@ -7,13 +7,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Trash2, Upload, Save, Image, Copy, FileDown, Globe } from 'lucide-react';
+import { Plus, Trash2, Save, Copy, FileDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { KpiDefinitionWithThresholds, KpiIcon } from './types';
 import { useKpiMutations } from './useKpiData';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/hooks/useAuth';
+import { IconLibraryPicker } from '@/components/icons/IconLibraryPicker';
+import { useIconLibrary } from '@/components/icons/useIconLibrary';
 
 interface Props {
   open: boolean;
