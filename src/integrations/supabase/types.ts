@@ -387,6 +387,59 @@ export type Database = {
           },
         ]
       }
+      icon_folders: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      icons_library: {
+        Row: {
+          created_at: string
+          file_url: string
+          folder_id: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          file_url: string
+          folder_id?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          file_url?: string
+          folder_id?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "icons_library_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "icon_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kpi_definitions: {
         Row: {
           created_at: string
