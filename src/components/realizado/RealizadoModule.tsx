@@ -3,6 +3,7 @@ import { PlanoDeContas } from './PlanoDeContas';
 import { ImportacaoRealizado } from './ImportacaoRealizado';
 import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
+import { TiposHistorico } from './TiposHistorico';
 import { ExportacaoDados } from './ExportacaoDados';
 import { ConversaoDashboard } from './ConversaoDashboard';
 import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
@@ -11,6 +12,7 @@ import { AnaliseVendasDashboard } from '@/components/analise-vendas/AnaliseVenda
 import { RecebimentoCategoria } from './RecebimentoCategoria';
 import { ExportPdfDialog } from './ExportPdfDialog';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
+import { FechamentoMeses } from './FechamentoMeses';
 import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -23,13 +25,14 @@ interface Props {
   schoolId: string;
 }
 
-type ConfigTab = 'plano' | 'importacao' | 'historico' | 'dados' | 'icones';
+type ConfigTab = 'plano' | 'importacao' | 'historico' | 'fechamento' | 'dados' | 'icones';
 type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
   { key: 'importacao', label: 'Importação' },
   { key: 'historico', label: 'Histórico' },
+  { key: 'fechamento', label: 'Fechamento' },
   { key: 'dados', label: 'Exportar Dados' },
   { key: 'icones', label: 'Biblioteca de Ícones', adminOnly: true },
 ];
@@ -153,8 +156,8 @@ export function RealizadoModule({ schoolId }: Props) {
           </div>
         </div>
 
-        <div className="flex gap-1 mb-4 border-b border-border/50">
-          {configTabs.map(t => (
+        <div className="flex gap-1 mb-4 border-b border-border/50 flex-wrap">
+          {configTabs.filter(t => !t.adminOnly || isAdmin).map(t => (
             <button
               key={t.key}
               onClick={() => setConfigTab(t.key)}
@@ -171,8 +174,15 @@ export function RealizadoModule({ schoolId }: Props) {
         <motion.div key={configTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
           {configTab === 'plano' && <PlanoDeContas schoolId={schoolId} />}
           {configTab === 'importacao' && <ImportacaoRealizado schoolId={schoolId} />}
-          {configTab === 'historico' && <HistoricoUploads schoolId={schoolId} />}
+          {configTab === 'historico' && (
+            <div className="space-y-5">
+              <TiposHistorico schoolId={schoolId} />
+              <HistoricoUploads schoolId={schoolId} />
+            </div>
+          )}
+          {configTab === 'fechamento' && <FechamentoMeses schoolId={schoolId} />}
           {configTab === 'dados' && <ExportacaoDados schoolId={schoolId} />}
+          {configTab === 'icones' && isAdmin && <IconLibraryManager />}
         </motion.div>
       </div>
     );

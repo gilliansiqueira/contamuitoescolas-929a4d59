@@ -33,5 +33,7 @@ Updated: agora
 - [Isolamento de Módulos](mem://projeto/diretrizes-isolamento-modulos) — Separação estrita Projeção vs Relatório Realizado
 - [Abas Modulares](mem://features/relatorio-realizado-modularidade-abas) — Ativação/desativação por escola persistida em module_tabs
 - [Faixas de Conversão](mem://features/relatorio-realizado-conversao-thresholds) — Limites percentuais para origens Ativo e Receptivo
+- [Fechamento de Períodos](mem://features/realizado-fechamento-periodos) — Fechar/reabrir meses no Realizado, bloqueio via triggers de banco
+- [Edição de Tipos no Histórico](mem://features/historico-edicao-tipos) — Renomear/excluir conta_nome com reclassificação obrigatória
 - [Análise de Vendas](mem://features/relatorio-realizado-analise-vendas) — Aba MVP com pedidos, cards dinâmicos, filtros e cadastros (produtos/canais/formas)
 - [Aba Vendas](mem://features/relatorio-realizado-vendas) — Receitas por forma de pagamento + bandeiras de cartão com ícones
