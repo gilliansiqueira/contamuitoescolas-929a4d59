@@ -320,6 +320,14 @@ export function RelatorioRealizado({ schoolId }: Props) {
       {/* Insights */}
       <InsightsBar insights={insights} title="Insights do mês" />
 
+      {activeMes && closedMonths.has(activeMes) && (
+        <div className="rounded-xl border border-muted bg-muted/40 px-4 py-3 flex items-center gap-2 text-sm">
+          <Lock className="w-4 h-4 text-muted-foreground" />
+          <span className="font-medium">Mês fechado.</span>
+          <span className="text-muted-foreground">Edição bloqueada — abra Configurações → Fechamento para reabrir (admin).</span>
+        </div>
+      )}
+
       {/* Faturamento input */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="rounded-2xl bg-gradient-to-r from-primary/5 to-transparent border-primary/20">
@@ -342,8 +350,9 @@ export function RelatorioRealizado({ schoolId }: Props) {
                   value={faturamentoInput}
                   onChange={e => { setFaturamentoInput(e.target.value); setEditingFat(true); }}
                   onKeyDown={e => e.key === 'Enter' && handleSaveFaturamento()}
+                  disabled={activeMes ? closedMonths.has(activeMes) : false}
                 />
-                <Button size="sm" variant="outline" className="rounded-xl shrink-0" onClick={handleSaveFaturamento} disabled={saveFaturamento.isPending}>
+                <Button size="sm" variant="outline" className="rounded-xl shrink-0" onClick={handleSaveFaturamento} disabled={saveFaturamento.isPending || (activeMes ? closedMonths.has(activeMes) : false)}>
                   <Check className="w-4 h-4" />
                 </Button>
               </div>
