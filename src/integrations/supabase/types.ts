@@ -729,6 +729,53 @@ export type Database = {
           },
         ]
       }
+      period_closures: {
+        Row: {
+          closed_at: string
+          closed_by: string | null
+          created_at: string
+          id: string
+          month: string
+          reopen_reason: string | null
+          reopened_at: string | null
+          reopened_by: string | null
+          school_id: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          month: string
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
+          school_id: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          month?: string
+          reopen_reason?: string | null
+          reopened_at?: string | null
+          reopened_by?: string | null
+          school_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "period_closures_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1466,6 +1513,14 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_date_in_closed_month: {
+        Args: { _date: string; _school_id: string }
+        Returns: boolean
+      }
+      is_month_closed: {
+        Args: { _month: string; _school_id: string }
+        Returns: boolean
+      }
       user_has_school_access: {
         Args: { _school_id: string; _user_id: string }
         Returns: boolean
