@@ -364,13 +364,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     });
   }, [activeEntries, classifications, saldoInicialCalculado, monthSources, sourcesUsed.onlyHistorico, historicalRows, selectedMonths, selectedMonth, tipoAggregations]);
 
-  // ─── Gráfico de barras mensal: Receitas vs Despesas (combina upload + histórico) ───
+  // ─── Gráfico de barras mensal: Receitas vs Despesas (combina upload + histórico + snapshot) ───
   const monthlyChart = useMemo(() => {
     const map: Record<string, { entradas: number; saidas: number }> = {};
     for (const m of selectedMonths) {
       const src = monthSources[m];
       if (!map[m]) map[m] = { entradas: 0, saidas: 0 };
-      if (src === 'historico') {
+      if (src === 'snapshot') {
+        const snap = snapshotMap.get(m)!;
+        map[m].entradas = snap.receitas;
+        map[m].saidas = snap.despesas;
+      } else if (src === 'historico') {
         for (const r of historicalRows.filter(x => x.month === m)) {
           const meta = resolveTipoMeta(r.tipo_valor, classifications);
           if (!meta.entraNoResultado) continue;
@@ -391,7 +395,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .filter(([, v]) => v.entradas > 0 || v.saidas > 0)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, v]) => ({ mes: mes.split('-').reverse().join('/'), entradas: v.entradas, saidas: v.saidas }));
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
 
   // ─── Gráfico de linhas ANUAL: Entradas/Saídas por mês, com acúmulo de anos ───
   // Independe do filtro de período — usa TODOS os dados disponíveis (uploads + histórico).
