@@ -287,8 +287,17 @@ export function useSaveTypeClassification() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (tc: TypeClassification) => {
-      const { error } = await supabase.from('type_classifications').upsert({
-        id: tc.id,
+      // Procura existente por (school_id, tipo_valor) para garantir UPDATE quando aplicável,
+      // evitando colisão de PK quando o id local não bate com o registro do banco.
+      const { data: existing, error: selErr } = await supabase
+        .from('type_classifications')
+        .select('id')
+        .eq('school_id', tc.school_id)
+        .eq('tipo_valor', tc.tipoValor)
+        .maybeSingle();
+      if (selErr) throw selErr;
+
+      const payload = {
         school_id: tc.school_id,
         tipo_valor: tc.tipoValor,
         entra_no_resultado: tc.entraNoResultado,
@@ -296,8 +305,20 @@ export function useSaveTypeClassification() {
         classificacao: tc.classificacao,
         operacao_sinal: tc.operacaoSinal || 'auto',
         label: tc.label,
-      } as any, { onConflict: 'school_id,tipo_valor' });
-      if (error) throw error;
+      };
+
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('type_classifications')
+          .update(payload)
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('type_classifications')
+          .insert({ id: tc.id, ...payload } as any);
+        if (error) throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['typeClassifications'] }),
   });
