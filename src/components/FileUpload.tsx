@@ -305,6 +305,47 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   } | null>(null);
 
   const processRows = useCallback((rows: Record<string, any>[], uploadType: UploadType, mapping: Record<string, string>) => {
+    // Para fluxo de caixa, exigir mapeamento por tipo antes de gerar entries
+    if (uploadType.key === 'fluxo') {
+      const tipoCol = mapping['tipo'];
+      const counts = new Map<string, { label: string; count: number }>();
+      for (const row of rows) {
+        const raw = String((tipoCol ? row[tipoCol] : '') ?? '').trim();
+        if (!raw) continue;
+        const key = normalizeTipo(raw);
+        const cur = counts.get(key);
+        if (cur) cur.count += 1;
+        else counts.set(key, { label: raw, count: 1 });
+      }
+
+      const tipoRows: TipoMappingRow[] = Array.from(counts.entries())
+        .map(([key, { label, count }]) => {
+          const cfg = findClassification(label, classifications);
+          const cls = (cfg?.classificacao as TipoMappingRow['classificacao']) ?? 'despesa';
+          const sinalRaw = cfg?.operacaoSinal;
+          const sinal: TipoMappingRow['operacaoSinal'] =
+            sinalRaw === 'somar' || sinalRaw === 'subtrair' ? sinalRaw : defaultSinalFor(cls);
+          return {
+            tipoValor: key,
+            label,
+            count,
+            classificacao: cls,
+            operacaoSinal: sinal,
+            prefilled: !!cfg,
+          };
+        })
+        .sort((a, b) => b.count - a.count);
+
+      setTipoMapping(tipoRows);
+      setTipoMappingPending({ rows, mapping, uploadType });
+      setNeedsMapping(false);
+      setUnmappedCols([]);
+      setPdfRawRows(null);
+      setPreview([]);
+      setErrors([]);
+      return;
+    }
+
     const { entries, errors: validationErrors } = convertRows(rows, uploadType, schoolId, rules, mapping, classifications);
     setPreview(entries);
     setErrors(validationErrors);
