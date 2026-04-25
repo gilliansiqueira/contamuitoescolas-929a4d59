@@ -430,23 +430,25 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       return;
     }
     try {
-      // Persist user choices so they pré-preenchem nos próximos uploads
-      await Promise.all(
-        tipoMapping.map(r => {
-          const existing = findClassification(r.label, classifications);
-          const tc: TypeClassification = {
-            id: existing?.id ?? crypto.randomUUID(),
-            school_id: schoolId,
-            tipoValor: r.label,
-            classificacao: r.classificacao,
-            operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
-            entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
-            impactaCaixa: r.classificacao !== 'ignorar',
-            label: existing?.label ?? r.label,
-          };
-          return saveClassificationMut.mutateAsync(tc);
-        })
-      );
+      // Persist user choices so they pré-preenchem nos próximos uploads.
+      // Sequencial p/ evitar corrida no mesmo (school_id, tipo_valor) durante o upsert.
+      // Sempre normalizamos o tipo_valor para evitar duplicidade por variação de texto
+      // (ex: "Saída" vs "saida"), e NÃO reutilizamos id existente — deixamos o
+      // onConflict(school_id, tipo_valor) decidir entre INSERT e UPDATE.
+      for (const r of tipoMapping) {
+        const existing = findClassification(r.label, classifications);
+        const tc: TypeClassification = {
+          id: existing?.id ?? crypto.randomUUID(),
+          school_id: schoolId,
+          tipoValor: r.tipoValor, // chave canônica normalizada
+          classificacao: r.classificacao,
+          operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
+          entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
+          impactaCaixa: r.classificacao !== 'ignorar',
+          label: existing?.label ?? r.label,
+        };
+        await saveClassificationMut.mutateAsync(tc);
+      }
     } catch (err: any) {
       toast.error(`Erro ao salvar configuração de tipos: ${err?.message ?? 'desconhecido'}`);
       return;
