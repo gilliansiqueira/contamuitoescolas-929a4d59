@@ -225,24 +225,43 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   }, [tipoAggregations]);
 
   // ─── Saldo inicial: acumula tudo antes do primeiro mês selecionado ───
+  // Quando há snapshot do mês anterior, usa diretamente saldo_final do snapshot
+  // (mais barato e garante consistência com o que foi congelado).
   const saldoInicialCalculado = useMemo(() => {
     if (selectedMonth === 'all' || selectedMonths.length === 0) return saldoInicial;
-    const monthStart = `${selectedMonths[0]}-01`;
+    const firstMonth = selectedMonths[0];
+    const monthStart = `${firstMonth}-01`;
+
+    // Otimização: se o mês imediatamente anterior tem snapshot, usa saldo_final dele.
+    const [y, m] = firstMonth.split('-').map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    if (snapshotMap.has(prevMonth)) {
+      return snapshotMap.get(prevMonth)!.saldo_final;
+    }
+
     let saldo = saldoInicial;
-    // Acumula lançamentos anteriores (apenas meses sem histórico)
     const histMonths = new Set(historicalRows.map(r => r.month));
+    // Snapshots: substituem cálculo dos meses anteriores cobertos
+    const snapMonthsBefore = Array.from(snapshotMap.keys()).filter(mo => mo < firstMonth);
+    const snapMonthsSet = new Set(snapMonthsBefore);
+    for (const sm of snapMonthsBefore) {
+      saldo += snapshotMap.get(sm)!.saldo_movimento;
+    }
+    // Lançamentos anteriores (apenas meses sem histórico/snapshot)
     for (const e of activeEntries) {
       if (e.data >= monthStart) continue;
       const m = e.data.slice(0, 7);
-      // Se mês tem upload, usa upload; se mês só tem histórico, ignora lançamentos não-fluxo
+      if (snapMonthsSet.has(m)) continue;
       const hasUpload = activeEntries.some(x => x.data.startsWith(m) && x.origem === 'fluxo');
       if (!hasUpload && histMonths.has(m)) continue;
       if (hasUpload && e.origem !== 'fluxo') continue;
       saldo += getSaldoImpact(e, classifications);
     }
-    // Acumula histórico anterior (apenas meses sem upload)
+    // Histórico anterior (apenas meses sem upload e sem snapshot)
     for (const r of historicalRows) {
-      if (r.month >= selectedMonths[0]) continue;
+      if (r.month >= firstMonth) continue;
+      if (snapMonthsSet.has(r.month)) continue;
       const hasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
       if (hasUpload) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
@@ -251,7 +270,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       saldo += meta.isEntrada ? v : -v;
     }
     return saldo;
-  }, [activeEntries, classifications, saldoInicial, selectedMonth, selectedMonths, historicalRows]);
+  }, [activeEntries, classifications, saldoInicial, selectedMonth, selectedMonths, historicalRows, snapshotMap]);
 
   const saldoFinal = useMemo(() => {
     let saldo = saldoInicialCalculado;
