@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro } from '@/types/financial';
-import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications } from '@/hooks/useFinancialData';
+import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import type { TypeClassification } from '@/types/financial';
-import { normalizeTipo, classifyTipoName } from '@/lib/classificationUtils';
+import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification } from '@/lib/classificationUtils';
+import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMappingStep';
 
 interface FileUploadProps {
   schoolId: string;
