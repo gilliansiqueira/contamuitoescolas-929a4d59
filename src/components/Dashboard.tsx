@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
-import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers } from 'lucide-react';
+import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
+import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
@@ -99,6 +100,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { data: rawEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
+  // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
+  const snapshotMap = useSnapshotMap(schoolId, 'projecao');
   const [showInsights, setShowInsights] = useState(true);
 
   const allEntries = useMemo(() => applyDelays(rawEntries, delayRules), [rawEntries, delayRules]);
@@ -129,10 +132,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return selectedMonth.split(',').map(m => m.trim()).filter(Boolean).sort();
   }, [selectedMonth, activeEntries, historicalRows]);
 
-  // ─── Classifica cada mês por fonte: upload > histórico > projeção ───
+  // ─── Classifica cada mês por fonte: snapshot > upload > histórico > projeção ───
   const monthSources = useMemo(() => {
-    const result: Record<string, 'upload' | 'historico' | 'projecao' | 'vazio'> = {};
+    const result: Record<string, 'snapshot' | 'upload' | 'historico' | 'projecao' | 'vazio'> = {};
     for (const m of selectedMonths) {
+      if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
       const hasUpload = activeEntries.some(e => e.data.startsWith(m) && e.origem === 'fluxo');
       const hasHist = historicalRows.some(r => r.month === m);
       const hasOther = activeEntries.some(e => e.data.startsWith(m) && e.origem !== 'fluxo');
@@ -142,7 +146,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       else result[m] = 'vazio';
     }
     return result;
-  }, [selectedMonths, activeEntries, historicalRows]);
+  }, [selectedMonths, activeEntries, historicalRows, snapshotMap]);
 
   // ─── KPIs DINÂMICOS por tipo (agregado de todas as fontes ativas no período) ───
   type TipoAgg = { key: string; label: string; valor: number; isEntrada: boolean; entraNoResultado: boolean; impactaCaixa: boolean; classificacao: string };
@@ -161,17 +165,32 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
     for (const m of selectedMonths) {
       const src = monthSources[m];
-      if (src === 'historico') {
-        // Usa histórico
+      if (src === 'snapshot') {
+        // Mês fechado — usa valores congelados
+        const snap = snapshotMap.get(m)!;
+        for (const t of snap.por_tipo) {
+          const k = t.tipo;
+          if (!map[k]) {
+            map[k] = {
+              key: k,
+              label: t.label,
+              valor: 0,
+              isEntrada: t.sinal === 'somar',
+              entraNoResultado: t.classificacao === 'receita' || t.classificacao === 'despesa',
+              impactaCaixa: t.classificacao !== 'ignorar',
+              classificacao: t.classificacao,
+            };
+          }
+          map[k].valor += t.valor;
+        }
+      } else if (src === 'historico') {
         for (const r of historicalRows.filter(x => x.month === m)) {
           const agg = ensure(r.tipo_valor);
           agg.valor += Number(r.valor) || 0;
         }
       } else if (src === 'upload' || src === 'projecao') {
-        // Usa lançamentos (upload tem prioridade implícita pois ambos estão em activeEntries; projeção só aparece se não há upload)
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
         for (const e of monthEntries) {
-          // Se é mês de upload, ignora lançamentos não-fluxo (prioridade do upload)
           if (src === 'upload' && e.origem !== 'fluxo') continue;
           const tipoKey = e.tipoOriginal || e.tipo;
           const agg = ensure(tipoKey);
@@ -183,11 +202,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return Object.values(map)
       .filter(a => a.valor > 0 && a.classificacao !== 'ignorar')
       .sort((a, b) => {
-        // Receitas primeiro, depois despesas, depois operações
         const order = { receita: 0, despesa: 1, operacao: 2, ignorar: 3 } as Record<string, number>;
         return (order[a.classificacao] ?? 9) - (order[b.classificacao] ?? 9) || b.valor - a.valor;
       });
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
 
   // ─── Totais agregados (Receitas, Despesas, Resultado) usando KPIs dinâmicos ───
   const totals = useMemo(() => {
@@ -207,24 +225,43 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   }, [tipoAggregations]);
 
   // ─── Saldo inicial: acumula tudo antes do primeiro mês selecionado ───
+  // Quando há snapshot do mês anterior, usa diretamente saldo_final do snapshot
+  // (mais barato e garante consistência com o que foi congelado).
   const saldoInicialCalculado = useMemo(() => {
     if (selectedMonth === 'all' || selectedMonths.length === 0) return saldoInicial;
-    const monthStart = `${selectedMonths[0]}-01`;
+    const firstMonth = selectedMonths[0];
+    const monthStart = `${firstMonth}-01`;
+
+    // Otimização: se o mês imediatamente anterior tem snapshot, usa saldo_final dele.
+    const [y, m] = firstMonth.split('-').map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    if (snapshotMap.has(prevMonth)) {
+      return snapshotMap.get(prevMonth)!.saldo_final;
+    }
+
     let saldo = saldoInicial;
-    // Acumula lançamentos anteriores (apenas meses sem histórico)
     const histMonths = new Set(historicalRows.map(r => r.month));
+    // Snapshots: substituem cálculo dos meses anteriores cobertos
+    const snapMonthsBefore = Array.from(snapshotMap.keys()).filter(mo => mo < firstMonth);
+    const snapMonthsSet = new Set(snapMonthsBefore);
+    for (const sm of snapMonthsBefore) {
+      saldo += snapshotMap.get(sm)!.saldo_movimento;
+    }
+    // Lançamentos anteriores (apenas meses sem histórico/snapshot)
     for (const e of activeEntries) {
       if (e.data >= monthStart) continue;
       const m = e.data.slice(0, 7);
-      // Se mês tem upload, usa upload; se mês só tem histórico, ignora lançamentos não-fluxo
+      if (snapMonthsSet.has(m)) continue;
       const hasUpload = activeEntries.some(x => x.data.startsWith(m) && x.origem === 'fluxo');
       if (!hasUpload && histMonths.has(m)) continue;
       if (hasUpload && e.origem !== 'fluxo') continue;
       saldo += getSaldoImpact(e, classifications);
     }
-    // Acumula histórico anterior (apenas meses sem upload)
+    // Histórico anterior (apenas meses sem upload e sem snapshot)
     for (const r of historicalRows) {
-      if (r.month >= selectedMonths[0]) continue;
+      if (r.month >= firstMonth) continue;
+      if (snapMonthsSet.has(r.month)) continue;
       const hasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
       if (hasUpload) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
@@ -233,7 +270,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       saldo += meta.isEntrada ? v : -v;
     }
     return saldo;
-  }, [activeEntries, classifications, saldoInicial, selectedMonth, selectedMonths, historicalRows]);
+  }, [activeEntries, classifications, saldoInicial, selectedMonth, selectedMonths, historicalRows, snapshotMap]);
 
   const saldoFinal = useMemo(() => {
     let saldo = saldoInicialCalculado;
@@ -327,13 +364,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     });
   }, [activeEntries, classifications, saldoInicialCalculado, monthSources, sourcesUsed.onlyHistorico, historicalRows, selectedMonths, selectedMonth, tipoAggregations]);
 
-  // ─── Gráfico de barras mensal: Receitas vs Despesas (combina upload + histórico) ───
+  // ─── Gráfico de barras mensal: Receitas vs Despesas (combina upload + histórico + snapshot) ───
   const monthlyChart = useMemo(() => {
     const map: Record<string, { entradas: number; saidas: number }> = {};
     for (const m of selectedMonths) {
       const src = monthSources[m];
       if (!map[m]) map[m] = { entradas: 0, saidas: 0 };
-      if (src === 'historico') {
+      if (src === 'snapshot') {
+        const snap = snapshotMap.get(m)!;
+        map[m].entradas = snap.receitas;
+        map[m].saidas = snap.despesas;
+      } else if (src === 'historico') {
         for (const r of historicalRows.filter(x => x.month === m)) {
           const meta = resolveTipoMeta(r.tipo_valor, classifications);
           if (!meta.entraNoResultado) continue;
@@ -354,14 +395,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .filter(([, v]) => v.entradas > 0 || v.saidas > 0)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, v]) => ({ mes: mes.split('-').reverse().join('/'), entradas: v.entradas, saidas: v.saidas }));
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
 
   // ─── Gráfico de linhas ANUAL: Entradas/Saídas por mês, com acúmulo de anos ───
   // Independe do filtro de período — usa TODOS os dados disponíveis (uploads + histórico).
   const annualLineChart = useMemo(() => {
-    // Agrega todos meses (YYYY-MM) → entradas/saidas, considerando upload > histórico > projeção como prioridade
     const histMonthsSet = new Set(historicalRows.map(r => r.month));
     const uploadMonthsSet = new Set(activeEntries.filter(e => e.origem === 'fluxo').map(e => e.data.slice(0, 7)));
+    const snapMonthsSet = new Set(snapshotMap.keys());
 
     const map: Record<string, { entradas: number; saidas: number }> = {};
     const ensure = (m: string) => {
@@ -369,20 +410,26 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       return map[m];
     };
 
-    // Lançamentos
+    // Snapshots: prioridade máxima — substitui qualquer outra fonte
+    for (const [m, snap] of snapshotMap.entries()) {
+      ensure(m).entradas = snap.receitas;
+      ensure(m).saidas = snap.despesas;
+    }
+
+    // Lançamentos (ignora meses com snapshot)
     for (const e of activeEntries) {
       const m = e.data.slice(0, 7);
-      // Se mês tem upload, ignora projeções (não-fluxo) para evitar dupla contagem
+      if (snapMonthsSet.has(m)) continue;
       if (uploadMonthsSet.has(m) && e.origem !== 'fluxo') continue;
-      // Se mês só tem histórico (sem upload), ignora lançamentos não-fluxo (histórico já cobre)
       if (!uploadMonthsSet.has(m) && histMonthsSet.has(m) && e.origem !== 'fluxo') continue;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'receita') ensure(m).entradas += e.valor;
       else if (cls === 'despesa') ensure(m).saidas += e.valor;
     }
 
-    // Histórico (apenas para meses sem upload)
+    // Histórico (apenas meses sem upload e sem snapshot)
     for (const r of historicalRows) {
+      if (snapMonthsSet.has(r.month)) continue;
       if (uploadMonthsSet.has(r.month)) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
       if (!meta.entraNoResultado) continue;
@@ -413,7 +460,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .map(mm => ({ mes: monthBuckets[mm].__label as any, ...monthBuckets[mm] }))
       .map(({ __label, ...rest }: any) => rest);
     return { data, years };
-  }, [activeEntries, historicalRows, classifications]);
+  }, [activeEntries, historicalRows, classifications, snapshotMap]);
 
   const negativeDays = useMemo(() => projectionData.filter(d => d.saldo < 0), [projectionData]);
   const firstNegativeDay = negativeDays.length > 0 ? negativeDays[0] : null;

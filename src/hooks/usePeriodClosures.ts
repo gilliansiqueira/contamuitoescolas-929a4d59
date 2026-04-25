@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { computeMonthSnapshot } from '@/lib/snapshotUtils';
+import type { TypeClassification } from '@/types/financial';
 
 export type ClosureModule = 'realizado' | 'projecao';
 
@@ -58,15 +60,74 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (months: string[]) => {
-      const rows = months.map(m => ({
+      // 1) Para Projeção, calcula snapshot de cada mês ANTES de fechar
+      //    (assim o snapshot reflete os valores correntes naquele momento)
+      let classifications: TypeClassification[] = [];
+      if (module === 'projecao') {
+        const { data: clsRaw = [] } = await supabase
+          .from('type_classifications')
+          .select('*')
+          .eq('school_id', schoolId);
+        classifications = (clsRaw as any[]).map(t => ({
+          id: t.id,
+          school_id: t.school_id,
+          tipoValor: t.tipo_valor,
+          entraNoResultado: t.entra_no_resultado,
+          impactaCaixa: t.impacta_caixa,
+          classificacao: t.classificacao,
+          operacaoSinal: t.operacao_sinal || 'auto',
+          label: t.label,
+        }));
+      }
+
+      // 2) Cria os fechamentos e captura os IDs criados
+      const insertRows = months.map(m => ({
         school_id: schoolId,
         month: m,
         closed_by: user?.id || null,
         status: 'closed' as const,
         module,
       }));
-      const { error } = await supabase.from('period_closures').insert(rows);
+      const { data: created, error } = await supabase
+        .from('period_closures')
+        .insert(insertRows)
+        .select('id, month');
       if (error) throw error;
+
+      // 3) Grava snapshot por mês (apenas Projeção)
+      if (module === 'projecao' && created) {
+        const snapshotRows: any[] = [];
+        for (const c of created as any[]) {
+          try {
+            const snap = await computeMonthSnapshot(schoolId, c.month, classifications);
+            snapshotRows.push({
+              school_id: schoolId,
+              month: c.month,
+              module: 'projecao',
+              closure_id: c.id,
+              receitas: snap.receitas,
+              despesas: snap.despesas,
+              resultado: snap.resultado,
+              operacoes_in: snap.operacoes_in,
+              operacoes_out: snap.operacoes_out,
+              saldo_movimento: snap.saldo_movimento,
+              saldo_inicial: snap.saldo_inicial,
+              saldo_final: snap.saldo_final,
+              por_tipo: snap.por_tipo,
+              created_by: user?.id || null,
+            });
+          } catch (e) {
+            console.error('Erro ao gerar snapshot de', c.month, e);
+          }
+        }
+        if (snapshotRows.length) {
+          const { error: snapErr } = await supabase
+            .from('period_closure_snapshots' as any)
+            .insert(snapshotRows);
+          if (snapErr) console.error('Erro ao gravar snapshots:', snapErr);
+        }
+      }
+
       await supabase.from('audit_log').insert({
         school_id: schoolId,
         action: 'config',
@@ -75,6 +136,7 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['period_closures', schoolId, module] });
+      qc.invalidateQueries({ queryKey: ['period_closure_snapshots', schoolId, module] });
     },
   });
 }
