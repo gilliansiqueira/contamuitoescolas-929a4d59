@@ -588,6 +588,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
               onChange={setTipoMapping}
               onConfirm={handleTipoMappingConfirm}
               onCancel={handleTipoMappingCancel}
+              onSaveAsDefault={handleTipoMappingSaveAsDefault}
             />
           )}
 
