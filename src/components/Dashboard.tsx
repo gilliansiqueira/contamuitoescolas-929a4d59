@@ -460,7 +460,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .map(mm => ({ mes: monthBuckets[mm].__label as any, ...monthBuckets[mm] }))
       .map(({ __label, ...rest }: any) => rest);
     return { data, years };
-  }, [activeEntries, historicalRows, classifications]);
+  }, [activeEntries, historicalRows, classifications, snapshotMap]);
 
   const negativeDays = useMemo(() => projectionData.filter(d => d.saldo < 0), [projectionData]);
   const firstNegativeDay = negativeDays.length > 0 ? negativeDays[0] : null;
