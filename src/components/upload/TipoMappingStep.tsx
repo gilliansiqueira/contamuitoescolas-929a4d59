@@ -59,13 +59,14 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
             Classificação dos tipos
           </h4>
           <p className="text-xs text-muted-foreground mt-1">
-            Defina como cada tipo encontrado no arquivo deve ser tratado. A
-            configuração é salva e reutilizada nos próximos uploads.
+            Defina como cada tipo encontrado neste arquivo deve ser tratado.
+            A configuração vale apenas para este upload — você pode classificar o
+            mesmo tipo de forma diferente em outros arquivos.
           </p>
-          {newCount > 0 && (
-            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+          {suggestedCount > 0 && (
+            <p className="text-xs text-muted-foreground/80 mt-1 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
-              {newCount} tipo(s) novo(s) sem configuração prévia.
+              {suggestedCount} tipo(s) pré-sugerido(s) a partir do padrão salvo (você pode alterar livremente).
             </p>
           )}
         </div>
