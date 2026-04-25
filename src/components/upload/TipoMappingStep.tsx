@@ -128,10 +128,10 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
                       className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${
                         r.prefilled
                           ? 'bg-primary/10 text-primary'
-                          : 'bg-amber-100 text-amber-700'
+                          : 'bg-muted text-muted-foreground'
                       }`}
                     >
-                      {r.prefilled ? 'Pré-preenchido' : 'Novo'}
+                      {r.prefilled ? 'Sugerido' : 'Novo'}
                     </span>
                   </td>
                 </tr>
@@ -141,10 +141,22 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
         </table>
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onCancel}>
           Cancelar
         </Button>
+        {onSaveAsDefault && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onSaveAsDefault}
+            disabled={!allMapped}
+            title="Reaproveitar este mapeamento em futuros uploads"
+          >
+            <Save className="w-4 h-4 mr-1" />
+            Salvar como padrão
+          </Button>
+        )}
         <Button size="sm" onClick={onConfirm} disabled={!allMapped}>
           <ArrowRight className="w-4 h-4 mr-1" />
           Confirmar e visualizar
