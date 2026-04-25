@@ -1,10 +1,9 @@
-import { useState } from 'react';
-import { TypeClassification, FIXED_RESULT_TYPES } from '@/types/financial';
+import { TypeClassification } from '@/types/financial';
 import { useFluxoTipos, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { motion } from 'framer-motion';
 import { Settings2, Info } from 'lucide-react';
 import { toast } from 'sonner';
-import { normalizeTipo } from '@/lib/classificationUtils';
+import { normalizeTipo, defaultSinalFor, type OperacaoSinal } from '@/lib/classificationUtils';
 
 interface TypeClassificationConfigProps {
   schoolId: string;
@@ -13,7 +12,6 @@ interface TypeClassificationConfigProps {
 
 type ClassificacaoType = 'receita' | 'despesa' | 'operacao' | 'ignorar';
 
-// Usa a função canônica do sistema (lowercase + trim + remove acentos).
 const normalize = normalizeTipo;
 
 export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassificationConfigProps) {
@@ -23,29 +21,29 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
 
   const getClassification = (tipo: string): TypeClassification => {
     const existing = classifications.find(c => normalize(c.tipoValor) === normalize(tipo));
-    if (existing) return existing;
-    const isFixed = FIXED_RESULT_TYPES.includes(normalize(tipo));
-    const isEntradaSaida = ['entrada', 'saida'].includes(normalize(tipo));
+    if (existing) {
+      // Resolve sinal legado 'auto' para o default da classificação na exibição.
+      const sinal: OperacaoSinal =
+        existing.operacaoSinal === 'subtrair' ? 'subtrair' :
+        existing.operacaoSinal === 'somar' ? 'somar' :
+        defaultSinalFor(existing.classificacao as ClassificacaoType);
+      return { ...existing, operacaoSinal: sinal };
+    }
+    // Default para tipo não configurado: operação + somar.
+    // O usuário decide explicitamente — sem heurística por nome.
     return {
       id: crypto.randomUUID(),
       school_id: schoolId,
       tipoValor: normalize(tipo),
-      entraNoResultado: isFixed || isEntradaSaida,
+      entraNoResultado: false,
       impactaCaixa: true,
-      classificacao: isFixed || isEntradaSaida
-        ? (normalize(tipo) === 'despesa' || normalize(tipo) === 'saida' ? 'despesa' : 'receita')
-        : 'operacao',
-      operacaoSinal: 'auto',
+      classificacao: 'operacao',
+      operacaoSinal: 'somar',
       label: tipo,
     };
   };
 
   const handleClassificacaoChange = async (tipo: string, classificacao: ClassificacaoType) => {
-    const isFixed = FIXED_RESULT_TYPES.includes(normalize(tipo));
-    if (isFixed) {
-      toast.error(`"${tipo}" é fixo e não pode ser alterado`);
-      return;
-    }
     const current = getClassification(tipo);
     const updated: TypeClassification = {
       ...current,
@@ -53,7 +51,8 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
       classificacao,
       entraNoResultado: classificacao === 'receita' || classificacao === 'despesa',
       impactaCaixa: classificacao !== 'ignorar',
-      operacaoSinal: classificacao === 'operacao' ? (current.operacaoSinal || 'auto') : 'auto',
+      // Sugestão automática por classificação. Usuário pode alterar depois para Operação.
+      operacaoSinal: classificacao === 'ignorar' ? 'somar' : defaultSinalFor(classificacao),
     };
     try {
       await saveMut.mutateAsync(updated);
@@ -64,16 +63,16 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
     }
   };
 
-  const handleSinalChange = async (tipo: string, sinal: 'auto' | 'somar' | 'subtrair') => {
+  const handleSinalChange = async (tipo: string, sinal: OperacaoSinal) => {
     const current = getClassification(tipo);
-    if (current.classificacao !== 'operacao') return;
+    if (current.classificacao === 'ignorar') return;
     const updated: TypeClassification = { ...current, operacaoSinal: sinal };
     try {
       await saveMut.mutateAsync(updated);
       onChanged();
-      toast.success(`Sinal de "${tipo}" definido como ${sinal}`);
+      toast.success(`Sinal de "${tipo}" definido como ${sinal === 'somar' ? 'Somar (+)' : 'Subtrair (−)'}`);
     } catch {
-      toast.error('Erro ao salvar sinal da operação');
+      toast.error('Erro ao salvar sinal');
     }
   };
 
@@ -96,11 +95,13 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
         <div className="flex items-start gap-2 mb-4 bg-muted/30 rounded-lg p-3">
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">
-            Configure como cada tipo do fluxo de caixa realizado é tratado.
-            Demais tipos podem ser: <strong>Receita</strong>, <strong>Despesa</strong>, <strong>Operação</strong> ou <strong>Ignorar</strong>.
-            Quando for <strong>Operação</strong>, escolha o <strong>Sinal no caixa</strong>:
-            <em> Auto</em> (segue entrada/saída do lançamento), <em>Somar</em> (sempre entra) ou <em>Subtrair</em> (sempre sai).
-            Tipos marcados como "Ignorar" não aparecem em nenhum cálculo.
+            Para cada tipo, escolha a <strong>Classificação</strong> e o <strong>Sinal no caixa</strong>.
+            <br />
+            • <strong>Receita</strong>/<strong>Despesa</strong>: entram no resultado e impactam o saldo conforme o sinal.
+            <br />
+            • <strong>Operação</strong>: NÃO entra no resultado, mas impacta o saldo conforme o sinal.
+            <br />
+            • <strong>Ignorar</strong>: não entra em cálculos, gráficos nem saldo.
           </p>
         </div>
 
@@ -117,39 +118,26 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
             <tbody>
               {allTipos.map(tipo => {
                 const cls = getClassification(tipo);
-                const isFixed = FIXED_RESULT_TYPES.includes(normalize(tipo));
-                const isOperacao = cls.classificacao === 'operacao';
-
-                const sinalLabel =
-                  cls.operacaoSinal === 'somar' ? ' (somando)' :
-                  cls.operacaoSinal === 'subtrair' ? ' (subtraindo)' :
-                  ' (auto: entrada/saída do lançamento)';
+                const isIgnorar = cls.classificacao === 'ignorar';
+                const sinalLabel = cls.operacaoSinal === 'somar' ? 'Somar (+)' : 'Subtrair (−)';
 
                 const effectLabel = {
-                  receita: '📊 Entra no resultado como receita',
-                  despesa: '📊 Entra no resultado como despesa',
-                  operacao: `🔁 Impacta caixa${sinalLabel}, não entra no resultado`,
+                  receita: `📊 Entra no resultado como receita · saldo: ${sinalLabel}`,
+                  despesa: `📊 Entra no resultado como despesa · saldo: ${sinalLabel}`,
+                  operacao: `🔁 Não entra no resultado · saldo: ${sinalLabel}`,
                   ignorar: '⚪ Ignorado completamente',
                 }[cls.classificacao];
 
                 return (
                   <tr key={tipo} className="border-t border-border/30">
                     <td className="px-3 py-2.5">
-                      <span className={`font-medium ${isFixed ? 'text-primary' : 'text-foreground'}`}>
-                        {tipo}
-                      </span>
-                      {isFixed && (
-                        <span className="ml-2 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">
-                          Fixo
-                        </span>
-                      )}
+                      <span className="font-medium text-foreground">{tipo}</span>
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <select
                         value={cls.classificacao}
                         onChange={e => handleClassificacaoChange(tipo, e.target.value as ClassificacaoType)}
-                        disabled={isFixed}
-                        className="h-8 text-xs border rounded px-2 bg-background disabled:opacity-50"
+                        className="h-8 text-xs border rounded px-2 bg-background"
                       >
                         <option value="receita">Receita</option>
                         <option value="despesa">Despesa</option>
@@ -158,19 +146,18 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                       </select>
                     </td>
                     <td className="px-3 py-2.5 text-center">
-                      {isOperacao ? (
+                      {isIgnorar ? (
+                        <span className="text-xs text-muted-foreground/60">—</span>
+                      ) : (
                         <select
-                          value={cls.operacaoSinal}
-                          onChange={e => handleSinalChange(tipo, e.target.value as 'auto' | 'somar' | 'subtrair')}
+                          value={cls.operacaoSinal === 'subtrair' ? 'subtrair' : 'somar'}
+                          onChange={e => handleSinalChange(tipo, e.target.value as OperacaoSinal)}
                           className="h-8 text-xs border rounded px-2 bg-background"
                           title="Define como esse tipo afeta o saldo final"
                         >
-                          <option value="auto">Auto (entrada/saída)</option>
-                          <option value="somar">Sempre somar (+)</option>
-                          <option value="subtrair">Sempre subtrair (−)</option>
+                          <option value="somar">Somar (+)</option>
+                          <option value="subtrair">Subtrair (−)</option>
                         </select>
-                      ) : (
-                        <span className="text-xs text-muted-foreground/60">—</span>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
