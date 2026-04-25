@@ -280,6 +280,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const addEntriesMut = useAddEntries();
   const addUploadMut = useAddUpload();
   const addAuditMut = useAddAuditLog();
+  const saveClassificationMut = useSaveTypeClassification();
 
   const [selectedType, setSelectedType] = useState<UploadType | null>(null);
   const [preview, setPreview] = useState<FinancialEntry[]>([]);
@@ -294,6 +295,14 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [currentMapping, setCurrentMapping] = useState<Record<string, string>>({});
   const [pdfRawRows, setPdfRawRows] = useState<string[][] | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Tipo-mapping step (apenas para uploadType.key === 'fluxo')
+  const [tipoMapping, setTipoMapping] = useState<TipoMappingRow[] | null>(null);
+  const [tipoMappingPending, setTipoMappingPending] = useState<{
+    rows: Record<string, any>[];
+    mapping: Record<string, string>;
+    uploadType: UploadType;
+  } | null>(null);
 
   const processRows = useCallback((rows: Record<string, any>[], uploadType: UploadType, mapping: Record<string, string>) => {
     const { entries, errors: validationErrors } = convertRows(rows, uploadType, schoolId, rules, mapping, classifications);
