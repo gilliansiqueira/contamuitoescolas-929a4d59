@@ -17,14 +17,35 @@ import type { FinancialEntry, TypeClassification } from '@/types/financial';
 
 export type EffectiveClassification = 'receita' | 'despesa' | 'operacao' | 'ignorar';
 
+/**
+ * Normalização canônica para comparação de tipos:
+ *  - lowercase
+ *  - trim + colapsa espaços internos
+ *  - remove acentos/diacríticos (NFD)
+ * Use SEMPRE esta função antes de comparar/agrupar tipos.
+ * Ex.: "Saída ", "saida", "SAÍDA" → "saida"
+ */
+export function normalizeTipo(s: string): string {
+  if (!s) return '';
+  return s
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+// Backward-compat alias used internamente neste arquivo
 function normalize(s: string): string {
-  return s.toLowerCase().trim();
+  return normalizeTipo(s);
 }
 
 /**
  * Mapa canônico de sinônimos → classificação fixa.
- * Garante que "despesa", "despesas", "saida", "saidas" sejam tratados como Saída,
- * e "receita", "entrada", "entradas" como Entrada — evitando KPIs duplicados.
+ * Chaves SEMPRE em formato normalizado (sem acento, lowercase).
+ * Garante que "Saída", "saidas", "despesas" virem 'despesa',
+ * e "entrada", "entradas", "receitas" virem 'receita' — evitando KPIs duplicados.
  */
 const SYNONYM_TO_CLASSIFICATION: Record<string, EffectiveClassification> = {
   receita: 'receita',
@@ -35,8 +56,6 @@ const SYNONYM_TO_CLASSIFICATION: Record<string, EffectiveClassification> = {
   despesas: 'despesa',
   saida: 'despesa',
   saidas: 'despesa',
-  'saída': 'despesa',
-  'saídas': 'despesa',
 };
 
 /**
@@ -170,7 +189,7 @@ export function getSaldoImpact(
   if (entry.origem === 'fluxo' && !entry.editadoManualmente) {
     const tipoKey = entry.tipoOriginal || entry.tipo;
     const cfg = classifications.find(
-      c => c.tipoValor.toLowerCase().trim() === tipoKey.toLowerCase().trim()
+      c => normalize(c.tipoValor) === normalize(tipoKey)
     );
     if (cfg?.classificacao === 'operacao') {
       if (cfg.operacaoSinal === 'somar') return entry.valor;

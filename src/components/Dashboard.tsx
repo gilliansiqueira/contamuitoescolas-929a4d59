@@ -7,7 +7,7 @@ import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, 
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
-import { calculateTotals, filterActiveEntries, getSaldoImpact, getEffectiveClassification, classifyTipoName, getCanonicalKey, getCanonicalLabel } from '@/lib/classificationUtils';
+import { calculateTotals, filterActiveEntries, getSaldoImpact, getEffectiveClassification, classifyTipoName, getCanonicalKey, getCanonicalLabel, normalizeTipo } from '@/lib/classificationUtils';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, BarChart, Bar, Legend, LineChart, Line } from 'recharts';
 import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
@@ -24,9 +24,8 @@ function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function normalize(s: string) {
-  return s.toLowerCase().trim().replace(/\s+/g, '_');
-}
+// Usa a função canônica do sistema (lowercase + trim + remove acentos).
+const normalize = normalizeTipo;
 
 function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; prazo: number }[]): FinancialEntry[] {
   return entries.map(e => {

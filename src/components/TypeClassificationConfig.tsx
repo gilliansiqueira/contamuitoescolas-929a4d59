@@ -4,6 +4,7 @@ import { useFluxoTipos, useTypeClassifications, useSaveTypeClassification } from
 import { motion } from 'framer-motion';
 import { Settings2, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { normalizeTipo } from '@/lib/classificationUtils';
 
 interface TypeClassificationConfigProps {
   schoolId: string;
@@ -12,9 +13,8 @@ interface TypeClassificationConfigProps {
 
 type ClassificacaoType = 'receita' | 'despesa' | 'operacao' | 'ignorar';
 
-function normalize(s: string) {
-  return s.toLowerCase().trim();
-}
+// Usa a função canônica do sistema (lowercase + trim + remove acentos).
+const normalize = normalizeTipo;
 
 export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassificationConfigProps) {
   const { data: allTipos = [] } = useFluxoTipos(schoolId);
