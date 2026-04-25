@@ -570,7 +570,16 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             </Button>
           </div>
 
-          {preview.length === 0 && columnErrors.length === 0 && !needsMapping && (
+          {tipoMapping && (
+            <TipoMappingStep
+              rows={tipoMapping}
+              onChange={setTipoMapping}
+              onConfirm={handleTipoMappingConfirm}
+              onCancel={handleTipoMappingCancel}
+            />
+          )}
+
+          {preview.length === 0 && columnErrors.length === 0 && !needsMapping && !tipoMapping && (
             <label className="glass-card rounded-xl p-8 border-2 border-dashed border-primary/30 hover:border-primary/60 transition-colors cursor-pointer flex flex-col items-center gap-3">
               <Upload className="w-10 h-10 text-primary" />
               <span className="text-sm text-muted-foreground">Arraste ou clique para selecionar arquivo</span>
