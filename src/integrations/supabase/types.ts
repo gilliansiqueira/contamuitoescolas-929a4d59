@@ -729,6 +729,78 @@ export type Database = {
           },
         ]
       }
+      period_closure_snapshots: {
+        Row: {
+          closure_id: string | null
+          created_at: string
+          created_by: string | null
+          despesas: number
+          id: string
+          module: string
+          month: string
+          operacoes_in: number
+          operacoes_out: number
+          por_tipo: Json
+          receitas: number
+          resultado: number
+          saldo_final: number
+          saldo_inicial: number
+          saldo_movimento: number
+          school_id: string
+        }
+        Insert: {
+          closure_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          despesas?: number
+          id?: string
+          module?: string
+          month: string
+          operacoes_in?: number
+          operacoes_out?: number
+          por_tipo?: Json
+          receitas?: number
+          resultado?: number
+          saldo_final?: number
+          saldo_inicial?: number
+          saldo_movimento?: number
+          school_id: string
+        }
+        Update: {
+          closure_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          despesas?: number
+          id?: string
+          module?: string
+          month?: string
+          operacoes_in?: number
+          operacoes_out?: number
+          por_tipo?: Json
+          receitas?: number
+          resultado?: number
+          saldo_final?: number
+          saldo_inicial?: number
+          saldo_movimento?: number
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "period_closure_snapshots_closure_id_fkey"
+            columns: ["closure_id"]
+            isOneToOne: false
+            referencedRelation: "period_closures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "period_closure_snapshots_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       period_closures: {
         Row: {
           closed_at: string
