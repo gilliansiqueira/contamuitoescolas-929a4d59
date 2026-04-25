@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, Tags } from 'lucide-react';
+import { AlertCircle, ArrowRight, Tags, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { EffectiveClassification, OperacaoSinal } from '@/lib/classificationUtils';
 import { defaultSinalFor } from '@/lib/classificationUtils';
@@ -10,7 +10,7 @@ export interface TipoMappingRow {
   count: number;            // occurrences in file
   classificacao: EffectiveClassification;
   operacaoSinal: OperacaoSinal;
-  prefilled: boolean;       // pre-loaded from existing config
+  prefilled: boolean;       // pre-loaded from existing config (sugestão apenas)
 }
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
   onChange: (next: TipoMappingRow[]) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Opcional — quando fornecido, exibe botão "Salvar como padrão". */
+  onSaveAsDefault?: () => void;
 }
 
 const CLASS_LABEL: Record<EffectiveClassification, string> = {
