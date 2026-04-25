@@ -189,7 +189,7 @@ export function getSaldoImpact(
   if (entry.origem === 'fluxo' && !entry.editadoManualmente) {
     const tipoKey = entry.tipoOriginal || entry.tipo;
     const cfg = classifications.find(
-      c => c.tipoValor.toLowerCase().trim() === tipoKey.toLowerCase().trim()
+      c => normalize(c.tipoValor) === normalize(tipoKey)
     );
     if (cfg?.classificacao === 'operacao') {
       if (cfg.operacaoSinal === 'somar') return entry.valor;
