@@ -29,9 +29,9 @@ const CLASS_LABEL: Record<EffectiveClassification, string> = {
   ignorar: 'Ignorar',
 };
 
-export function TipoMappingStep({ rows, onChange, onConfirm, onCancel }: Props) {
+export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsDefault }: Props) {
   const allMapped = rows.every(r => !!r.classificacao);
-  const newCount = rows.filter(r => !r.prefilled).length;
+  const suggestedCount = rows.filter(r => r.prefilled).length;
 
   function update(i: number, patch: Partial<TipoMappingRow>) {
     const next = rows.slice();
