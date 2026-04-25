@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import type { TypeClassification } from '@/types/financial';
+import { normalizeTipo, classifyTipoName } from '@/lib/classificationUtils';
 
 interface FileUploadProps {
   schoolId: string;
@@ -107,28 +108,25 @@ function classifyFluxoEntry(
   valor: number,
   classifications: TypeClassification[]
 ): { tipo: 'entrada' | 'saida'; tipoOriginal: string } {
-  const tipoLower = tipoRaw.toLowerCase().trim();
+  const tipoNorm = normalizeTipo(tipoRaw);
   const tipoOriginal = tipoRaw || (valor >= 0 ? 'entrada' : 'saida');
 
-  // 1) Check type_classifications table
-  const cls = classifications.find(c => c.tipoValor.toLowerCase().trim() === tipoLower);
-  if (cls) {
-    if (cls.classificacao === 'receita') return { tipo: 'entrada', tipoOriginal };
-    if (cls.classificacao === 'despesa') return { tipo: 'saida', tipoOriginal };
-    // operacao/ignorar: use value sign as hint
+  // 1) Sinônimos canônicos + tabela de classificações (com normalização única)
+  const resolved = classifyTipoName(tipoRaw, classifications);
+  if (resolved === 'receita') return { tipo: 'entrada', tipoOriginal };
+  if (resolved === 'despesa') return { tipo: 'saida', tipoOriginal };
+  if (resolved === 'operacao' || resolved === 'ignorar') {
+    // mantém o sinal do valor como pista para 'tipo' (entrada/saida no banco),
+    // mas a classificação efetiva continua respeitando 'operacao'/'ignorar'.
     return { tipo: valor >= 0 ? 'entrada' : 'saida', tipoOriginal };
   }
 
-  // 2) Text heuristic
-  if (tipoLower === 'entrada' || tipoLower === 'receita') return { tipo: 'entrada', tipoOriginal };
-  if (tipoLower === 'saida' || tipoLower === 'saída' || tipoLower === 'despesa') return { tipo: 'saida', tipoOriginal };
-
-  // 3) Fallback: value sign (ONLY when no tipo text)
-  if (!tipoRaw) {
+  // 2) Fallback: sem texto de tipo → usa sinal do valor
+  if (!tipoNorm) {
     return { tipo: valor >= 0 ? 'entrada' : 'saida', tipoOriginal };
   }
 
-  // Unknown tipo text: default to operacao behavior (use value sign)
+  // 3) Tipo desconhecido → usa sinal do valor (será tratado como 'operacao' depois)
   return { tipo: valor >= 0 ? 'entrada' : 'saida', tipoOriginal };
 }
 
