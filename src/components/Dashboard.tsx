@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
-import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers } from 'lucide-react';
+import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
+import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
@@ -99,6 +100,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { data: rawEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
+  // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
+  const snapshotMap = useSnapshotMap(schoolId, 'projecao');
   const [showInsights, setShowInsights] = useState(true);
 
   const allEntries = useMemo(() => applyDelays(rawEntries, delayRules), [rawEntries, delayRules]);
