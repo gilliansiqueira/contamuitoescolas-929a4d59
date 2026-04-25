@@ -423,6 +423,65 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     processRows(pendingRows, selectedType, fullMapping);
   };
 
+  const handleTipoMappingConfirm = async () => {
+    if (!tipoMapping || !tipoMappingPending) return;
+    if (!tipoMapping.every(r => !!r.classificacao)) {
+      toast.error('Defina a classificação de todos os tipos antes de continuar.');
+      return;
+    }
+    try {
+      // Persist user choices so they pré-preenchem nos próximos uploads
+      await Promise.all(
+        tipoMapping.map(r => {
+          const existing = findClassification(r.label, classifications);
+          const tc: TypeClassification = {
+            id: existing?.id ?? crypto.randomUUID(),
+            school_id: schoolId,
+            tipoValor: r.label,
+            classificacao: r.classificacao,
+            operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
+            entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
+            impactaCaixa: r.classificacao !== 'ignorar',
+            label: existing?.label ?? r.label,
+          };
+          return saveClassificationMut.mutateAsync(tc);
+        })
+      );
+    } catch (err: any) {
+      toast.error(`Erro ao salvar configuração de tipos: ${err?.message ?? 'desconhecido'}`);
+      return;
+    }
+
+    // Build local classifications snapshot (avoid waiting for refetch)
+    const merged: TypeClassification[] = [
+      ...classifications.filter(c => !tipoMapping.some(r => normalizeTipo(c.tipoValor) === r.tipoValor)),
+      ...tipoMapping.map(r => ({
+        id: crypto.randomUUID(),
+        school_id: schoolId,
+        tipoValor: r.label,
+        classificacao: r.classificacao,
+        operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
+        entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
+        impactaCaixa: r.classificacao !== 'ignorar',
+        label: r.label,
+      })),
+    ];
+
+    const { rows, mapping, uploadType } = tipoMappingPending;
+    const { entries, errors: validationErrors } = convertRows(
+      rows, uploadType, schoolId, rules, mapping, merged
+    );
+    setPreview(entries);
+    setErrors(validationErrors);
+    setTipoMapping(null);
+    setTipoMappingPending(null);
+  };
+
+  const handleTipoMappingCancel = () => {
+    setTipoMapping(null);
+    setTipoMappingPending(null);
+  };
+
   const handleConfirm = async () => {
     if (!selectedType) {
       toast.error('Selecione o tipo de arquivo antes de importar.');
@@ -473,6 +532,8 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     setFileName('');
     setNeedsMapping(false);
     setPdfRawRows(null);
+    setTipoMapping(null);
+    setTipoMappingPending(null);
   };
 
   function formatCurrency(v: number) {
