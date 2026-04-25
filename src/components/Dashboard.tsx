@@ -132,10 +132,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return selectedMonth.split(',').map(m => m.trim()).filter(Boolean).sort();
   }, [selectedMonth, activeEntries, historicalRows]);
 
-  // ─── Classifica cada mês por fonte: upload > histórico > projeção ───
+  // ─── Classifica cada mês por fonte: snapshot > upload > histórico > projeção ───
   const monthSources = useMemo(() => {
-    const result: Record<string, 'upload' | 'historico' | 'projecao' | 'vazio'> = {};
+    const result: Record<string, 'snapshot' | 'upload' | 'historico' | 'projecao' | 'vazio'> = {};
     for (const m of selectedMonths) {
+      if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
       const hasUpload = activeEntries.some(e => e.data.startsWith(m) && e.origem === 'fluxo');
       const hasHist = historicalRows.some(r => r.month === m);
       const hasOther = activeEntries.some(e => e.data.startsWith(m) && e.origem !== 'fluxo');
@@ -145,7 +146,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       else result[m] = 'vazio';
     }
     return result;
-  }, [selectedMonths, activeEntries, historicalRows]);
+  }, [selectedMonths, activeEntries, historicalRows, snapshotMap]);
 
   // ─── KPIs DINÂMICOS por tipo (agregado de todas as fontes ativas no período) ───
   type TipoAgg = { key: string; label: string; valor: number; isEntrada: boolean; entraNoResultado: boolean; impactaCaixa: boolean; classificacao: string };
@@ -164,17 +165,32 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
     for (const m of selectedMonths) {
       const src = monthSources[m];
-      if (src === 'historico') {
-        // Usa histórico
+      if (src === 'snapshot') {
+        // Mês fechado — usa valores congelados
+        const snap = snapshotMap.get(m)!;
+        for (const t of snap.por_tipo) {
+          const k = t.tipo;
+          if (!map[k]) {
+            map[k] = {
+              key: k,
+              label: t.label,
+              valor: 0,
+              isEntrada: t.sinal === 'somar',
+              entraNoResultado: t.classificacao === 'receita' || t.classificacao === 'despesa',
+              impactaCaixa: t.classificacao !== 'ignorar',
+              classificacao: t.classificacao,
+            };
+          }
+          map[k].valor += t.valor;
+        }
+      } else if (src === 'historico') {
         for (const r of historicalRows.filter(x => x.month === m)) {
           const agg = ensure(r.tipo_valor);
           agg.valor += Number(r.valor) || 0;
         }
       } else if (src === 'upload' || src === 'projecao') {
-        // Usa lançamentos (upload tem prioridade implícita pois ambos estão em activeEntries; projeção só aparece se não há upload)
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
         for (const e of monthEntries) {
-          // Se é mês de upload, ignora lançamentos não-fluxo (prioridade do upload)
           if (src === 'upload' && e.origem !== 'fluxo') continue;
           const tipoKey = e.tipoOriginal || e.tipo;
           const agg = ensure(tipoKey);
@@ -186,11 +202,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return Object.values(map)
       .filter(a => a.valor > 0 && a.classificacao !== 'ignorar')
       .sort((a, b) => {
-        // Receitas primeiro, depois despesas, depois operações
         const order = { receita: 0, despesa: 1, operacao: 2, ignorar: 3 } as Record<string, number>;
         return (order[a.classificacao] ?? 9) - (order[b.classificacao] ?? 9) || b.valor - a.valor;
       });
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
 
   // ─── Totais agregados (Receitas, Despesas, Resultado) usando KPIs dinâmicos ───
   const totals = useMemo(() => {
