@@ -452,15 +452,22 @@ export function useFluxoTipos(schoolId: string) {
       ]);
       if (entriesRes.error) throw entriesRes.error;
       if (histRes.error) throw histRes.error;
-      const set = new Set<string>();
+      // Dedup pelo nome normalizado (sem acento, lowercase) — mantém o
+      // primeiro label "amigável" encontrado para exibição.
+      const { normalizeTipo } = await import('@/lib/classificationUtils');
+      const map = new Map<string, string>();
+      const add = (raw: string | null | undefined) => {
+        if (!raw) return;
+        const key = normalizeTipo(String(raw));
+        if (!key) return;
+        if (!map.has(key)) map.set(key, key);
+      };
       (entriesRes.data ?? []).forEach(e => {
-        if (e.tipo_original) set.add(e.tipo_original.toLowerCase().trim());
-        set.add(e.tipo.toLowerCase().trim());
+        add(e.tipo_original);
+        add(e.tipo);
       });
-      (histRes.data ?? []).forEach((r: any) => {
-        if (r.tipo_valor) set.add(String(r.tipo_valor).toLowerCase().trim());
-      });
-      return Array.from(set).sort();
+      (histRes.data ?? []).forEach((r: any) => add(r.tipo_valor));
+      return Array.from(map.values()).sort();
     },
     enabled: !!schoolId,
   });
