@@ -400,9 +400,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   // ─── Gráfico de linhas ANUAL: Entradas/Saídas por mês, com acúmulo de anos ───
   // Independe do filtro de período — usa TODOS os dados disponíveis (uploads + histórico).
   const annualLineChart = useMemo(() => {
-    // Agrega todos meses (YYYY-MM) → entradas/saidas, considerando upload > histórico > projeção como prioridade
     const histMonthsSet = new Set(historicalRows.map(r => r.month));
     const uploadMonthsSet = new Set(activeEntries.filter(e => e.origem === 'fluxo').map(e => e.data.slice(0, 7)));
+    const snapMonthsSet = new Set(snapshotMap.keys());
 
     const map: Record<string, { entradas: number; saidas: number }> = {};
     const ensure = (m: string) => {
@@ -410,20 +410,26 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       return map[m];
     };
 
-    // Lançamentos
+    // Snapshots: prioridade máxima — substitui qualquer outra fonte
+    for (const [m, snap] of snapshotMap.entries()) {
+      ensure(m).entradas = snap.receitas;
+      ensure(m).saidas = snap.despesas;
+    }
+
+    // Lançamentos (ignora meses com snapshot)
     for (const e of activeEntries) {
       const m = e.data.slice(0, 7);
-      // Se mês tem upload, ignora projeções (não-fluxo) para evitar dupla contagem
+      if (snapMonthsSet.has(m)) continue;
       if (uploadMonthsSet.has(m) && e.origem !== 'fluxo') continue;
-      // Se mês só tem histórico (sem upload), ignora lançamentos não-fluxo (histórico já cobre)
       if (!uploadMonthsSet.has(m) && histMonthsSet.has(m) && e.origem !== 'fluxo') continue;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'receita') ensure(m).entradas += e.valor;
       else if (cls === 'despesa') ensure(m).saidas += e.valor;
     }
 
-    // Histórico (apenas para meses sem upload)
+    // Histórico (apenas meses sem upload e sem snapshot)
     for (const r of historicalRows) {
+      if (snapMonthsSet.has(r.month)) continue;
       if (uploadMonthsSet.has(r.month)) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
       if (!meta.entraNoResultado) continue;
