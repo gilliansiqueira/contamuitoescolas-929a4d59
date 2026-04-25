@@ -1,32 +1,38 @@
 ---
 name: Classificação Contábil
-description: Hierarquia de tipagem (Tabela > Texto > Sinal), normalização canônica única (sem acentos) e mapa de sinônimos para evitar duplicação
+description: Modelo do usuário (Classificação + Sinal obrigatório). Sem heurísticas/sinônimos por nome
 type: feature
 ---
 
-A classificação contábil ('receita', 'despesa', 'operacao', 'ignorar') é a única fonte de verdade para todos os cálculos de KPIs, fluxo, dashboard e relatórios.
+A classificação contábil ('receita', 'despesa', 'operacao', 'ignorar') é decidida **pelo usuário** na tabela `type_classifications` e é a única fonte de verdade para todos os cálculos.
 
-## Normalização canônica (OBRIGATÓRIA)
-Use **sempre** `normalizeTipo(s)` de `src/lib/classificationUtils.ts` antes de comparar/agrupar tipos. A função:
-- converte para lowercase
-- remove acentos (NFD)
-- faz trim e colapsa espaços internos
+## Modelo
+Toda configuração de tipo tem **dois campos obrigatórios** (exceto `ignorar`):
+1. **Classificação**: `receita | despesa | operacao | ignorar`
+2. **Sinal no caixa**: `somar (+) | subtrair (−)`
 
-Exemplos: `"Saída "`, `"saida"`, `"SAÍDA"` → `"saida"`.
+## Regras de comportamento
+- **Receita** → entra no resultado (+) · saldo: respeita o sinal
+- **Despesa** → entra no resultado (−) · saldo: respeita o sinal
+- **Operação** → NÃO entra no resultado · saldo: respeita o sinal
+- **Ignorar** → não entra em resultado, saldo, gráficos ou cálculos
 
-## Mapa de sinônimos (fixo)
-Aplicado antes de qualquer lookup em `type_classifications`:
-- `receita`, `receitas`, `entrada`, `entradas` → **receita**
-- `despesa`, `despesas`, `saida`, `saidas` → **despesa**
+## Sugestões automáticas na UI (apenas defaults)
+- Receita → sugere `Somar (+)`
+- Despesa → sugere `Subtrair (−)`
+- Operação → sugere `Somar (+)` (usuário escolhe livremente)
+- Ignorar → desabilita o sinal
 
-## Hierarquia de resolução
-1. **Sinônimo canônico** (mapa fixo acima)
-2. **`type_classifications`** da escola (lookup por chave normalizada)
-3. **Heurística pelo `tipo`** do entry (entrada/saida) ou sinal do valor
+## Resolução da classificação efetiva (sem heurística por nome)
+1. Se `editadoManualmente=true` → usa `entry.tipo` (entrada=receita, saida=despesa)
+2. Se há config em `type_classifications` (lookup pela chave normalizada) → usa a config
+3. Sem config → fallback pelo `entry.tipo` (entrada=receita, saida=despesa)
 
-## Regras
-- Override manual (`editadoManualmente=true`) tem prioridade absoluta.
-- Operacao respeita `operacaoSinal` ('auto'|'somar'|'subtrair') no impacto de saldo.
-- Ignorar: excluído de TODOS os cálculos (resultado e saldo).
-- A classificação é aplicada **na leitura/processamento** — nunca altera dados no banco.
-- Meses fechados continuam intocáveis: triggers já bloqueiam UPDATE/DELETE em `historical_monthly` e `financial_entries`. Mudanças em `type_classifications` não fazem UPDATE em entries existentes.
+> A normalização (`normalizeTipo`) só remove acento/case/espaços para casar variações de escrita do **mesmo nome**. Não há mais mapa de sinônimos (`saida → despesa`, etc.) — a configuração do usuário manda.
+
+## Cálculo final
+- `resultado = receitas - despesas`
+- `saldo = saldoInicial + Σ getSaldoImpact(entry)` (ignora `ignorar`)
+
+## Imutabilidade de meses fechados
+Triggers em `historical_monthly`, `financial_entries`, `sales_data` e `conversion_data` bloqueiam UPDATE/DELETE em meses fechados. Mudanças em `type_classifications` não fazem UPDATE em entries — afetam apenas a leitura/processamento de meses ainda abertos.

@@ -1,29 +1,31 @@
 /**
  * Shared classification logic — SINGLE SOURCE OF TRUTH
- * 
- * Priority:
- *   1) Manual edit (editadoManualmente = true) → use entry.tipo as-is
- *   2) TypeClassification table (user config per school)
- *   3) Entry's tipo field (entrada/saida)
- * 
- * Effective classification:
- *   'receita'  → counts in resultado, sums as entrada
- *   'despesa'  → counts in resultado, sums as saida
- *   'operacao' → does NOT count in resultado, but DOES affect saldo
- *   'ignorar'  → excluded from all calculations
+ *
+ * Modelo (decidido pelo usuário, sem heurísticas por nome):
+ *   1) Toda entry tem uma TypeClassification configurada pelo usuário:
+ *        - classificacao: 'receita' | 'despesa' | 'operacao' | 'ignorar'
+ *        - operacaoSinal: 'somar' | 'subtrair'  (obrigatório p/ tudo exceto 'ignorar')
+ *   2) Override manual (editadoManualmente=true) usa entry.tipo como fallback.
+ *   3) Sem mapeamento de sinônimos por nome — a configuração do usuário manda.
+ *
+ * Resultado:
+ *   - 'receita'  → entra no resultado (+) e impacta saldo segundo operacaoSinal
+ *   - 'despesa'  → entra no resultado (−) e impacta saldo segundo operacaoSinal
+ *   - 'operacao' → NÃO entra no resultado, impacta saldo segundo operacaoSinal
+ *   - 'ignorar'  → não entra em nada
  */
 
 import type { FinancialEntry, TypeClassification } from '@/types/financial';
 
 export type EffectiveClassification = 'receita' | 'despesa' | 'operacao' | 'ignorar';
+export type OperacaoSinal = 'somar' | 'subtrair';
 
 /**
  * Normalização canônica para comparação de tipos:
- *  - lowercase
- *  - trim + colapsa espaços internos
+ *  - lowercase, trim, colapsa espaços
  *  - remove acentos/diacríticos (NFD)
- * Use SEMPRE esta função antes de comparar/agrupar tipos.
- * Ex.: "Saída ", "saida", "SAÍDA" → "saida"
+ * Apenas para casar variações de escrita do mesmo "tipo" ao buscar
+ * configuração do usuário — NÃO inferimos classificação a partir do nome.
  */
 export function normalizeTipo(s: string): string {
   if (!s) return '';
@@ -36,88 +38,83 @@ export function normalizeTipo(s: string): string {
     .replace(/\s+/g, ' ');
 }
 
-// Backward-compat alias used internamente neste arquivo
 function normalize(s: string): string {
   return normalizeTipo(s);
 }
 
 /**
- * Mapa canônico de sinônimos → classificação fixa.
- * Chaves SEMPRE em formato normalizado (sem acento, lowercase).
- * Garante que "Saída", "saidas", "despesas" virem 'despesa',
- * e "entrada", "entradas", "receitas" virem 'receita' — evitando KPIs duplicados.
- */
-const SYNONYM_TO_CLASSIFICATION: Record<string, EffectiveClassification> = {
-  receita: 'receita',
-  receitas: 'receita',
-  entrada: 'receita',
-  entradas: 'receita',
-  despesa: 'despesa',
-  despesas: 'despesa',
-  saida: 'despesa',
-  saidas: 'despesa',
-};
-
-/**
- * Chave canônica usada em agregações (ex: "despesa" e "despesas" => mesmo bucket).
- * Mantém o nome original para exibição via `getCanonicalLabel`.
+ * Chave canônica usada em agregações por nome de tipo.
+ * Apenas normaliza (não aplica sinônimos).
  */
 export function getCanonicalKey(rawTipo: string): string {
-  const n = normalize(rawTipo);
-  const cls = SYNONYM_TO_CLASSIFICATION[n];
-  if (cls === 'receita') return 'receita';
-  if (cls === 'despesa') return 'despesa';
-  return n;
+  return normalize(rawTipo);
 }
 
 export function getCanonicalLabel(rawTipo: string): string {
-  const n = normalize(rawTipo);
-  const cls = SYNONYM_TO_CLASSIFICATION[n];
-  if (cls === 'receita') return 'Receita';
-  if (cls === 'despesa') return 'Despesa';
   return rawTipo;
 }
 
 /**
- * Classifica um nome de tipo (sinônimo ou customizado) usando o mapa canônico
- * antes de cair na tabela de TypeClassification.
+ * Sugere o sinal padrão para uma classificação.
+ * - receita  → somar
+ * - despesa  → subtrair
+ * - operacao → somar (usuário pode trocar)
+ * - ignorar  → somar (irrelevante)
+ */
+export function defaultSinalFor(cls: EffectiveClassification): OperacaoSinal {
+  return cls === 'despesa' ? 'subtrair' : 'somar';
+}
+
+/**
+ * Localiza a configuração do usuário para um nome de tipo (por chave normalizada).
+ */
+export function findClassification(
+  rawTipo: string,
+  classifications: TypeClassification[]
+): TypeClassification | null {
+  const n = normalize(rawTipo);
+  return classifications.find(c => normalize(c.tipoValor) === n) ?? null;
+}
+
+/**
+ * Classifica APENAS pela tabela de configurações do usuário.
+ * Sem sinônimos, sem heurística por nome.
  */
 export function classifyTipoName(
   rawTipo: string,
   classifications: TypeClassification[]
 ): EffectiveClassification | null {
-  const n = normalize(rawTipo);
-  const synonym = SYNONYM_TO_CLASSIFICATION[n];
-  if (synonym) return synonym;
-  const cls = classifications.find(c => normalize(c.tipoValor) === n);
-  if (cls) return cls.classificacao as EffectiveClassification;
-  return null;
+  const cfg = findClassification(rawTipo, classifications);
+  return (cfg?.classificacao as EffectiveClassification) ?? null;
 }
 
 /**
- * Get the effective classification for an entry.
- * Uses TypeClassification table for fluxo entries, falls back to tipo field.
+ * Classificação efetiva de uma entry.
+ *
+ * Ordem:
+ *  1) Entry editada manualmente → usa entry.tipo (entrada=receita, saida=despesa)
+ *  2) TypeClassification do usuário (lookup pelo nome do tipo)
+ *  3) Fallback final (sem config): mapeia entry.tipo (entrada=receita, saida=despesa)
+ *     — NÃO inferimos por nome do tipo.
  */
 export function getEffectiveClassification(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): EffectiveClassification {
-  // For fluxo entries, check TypeClassification table first (with synonym fallback)
-  if (entry.origem === 'fluxo' && !entry.editadoManualmente) {
-    const tipoKey = entry.tipoOriginal || entry.tipo;
-    const resolved = classifyTipoName(tipoKey, classifications);
-    if (resolved) return resolved;
+  if (entry.editadoManualmente) {
+    return entry.tipo === 'entrada' ? 'receita' : 'despesa';
   }
 
-  // For non-fluxo entries or when no classification found, use tipo field
-  if (entry.tipo === 'entrada') return 'receita';
-  if (entry.tipo === 'saida') return 'despesa';
-  return 'operacao';
+  if (entry.origem === 'fluxo') {
+    const tipoKey = entry.tipoOriginal || entry.tipo;
+    const fromConfig = classifyTipoName(tipoKey, classifications);
+    if (fromConfig) return fromConfig;
+  }
+
+  // Sem configuração: usa o sinal explícito da entry (entrada/saida).
+  return entry.tipo === 'entrada' ? 'receita' : 'despesa';
 }
 
-/**
- * Check if entry should be completely excluded from all calculations
- */
 export function isEntryIgnored(
   entry: FinancialEntry,
   classifications: TypeClassification[]
@@ -125,10 +122,6 @@ export function isEntryIgnored(
   return getEffectiveClassification(entry, classifications) === 'ignorar';
 }
 
-/**
- * Check if entry counts toward resultado (receitas - despesas)
- * Only receita and despesa count. Operacao does NOT.
- */
 export function countsInResultado(
   entry: FinancialEntry,
   classifications: TypeClassification[]
@@ -137,9 +130,6 @@ export function countsInResultado(
   return cls === 'receita' || cls === 'despesa';
 }
 
-/**
- * Check if entry is effectively an entrada (for resultado calculation)
- */
 export function isReceita(
   entry: FinancialEntry,
   classifications: TypeClassification[]
@@ -147,9 +137,6 @@ export function isReceita(
   return getEffectiveClassification(entry, classifications) === 'receita';
 }
 
-/**
- * Check if entry is effectively a saida (for resultado calculation)
- */
 export function isDespesa(
   entry: FinancialEntry,
   classifications: TypeClassification[]
@@ -157,9 +144,6 @@ export function isDespesa(
   return getEffectiveClassification(entry, classifications) === 'despesa';
 }
 
-/**
- * Check if entry is an operation (affects saldo but NOT resultado)
- */
 export function isOperacao(
   entry: FinancialEntry,
   classifications: TypeClassification[]
@@ -168,14 +152,30 @@ export function isOperacao(
 }
 
 /**
- * Get the saldo impact of an entry (positive = money in, negative = money out)
- * - 'ignorar'  → zero
- * - 'receita'  → +valor (money in)
- * - 'despesa'  → -valor (money out)
- * - 'operacao' → respeita o `operacaoSinal` configurado:
- *      • 'somar'    → +valor
- *      • 'subtrair' → -valor
- *      • 'auto'     → segue o tipo do lançamento (entrada=+, saida=-)
+ * Sinal efetivo para impacto no saldo. Sempre 'somar' ou 'subtrair'.
+ * - Para 'ignorar': retorna 'somar' (irrelevante; impacto será 0).
+ * - Caso a config tenha 'auto' (legado), resolve para o default da classificação.
+ */
+export function getEffectiveSinal(
+  entry: FinancialEntry,
+  classifications: TypeClassification[]
+): OperacaoSinal {
+  const cls = getEffectiveClassification(entry, classifications);
+  if (cls === 'ignorar') return 'somar';
+
+  const cfg = !entry.editadoManualmente && entry.origem === 'fluxo'
+    ? findClassification(entry.tipoOriginal || entry.tipo, classifications)
+    : null;
+
+  const raw = cfg?.operacaoSinal;
+  if (raw === 'somar' || raw === 'subtrair') return raw;
+  // 'auto' (legado) ou ausente → default por classificação
+  return defaultSinalFor(cls);
+}
+
+/**
+ * Impacto no saldo: + ou - conforme sinal definido pelo usuário.
+ * 'ignorar' → 0.
  */
 export function getSaldoImpact(
   entry: FinancialEntry,
@@ -183,26 +183,10 @@ export function getSaldoImpact(
 ): number {
   const cls = getEffectiveClassification(entry, classifications);
   if (cls === 'ignorar') return 0;
-  if (cls === 'receita') return entry.valor;
-  if (cls === 'despesa') return -entry.valor;
-  // operacao: usa configuração explícita quando existir
-  if (entry.origem === 'fluxo' && !entry.editadoManualmente) {
-    const tipoKey = entry.tipoOriginal || entry.tipo;
-    const cfg = classifications.find(
-      c => normalize(c.tipoValor) === normalize(tipoKey)
-    );
-    if (cfg?.classificacao === 'operacao') {
-      if (cfg.operacaoSinal === 'somar') return entry.valor;
-      if (cfg.operacaoSinal === 'subtrair') return -entry.valor;
-    }
-  }
-  // fallback 'auto' → segue o tipo do lançamento
-  return entry.tipo === 'entrada' ? entry.valor : -entry.valor;
+  const sinal = getEffectiveSinal(entry, classifications);
+  return sinal === 'somar' ? entry.valor : -entry.valor;
 }
 
-/**
- * Filter entries removing ignored ones
- */
 export function filterActiveEntries(
   entries: FinancialEntry[],
   classifications: TypeClassification[]
@@ -211,7 +195,9 @@ export function filterActiveEntries(
 }
 
 /**
- * Calculate totals with proper classification logic
+ * Totais com base na nova regra:
+ *   resultado = receitas - despesas
+ *   saldoMovimento = soma de getSaldoImpact (já respeita sinal)
  */
 export function calculateTotals(
   entries: FinancialEntry[],
@@ -221,16 +207,19 @@ export function calculateTotals(
   let despesas = 0;
   let operacoesIn = 0;
   let operacoesOut = 0;
+  let saldoMovimento = 0;
 
   for (const e of entries) {
     const cls = getEffectiveClassification(e, classifications);
     if (cls === 'ignorar') continue;
+
+    const impact = getSaldoImpact(e, classifications);
+    saldoMovimento += impact;
+
     if (cls === 'receita') receitas += e.valor;
     else if (cls === 'despesa') despesas += e.valor;
     else if (cls === 'operacao') {
-      // Respeita o sinal configurado para operação
-      const impact = getSaldoImpact(e, classifications);
-      if (impact >= 0) operacoesIn += Math.abs(impact);
+      if (impact >= 0) operacoesIn += impact;
       else operacoesOut += Math.abs(impact);
     }
   }
@@ -241,6 +230,6 @@ export function calculateTotals(
     resultado: receitas - despesas,
     operacoesIn,
     operacoesOut,
-    saldoMovimento: receitas - despesas + operacoesIn - operacoesOut,
+    saldoMovimento,
   };
 }
