@@ -423,24 +423,58 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     processRows(pendingRows, selectedType, fullMapping);
   };
 
-  const handleTipoMappingConfirm = async () => {
+  /**
+   * Aplica a classificação SOMENTE a este upload (não persiste em type_classifications).
+   * Cada upload é independente — o mesmo "tipo" pode ter classificação diferente.
+   */
+  const handleTipoMappingConfirm = () => {
     if (!tipoMapping || !tipoMappingPending) return;
     if (!tipoMapping.every(r => !!r.classificacao)) {
       toast.error('Defina a classificação de todos os tipos antes de continuar.');
       return;
     }
+
+    // Snapshot LOCAL — usado apenas para converter as linhas deste arquivo.
+    // Não toca a tabela type_classifications.
+    const localClassifications: TypeClassification[] = tipoMapping.map(r => ({
+      id: crypto.randomUUID(),
+      school_id: schoolId,
+      tipoValor: r.label, // mantém o label original; classifyTipoName normaliza na leitura
+      classificacao: r.classificacao,
+      operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
+      entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
+      impactaCaixa: r.classificacao !== 'ignorar',
+      label: r.label,
+    }));
+
+    const { rows, mapping, uploadType } = tipoMappingPending;
+    const { entries, errors: validationErrors } = convertRows(
+      rows, uploadType, schoolId, rules, mapping, localClassifications
+    );
+    setPreview(entries);
+    setErrors(validationErrors);
+    setTipoMapping(null);
+    setTipoMappingPending(null);
+  };
+
+  /**
+   * Opcional — quando o usuário clica em "Salvar como padrão",
+   * persiste o mapeamento atual em type_classifications para uso em
+   * futuros uploads (sem alterar lançamentos antigos).
+   */
+  const handleTipoMappingSaveAsDefault = async () => {
+    if (!tipoMapping) return;
+    if (!tipoMapping.every(r => !!r.classificacao)) {
+      toast.error('Defina a classificação de todos os tipos antes de salvar.');
+      return;
+    }
     try {
-      // Persist user choices so they pré-preenchem nos próximos uploads.
-      // Sequencial p/ evitar corrida no mesmo (school_id, tipo_valor) durante o upsert.
-      // Sempre normalizamos o tipo_valor para evitar duplicidade por variação de texto
-      // (ex: "Saída" vs "saida"), e NÃO reutilizamos id existente — deixamos o
-      // onConflict(school_id, tipo_valor) decidir entre INSERT e UPDATE.
       for (const r of tipoMapping) {
         const existing = findClassification(r.label, classifications);
         const tc: TypeClassification = {
           id: existing?.id ?? crypto.randomUUID(),
           school_id: schoolId,
-          tipoValor: r.tipoValor, // chave canônica normalizada
+          tipoValor: r.tipoValor,
           classificacao: r.classificacao,
           operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
           entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
@@ -449,34 +483,10 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         };
         await saveClassificationMut.mutateAsync(tc);
       }
+      toast.success('Mapeamento salvo como padrão para próximos uploads.');
     } catch (err: any) {
-      toast.error(`Erro ao salvar configuração de tipos: ${err?.message ?? 'desconhecido'}`);
-      return;
+      toast.error(`Erro ao salvar como padrão: ${err?.message ?? 'desconhecido'}`);
     }
-
-    // Build local classifications snapshot (avoid waiting for refetch)
-    const merged: TypeClassification[] = [
-      ...classifications.filter(c => !tipoMapping.some(r => normalizeTipo(c.tipoValor) === r.tipoValor)),
-      ...tipoMapping.map(r => ({
-        id: crypto.randomUUID(),
-        school_id: schoolId,
-        tipoValor: r.label,
-        classificacao: r.classificacao,
-        operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
-        entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
-        impactaCaixa: r.classificacao !== 'ignorar',
-        label: r.label,
-      })),
-    ];
-
-    const { rows, mapping, uploadType } = tipoMappingPending;
-    const { entries, errors: validationErrors } = convertRows(
-      rows, uploadType, schoolId, rules, mapping, merged
-    );
-    setPreview(entries);
-    setErrors(validationErrors);
-    setTipoMapping(null);
-    setTipoMappingPending(null);
   };
 
   const handleTipoMappingCancel = () => {
