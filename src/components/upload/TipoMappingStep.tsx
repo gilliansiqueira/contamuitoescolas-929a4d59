@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, Tags } from 'lucide-react';
+import { AlertCircle, ArrowRight, Tags, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { EffectiveClassification, OperacaoSinal } from '@/lib/classificationUtils';
 import { defaultSinalFor } from '@/lib/classificationUtils';
@@ -10,7 +10,7 @@ export interface TipoMappingRow {
   count: number;            // occurrences in file
   classificacao: EffectiveClassification;
   operacaoSinal: OperacaoSinal;
-  prefilled: boolean;       // pre-loaded from existing config
+  prefilled: boolean;       // pre-loaded from existing config (sugestão apenas)
 }
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
   onChange: (next: TipoMappingRow[]) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Opcional — quando fornecido, exibe botão "Salvar como padrão". */
+  onSaveAsDefault?: () => void;
 }
 
 const CLASS_LABEL: Record<EffectiveClassification, string> = {
@@ -27,9 +29,9 @@ const CLASS_LABEL: Record<EffectiveClassification, string> = {
   ignorar: 'Ignorar',
 };
 
-export function TipoMappingStep({ rows, onChange, onConfirm, onCancel }: Props) {
+export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsDefault }: Props) {
   const allMapped = rows.every(r => !!r.classificacao);
-  const newCount = rows.filter(r => !r.prefilled).length;
+  const suggestedCount = rows.filter(r => r.prefilled).length;
 
   function update(i: number, patch: Partial<TipoMappingRow>) {
     const next = rows.slice();
@@ -57,13 +59,14 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel }: Props) 
             Classificação dos tipos
           </h4>
           <p className="text-xs text-muted-foreground mt-1">
-            Defina como cada tipo encontrado no arquivo deve ser tratado. A
-            configuração é salva e reutilizada nos próximos uploads.
+            Defina como cada tipo encontrado neste arquivo deve ser tratado.
+            A configuração vale apenas para este upload — você pode classificar o
+            mesmo tipo de forma diferente em outros arquivos.
           </p>
-          {newCount > 0 && (
-            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+          {suggestedCount > 0 && (
+            <p className="text-xs text-muted-foreground/80 mt-1 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
-              {newCount} tipo(s) novo(s) sem configuração prévia.
+              {suggestedCount} tipo(s) pré-sugerido(s) a partir do padrão salvo (você pode alterar livremente).
             </p>
           )}
         </div>
@@ -125,10 +128,10 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel }: Props) 
                       className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${
                         r.prefilled
                           ? 'bg-primary/10 text-primary'
-                          : 'bg-amber-100 text-amber-700'
+                          : 'bg-muted text-muted-foreground'
                       }`}
                     >
-                      {r.prefilled ? 'Pré-preenchido' : 'Novo'}
+                      {r.prefilled ? 'Sugerido' : 'Novo'}
                     </span>
                   </td>
                 </tr>
@@ -138,10 +141,22 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel }: Props) 
         </table>
       </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onCancel}>
           Cancelar
         </Button>
+        {onSaveAsDefault && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onSaveAsDefault}
+            disabled={!allMapped}
+            title="Reaproveitar este mapeamento em futuros uploads"
+          >
+            <Save className="w-4 h-4 mr-1" />
+            Salvar como padrão
+          </Button>
+        )}
         <Button size="sm" onClick={onConfirm} disabled={!allMapped}>
           <ArrowRight className="w-4 h-4 mr-1" />
           Confirmar e visualizar
