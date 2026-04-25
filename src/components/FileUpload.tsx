@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro } from '@/types/financial';
-import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications } from '@/hooks/useFinancialData';
+import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import type { TypeClassification } from '@/types/financial';
-import { normalizeTipo, classifyTipoName } from '@/lib/classificationUtils';
+import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification } from '@/lib/classificationUtils';
+import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMappingStep';
 
 interface FileUploadProps {
   schoolId: string;
@@ -279,6 +280,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const addEntriesMut = useAddEntries();
   const addUploadMut = useAddUpload();
   const addAuditMut = useAddAuditLog();
+  const saveClassificationMut = useSaveTypeClassification();
 
   const [selectedType, setSelectedType] = useState<UploadType | null>(null);
   const [preview, setPreview] = useState<FinancialEntry[]>([]);
@@ -294,7 +296,56 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [pdfRawRows, setPdfRawRows] = useState<string[][] | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Tipo-mapping step (apenas para uploadType.key === 'fluxo')
+  const [tipoMapping, setTipoMapping] = useState<TipoMappingRow[] | null>(null);
+  const [tipoMappingPending, setTipoMappingPending] = useState<{
+    rows: Record<string, any>[];
+    mapping: Record<string, string>;
+    uploadType: UploadType;
+  } | null>(null);
+
   const processRows = useCallback((rows: Record<string, any>[], uploadType: UploadType, mapping: Record<string, string>) => {
+    // Para fluxo de caixa, exigir mapeamento por tipo antes de gerar entries
+    if (uploadType.key === 'fluxo') {
+      const tipoCol = mapping['tipo'];
+      const counts = new Map<string, { label: string; count: number }>();
+      for (const row of rows) {
+        const raw = String((tipoCol ? row[tipoCol] : '') ?? '').trim();
+        if (!raw) continue;
+        const key = normalizeTipo(raw);
+        const cur = counts.get(key);
+        if (cur) cur.count += 1;
+        else counts.set(key, { label: raw, count: 1 });
+      }
+
+      const tipoRows: TipoMappingRow[] = Array.from(counts.entries())
+        .map(([key, { label, count }]) => {
+          const cfg = findClassification(label, classifications);
+          const cls = (cfg?.classificacao as TipoMappingRow['classificacao']) ?? 'despesa';
+          const sinalRaw = cfg?.operacaoSinal;
+          const sinal: TipoMappingRow['operacaoSinal'] =
+            sinalRaw === 'somar' || sinalRaw === 'subtrair' ? sinalRaw : defaultSinalFor(cls);
+          return {
+            tipoValor: key,
+            label,
+            count,
+            classificacao: cls,
+            operacaoSinal: sinal,
+            prefilled: !!cfg,
+          };
+        })
+        .sort((a, b) => b.count - a.count);
+
+      setTipoMapping(tipoRows);
+      setTipoMappingPending({ rows, mapping, uploadType });
+      setNeedsMapping(false);
+      setUnmappedCols([]);
+      setPdfRawRows(null);
+      setPreview([]);
+      setErrors([]);
+      return;
+    }
+
     const { entries, errors: validationErrors } = convertRows(rows, uploadType, schoolId, rules, mapping, classifications);
     setPreview(entries);
     setErrors(validationErrors);
@@ -372,6 +423,65 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     processRows(pendingRows, selectedType, fullMapping);
   };
 
+  const handleTipoMappingConfirm = async () => {
+    if (!tipoMapping || !tipoMappingPending) return;
+    if (!tipoMapping.every(r => !!r.classificacao)) {
+      toast.error('Defina a classificação de todos os tipos antes de continuar.');
+      return;
+    }
+    try {
+      // Persist user choices so they pré-preenchem nos próximos uploads
+      await Promise.all(
+        tipoMapping.map(r => {
+          const existing = findClassification(r.label, classifications);
+          const tc: TypeClassification = {
+            id: existing?.id ?? crypto.randomUUID(),
+            school_id: schoolId,
+            tipoValor: r.label,
+            classificacao: r.classificacao,
+            operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
+            entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
+            impactaCaixa: r.classificacao !== 'ignorar',
+            label: existing?.label ?? r.label,
+          };
+          return saveClassificationMut.mutateAsync(tc);
+        })
+      );
+    } catch (err: any) {
+      toast.error(`Erro ao salvar configuração de tipos: ${err?.message ?? 'desconhecido'}`);
+      return;
+    }
+
+    // Build local classifications snapshot (avoid waiting for refetch)
+    const merged: TypeClassification[] = [
+      ...classifications.filter(c => !tipoMapping.some(r => normalizeTipo(c.tipoValor) === r.tipoValor)),
+      ...tipoMapping.map(r => ({
+        id: crypto.randomUUID(),
+        school_id: schoolId,
+        tipoValor: r.label,
+        classificacao: r.classificacao,
+        operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
+        entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
+        impactaCaixa: r.classificacao !== 'ignorar',
+        label: r.label,
+      })),
+    ];
+
+    const { rows, mapping, uploadType } = tipoMappingPending;
+    const { entries, errors: validationErrors } = convertRows(
+      rows, uploadType, schoolId, rules, mapping, merged
+    );
+    setPreview(entries);
+    setErrors(validationErrors);
+    setTipoMapping(null);
+    setTipoMappingPending(null);
+  };
+
+  const handleTipoMappingCancel = () => {
+    setTipoMapping(null);
+    setTipoMappingPending(null);
+  };
+
   const handleConfirm = async () => {
     if (!selectedType) {
       toast.error('Selecione o tipo de arquivo antes de importar.');
@@ -422,6 +532,8 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     setFileName('');
     setNeedsMapping(false);
     setPdfRawRows(null);
+    setTipoMapping(null);
+    setTipoMappingPending(null);
   };
 
   function formatCurrency(v: number) {
@@ -458,7 +570,16 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             </Button>
           </div>
 
-          {preview.length === 0 && columnErrors.length === 0 && !needsMapping && (
+          {tipoMapping && (
+            <TipoMappingStep
+              rows={tipoMapping}
+              onChange={setTipoMapping}
+              onConfirm={handleTipoMappingConfirm}
+              onCancel={handleTipoMappingCancel}
+            />
+          )}
+
+          {preview.length === 0 && columnErrors.length === 0 && !needsMapping && !tipoMapping && (
             <label className="glass-card rounded-xl p-8 border-2 border-dashed border-primary/30 hover:border-primary/60 transition-colors cursor-pointer flex flex-col items-center gap-3">
               <Upload className="w-10 h-10 text-primary" />
               <span className="text-sm text-muted-foreground">Arraste ou clique para selecionar arquivo</span>

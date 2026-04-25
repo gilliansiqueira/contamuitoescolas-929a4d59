@@ -1,0 +1,152 @@
+import { motion } from 'framer-motion';
+import { AlertCircle, ArrowRight, Tags } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import type { EffectiveClassification, OperacaoSinal } from '@/lib/classificationUtils';
+import { defaultSinalFor } from '@/lib/classificationUtils';
+
+export interface TipoMappingRow {
+  tipoValor: string;        // canonical key (normalized)
+  label: string;            // first raw spelling encountered
+  count: number;            // occurrences in file
+  classificacao: EffectiveClassification;
+  operacaoSinal: OperacaoSinal;
+  prefilled: boolean;       // pre-loaded from existing config
+}
+
+interface Props {
+  rows: TipoMappingRow[];
+  onChange: (next: TipoMappingRow[]) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const CLASS_LABEL: Record<EffectiveClassification, string> = {
+  receita: 'Receita',
+  despesa: 'Despesa',
+  operacao: 'Operação',
+  ignorar: 'Ignorar',
+};
+
+export function TipoMappingStep({ rows, onChange, onConfirm, onCancel }: Props) {
+  const allMapped = rows.every(r => !!r.classificacao);
+  const newCount = rows.filter(r => !r.prefilled).length;
+
+  function update(i: number, patch: Partial<TipoMappingRow>) {
+    const next = rows.slice();
+    next[i] = { ...next[i], ...patch };
+    // Auto-suggest sinal when classificacao changes
+    if (patch.classificacao && patch.classificacao !== next[i].classificacao) {
+      next[i].classificacao = patch.classificacao;
+      next[i].operacaoSinal = defaultSinalFor(patch.classificacao);
+    }
+    onChange(next);
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-card rounded-xl p-5 space-y-4"
+    >
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-primary/10">
+          <Tags className="w-5 h-5 text-primary" />
+        </div>
+        <div className="flex-1">
+          <h4 className="font-display font-semibold text-foreground">
+            Classificação dos tipos
+          </h4>
+          <p className="text-xs text-muted-foreground mt-1">
+            Defina como cada tipo encontrado no arquivo deve ser tratado. A
+            configuração é salva e reutilizada nos próximos uploads.
+          </p>
+          {newCount > 0 && (
+            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {newCount} tipo(s) novo(s) sem configuração prévia.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/40">
+            <tr className="text-left text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Tipo no arquivo</th>
+              <th className="px-3 py-2 font-medium">Linhas</th>
+              <th className="px-3 py-2 font-medium">Classificação</th>
+              <th className="px-3 py-2 font-medium">Impacto no caixa</th>
+              <th className="px-3 py-2 font-medium">Origem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const sinalDisabled = r.classificacao === 'ignorar';
+              return (
+                <tr key={r.tipoValor} className="border-t border-border/40">
+                  <td className="px-3 py-2 font-medium text-foreground">
+                    {r.label}
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">{r.count}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={r.classificacao}
+                      onChange={e =>
+                        update(i, {
+                          classificacao: e.target.value as EffectiveClassification,
+                        })
+                      }
+                      className="h-8 border rounded px-2 bg-background w-full"
+                    >
+                      <option value="receita">{CLASS_LABEL.receita}</option>
+                      <option value="despesa">{CLASS_LABEL.despesa}</option>
+                      <option value="operacao">{CLASS_LABEL.operacao}</option>
+                      <option value="ignorar">{CLASS_LABEL.ignorar}</option>
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={r.operacaoSinal}
+                      disabled={sinalDisabled}
+                      onChange={e =>
+                        update(i, {
+                          operacaoSinal: e.target.value as OperacaoSinal,
+                        })
+                      }
+                      className="h-8 border rounded px-2 bg-background w-full disabled:opacity-50"
+                    >
+                      <option value="somar">Somar (+)</option>
+                      <option value="subtrair">Diminuir (−)</option>
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${
+                        r.prefilled
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {r.prefilled ? 'Pré-preenchido' : 'Novo'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button size="sm" onClick={onConfirm} disabled={!allMapped}>
+          <ArrowRight className="w-4 h-4 mr-1" />
+          Confirmar e visualizar
+        </Button>
+      </div>
+    </motion.div>
+  );
+}
