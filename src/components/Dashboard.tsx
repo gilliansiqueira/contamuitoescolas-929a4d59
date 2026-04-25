@@ -24,9 +24,8 @@ function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function normalize(s: string) {
-  return s.toLowerCase().trim().replace(/\s+/g, '_');
-}
+// Usa a função canônica do sistema (lowercase + trim + remove acentos).
+const normalize = normalizeTipo;
 
 function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; prazo: number }[]): FinancialEntry[] {
   return entries.map(e => {
