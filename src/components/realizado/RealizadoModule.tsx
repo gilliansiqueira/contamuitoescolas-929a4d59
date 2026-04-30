@@ -13,7 +13,8 @@ import { RecebimentoCategoria } from './RecebimentoCategoria';
 import { ExportPdfDialog } from './ExportPdfDialog';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { FechamentoMeses } from './FechamentoMeses';
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet } from 'lucide-react';
+import { TetoGastos } from './TetoGastos';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
@@ -26,7 +27,7 @@ interface Props {
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'historico' | 'fechamento' | 'dados' | 'icones';
-type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria';
+type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -44,6 +45,7 @@ interface TabVisibility {
   vendas: boolean;
   analise_vendas: boolean;
   recebimento_categoria: boolean;
+  teto_gastos: boolean;
 }
 
 function useTabVisibility(schoolId: string) {
@@ -59,7 +61,7 @@ function useTabVisibility(schoolId: string) {
   });
 
   const visibility = useMemo<TabVisibility>(() => {
-    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true, analise_vendas: true, recebimento_categoria: true };
+    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true, analise_vendas: true, recebimento_categoria: true, teto_gastos: true };
     if (!tabs) return defaults;
     tabs.forEach(t => {
       if (t.tab_key in defaults) {
@@ -117,6 +119,7 @@ export function RealizadoModule({ schoolId }: Props) {
     if (mainView === 'vendas' && !visibility.vendas) return 'relatorio';
     if (mainView === 'analise_vendas' && !visibility.analise_vendas) return 'relatorio';
     if (mainView === 'recebimento_categoria' && !visibility.recebimento_categoria) return 'relatorio';
+    if (mainView === 'teto_gastos' && !visibility.teto_gastos) return 'relatorio';
     return mainView;
   }, [mainView, visibility]);
 
@@ -140,6 +143,7 @@ export function RealizadoModule({ schoolId }: Props) {
               { key: 'vendas', label: 'Vendas' },
               { key: 'analise_vendas', label: 'Análise de Vendas' },
               { key: 'recebimento_categoria', label: 'Recebimento por Categoria' },
+              { key: 'teto_gastos', label: 'Teto de Gastos' },
             ].map(tab => (
               <label key={tab.key} className="flex items-center gap-2 text-sm">
                 <input
@@ -267,6 +271,19 @@ export function RealizadoModule({ schoolId }: Props) {
               Recebimento por Categoria
             </button>
           )}
+          {visibility.teto_gastos && (
+            <button
+              onClick={() => setMainView('teto_gastos')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeView === 'teto_gastos'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Target className="w-4 h-4" />
+              Teto de Gastos
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!isPresentationMode && (
@@ -288,6 +305,7 @@ export function RealizadoModule({ schoolId }: Props) {
         {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
         {activeView === 'analise_vendas' && <AnaliseVendasDashboard schoolId={schoolId} />}
         {activeView === 'recebimento_categoria' && <RecebimentoCategoria schoolId={schoolId} />}
+        {activeView === 'teto_gastos' && <TetoGastos schoolId={schoolId} />}
       </motion.div>
 
       <ExportPdfDialog 
