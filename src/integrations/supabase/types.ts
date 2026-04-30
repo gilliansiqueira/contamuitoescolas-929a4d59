@@ -293,6 +293,36 @@ export type Database = {
           },
         ]
       }
+      expense_ceilings: {
+        Row: {
+          category_name: string
+          ceiling: number
+          created_at: string
+          id: string
+          school_id: string
+          semester: string
+          updated_at: string
+        }
+        Insert: {
+          category_name: string
+          ceiling?: number
+          created_at?: string
+          id?: string
+          school_id: string
+          semester: string
+          updated_at?: string
+        }
+        Update: {
+          category_name?: string
+          ceiling?: number
+          created_at?: string
+          id?: string
+          school_id?: string
+          semester?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       financial_entries: {
         Row: {
           categoria: string
