@@ -34,7 +34,7 @@ export function TiposHistorico({ schoolId }: Props) {
   const [reassignTo, setReassignTo] = useState<string>('');
 
   const { data: entries = [] } = useQuery({
-    queryKey: ['realized_entries', schoolId],
+    queryKey: ['realized_entries_tipos', schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('realized_entries')
