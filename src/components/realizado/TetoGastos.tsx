@@ -218,6 +218,7 @@ export function TetoGastos({ schoolId }: Props) {
               index={idx}
               onSave={(value) => saveCeiling.mutate({ category: row.name, value, existingId: row.ceilingId })}
               saving={saveCeiling.isPending}
+              canEdit={canEdit}
             />
           ))}
         </div>
