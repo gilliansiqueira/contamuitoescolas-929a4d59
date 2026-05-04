@@ -34,7 +34,7 @@ export function TiposHistorico({ schoolId }: Props) {
   const [reassignTo, setReassignTo] = useState<string>('');
 
   const { data: entries = [] } = useQuery({
-    queryKey: ['realized_entries', schoolId],
+    queryKey: ['realized_entries_tipos', schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('realized_entries')
@@ -75,6 +75,7 @@ export function TiposHistorico({ schoolId }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
+      qc.invalidateQueries({ queryKey: ['realized_entries_tipos', schoolId] });
       qc.invalidateQueries({ queryKey: ['chart_of_accounts', schoolId] });
       toast.success('Tipo renomeado e propagado nos lançamentos.');
       setEditing(null);
@@ -100,6 +101,7 @@ export function TiposHistorico({ schoolId }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
+      qc.invalidateQueries({ queryKey: ['realized_entries_tipos', schoolId] });
       qc.invalidateQueries({ queryKey: ['chart_of_accounts', schoolId] });
       toast.success('Tipo excluído e lançamentos reclassificados.');
       setDeleting(null);
