@@ -147,7 +147,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       toast.success('Lançamentos importados com sucesso');
       resetAll();
     },
-    onError: () => toast.error('Erro ao importar lançamentos'),
+    onError: (err: any) => toast.error(`Erro ao importar lançamentos: ${err?.message ?? 'desconhecido'}`),
   });
 
   function resetAll() {
