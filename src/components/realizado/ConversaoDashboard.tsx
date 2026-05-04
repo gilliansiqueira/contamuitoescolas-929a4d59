@@ -554,31 +554,67 @@ function AbsoluteCharts({ title, data, years, yearFilter }: {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <SimpleLineChart title={`Contatos — ${title}`} data={filtered} dataKey="contatos" color="hsl(217 91% 60%)" />
-      <SimpleLineChart title={`Matrículas — ${title}`} data={filtered} dataKey="matriculas" color="hsl(142 71% 45%)" />
+      <AbsoluteChart title={`Contatos — ${title}`} data={filtered} dataKey="contatos" />
+      <AbsoluteChart title={`Matrículas — ${title}`} data={filtered} dataKey="matriculas" />
     </div>
   );
 }
 
-function SimpleLineChart({ title, data, dataKey, color }: {
+function AbsoluteChart({ title, data, dataKey }: {
   title: string;
   data: ConversionRow[];
-  dataKey: string;
-  color: string;
+  dataKey: 'contatos' | 'matriculas';
 }) {
+  const uniqueYears = [...new Set(data.map(d => d.month.split('-')[0]))].sort();
+  const isMultiYear = uniqueYears.length > 1;
+
+  const chartData = useMemo(() => {
+    if (!isMultiYear) return data;
+    return Array.from({ length: 12 }, (_, i) => {
+      const mo = String(i + 1).padStart(2, '0');
+      const point: any = { month: MONTH_LABELS[i] };
+      uniqueYears.forEach(y => {
+        const row = data.find(d => d.month === `${y}-${mo}`);
+        point[y] = row ? row[dataKey] : null;
+      });
+      return point;
+    });
+  }, [data, isMultiYear, uniqueYears, dataKey]);
+
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <Card className="rounded-2xl">
         <CardContent className="p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-3">{title}</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={data} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
-              <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <Tooltip labelFormatter={formatMonth} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-              <Line dataKey={dataKey} stroke={color} strokeWidth={2} dot={{ r: 3, fill: color }} />
-            </LineChart>
+          <h3 className="text-sm font-semibold text-foreground mb-4">{title}</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            {isMultiYear ? (
+              <LineChart data={chartData} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                {uniqueYears.map((yr, i) => (
+                  <Line key={yr} dataKey={yr} name={yr} stroke={YEAR_COLORS[i % YEAR_COLORS.length]} strokeWidth={2} dot={{ r: 4, fill: YEAR_COLORS[i % YEAR_COLORS.length] }} connectNulls />
+                ))}
+              </LineChart>
+            ) : (
+              <LineChart data={data} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
+                <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <Tooltip labelFormatter={formatMonth} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                <Line dataKey={dataKey} stroke={YEAR_COLORS[0]} strokeWidth={2} dot={{ r: 4, fill: YEAR_COLORS[0] }} />
+              </LineChart>
+            )}
           </ResponsiveContainer>
+          {isMultiYear && (
+            <div className="flex gap-4 justify-center mt-2">
+              {uniqueYears.map((yr, i) => (
+                <div key={yr} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-3 h-3 rounded-full" style={{ background: YEAR_COLORS[i % YEAR_COLORS.length] }} />
+                  {yr}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
