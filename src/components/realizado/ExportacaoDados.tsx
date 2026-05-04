@@ -54,14 +54,16 @@ export function ExportacaoDados({ schoolId }: Props) {
     return Array.from(meses).sort();
   }, [entries]);
 
-  const activeMes = mesFilter === 'all'
-    ? (mesesDisponiveis.length > 0 ? mesesDisponiveis[mesesDisponiveis.length - 1] : '')
-    : mesFilter;
+  const currentYM = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const activeMes = mesFilter === 'all' ? currentYM : mesFilter;
 
   const filtered = useMemo(() => {
-    if (mesFilter === 'all') return entries;
-    return entries.filter(e => e.data?.startsWith(mesFilter));
-  }, [entries, mesFilter]);
+    return entries.filter(e => e.data?.startsWith(activeMes));
+  }, [entries, activeMes]);
 
   const contaGrupoMap = useMemo(() => {
     const map: Record<string, string> = {};
