@@ -256,39 +256,24 @@ export function HistoricoUploads({ schoolId }: Props) {
         </motion.div>
       );})}
 
-      <AlertDialog open={!!deleteFile} onOpenChange={open => { if (!open) { setDeleteFile(null); setConfirmText(''); } }}>
+      <AlertDialog open={!!deleteFile} onOpenChange={open => { if (!open) setDeleteFile(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" /> Excluir importação permanentemente
+              <AlertTriangle className="w-5 h-5 text-destructive" /> Excluir upload?
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <span className="block">
-                Essa ação irá deletar permanentemente a importação <strong>"{deleteFile}"</strong> e todos os dados associados. Essa ação não pode ser desfeita.
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                Os relatórios e gráficos serão recalculados automaticamente.
-              </span>
-              <span className="block pt-2 text-xs">
-                Digite <strong>EXCLUIR</strong> para confirmar:
-              </span>
+            <AlertDialogDescription>
+              Todos os registros do arquivo <strong>"{deleteFile}"</strong> serão removidos e os relatórios recalculados automaticamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <Input
-            value={confirmText}
-            onChange={e => setConfirmText(e.target.value)}
-            placeholder="EXCLUIR"
-            className="font-mono"
-            autoFocus
-          />
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteFile && deleteMutation.mutate(deleteFile)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending || confirmText.trim() !== 'EXCLUIR'}
+              disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Excluindo...' : 'EXCLUIR'}
+              {deleteMutation.isPending ? 'Excluindo...' : 'Excluir upload'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
