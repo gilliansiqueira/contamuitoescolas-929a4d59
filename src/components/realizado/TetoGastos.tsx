@@ -242,11 +242,13 @@ function CategoryCard({
   index,
   onSave,
   saving,
+  canEdit,
 }: {
   row: CategoryRow;
   index: number;
   onSave: (value: number) => void;
   saving: boolean;
+  canEdit: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
@@ -270,14 +272,22 @@ function CategoryCard({
   const hasCeiling = row.ceiling > 0;
   const overLimit = hasCeiling && row.realizado > row.ceiling;
   const fillPct = hasCeiling ? Math.min((row.realizado / row.ceiling) * 100, 100) : 0;
-  const overPct = hasCeiling && row.realizado > row.ceiling ? ((row.realizado - row.ceiling) / row.ceiling) * 100 : 0;
 
-  // Color: até 100% usa primary (verde-água do tema), acima usa destructive
-  const fillColor = overLimit
-    ? 'bg-destructive/80'
-    : row.pct > 80
-      ? 'bg-amber-400 dark:bg-amber-500'
-      : 'bg-primary';
+  // Faixas: <=70 verde, 70-90 amarelo, >90 vermelho
+  const status: 'safe' | 'warn' | 'danger' = !hasCeiling
+    ? 'safe'
+    : row.pct > 90
+      ? 'danger'
+      : row.pct > 70
+        ? 'warn'
+        : 'safe';
+
+  const colorMap = {
+    safe: { fill: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-500', ring: 'ring-emerald-500/20', soft: 'bg-emerald-500/10' },
+    warn: { fill: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-500', ring: 'ring-amber-500/20', soft: 'bg-amber-500/10' },
+    danger: { fill: 'bg-destructive', text: 'text-destructive', ring: 'ring-destructive/20', soft: 'bg-destructive/10' },
+  };
+  const c = colorMap[status];
 
   return (
     <motion.div
@@ -285,78 +295,68 @@ function CategoryCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
     >
-      <Card className="rounded-2xl hover:shadow-md transition-shadow">
+      <Card className={`rounded-2xl hover:shadow-md transition-all ring-1 ${c.ring}`}>
         <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <h4 className="text-sm font-semibold text-foreground leading-tight">{row.name}</h4>
-            {overLimit && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
-                <AlertTriangle className="w-3 h-3" />
-                Acima do teto
-              </span>
-            )}
-            {!overLimit && hasCeiling && row.pct > 80 && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
-                <TrendingUp className="w-3 h-3" />
-                Atenção
-              </span>
+          {/* Header: nome + edit icon */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <h4 className="text-sm font-semibold text-foreground leading-tight flex-1">{row.name}</h4>
+            {canEdit && !editing && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground -mt-1 -mr-1"
+                onClick={() => setEditing(true)}
+                title={hasCeiling ? 'Editar teto' : 'Definir teto'}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
             )}
           </div>
 
-          {/* Barra horizontal */}
+          {/* Percentual destacado */}
+          <div className="flex items-baseline gap-2 mb-3">
+            {hasCeiling ? (
+              <>
+                <span className={`text-4xl font-bold tracking-tight ${c.text}`}>{row.pct.toFixed(0)}%</span>
+                <span className="text-xs text-muted-foreground font-medium">utilizado</span>
+                {overLimit && (
+                  <span className={`ml-auto inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide ${c.text} ${c.soft} px-2 py-0.5 rounded-full`}>
+                    <AlertTriangle className="w-3 h-3" />
+                    Acima do teto
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Sem teto definido</span>
+            )}
+          </div>
+
+          {/* Barra de progresso moderna */}
           <div className="mb-4">
-            <div className="relative h-3 w-full rounded-full bg-muted overflow-hidden">
+            <div className="relative h-2.5 w-full rounded-full bg-muted overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${fillPct}%` }}
                 transition={{ duration: 0.6, ease: 'easeOut' }}
-                className={`h-full rounded-full ${fillColor}`}
+                className={`h-full rounded-full ${c.fill}`}
               />
             </div>
-            {hasCeiling && (
-              <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground">
-                <span>{row.pct.toFixed(1)}% utilizado</span>
-                {overLimit && <span className="text-destructive font-semibold">+{overPct.toFixed(0)}% acima</span>}
-              </div>
-            )}
           </div>
 
-          {/* Infos */}
-          <div className="grid grid-cols-3 gap-2 mb-4 text-xs">
-            <div>
-              <p className="text-muted-foreground">Teto</p>
-              <p className="font-semibold text-foreground">{hasCeiling ? formatCurrency(row.ceiling) : '—'}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Gasto</p>
-              <p className="font-semibold text-foreground">{formatCurrency(row.realizado)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Saldo</p>
-              <p className={`font-semibold ${row.saldo < 0 ? 'text-destructive' : 'text-foreground'}`}>
-                {hasCeiling ? formatCurrency(row.saldo) : '—'}
-              </p>
-            </div>
+          {/* Hierarquia: Gasto • Teto • Saldo */}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <Stat label="Gasto" value={formatCurrency(row.realizado)} strong />
+            <Stat label="Teto" value={hasCeiling ? formatCurrency(row.ceiling) : '—'} />
+            <Stat
+              label="Saldo"
+              value={hasCeiling ? formatCurrency(row.saldo) : '—'}
+              tone={row.saldo < 0 ? 'danger' : 'default'}
+            />
           </div>
 
-          {/* Mensagem comportamental */}
-          {!hasCeiling ? (
-            <p className="text-xs text-muted-foreground italic mb-3">
-              Defina um teto semestral para essa categoria
-            </p>
-          ) : overLimit ? (
-            <p className="text-xs text-destructive font-medium mb-3">
-              Você ultrapassou o limite em {formatCurrency(Math.abs(row.saldo))}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground mb-3">
-              Você ainda pode gastar <span className="font-semibold text-foreground">{formatCurrency(row.saldo)}</span> neste semestre
-            </p>
-          )}
-
-          {/* Editor de teto */}
-          {editing ? (
-            <div className="flex items-center gap-2">
+          {/* Editor inline (apenas admin, fora do modo apresentação) */}
+          {canEdit && editing && (
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border/60">
               <span className="text-xs font-medium text-muted-foreground">R$</span>
               <Input
                 autoFocus
@@ -369,26 +369,26 @@ function CategoryCard({
                   if (e.key === 'Escape') setEditing(false);
                 }}
               />
-              <Button size="sm" className="rounded-xl h-9" onClick={handleSave} disabled={saving}>
+              <Button size="icon" className="rounded-xl h-9 w-9" onClick={handleSave} disabled={saving}>
                 <Check className="w-4 h-4" />
               </Button>
-              <Button size="sm" variant="ghost" className="rounded-xl h-9" onClick={() => setEditing(false)}>
-                Cancelar
+              <Button size="icon" variant="ghost" className="rounded-xl h-9 w-9" onClick={() => setEditing(false)}>
+                <X className="w-4 h-4" />
               </Button>
             </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl w-full"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil className="w-3.5 h-3.5 mr-1.5" />
-              {hasCeiling ? 'Editar teto' : 'Definir teto'}
-            </Button>
           )}
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+function Stat({ label, value, strong, tone = 'default' }: { label: string; value: string; strong?: boolean; tone?: 'default' | 'danger' }) {
+  const color = tone === 'danger' ? 'text-destructive' : 'text-foreground';
+  return (
+    <div>
+      <p className="text-muted-foreground text-[10px] uppercase tracking-wide font-medium">{label}</p>
+      <p className={`${strong ? 'font-bold' : 'font-semibold'} ${color}`}>{value}</p>
+    </div>
   );
 }
