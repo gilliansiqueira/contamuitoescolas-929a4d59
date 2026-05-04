@@ -311,9 +311,9 @@ export function RelatorioRealizado({ schoolId }: Props) {
       {/* Filter row */}
       <div className="flex items-center gap-3 flex-wrap">
         <Select value={mesFilter} onValueChange={setMesFilter}>
-          <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="Todos os meses" /></SelectTrigger>
+          <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="Mês atual" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Último mês</SelectItem>
+            <SelectItem value="all">Mês atual</SelectItem>
             {mesesDisponiveis.map(m => <SelectItem key={m} value={m}>{formatMonth(m)}</SelectItem>)}
           </SelectContent>
         </Select>
