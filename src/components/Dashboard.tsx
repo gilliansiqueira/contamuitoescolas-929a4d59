@@ -455,8 +455,22 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       monthBuckets[mm][`saidas_${yyyy}`] = (monthBuckets[mm][`saidas_${yyyy}`] || 0) + vals.saidas;
     }
     const years = Array.from(yearsSet).sort();
+
+    // YTD: limita comparação ao último mês com dados no ano corrente.
+    // Todos os anos só exibem meses até esse limite (Jan→ÚltimoMês).
+    const currentYear = String(new Date().getFullYear());
+    let cutoffMM = '12';
+    if (years.includes(currentYear)) {
+      const monthsCurr = Object.keys(map)
+        .filter(ym => ym.startsWith(currentYear))
+        .map(ym => ym.split('-')[1])
+        .sort();
+      if (monthsCurr.length > 0) cutoffMM = monthsCurr[monthsCurr.length - 1];
+    }
+
     const data = Object.keys(monthBuckets)
       .sort()
+      .filter(mm => mm <= cutoffMM)
       .map(mm => ({ mes: monthBuckets[mm].__label as any, ...monthBuckets[mm] }))
       .map(({ __label, ...rest }: any) => rest);
     return { data, years };

@@ -108,14 +108,16 @@ export function RelatorioRealizado({ schoolId }: Props) {
     return Array.from(meses).sort();
   }, [entries]);
 
-  const activeMes = mesFilter === 'all'
-    ? (mesesDisponiveis.length > 0 ? mesesDisponiveis[mesesDisponiveis.length - 1] : '')
-    : mesFilter;
+  const currentYM = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const activeMes = mesFilter === 'all' ? currentYM : mesFilter;
 
   const filtered = useMemo(() => {
-    if (mesFilter === 'all') return entries;
-    return entries.filter(e => e.data?.startsWith(mesFilter));
-  }, [entries, mesFilter]);
+    return entries.filter(e => e.data?.startsWith(activeMes));
+  }, [entries, activeMes]);
 
   const currentRevenue = useMemo(() => {
     if (!activeMes) return 0;
@@ -309,9 +311,9 @@ export function RelatorioRealizado({ schoolId }: Props) {
       {/* Filter row */}
       <div className="flex items-center gap-3 flex-wrap">
         <Select value={mesFilter} onValueChange={setMesFilter}>
-          <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="Todos os meses" /></SelectTrigger>
+          <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="Mês atual" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Último mês</SelectItem>
+            <SelectItem value="all">Mês atual</SelectItem>
             {mesesDisponiveis.map(m => <SelectItem key={m} value={m}>{formatMonth(m)}</SelectItem>)}
           </SelectContent>
         </Select>
