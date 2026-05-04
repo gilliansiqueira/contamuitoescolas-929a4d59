@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
-import { Target, Check, Pencil, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Target, Check, Pencil, AlertTriangle, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
+import { usePresentation } from '@/components/presentation-provider';
 
 interface Props {
   schoolId: string;
