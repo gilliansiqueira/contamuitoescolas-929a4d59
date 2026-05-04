@@ -147,7 +147,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       toast.success('Lançamentos importados com sucesso');
       resetAll();
     },
-    onError: () => toast.error('Erro ao importar lançamentos'),
+    onError: (err: any) => toast.error(`Erro ao importar lançamentos: ${err?.message ?? 'desconhecido'}`),
   });
 
   function resetAll() {
@@ -178,7 +178,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
         setColumnMapping(autoMapping);
         setStep('mapping');
         toast.success(`${rows.length} linhas encontradas`);
-      } catch { toast.error('Erro ao ler arquivo'); }
+      } catch (err: any) { toast.error(`Erro ao ler arquivo: ${err?.message ?? 'formato inválido'}`); }
     };
     reader.readAsBinaryString(file);
     e.target.value = '';
