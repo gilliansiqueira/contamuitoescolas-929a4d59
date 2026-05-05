@@ -180,6 +180,7 @@ export function RealizadoModule({ schoolId }: Props) {
         <motion.div key={configTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
           {configTab === 'plano' && <PlanoDeContas schoolId={schoolId} />}
           {configTab === 'importacao' && <ImportacaoRealizado schoolId={schoolId} />}
+          {configTab === 'regras' && <RegrasCategorizacao schoolId={schoolId} />}
           {configTab === 'historico' && (
             <div className="space-y-5">
               <TiposHistorico schoolId={schoolId} />
