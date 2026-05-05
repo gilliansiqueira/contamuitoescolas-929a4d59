@@ -58,6 +58,8 @@ export function PlanoDeContas({ schoolId }: Props) {
   const [addSubTo, setAddSubTo] = useState<string | null>(null);
   const [newSubName, setNewSubName] = useState('');
   const [moveId, setMoveId] = useState<string | null>(null);
+  const [editGroupName, setEditGroupName] = useState<string | null>(null);
+  const [editGroupValue, setEditGroupValue] = useState('');
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['chart_of_accounts', schoolId] });
 
@@ -137,6 +139,19 @@ export function PlanoDeContas({ schoolId }: Props) {
     },
     onSuccess: () => { invalidate(); toast.success('Promovida a categoria mãe'); },
     onError: () => toast.error('Erro ao promover'),
+  });
+
+  const renameGroupMutation = useMutation({
+    mutationFn: async ({ from, to }: { from: string; to: string }) => {
+      // Update grupo for all rows in this group (mãe + filhas)
+      const { error: e1 } = await supabase.from('chart_of_accounts').update({ grupo: to }).eq('school_id', schoolId).eq('grupo', from);
+      if (e1) throw e1;
+      // Update the mãe row's nome
+      const { error: e2 } = await supabase.from('chart_of_accounts').update({ nome: to }).eq('school_id', schoolId).eq('nome', from).eq('nivel', 1);
+      if (e2) throw e2;
+    },
+    onSuccess: () => { invalidate(); toast.success('Categoria mãe renomeada'); setEditGroupName(null); setEditGroupValue(''); },
+    onError: () => toast.error('Erro ao renomear categoria mãe'),
   });
 
   const deleteGroupMutation = useMutation({
@@ -245,17 +260,43 @@ export function PlanoDeContas({ schoolId }: Props) {
               {Object.entries(grouped).map(([grupo, items]) => (
                 <div key={grupo} className="border border-border rounded-lg overflow-hidden">
                   <div className="flex items-center bg-muted/50">
-                    <button onClick={() => toggleGroup(grupo)} className="flex-1 flex items-center gap-2 px-3 py-2 text-sm font-semibold hover:bg-muted transition-colors">
-                      {expandedGroups.has(grupo) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      {grupo}
-                      <Badge variant="secondary" className="ml-2">{items.length}</Badge>
-                    </button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setAddSubTo(addSubTo === grupo ? null : grupo); setNewSubName(''); }} title="Adicionar subcategoria">
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 mr-1 text-destructive" onClick={() => { if (confirm(`Remover "${grupo}" e todas subcategorias?`)) deleteGroupMutation.mutate(grupo); }}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    {editGroupName === grupo ? (
+                      <div className="flex-1 flex items-center gap-2 px-3 py-2">
+                        <Input
+                          autoFocus
+                          value={editGroupValue}
+                          onChange={e => setEditGroupValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && editGroupValue.trim() && editGroupValue.trim() !== grupo) renameGroupMutation.mutate({ from: grupo, to: editGroupValue.trim() });
+                            if (e.key === 'Escape') { setEditGroupName(null); setEditGroupValue(''); }
+                          }}
+                          className="h-7 text-sm flex-1"
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => editGroupValue.trim() && editGroupValue.trim() !== grupo && renameGroupMutation.mutate({ from: grupo, to: editGroupValue.trim() })}>
+                          <Check className="w-3 h-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditGroupName(null); setEditGroupValue(''); }}>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <button onClick={() => toggleGroup(grupo)} className="flex-1 flex items-center gap-2 px-3 py-2 text-sm font-semibold hover:bg-muted transition-colors">
+                          {expandedGroups.has(grupo) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          {grupo}
+                          <Badge variant="secondary" className="ml-2">{items.length}</Badge>
+                        </button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditGroupName(grupo); setEditGroupValue(grupo); }} title="Renomear categoria mãe">
+                          <Edit2 className="w-3 h-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setAddSubTo(addSubTo === grupo ? null : grupo); setNewSubName(''); }} title="Adicionar subcategoria">
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 mr-1 text-destructive" onClick={() => { if (confirm(`Remover "${grupo}" e todas subcategorias?`)) deleteGroupMutation.mutate(grupo); }}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </>
+                    )}
                   </div>
 
                   {/* Add sub inline */}
