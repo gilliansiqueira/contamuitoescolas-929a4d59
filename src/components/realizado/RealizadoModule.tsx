@@ -27,12 +27,13 @@ interface Props {
   schoolId: string;
 }
 
-type ConfigTab = 'plano' | 'importacao' | 'historico' | 'fechamento' | 'dados' | 'icones';
+type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'icones';
 type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
   { key: 'importacao', label: 'Importação' },
+  { key: 'regras', label: 'Regras de Categorização' },
   { key: 'historico', label: 'Histórico' },
   { key: 'fechamento', label: 'Fechamento' },
   { key: 'dados', label: 'Exportar Dados' },
