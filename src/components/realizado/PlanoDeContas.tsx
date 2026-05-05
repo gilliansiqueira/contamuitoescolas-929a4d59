@@ -139,6 +139,19 @@ export function PlanoDeContas({ schoolId }: Props) {
     onError: () => toast.error('Erro ao promover'),
   });
 
+  const renameGroupMutation = useMutation({
+    mutationFn: async ({ from, to }: { from: string; to: string }) => {
+      // Update grupo for all rows in this group (mãe + filhas)
+      const { error: e1 } = await supabase.from('chart_of_accounts').update({ grupo: to }).eq('school_id', schoolId).eq('grupo', from);
+      if (e1) throw e1;
+      // Update the mãe row's nome
+      const { error: e2 } = await supabase.from('chart_of_accounts').update({ nome: to }).eq('school_id', schoolId).eq('nome', from).eq('nivel', 1);
+      if (e2) throw e2;
+    },
+    onSuccess: () => { invalidate(); toast.success('Categoria mãe renomeada'); setEditGroupName(null); setEditGroupValue(''); },
+    onError: () => toast.error('Erro ao renomear categoria mãe'),
+  });
+
   const deleteGroupMutation = useMutation({
     mutationFn: async (grupo: string) => {
       const { error } = await supabase.from('chart_of_accounts').delete().eq('school_id', schoolId).eq('grupo', grupo);
