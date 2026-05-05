@@ -476,6 +476,19 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     setErrors(validationErrors);
     setTipoMapping(null);
     setTipoMappingPending(null);
+
+    if (entries.length === 0) {
+      const sample = validationErrors.slice(0, 3)
+        .map(e => `Linha ${e.linha}: ${e.coluna} — ${e.mensagem}`)
+        .join(' | ');
+      const detail = validationErrors.length
+        ? `${validationErrors.length} linha(s) inválida(s). ${sample}`
+        : 'Verifique se as colunas mapeadas contêm dados válidos.';
+      setColumnErrors([`Nenhum registro válido foi gerado. ${detail}`]);
+      toast.error('Nenhum registro válido após mapeamento.', { description: detail });
+    } else {
+      toast.success(`${entries.length} registro(s) prontos para revisão.`);
+    }
   };
 
   /**
