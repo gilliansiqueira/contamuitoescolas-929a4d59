@@ -46,6 +46,39 @@ export type Database = {
           },
         ]
       }
+      category_rules: {
+        Row: {
+          created_at: string
+          id: string
+          match_field: string
+          school_id: string
+          source_normalized: string
+          source_text: string
+          target_categoria: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_field?: string
+          school_id: string
+          source_normalized: string
+          source_text: string
+          target_categoria: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_field?: string
+          school_id?: string
+          source_normalized?: string
+          source_text?: string
+          target_categoria?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chart_of_accounts: {
         Row: {
           ativo: boolean
