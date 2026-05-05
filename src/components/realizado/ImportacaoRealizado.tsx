@@ -110,6 +110,20 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     },
   });
 
+  const { data: rules = [] } = useQuery({
+    queryKey: ['category_rules', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('category_rules').select('*').eq('school_id', schoolId);
+      if (error) throw error;
+      return data as { id: string; source_normalized: string; target_categoria: string }[];
+    },
+  });
+  const rulesByNorm = useMemo(() => {
+    const m = new Map<string, string>();
+    rules.forEach(r => m.set(r.source_normalized, r.target_categoria));
+    return m;
+  }, [rules]);
+
   const categoriaFilhas = useMemo(() => contas.filter(c => c.nivel > 1), [contas]);
   const groupNames = useMemo(() => [...new Set(contas.filter(c => c.nivel === 1).map(c => c.grupo))], [contas]);
 
