@@ -138,6 +138,27 @@ export function ImportacaoRealizado({ schoolId }: Props) {
         }
       }
 
+      // Salva regras de categorização para cada categoria não reconhecida resolvida
+      const rulesToUpsert: any[] = [];
+      unmapped.forEach(u => {
+        const norm = normalizeStr(u.categoria);
+        const target = categoryMappings[norm] || newCatMappings[norm]?.nome;
+        if (target) {
+          rulesToUpsert.push({
+            school_id: schoolId,
+            source_text: u.categoria,
+            source_normalized: norm,
+            target_categoria: target,
+            match_field: 'categoria',
+          });
+        }
+      });
+      if (rulesToUpsert.length > 0) {
+        await supabase.from('category_rules').upsert(rulesToUpsert, {
+          onConflict: 'school_id,source_normalized,match_field',
+        });
+      }
+
       const mapped = rows.map(r => ({
         school_id: schoolId,
         data: r.data,
@@ -158,6 +179,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
       queryClient.invalidateQueries({ queryKey: ['chart_of_accounts', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['category_rules', schoolId] });
       toast.success('Lançamentos importados com sucesso');
       resetAll();
     },
