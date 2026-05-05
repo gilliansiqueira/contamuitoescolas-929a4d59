@@ -110,6 +110,20 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     },
   });
 
+  const { data: rules = [] } = useQuery({
+    queryKey: ['category_rules', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('category_rules').select('*').eq('school_id', schoolId);
+      if (error) throw error;
+      return data as { id: string; source_normalized: string; target_categoria: string }[];
+    },
+  });
+  const rulesByNorm = useMemo(() => {
+    const m = new Map<string, string>();
+    rules.forEach(r => m.set(r.source_normalized, r.target_categoria));
+    return m;
+  }, [rules]);
+
   const categoriaFilhas = useMemo(() => contas.filter(c => c.nivel > 1), [contas]);
   const groupNames = useMemo(() => [...new Set(contas.filter(c => c.nivel === 1).map(c => c.grupo))], [contas]);
 
@@ -122,6 +136,27 @@ export function ImportacaoRealizado({ schoolId }: Props) {
             school_id: schoolId, codigo: '', nome: nc.nome, tipo: 'despesa', grupo: nc.grupo, nivel: 2, pai_id: null,
           });
         }
+      }
+
+      // Salva regras de categorização para cada categoria não reconhecida resolvida
+      const rulesToUpsert: any[] = [];
+      unmapped.forEach(u => {
+        const norm = normalizeStr(u.categoria);
+        const target = categoryMappings[norm] || newCatMappings[norm]?.nome;
+        if (target) {
+          rulesToUpsert.push({
+            school_id: schoolId,
+            source_text: u.categoria,
+            source_normalized: norm,
+            target_categoria: target,
+            match_field: 'categoria',
+          });
+        }
+      });
+      if (rulesToUpsert.length > 0) {
+        await supabase.from('category_rules').upsert(rulesToUpsert, {
+          onConflict: 'school_id,source_normalized,match_field',
+        });
       }
 
       const mapped = rows.map(r => ({
@@ -144,6 +179,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
       queryClient.invalidateQueries({ queryKey: ['chart_of_accounts', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['category_rules', schoolId] });
       toast.success('Lançamentos importados com sucesso');
       resetAll();
     },
@@ -205,9 +241,17 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       return { data, descricao, valor: Math.abs(valor), categoria: catRaw, origem_arquivo: fileName };
     }).filter(Boolean) as any[];
 
+    // Aplica regras salvas automaticamente
+    const parsedWithRules = parsed.map(r => {
+      const norm = normalizeStr(r.categoria);
+      const ruleTarget = rulesByNorm.get(norm);
+      return ruleTarget ? { ...r, categoria: ruleTarget, _autoMapped: true, _originalCategoria: r.categoria } : r;
+    });
+
     const unmappedCats: { categoria: string }[] = [];
     const seen = new Set<string>();
-    parsed.forEach(r => {
+    parsedWithRules.forEach(r => {
+      if ((r as any)._autoMapped) return;
       const norm = normalizeStr(r.categoria);
       if (!knownNorm.has(norm) && !seen.has(norm)) {
         unmappedCats.push({ categoria: r.categoria });
@@ -215,12 +259,15 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       }
     });
 
-    setPreview(parsed); setInvalidCount(invalid);
+    setPreview(parsedWithRules); setInvalidCount(invalid);
     setUnmapped(unmappedCats); setCategoryMappings({}); setNewCatMappings({});
     setStep('preview');
-    if (parsed.length === 0) toast.error('Nenhum registro válido');
-    else toast.success(`${parsed.length} lançamentos válidos`);
-  }, [columnMapping, rawRows, contas, fileName]);
+    if (parsedWithRules.length === 0) toast.error('Nenhum registro válido');
+    else {
+      const auto = parsedWithRules.filter((r: any) => r._autoMapped).length;
+      toast.success(`${parsedWithRules.length} lançamentos válidos${auto > 0 ? ` · ${auto} categorizados automaticamente por regras` : ''}`);
+    }
+  }, [columnMapping, rawRows, contas, fileName, rulesByNorm]);
 
   const handleConfirmImport = () => {
     // Check all unmapped are resolved

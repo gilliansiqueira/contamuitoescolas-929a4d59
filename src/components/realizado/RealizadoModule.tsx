@@ -5,6 +5,7 @@ import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
 import { TiposHistorico } from './TiposHistorico';
 import { ExportacaoDados } from './ExportacaoDados';
+import { RegrasCategorizacao } from './RegrasCategorizacao';
 import { ConversaoDashboard } from './ConversaoDashboard';
 import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
 import { VendasDashboard } from '@/components/vendas/VendasDashboard';
@@ -26,12 +27,13 @@ interface Props {
   schoolId: string;
 }
 
-type ConfigTab = 'plano' | 'importacao' | 'historico' | 'fechamento' | 'dados' | 'icones';
+type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'icones';
 type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
   { key: 'importacao', label: 'Importação' },
+  { key: 'regras', label: 'Regras de Categorização' },
   { key: 'historico', label: 'Histórico' },
   { key: 'fechamento', label: 'Fechamento' },
   { key: 'dados', label: 'Exportar Dados' },
@@ -178,6 +180,7 @@ export function RealizadoModule({ schoolId }: Props) {
         <motion.div key={configTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
           {configTab === 'plano' && <PlanoDeContas schoolId={schoolId} />}
           {configTab === 'importacao' && <ImportacaoRealizado schoolId={schoolId} />}
+          {configTab === 'regras' && <RegrasCategorizacao schoolId={schoolId} />}
           {configTab === 'historico' && (
             <div className="space-y-5">
               <TiposHistorico schoolId={schoolId} />
