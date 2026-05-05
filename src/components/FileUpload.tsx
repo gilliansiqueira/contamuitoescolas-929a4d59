@@ -352,6 +352,27 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     setNeedsMapping(false);
     setUnmappedCols([]);
     setPdfRawRows(null);
+
+    if (entries.length === 0) {
+      const sample = validationErrors.slice(0, 3)
+        .map(e => `Linha ${e.linha}: ${e.coluna} — ${e.mensagem}`)
+        .join(' | ');
+      const detail = validationErrors.length
+        ? `${validationErrors.length} linha(s) inválida(s). ${sample}`
+        : 'Verifique se as colunas mapeadas contêm dados válidos (data e valor).';
+      setColumnErrors([
+        `Nenhum registro válido foi gerado a partir do arquivo. ${detail}`,
+      ]);
+      toast.error('Nenhum registro válido encontrado no arquivo.', {
+        description: detail,
+      });
+    } else {
+      toast.success(
+        `${entries.length} registro(s) prontos para revisão${
+          validationErrors.length ? ` (${validationErrors.length} ignorados)` : ''
+        }.`
+      );
+    }
   }, [schoolId, rules, classifications]);
 
   const handleFile = useCallback(async (file: File, uploadType: UploadType) => {
