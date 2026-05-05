@@ -58,6 +58,8 @@ export function PlanoDeContas({ schoolId }: Props) {
   const [addSubTo, setAddSubTo] = useState<string | null>(null);
   const [newSubName, setNewSubName] = useState('');
   const [moveId, setMoveId] = useState<string | null>(null);
+  const [editGroupName, setEditGroupName] = useState<string | null>(null);
+  const [editGroupValue, setEditGroupValue] = useState('');
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['chart_of_accounts', schoolId] });
 
