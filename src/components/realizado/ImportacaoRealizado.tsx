@@ -219,9 +219,17 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       return { data, descricao, valor: Math.abs(valor), categoria: catRaw, origem_arquivo: fileName };
     }).filter(Boolean) as any[];
 
+    // Aplica regras salvas automaticamente
+    const parsedWithRules = parsed.map(r => {
+      const norm = normalizeStr(r.categoria);
+      const ruleTarget = rulesByNorm.get(norm);
+      return ruleTarget ? { ...r, categoria: ruleTarget, _autoMapped: true, _originalCategoria: r.categoria } : r;
+    });
+
     const unmappedCats: { categoria: string }[] = [];
     const seen = new Set<string>();
-    parsed.forEach(r => {
+    parsedWithRules.forEach(r => {
+      if ((r as any)._autoMapped) return;
       const norm = normalizeStr(r.categoria);
       if (!knownNorm.has(norm) && !seen.has(norm)) {
         unmappedCats.push({ categoria: r.categoria });
@@ -229,12 +237,15 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       }
     });
 
-    setPreview(parsed); setInvalidCount(invalid);
+    setPreview(parsedWithRules); setInvalidCount(invalid);
     setUnmapped(unmappedCats); setCategoryMappings({}); setNewCatMappings({});
     setStep('preview');
-    if (parsed.length === 0) toast.error('Nenhum registro válido');
-    else toast.success(`${parsed.length} lançamentos válidos`);
-  }, [columnMapping, rawRows, contas, fileName]);
+    if (parsedWithRules.length === 0) toast.error('Nenhum registro válido');
+    else {
+      const auto = parsedWithRules.filter((r: any) => r._autoMapped).length;
+      toast.success(`${parsedWithRules.length} lançamentos válidos${auto > 0 ? ` · ${auto} categorizados automaticamente por regras` : ''}`);
+    }
+  }, [columnMapping, rawRows, contas, fileName, rulesByNorm]);
 
   const handleConfirmImport = () => {
     // Check all unmapped are resolved
