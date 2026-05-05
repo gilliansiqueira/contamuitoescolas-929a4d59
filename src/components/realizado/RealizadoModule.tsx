@@ -5,6 +5,7 @@ import { RelatorioRealizado } from './RelatorioRealizado';
 import { HistoricoUploads } from './HistoricoUploads';
 import { TiposHistorico } from './TiposHistorico';
 import { ExportacaoDados } from './ExportacaoDados';
+import { RegrasCategorizacao } from './RegrasCategorizacao';
 import { ConversaoDashboard } from './ConversaoDashboard';
 import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
 import { VendasDashboard } from '@/components/vendas/VendasDashboard';
