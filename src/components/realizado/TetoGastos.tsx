@@ -189,7 +189,7 @@ export function TetoGastos({ schoolId }: Props) {
 
     const groupCeilingMap = new Map(groupCeilings.map(c => [c.category_name, c]));
 
-    return Object.entries(subTotals)
+    const groupRows: CategoryRow[] = Object.entries(subTotals)
       .map(([groupName, subs]) => {
         const subRows: SubRow[] = Object.entries(subs)
           .map(([subName, total]) => {
@@ -210,9 +210,30 @@ export function TetoGastos({ schoolId }: Props) {
         const ceiling = Number(gc?.ceiling || 0);
         const saldo = ceiling - realizado;
         const pct = ceiling > 0 ? (realizado / ceiling) * 100 : 0;
-        return { name: groupName, realizado, ceiling, saldo, pct, ceilingId: gc?.id || null, subs: subRows };
-      })
-      .sort((a, b) => b.realizado - a.realizado);
+        return { name: groupName, realizado, ceiling, saldo, pct, ceilingId: gc?.id || null, subs: subRows, isStandalone: false, parentGroup: null };
+      });
+
+    // Standalone cards for detached subcategories
+    const standaloneRows: CategoryRow[] = [];
+    groupRows.forEach(g => {
+      g.subs.filter(s => s.detached).forEach(s => {
+        const saldo = s.ceiling - s.realizado;
+        const pct = s.ceiling > 0 ? (s.realizado / s.ceiling) * 100 : 0;
+        standaloneRows.push({
+          name: s.name,
+          realizado: s.realizado,
+          ceiling: s.ceiling,
+          saldo,
+          pct,
+          ceilingId: s.ceilingId,
+          subs: [],
+          isStandalone: true,
+          parentGroup: g.name,
+        });
+      });
+    });
+
+    return [...groupRows, ...standaloneRows].sort((a, b) => b.realizado - a.realizado);
   }, [entries, contaGrupoMap, ceilings, semester]);
 
   const totals = useMemo(() => {
