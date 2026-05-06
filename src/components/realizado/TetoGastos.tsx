@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Check, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, Unlink, Link2, Trash2 } from 'lucide-react';
+import { Target, Check, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, Unlink, Link2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresentation } from '@/components/presentation-provider';
@@ -73,6 +75,8 @@ interface CategoryRow {
   pct: number;
   ceilingId: string | null;
   subs: SubRow[];
+  isStandalone?: boolean; // true when this card represents a detached subcategory
+  parentGroup?: string | null;
 }
 
 export function TetoGastos({ schoolId }: Props) {
@@ -185,7 +189,7 @@ export function TetoGastos({ schoolId }: Props) {
 
     const groupCeilingMap = new Map(groupCeilings.map(c => [c.category_name, c]));
 
-    return Object.entries(subTotals)
+    const groupRows: CategoryRow[] = Object.entries(subTotals)
       .map(([groupName, subs]) => {
         const subRows: SubRow[] = Object.entries(subs)
           .map(([subName, total]) => {
@@ -206,17 +210,42 @@ export function TetoGastos({ schoolId }: Props) {
         const ceiling = Number(gc?.ceiling || 0);
         const saldo = ceiling - realizado;
         const pct = ceiling > 0 ? (realizado / ceiling) * 100 : 0;
-        return { name: groupName, realizado, ceiling, saldo, pct, ceilingId: gc?.id || null, subs: subRows };
-      })
-      .sort((a, b) => b.realizado - a.realizado);
+        return { name: groupName, realizado, ceiling, saldo, pct, ceilingId: gc?.id || null, subs: subRows, isStandalone: false, parentGroup: null };
+      });
+
+    // Standalone cards for detached subcategories
+    const standaloneRows: CategoryRow[] = [];
+    groupRows.forEach(g => {
+      g.subs.filter(s => s.detached).forEach(s => {
+        const saldo = s.ceiling - s.realizado;
+        const pct = s.ceiling > 0 ? (s.realizado / s.ceiling) * 100 : 0;
+        standaloneRows.push({
+          name: s.name,
+          realizado: s.realizado,
+          ceiling: s.ceiling,
+          saldo,
+          pct,
+          ceilingId: s.ceilingId,
+          subs: [],
+          isStandalone: true,
+          parentGroup: g.name,
+        });
+      });
+    });
+
+    return [...groupRows, ...standaloneRows].sort((a, b) => b.realizado - a.realizado);
   }, [entries, contaGrupoMap, ceilings, semester]);
 
   const totals = useMemo(() => {
-    const tetoTotal = rows.reduce((s, r) => s + r.ceiling + r.subs.filter(x => x.detached).reduce((ss, x) => ss + x.ceiling, 0), 0);
-    const gastoTotal = rows.reduce((s, r) => s + r.realizado + r.subs.filter(x => x.detached).reduce((ss, x) => ss + x.realizado, 0), 0);
+    const tetoTotal = rows.reduce((s, r) => s + r.ceiling, 0);
+    const gastoTotal = rows.reduce((s, r) => s + r.realizado, 0);
     const pct = tetoTotal > 0 ? (gastoTotal / tetoTotal) * 100 : 0;
     return { tetoTotal, gastoTotal, pct };
   }, [rows]);
+
+  const [hideUnset, setHideUnset] = useState(false);
+  const visibleRows = useMemo(() => hideUnset ? rows.filter(r => r.ceiling > 0) : rows, [rows, hideUnset]);
+  const hiddenCount = rows.length - visibleRows.length;
 
   if (loadingEntries || loadingCeilings) {
     return (
@@ -263,20 +292,37 @@ export function TetoGastos({ schoolId }: Props) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {rows.map((row, idx) => (
-            <CategoryCard
-              key={row.name}
-              row={row}
-              index={idx}
-              onSaveGroup={(value) => saveCeiling.mutate({ category: row.name, value, existingId: row.ceilingId, scope: 'group', parentGroup: null })}
-              onSaveSub={(subName, value, existingId) => saveCeiling.mutate({ category: subName, value, existingId, scope: 'subcategory', parentGroup: row.name })}
-              onRelinkSub={(id) => removeCeiling.mutate(id)}
-              saving={saveCeiling.isPending || removeCeiling.isPending}
-              canEdit={canEdit}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div className="flex items-center gap-2">
+              {hideUnset ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4 text-muted-foreground" />}
+              <Label htmlFor="hide-unset" className="text-xs text-muted-foreground cursor-pointer">
+                Ocultar cards sem teto definido{hideUnset && hiddenCount > 0 ? ` (${hiddenCount} oculto${hiddenCount > 1 ? 's' : ''})` : ''}
+              </Label>
+            </div>
+            <Switch id="hide-unset" checked={hideUnset} onCheckedChange={setHideUnset} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {visibleRows.map((row, idx) => (
+              <CategoryCard
+                key={`${row.isStandalone ? 'sub' : 'grp'}:${row.parentGroup || ''}:${row.name}`}
+                row={row}
+                index={idx}
+                onSaveGroup={(value) => saveCeiling.mutate({
+                  category: row.name,
+                  value,
+                  existingId: row.ceilingId,
+                  scope: row.isStandalone ? 'subcategory' : 'group',
+                  parentGroup: row.isStandalone ? (row.parentGroup || null) : null,
+                })}
+                onSaveSub={(subName, value, existingId) => saveCeiling.mutate({ category: subName, value, existingId, scope: 'subcategory', parentGroup: row.name })}
+                onRelinkSub={(id) => removeCeiling.mutate(id)}
+                saving={saveCeiling.isPending || removeCeiling.isPending}
+                canEdit={canEdit}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -347,12 +393,32 @@ function CategoryCard({
       <Card className={`rounded-2xl hover:shadow-md transition-all ring-1 ${c.ring}`}>
         <CardContent className="p-5">
           <div className="flex items-start justify-between gap-3 mb-3">
-            <h4 className="text-sm font-semibold text-foreground leading-tight flex-1">{row.name}</h4>
-            {canEdit && !editing && (
-              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground -mt-1 -mr-1" onClick={() => setEditing(true)} title={hasCeiling ? 'Editar teto' : 'Definir teto'}>
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
-            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-semibold text-foreground leading-tight">{row.name}</h4>
+                {row.isStandalone && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    <Unlink className="w-2.5 h-2.5" />
+                    Subcategoria
+                  </span>
+                )}
+              </div>
+              {row.isStandalone && row.parentGroup && (
+                <p className="text-[11px] text-muted-foreground mt-0.5">de {row.parentGroup}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {canEdit && row.isStandalone && row.ceilingId && (
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive -mt-1" onClick={() => onRelinkSub(row.ceilingId!)} title="Revincular ao teto da mãe" disabled={saving}>
+                  <Link2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+              {canEdit && !editing && (
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground -mt-1 -mr-1" onClick={() => setEditing(true)} title={hasCeiling ? 'Editar teto' : 'Definir teto'}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-baseline gap-2 mb-3">
