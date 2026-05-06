@@ -134,10 +134,15 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
   const YEAR_COLORS = ['hsl(var(--primary))', 'hsl(25 95% 53%)', 'hsl(var(--destructive))', 'hsl(210 40% 60%)'];
 
   // Sort entries for display
-  const sortedEntries = useMemo(() =>
-    [...entries].sort((a, b) => (b.data || '').localeCompare(a.data || '')),
-    [entries]
-  );
+  const sortedEntries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return [...entries]
+      .filter(e => filterCat === 'all' || e.conta_nome === filterCat)
+      .filter(e => !q || (e.descricao || '').toLowerCase().includes(q) || (e.conta_nome || '').toLowerCase().includes(q))
+      .sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  }, [entries, filterCat, search]);
+
+  const filteredTotal = useMemo(() => sortedEntries.reduce((s, e) => s + e.valor, 0), [sortedEntries]);
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}>
