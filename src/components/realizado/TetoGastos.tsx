@@ -393,12 +393,32 @@ function CategoryCard({
       <Card className={`rounded-2xl hover:shadow-md transition-all ring-1 ${c.ring}`}>
         <CardContent className="p-5">
           <div className="flex items-start justify-between gap-3 mb-3">
-            <h4 className="text-sm font-semibold text-foreground leading-tight flex-1">{row.name}</h4>
-            {canEdit && !editing && (
-              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground -mt-1 -mr-1" onClick={() => setEditing(true)} title={hasCeiling ? 'Editar teto' : 'Definir teto'}>
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
-            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-semibold text-foreground leading-tight">{row.name}</h4>
+                {row.isStandalone && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                    <Unlink className="w-2.5 h-2.5" />
+                    Subcategoria
+                  </span>
+                )}
+              </div>
+              {row.isStandalone && row.parentGroup && (
+                <p className="text-[11px] text-muted-foreground mt-0.5">de {row.parentGroup}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {canEdit && row.isStandalone && row.ceilingId && (
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive -mt-1" onClick={() => onRelinkSub(row.ceilingId!)} title="Revincular ao teto da mãe" disabled={saving}>
+                  <Link2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
+              {canEdit && !editing && (
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground -mt-1 -mr-1" onClick={() => setEditing(true)} title={hasCeiling ? 'Editar teto' : 'Definir teto'}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-baseline gap-2 mb-3">
