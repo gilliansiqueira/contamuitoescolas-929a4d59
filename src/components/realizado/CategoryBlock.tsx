@@ -55,6 +55,8 @@ function formatMonth(m: string) {
 export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonths, index, onEditEntry }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showEntries, setShowEntries] = useState(false);
+  const [filterCat, setFilterCat] = useState<string>('all');
+  const [search, setSearch] = useState('');
   const total = useMemo(() => entries.reduce((s, e) => s + e.valor, 0), [entries]);
   const pct = totalGeral > 0 ? (total / totalGeral) * 100 : 0;
 
