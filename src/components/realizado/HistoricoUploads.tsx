@@ -41,9 +41,8 @@ export function HistoricoUploads({ schoolId }: Props) {
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('realized_entries').select('*').eq('school_id', schoolId).order('data', { ascending: false });
-      if (error) throw error;
-      return data;
+      const { fetchAllRows } = await import('@/lib/fetchAll');
+      return fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId).order('data', { ascending: false }));
     },
   });
 

@@ -51,8 +51,8 @@ export function PrintableReport({ schoolId, theme, selectedMonth, selectedYear, 
   const { data: expenses = [], isLoading: l2 } = useQuery({
     queryKey: ['pdf_expenses', schoolId],
     queryFn: async () => {
-      const { data } = await supabase.from('realized_entries').select('*').eq('school_id', schoolId);
-      return data || [];
+      const { fetchAllRows } = await import('@/lib/fetchAll');
+      return fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId));
     },
   });
 

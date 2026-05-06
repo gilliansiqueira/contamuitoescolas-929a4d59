@@ -44,13 +44,10 @@ export function FechamentoMeses({ schoolId }: Props) {
   const { data: monthsWithData = [] } = useQuery({
     queryKey: ['available_months_realized', schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('realized_entries')
-        .select('data')
-        .eq('school_id', schoolId);
-      if (error) throw error;
+      const { fetchAllRows } = await import('@/lib/fetchAll');
+      const data = await fetchAllRows<{ data: string }>('realized_entries', q => q.eq('school_id', schoolId), 1000, 'data');
       const set = new Set<string>();
-      (data || []).forEach(r => { if (r.data) set.add(r.data.slice(0, 7)); });
+      data.forEach(r => { if (r.data) set.add(r.data.slice(0, 7)); });
       return Array.from(set).sort().reverse();
     },
     enabled: !!schoolId,

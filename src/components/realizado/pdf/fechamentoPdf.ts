@@ -70,7 +70,7 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
   ] = await Promise.all([
     supabase.from('schools').select('nome,saldo_inicial').eq('id', schoolId).single(),
     supabase.from('module_tabs').select('*').eq('school_id', schoolId),
-    supabase.from('realized_entries').select('*').eq('school_id', schoolId),
+    (async () => { const { fetchAllRows } = await import('@/lib/fetchAll'); return { data: await fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId)) }; })(),
     supabase.from('monthly_revenue').select('*').eq('school_id', schoolId),
     supabase.from('sales_data').select('*').eq('school_id', schoolId),
     supabase.from('sales_payment_methods').select('*').eq('school_id', schoolId).eq('enabled', true),

@@ -36,12 +36,11 @@ export function TiposHistorico({ schoolId }: Props) {
   const { data: entries = [] } = useQuery({
     queryKey: ['realized_entries_tipos', schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('realized_entries')
-        .select('id, conta_nome, valor, data')
-        .eq('school_id', schoolId);
-      if (error) throw error;
-      return data as { id: string; conta_nome: string; valor: number; data: string }[];
+      const { fetchAllRows } = await import('@/lib/fetchAll');
+      return fetchAllRows<{ id: string; conta_nome: string; valor: number; data: string }>(
+        'realized_entries',
+        q => q.eq('school_id', schoolId),
+      );
     },
   });
 
