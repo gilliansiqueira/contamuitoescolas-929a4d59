@@ -5,8 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { motion } from 'framer-motion';
-import { Target, Check, Pencil, AlertTriangle, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Target, Check, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, Unlink, Link2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresentation } from '@/components/presentation-provider';
@@ -23,7 +23,6 @@ function normalizeStr(s: string) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
-/** Returns current semester id, e.g. "2026-S1" or "2026-S2" */
 function getCurrentSemester(date = new Date()): { id: string; label: string; startMonth: string; endMonth: string; year: number; half: 1 | 2 } {
   const y = date.getFullYear();
   const m = date.getMonth() + 1;
@@ -49,13 +48,31 @@ function parseCurrencyInput(raw: string): number {
   return isNaN(v) ? 0 : v;
 }
 
-interface CategoryRow {
+interface Ceiling {
+  id: string;
+  category_name: string;
+  semester: string;
+  ceiling: number;
+  scope: 'group' | 'subcategory';
+  parent_group: string | null;
+}
+
+interface SubRow {
   name: string;
   realizado: number;
+  ceiling: number;
+  ceilingId: string | null;
+  detached: boolean; // has its own ceiling, excluded from parent
+}
+
+interface CategoryRow {
+  name: string;
+  realizado: number; // already excludes detached subs
   ceiling: number;
   saldo: number;
   pct: number;
   ceilingId: string | null;
+  subs: SubRow[];
 }
 
 export function TetoGastos({ schoolId }: Props) {
@@ -91,14 +108,18 @@ export function TetoGastos({ schoolId }: Props) {
         .eq('school_id', schoolId)
         .eq('semester', semester.id);
       if (error) throw error;
-      return data as { id: string; category_name: string; semester: string; ceiling: number }[];
+      return (data || []).map((c: any) => ({
+        ...c,
+        scope: c.scope || 'group',
+        parent_group: c.parent_group || null,
+      })) as Ceiling[];
     },
   });
 
   const saveCeiling = useMutation({
-    mutationFn: async ({ category, value, existingId }: { category: string; value: number; existingId: string | null }) => {
+    mutationFn: async ({ category, value, existingId, scope, parentGroup }: { category: string; value: number; existingId: string | null; scope: 'group' | 'subcategory'; parentGroup: string | null }) => {
       if (existingId) {
-        const { error } = await supabase.from('expense_ceilings').update({ ceiling: value }).eq('id', existingId);
+        const { error } = await supabase.from('expense_ceilings').update({ ceiling: value, scope, parent_group: parentGroup }).eq('id', existingId);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('expense_ceilings').insert({
@@ -106,6 +127,8 @@ export function TetoGastos({ schoolId }: Props) {
           category_name: category,
           semester: semester.id,
           ceiling: value,
+          scope,
+          parent_group: parentGroup,
         });
         if (error) throw error;
       }
@@ -115,6 +138,18 @@ export function TetoGastos({ schoolId }: Props) {
       toast.success('Teto salvo');
     },
     onError: (e: any) => toast.error(e.message || 'Erro ao salvar teto'),
+  });
+
+  const removeCeiling = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('expense_ceilings').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expense_ceilings', schoolId, semester.id] });
+      toast.success('Subcategoria revinculada à mãe');
+    },
+    onError: (e: any) => toast.error(e.message || 'Erro ao remover'),
   });
 
   // Build group map (categoria filha -> grupo/categoria mãe)
@@ -128,36 +163,57 @@ export function TetoGastos({ schoolId }: Props) {
     return map;
   }, [contas]);
 
-  // Aggregate realized expenses by categoria mãe in current semester
+  // Aggregate realized expenses
   const rows = useMemo<CategoryRow[]>(() => {
-    const totals: Record<string, number> = {};
+    // Sub totals: parentGroup -> { subName -> total }
+    const subTotals: Record<string, Record<string, number>> = {};
     entries.forEach(e => {
       if (!isInSemester(e.data || '', semester.year, semester.half)) return;
-      const grupo = contaGrupoMap[normalizeStr(e.conta_nome || '')] || 'Outros';
-      totals[grupo] = (totals[grupo] || 0) + Number(e.valor || 0);
+      const subName = e.conta_nome || 'Sem categoria';
+      const grupo = contaGrupoMap[normalizeStr(subName)] || 'Outros';
+      if (!subTotals[grupo]) subTotals[grupo] = {};
+      subTotals[grupo][subName] = (subTotals[grupo][subName] || 0) + Number(e.valor || 0);
     });
 
-    // Also include categories that have a ceiling but no expenses yet
-    ceilings.forEach(c => {
-      if (!(c.category_name in totals)) totals[c.category_name] = 0;
-    });
+    const groupCeilings = ceilings.filter(c => (c.scope || 'group') === 'group');
+    const subCeilings = ceilings.filter(c => c.scope === 'subcategory');
+    const subCeilingMap = new Map<string, Ceiling>();
+    subCeilings.forEach(c => subCeilingMap.set(`${c.parent_group || ''}|${normalizeStr(c.category_name)}`, c));
 
-    const ceilingMap = new Map(ceilings.map(c => [c.category_name, c]));
+    // Ensure groups with ceilings appear even without expenses
+    groupCeilings.forEach(c => { if (!subTotals[c.category_name]) subTotals[c.category_name] = {}; });
 
-    return Object.entries(totals)
-      .map(([name, realizado]) => {
-        const c = ceilingMap.get(name);
-        const ceiling = Number(c?.ceiling || 0);
+    const groupCeilingMap = new Map(groupCeilings.map(c => [c.category_name, c]));
+
+    return Object.entries(subTotals)
+      .map(([groupName, subs]) => {
+        const subRows: SubRow[] = Object.entries(subs)
+          .map(([subName, total]) => {
+            const sc = subCeilingMap.get(`${groupName}|${normalizeStr(subName)}`);
+            return {
+              name: subName,
+              realizado: total,
+              ceiling: Number(sc?.ceiling || 0),
+              ceilingId: sc?.id || null,
+              detached: !!sc,
+            };
+          })
+          .sort((a, b) => b.realizado - a.realizado);
+
+        // Parent group realizado excludes detached subs
+        const realizado = subRows.filter(s => !s.detached).reduce((s, r) => s + r.realizado, 0);
+        const gc = groupCeilingMap.get(groupName);
+        const ceiling = Number(gc?.ceiling || 0);
         const saldo = ceiling - realizado;
         const pct = ceiling > 0 ? (realizado / ceiling) * 100 : 0;
-        return { name, realizado, ceiling, saldo, pct, ceilingId: c?.id || null };
+        return { name: groupName, realizado, ceiling, saldo, pct, ceilingId: gc?.id || null, subs: subRows };
       })
       .sort((a, b) => b.realizado - a.realizado);
   }, [entries, contaGrupoMap, ceilings, semester]);
 
   const totals = useMemo(() => {
-    const tetoTotal = rows.reduce((s, r) => s + r.ceiling, 0);
-    const gastoTotal = rows.reduce((s, r) => s + r.realizado, 0);
+    const tetoTotal = rows.reduce((s, r) => s + r.ceiling + r.subs.filter(x => x.detached).reduce((ss, x) => ss + x.ceiling, 0), 0);
+    const gastoTotal = rows.reduce((s, r) => s + r.realizado + r.subs.filter(x => x.detached).reduce((ss, x) => ss + x.realizado, 0), 0);
     const pct = tetoTotal > 0 ? (gastoTotal / tetoTotal) * 100 : 0;
     return { tetoTotal, gastoTotal, pct };
   }, [rows]);
@@ -173,7 +229,6 @@ export function TetoGastos({ schoolId }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header / Resumo */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="rounded-2xl bg-gradient-to-br from-primary/5 via-card to-accent/5 border-primary/20">
           <CardContent className="p-6">
@@ -200,7 +255,6 @@ export function TetoGastos({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Cards por categoria */}
       {rows.length === 0 ? (
         <Card className="rounded-2xl border-dashed">
           <CardContent className="py-16 text-center">
@@ -215,8 +269,10 @@ export function TetoGastos({ schoolId }: Props) {
               key={row.name}
               row={row}
               index={idx}
-              onSave={(value) => saveCeiling.mutate({ category: row.name, value, existingId: row.ceilingId })}
-              saving={saveCeiling.isPending}
+              onSaveGroup={(value) => saveCeiling.mutate({ category: row.name, value, existingId: row.ceilingId, scope: 'group', parentGroup: null })}
+              onSaveSub={(subName, value, existingId) => saveCeiling.mutate({ category: subName, value, existingId, scope: 'subcategory', parentGroup: row.name })}
+              onRelinkSub={(id) => removeCeiling.mutate(id)}
+              saving={saveCeiling.isPending || removeCeiling.isPending}
               canEdit={canEdit}
             />
           ))}
@@ -239,47 +295,42 @@ function SummaryItem({ label, value, tone = 'default' }: { label: string; value:
 function CategoryCard({
   row,
   index,
-  onSave,
+  onSaveGroup,
+  onSaveSub,
+  onRelinkSub,
   saving,
   canEdit,
 }: {
   row: CategoryRow;
   index: number;
-  onSave: (value: number) => void;
+  onSaveGroup: (value: number) => void;
+  onSaveSub: (subName: string, value: number, existingId: string | null) => void;
+  onRelinkSub: (id: string) => void;
   saving: boolean;
   canEdit: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
+  const [showSubs, setShowSubs] = useState(false);
 
   useEffect(() => {
-    if (!editing) {
-      setInput(row.ceiling > 0 ? row.ceiling.toString().replace('.', ',') : '');
-    }
+    if (!editing) setInput(row.ceiling > 0 ? row.ceiling.toString().replace('.', ',') : '');
   }, [row.ceiling, editing]);
 
   const handleSave = useCallback(() => {
     const v = parseCurrencyInput(input);
-    if (v < 0) {
-      toast.error('Valor inválido');
-      return;
-    }
-    onSave(v);
+    if (v < 0) { toast.error('Valor inválido'); return; }
+    onSaveGroup(v);
     setEditing(false);
-  }, [input, onSave]);
+  }, [input, onSaveGroup]);
 
   const hasCeiling = row.ceiling > 0;
   const overLimit = hasCeiling && row.realizado > row.ceiling;
   const fillPct = hasCeiling ? Math.min((row.realizado / row.ceiling) * 100, 100) : 0;
 
-  // Faixas: <=70 verde, 70-90 amarelo, >90 vermelho
   const status: 'safe' | 'warn' | 'danger' = !hasCeiling
     ? 'safe'
-    : row.pct > 90
-      ? 'danger'
-      : row.pct > 70
-        ? 'warn'
-        : 'safe';
+    : row.pct > 90 ? 'danger' : row.pct > 70 ? 'warn' : 'safe';
 
   const colorMap = {
     safe: { fill: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-500', ring: 'ring-emerald-500/20', soft: 'bg-emerald-500/10' },
@@ -288,31 +339,22 @@ function CategoryCard({
   };
   const c = colorMap[status];
 
+  const detachedSubs = row.subs.filter(s => s.detached);
+  const linkedSubs = row.subs.filter(s => !s.detached);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03 }}
-    >
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.03 }}>
       <Card className={`rounded-2xl hover:shadow-md transition-all ring-1 ${c.ring}`}>
         <CardContent className="p-5">
-          {/* Header: nome + edit icon */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <h4 className="text-sm font-semibold text-foreground leading-tight flex-1">{row.name}</h4>
             {canEdit && !editing && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground -mt-1 -mr-1"
-                onClick={() => setEditing(true)}
-                title={hasCeiling ? 'Editar teto' : 'Definir teto'}
-              >
+              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground -mt-1 -mr-1" onClick={() => setEditing(true)} title={hasCeiling ? 'Editar teto' : 'Definir teto'}>
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
             )}
           </div>
 
-          {/* Percentual destacado */}
           <div className="flex items-baseline gap-2 mb-3">
             {hasCeiling ? (
               <>
@@ -330,55 +372,113 @@ function CategoryCard({
             )}
           </div>
 
-          {/* Barra de progresso moderna */}
           <div className="mb-4">
             <div className="relative h-2.5 w-full rounded-full bg-muted overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${fillPct}%` }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-                className={`h-full rounded-full ${c.fill}`}
-              />
+              <motion.div initial={{ width: 0 }} animate={{ width: `${fillPct}%` }} transition={{ duration: 0.6, ease: 'easeOut' }} className={`h-full rounded-full ${c.fill}`} />
             </div>
           </div>
 
-          {/* Hierarquia: Gasto • Teto • Saldo */}
           <div className="grid grid-cols-3 gap-2 text-xs">
             <Stat label="Gasto" value={formatCurrency(row.realizado)} strong />
             <Stat label="Teto" value={hasCeiling ? formatCurrency(row.ceiling) : '—'} />
-            <Stat
-              label="Saldo"
-              value={hasCeiling ? formatCurrency(row.saldo) : '—'}
-              tone={row.saldo < 0 ? 'danger' : 'default'}
-            />
+            <Stat label="Saldo" value={hasCeiling ? formatCurrency(row.saldo) : '—'} tone={row.saldo < 0 ? 'danger' : 'default'} />
           </div>
 
-          {/* Editor inline (apenas admin, fora do modo apresentação) */}
           {canEdit && editing && (
             <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border/60">
               <span className="text-xs font-medium text-muted-foreground">R$</span>
-              <Input
-                autoFocus
-                className="rounded-xl h-9"
-                placeholder="0,00"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSave();
-                  if (e.key === 'Escape') setEditing(false);
-                }}
-              />
-              <Button size="icon" className="rounded-xl h-9 w-9" onClick={handleSave} disabled={saving}>
-                <Check className="w-4 h-4" />
-              </Button>
-              <Button size="icon" variant="ghost" className="rounded-xl h-9 w-9" onClick={() => setEditing(false)}>
-                <X className="w-4 h-4" />
-              </Button>
+              <Input autoFocus className="rounded-xl h-9" placeholder="0,00" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }} />
+              <Button size="icon" className="rounded-xl h-9 w-9" onClick={handleSave} disabled={saving}><Check className="w-4 h-4" /></Button>
+              <Button size="icon" variant="ghost" className="rounded-xl h-9 w-9" onClick={() => setEditing(false)}><X className="w-4 h-4" /></Button>
+            </div>
+          )}
+
+          {row.subs.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border/60">
+              <button onClick={() => setShowSubs(!showSubs)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                {showSubs ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                Subcategorias ({row.subs.length}){detachedSubs.length > 0 && ` · ${detachedSubs.length} com teto próprio`}
+              </button>
+              <AnimatePresence>
+                {showSubs && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                    <div className="mt-3 space-y-2">
+                      {linkedSubs.length > 0 && (
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mt-1">Vinculadas à mãe</p>
+                      )}
+                      {linkedSubs.map(s => (
+                        <SubRowItem key={s.name} sub={s} canEdit={canEdit} onSaveSub={onSaveSub} onRelinkSub={onRelinkSub} saving={saving} />
+                      ))}
+                      {detachedSubs.length > 0 && (
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mt-3">Com teto individual</p>
+                      )}
+                      {detachedSubs.map(s => (
+                        <SubRowItem key={s.name} sub={s} canEdit={canEdit} onSaveSub={onSaveSub} onRelinkSub={onRelinkSub} saving={saving} />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+function SubRowItem({ sub, canEdit, onSaveSub, onRelinkSub, saving }: { sub: SubRow; canEdit: boolean; onSaveSub: (subName: string, value: number, existingId: string | null) => void; onRelinkSub: (id: string) => void; saving: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState('');
+
+  useEffect(() => {
+    if (!editing) setInput(sub.ceiling > 0 ? sub.ceiling.toString().replace('.', ',') : '');
+  }, [sub.ceiling, editing]);
+
+  const handleSave = () => {
+    const v = parseCurrencyInput(input);
+    if (v <= 0) { toast.error('Defina um valor maior que zero'); return; }
+    onSaveSub(sub.name, v, sub.ceilingId);
+    setEditing(false);
+  };
+
+  const pct = sub.ceiling > 0 ? (sub.realizado / sub.ceiling) * 100 : 0;
+  const overLimit = sub.detached && sub.ceiling > 0 && sub.realizado > sub.ceiling;
+
+  return (
+    <div className="rounded-lg bg-muted/30 px-3 py-2 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-foreground truncate">{sub.name}</p>
+          <p className="text-muted-foreground text-[11px] mt-0.5">
+            Gasto: <span className="font-medium text-foreground">{formatCurrency(sub.realizado)}</span>
+            {sub.detached && sub.ceiling > 0 && (
+              <> · Teto: <span className="font-medium text-foreground">{formatCurrency(sub.ceiling)}</span> · <span className={overLimit ? 'text-destructive font-semibold' : 'text-muted-foreground'}>{pct.toFixed(0)}%</span></>
+            )}
+          </p>
+        </div>
+        {canEdit && !editing && (
+          <div className="flex items-center gap-1 shrink-0">
+            {sub.detached ? (
+              <>
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg" onClick={() => setEditing(true)} title="Editar teto da subcategoria"><Pencil className="w-3 h-3" /></Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive" onClick={() => sub.ceilingId && onRelinkSub(sub.ceilingId)} title="Revincular ao teto da mãe" disabled={saving}><Link2 className="w-3 h-3" /></Button>
+              </>
+            ) : (
+              <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg" onClick={() => setEditing(true)} title="Definir teto individual (desvincula da mãe)"><Unlink className="w-3 h-3" /></Button>
+            )}
+          </div>
+        )}
+      </div>
+      {canEdit && editing && (
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className="text-[11px] text-muted-foreground">R$</span>
+          <Input autoFocus className="rounded-lg h-8 text-xs" placeholder="0,00" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false); }} />
+          <Button size="icon" className="rounded-lg h-8 w-8" onClick={handleSave} disabled={saving}><Check className="w-3.5 h-3.5" /></Button>
+          <Button size="icon" variant="ghost" className="rounded-lg h-8 w-8" onClick={() => setEditing(false)}><X className="w-3.5 h-3.5" /></Button>
+        </div>
+      )}
+    </div>
   );
 }
 
