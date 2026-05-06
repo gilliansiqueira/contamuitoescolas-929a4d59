@@ -303,39 +303,76 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                             exit={{ height: 0, opacity: 0 }}
                             className="overflow-hidden"
                           >
-                            <div className="mt-3 max-h-64 overflow-y-auto">
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="border-b text-muted-foreground">
-                                    <th className="text-left py-1 px-1 font-medium">Data</th>
-                                    <th className="text-left py-1 px-1 font-medium">Descrição</th>
-                                    <th className="text-left py-1 px-1 font-medium">Categoria</th>
-                                    <th className="text-right py-1 px-1 font-medium">Valor</th>
-                                    <th className="w-8"></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {sortedEntries.map(e => (
-                                    <tr key={e.id || `${e.data}-${e.valor}`} className="border-b border-border/20 hover:bg-muted/30">
-                                      <td className="py-1.5 px-1 text-muted-foreground">{e.data}</td>
-                                      <td className="py-1.5 px-1 truncate max-w-[150px]">{e.descricao || '—'}</td>
-                                      <td className="py-1.5 px-1 text-muted-foreground truncate max-w-[100px]">{e.conta_nome}</td>
-                                      <td className="py-1.5 px-1 text-right font-medium">{formatCurrency(e.valor)}</td>
-                                      <td className="py-1.5 px-1">
-                                        {e.id && (
-                                          <button
-                                            onClick={() => onEditEntry(e)}
-                                            className="text-muted-foreground hover:text-primary transition-colors"
-                                            title="Editar"
-                                          >
-                                            <Pencil className="w-3 h-3" />
-                                          </button>
-                                        )}
-                                      </td>
-                                    </tr>
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <select
+                                  value={filterCat}
+                                  onChange={(e) => setFilterCat(e.target.value)}
+                                  className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                >
+                                  <option value="all">Todas as categorias ({entries.length})</option>
+                                  {bySubcat.slice().reverse().map(s => (
+                                    <option key={s.name} value={s.name}>{s.name}</option>
                                   ))}
-                                </tbody>
-                              </table>
+                                </select>
+                                <input
+                                  type="text"
+                                  value={search}
+                                  onChange={(e) => setSearch(e.target.value)}
+                                  placeholder="Buscar por descrição..."
+                                  className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 flex-1 min-w-[140px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                />
+                                {(filterCat !== 'all' || search) && (
+                                  <button
+                                    onClick={() => { setFilterCat('all'); setSearch(''); }}
+                                    className="text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted/50"
+                                  >
+                                    Limpar
+                                  </button>
+                                )}
+                                <span className="text-xs text-muted-foreground ml-auto">
+                                  {sortedEntries.length} • {formatCurrency(filteredTotal)}
+                                </span>
+                              </div>
+                              <div className="max-h-64 overflow-y-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b text-muted-foreground">
+                                      <th className="text-left py-1 px-1 font-medium">Data</th>
+                                      <th className="text-left py-1 px-1 font-medium">Descrição</th>
+                                      <th className="text-left py-1 px-1 font-medium">Categoria</th>
+                                      <th className="text-right py-1 px-1 font-medium">Valor</th>
+                                      <th className="w-8"></th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sortedEntries.map(e => (
+                                      <tr key={e.id || `${e.data}-${e.valor}`} className="border-b border-border/20 hover:bg-muted/30">
+                                        <td className="py-1.5 px-1 text-muted-foreground">{e.data}</td>
+                                        <td className="py-1.5 px-1 truncate max-w-[150px]">{e.descricao || '—'}</td>
+                                        <td className="py-1.5 px-1 text-muted-foreground truncate max-w-[100px]">{e.conta_nome}</td>
+                                        <td className="py-1.5 px-1 text-right font-medium">{formatCurrency(e.valor)}</td>
+                                        <td className="py-1.5 px-1">
+                                          {e.id && (
+                                            <button
+                                              onClick={() => onEditEntry(e)}
+                                              className="text-muted-foreground hover:text-primary transition-colors"
+                                              title="Editar"
+                                            >
+                                              <Pencil className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {sortedEntries.length === 0 && (
+                                      <tr>
+                                        <td colSpan={5} className="py-4 text-center text-muted-foreground">Nenhum lançamento encontrado.</td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           </motion.div>
                         )}
