@@ -85,21 +85,32 @@ function normalizeColumnName(name: string): string {
     .replace(/\s+/g, '_');
 }
 
+// Fields where, if multiple candidate columns are present, we must ask the user
+// which one to use instead of silently picking the first match.
+const AMBIGUOUS_FIELDS = new Set(['valor']);
+
 function autoMapColumns(rawColumns: string[], requiredColumns: string[]): { mapping: Record<string, string>; unmapped: string[] } {
   const mapping: Record<string, string> = {};
   const unmapped: string[] = [];
   for (const req of requiredColumns) {
     const aliases = COLUMN_ALIASES[req] || [req];
-    let found = false;
+    const matches: string[] = [];
     for (const rawCol of rawColumns) {
       const normalized = normalizeColumnName(rawCol);
       if (aliases.some(a => normalizeColumnName(a) === normalized)) {
-        mapping[req] = rawCol;
-        found = true;
-        break;
+        matches.push(rawCol);
       }
     }
-    if (!found) unmapped.push(req);
+    if (matches.length === 1) {
+      mapping[req] = matches[0];
+    } else if (matches.length > 1 && AMBIGUOUS_FIELDS.has(req)) {
+      // Ambiguous — force manual choice (e.g. valor vs valor_com_desconto)
+      unmapped.push(req);
+    } else if (matches.length >= 1) {
+      mapping[req] = matches[0];
+    } else {
+      unmapped.push(req);
+    }
   }
   return { mapping, unmapped };
 }
