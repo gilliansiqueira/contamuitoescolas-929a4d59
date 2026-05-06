@@ -237,11 +237,15 @@ export function TetoGastos({ schoolId }: Props) {
   }, [entries, contaGrupoMap, ceilings, semester]);
 
   const totals = useMemo(() => {
-    const tetoTotal = rows.reduce((s, r) => s + r.ceiling + r.subs.filter(x => x.detached).reduce((ss, x) => ss + x.ceiling, 0), 0);
-    const gastoTotal = rows.reduce((s, r) => s + r.realizado + r.subs.filter(x => x.detached).reduce((ss, x) => ss + x.realizado, 0), 0);
+    const tetoTotal = rows.reduce((s, r) => s + r.ceiling, 0);
+    const gastoTotal = rows.reduce((s, r) => s + r.realizado, 0);
     const pct = tetoTotal > 0 ? (gastoTotal / tetoTotal) * 100 : 0;
     return { tetoTotal, gastoTotal, pct };
   }, [rows]);
+
+  const [hideUnset, setHideUnset] = useState(false);
+  const visibleRows = useMemo(() => hideUnset ? rows.filter(r => r.ceiling > 0) : rows, [rows, hideUnset]);
+  const hiddenCount = rows.length - visibleRows.length;
 
   if (loadingEntries || loadingCeilings) {
     return (
