@@ -75,6 +75,8 @@ interface CategoryRow {
   pct: number;
   ceilingId: string | null;
   subs: SubRow[];
+  isStandalone?: boolean; // true when this card represents a detached subcategory
+  parentGroup?: string | null;
 }
 
 export function TetoGastos({ schoolId }: Props) {
