@@ -292,20 +292,37 @@ export function TetoGastos({ schoolId }: Props) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {rows.map((row, idx) => (
-            <CategoryCard
-              key={row.name}
-              row={row}
-              index={idx}
-              onSaveGroup={(value) => saveCeiling.mutate({ category: row.name, value, existingId: row.ceilingId, scope: 'group', parentGroup: null })}
-              onSaveSub={(subName, value, existingId) => saveCeiling.mutate({ category: subName, value, existingId, scope: 'subcategory', parentGroup: row.name })}
-              onRelinkSub={(id) => removeCeiling.mutate(id)}
-              saving={saveCeiling.isPending || removeCeiling.isPending}
-              canEdit={canEdit}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div className="flex items-center gap-2">
+              {hideUnset ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4 text-muted-foreground" />}
+              <Label htmlFor="hide-unset" className="text-xs text-muted-foreground cursor-pointer">
+                Ocultar cards sem teto definido{hideUnset && hiddenCount > 0 ? ` (${hiddenCount} oculto${hiddenCount > 1 ? 's' : ''})` : ''}
+              </Label>
+            </div>
+            <Switch id="hide-unset" checked={hideUnset} onCheckedChange={setHideUnset} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {visibleRows.map((row, idx) => (
+              <CategoryCard
+                key={`${row.isStandalone ? 'sub' : 'grp'}:${row.parentGroup || ''}:${row.name}`}
+                row={row}
+                index={idx}
+                onSaveGroup={(value) => saveCeiling.mutate({
+                  category: row.name,
+                  value,
+                  existingId: row.ceilingId,
+                  scope: row.isStandalone ? 'subcategory' : 'group',
+                  parentGroup: row.isStandalone ? (row.parentGroup || null) : null,
+                })}
+                onSaveSub={(subName, value, existingId) => saveCeiling.mutate({ category: subName, value, existingId, scope: 'subcategory', parentGroup: row.name })}
+                onRelinkSub={(id) => removeCeiling.mutate(id)}
+                saving={saveCeiling.isPending || removeCeiling.isPending}
+                canEdit={canEdit}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
