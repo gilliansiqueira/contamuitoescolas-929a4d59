@@ -46,9 +46,22 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('realized_entries').select('*').eq('school_id', schoolId).order('data');
-      if (error) throw error;
-      return data;
+      const all: any[] = [];
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from('realized_entries')
+          .select('*')
+          .eq('school_id', schoolId)
+          .order('data')
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        all.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+        from += PAGE;
+      }
+      return all;
     },
   });
 
