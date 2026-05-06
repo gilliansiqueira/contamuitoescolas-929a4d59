@@ -332,7 +332,9 @@ export type Database = {
           ceiling: number
           created_at: string
           id: string
+          parent_group: string | null
           school_id: string
+          scope: string
           semester: string
           updated_at: string
         }
@@ -341,7 +343,9 @@ export type Database = {
           ceiling?: number
           created_at?: string
           id?: string
+          parent_group?: string | null
           school_id: string
+          scope?: string
           semester: string
           updated_at?: string
         }
@@ -350,7 +354,9 @@ export type Database = {
           ceiling?: number
           created_at?: string
           id?: string
+          parent_group?: string | null
           school_id?: string
+          scope?: string
           semester?: string
           updated_at?: string
         }
