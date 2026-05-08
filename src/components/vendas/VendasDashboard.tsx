@@ -89,7 +89,7 @@ export function VendasDashboard({ schoolId }: Props) {
           
           <Select 
             value={selectedYear} 
-            onValueChange={(v) => { setHasManuallySelected(true); setSelectedYear(v); }}
+            onValueChange={(v) => { setHasManuallySelected(true); setSelectedYear(v); pushShared(`${v}-${selectedMonth}`); }}
           >
             <SelectTrigger className="w-[100px]">
               <SelectValue placeholder="Ano" />
