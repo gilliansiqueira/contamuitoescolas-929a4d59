@@ -43,6 +43,8 @@ export function IndicadoresDashboard({ schoolId }: Props) {
   // Mês de referência efetivo (default: mais recente disponível)
   const effectiveRefMonth = referenceMonth || months[months.length - 1];
 
+  const pushShared = useMonthSync(referenceMonth || null, (m) => setReferenceMonth(m));
+
   // Lista de meses com dados (para o seletor)
   const monthsWithData = useMemo(() => {
     const set = new Set(allValues.map(v => v.month));
