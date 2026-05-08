@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { IconLibraryPicker } from '@/components/icons/IconLibraryPicker';
 import { useAuth } from '@/hooks/useAuth';
+import { useMonthSync } from './SharedMonthContext';
 
 interface Props { schoolId: string; }
 
