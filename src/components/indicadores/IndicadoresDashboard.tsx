@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
 import type { Insight } from '@/components/InsightsBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useMonthSync } from '@/components/realizado/SharedMonthContext';
 
 interface Props {
   schoolId: string;
