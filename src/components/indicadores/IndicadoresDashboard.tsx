@@ -147,7 +147,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Mês de referência:
             </span>
-            <Select value={referenceMonth || '__latest__'} onValueChange={(v) => setReferenceMonth(v === '__latest__' ? '' : v)}>
+            <Select value={referenceMonth || '__latest__'} onValueChange={(v) => { const next = v === '__latest__' ? '' : v; setReferenceMonth(next); if (next) pushShared(next); }}>
               <SelectTrigger className="h-8 w-44 text-xs">
                 <SelectValue />
               </SelectTrigger>
