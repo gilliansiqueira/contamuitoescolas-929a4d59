@@ -98,7 +98,7 @@ export function RecebimentoCategoria({ schoolId }: Props) {
         <div className="flex items-end gap-2">
           <div>
             <Label className="text-xs">Mês de referência</Label>
-            <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="h-9 w-44" />
+            <Input type="month" value={month} onChange={e => { setMonth(e.target.value); pushShared(e.target.value); }} className="h-9 w-44" />
           </div>
           {isAdmin && (
             <Button onClick={() => setCreating(true)} className="h-9">
