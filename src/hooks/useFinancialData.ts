@@ -446,21 +446,12 @@ export function useFluxoTipos(schoolId: string) {
   return useQuery({
     queryKey: ['fluxoTipos', schoolId],
     queryFn: async (): Promise<string[]> => {
-      const [entriesRes, histRes] = await Promise.all([
-        supabase
-          .from('financial_entries')
-          .select('tipo, tipo_original')
-          .eq('school_id', schoolId)
-          .eq('origem', 'fluxo'),
-        supabase
-          .from('historical_monthly' as any)
-          .select('tipo_valor')
-          .eq('school_id', schoolId),
+      const [entries, hist] = await Promise.all([
+        fetchAllRows<any>('financial_entries', q =>
+          q.eq('school_id', schoolId).eq('origem', 'fluxo'), 1000, 'tipo, tipo_original'),
+        fetchAllRows<any>('historical_monthly', q =>
+          q.eq('school_id', schoolId), 1000, 'tipo_valor'),
       ]);
-      if (entriesRes.error) throw entriesRes.error;
-      if (histRes.error) throw histRes.error;
-      // Dedup pelo nome normalizado (sem acento, lowercase) — mantém o
-      // primeiro label "amigável" encontrado para exibição.
       const { normalizeTipo } = await import('@/lib/classificationUtils');
       const map = new Map<string, string>();
       const add = (raw: string | null | undefined) => {
@@ -469,11 +460,8 @@ export function useFluxoTipos(schoolId: string) {
         if (!key) return;
         if (!map.has(key)) map.set(key, key);
       };
-      (entriesRes.data ?? []).forEach(e => {
-        add(e.tipo_original);
-        add(e.tipo);
-      });
-      (histRes.data ?? []).forEach((r: any) => add(r.tipo_valor));
+      entries.forEach(e => { add(e.tipo_original); add(e.tipo); });
+      hist.forEach((r: any) => add(r.tipo_valor));
       return Array.from(map.values()).sort();
     },
     enabled: !!schoolId,
@@ -485,15 +473,13 @@ export function useAvailableMonths(schoolId: string) {
   return useQuery({
     queryKey: ['availableMonths', schoolId],
     queryFn: async (): Promise<string[]> => {
-      const [entriesRes, histRes] = await Promise.all([
-        supabase.from('financial_entries').select('data').eq('school_id', schoolId),
-        supabase.from('historical_monthly' as any).select('month').eq('school_id', schoolId),
+      const [entries, hist] = await Promise.all([
+        fetchAllRows<any>('financial_entries', q => q.eq('school_id', schoolId), 1000, 'data'),
+        fetchAllRows<any>('historical_monthly', q => q.eq('school_id', schoolId), 1000, 'month'),
       ]);
-      if (entriesRes.error) throw entriesRes.error;
-      if (histRes.error) throw histRes.error;
       const set = new Set<string>();
-      (entriesRes.data ?? []).forEach((e: any) => set.add(e.data.slice(0, 7)));
-      (histRes.data ?? []).forEach((r: any) => { if (r.month) set.add(r.month); });
+      entries.forEach((e: any) => { if (e.data) set.add(e.data.slice(0, 7)); });
+      hist.forEach((r: any) => { if (r.month) set.add(r.month); });
       return Array.from(set).sort();
     },
     enabled: !!schoolId,
