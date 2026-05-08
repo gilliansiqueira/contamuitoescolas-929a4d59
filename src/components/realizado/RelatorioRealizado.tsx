@@ -115,6 +115,8 @@ export function RelatorioRealizado({ schoolId }: Props) {
 
   const activeMes = mesFilter === 'all' ? currentYM : mesFilter;
 
+  const pushShared = useMonthSync(mesFilter === 'all' ? null : mesFilter, (m) => setMesFilter(m));
+
   const filtered = useMemo(() => {
     return entries.filter(e => e.data?.startsWith(activeMes));
   }, [entries, activeMes]);
