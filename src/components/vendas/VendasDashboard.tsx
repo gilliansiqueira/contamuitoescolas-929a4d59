@@ -74,7 +74,7 @@ export function VendasDashboard({ schoolId }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <Select 
             value={selectedMonth} 
-            onValueChange={(v) => { setHasManuallySelected(true); setSelectedMonth(v); }}
+            onValueChange={(v) => { setHasManuallySelected(true); setSelectedMonth(v); pushShared(`${selectedYear}-${v}`); }}
           >
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Mês" />
