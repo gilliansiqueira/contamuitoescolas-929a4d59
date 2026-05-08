@@ -197,6 +197,7 @@ export function RealizadoModule({ schoolId }: Props) {
   }
 
   return (
+    <SharedMonthProvider>
     <div>
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2 flex-wrap">
