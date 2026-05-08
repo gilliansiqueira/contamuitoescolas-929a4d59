@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
 import type { Insight } from '@/components/InsightsBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useMonthSync } from '@/components/realizado/SharedMonthContext';
 
 interface Props {
   schoolId: string;
@@ -41,6 +42,8 @@ export function IndicadoresDashboard({ schoolId }: Props) {
 
   // Mês de referência efetivo (default: mais recente disponível)
   const effectiveRefMonth = referenceMonth || months[months.length - 1];
+
+  const pushShared = useMonthSync(referenceMonth || null, (m) => setReferenceMonth(m));
 
   // Lista de meses com dados (para o seletor)
   const monthsWithData = useMemo(() => {
@@ -144,7 +147,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Mês de referência:
             </span>
-            <Select value={referenceMonth || '__latest__'} onValueChange={(v) => setReferenceMonth(v === '__latest__' ? '' : v)}>
+            <Select value={referenceMonth || '__latest__'} onValueChange={(v) => { const next = v === '__latest__' ? '' : v; setReferenceMonth(next); if (next) pushShared(next); }}>
               <SelectTrigger className="h-8 w-44 text-xs">
                 <SelectValue />
               </SelectTrigger>

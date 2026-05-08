@@ -8,6 +8,7 @@ import { VendasCharts } from './VendasCharts';
 import { Button } from '@/components/ui/button';
 import { Settings2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useMonthSync } from '@/components/realizado/SharedMonthContext';
 
 interface Props {
   schoolId: string;
@@ -21,6 +22,11 @@ export function VendasDashboard({ schoolId }: Props) {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
   const [hasManuallySelected, setHasManuallySelected] = useState(false);
+
+  const pushShared = useMonthSync(`${selectedYear}-${selectedMonth}`, (m) => {
+    const [y, mo] = m.split('-');
+    setSelectedYear(y); setSelectedMonth(mo); setHasManuallySelected(true);
+  });
 
   const { data: salesData = [] } = useQuery({
     queryKey: ['sales_data', schoolId],
@@ -68,7 +74,7 @@ export function VendasDashboard({ schoolId }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <Select 
             value={selectedMonth} 
-            onValueChange={(v) => { setHasManuallySelected(true); setSelectedMonth(v); }}
+            onValueChange={(v) => { setHasManuallySelected(true); setSelectedMonth(v); pushShared(`${selectedYear}-${v}`); }}
           >
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Mês" />
@@ -83,7 +89,7 @@ export function VendasDashboard({ schoolId }: Props) {
           
           <Select 
             value={selectedYear} 
-            onValueChange={(v) => { setHasManuallySelected(true); setSelectedYear(v); }}
+            onValueChange={(v) => { setHasManuallySelected(true); setSelectedYear(v); pushShared(`${v}-${selectedMonth}`); }}
           >
             <SelectTrigger className="w-[100px]">
               <SelectValue placeholder="Ano" />

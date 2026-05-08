@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { useClosedMonths } from '@/hooks/usePeriodClosures';
+import { useMonthSync } from './SharedMonthContext';
 
 interface Props {
   schoolId: string;
@@ -113,6 +114,8 @@ export function RelatorioRealizado({ schoolId }: Props) {
   }, []);
 
   const activeMes = mesFilter === 'all' ? currentYM : mesFilter;
+
+  const pushShared = useMonthSync(mesFilter === 'all' ? null : mesFilter, (m) => setMesFilter(m));
 
   const filtered = useMemo(() => {
     return entries.filter(e => e.data?.startsWith(activeMes));
@@ -309,7 +312,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
     <div className="space-y-6">
       {/* Filter row */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Select value={mesFilter} onValueChange={setMesFilter}>
+        <Select value={mesFilter} onValueChange={(v) => { setMesFilter(v); if (v !== 'all') pushShared(v); }}>
           <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="Mês atual" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Mês atual</SelectItem>

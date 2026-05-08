@@ -15,6 +15,7 @@ import { ExportPdfDialog } from './ExportPdfDialog';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { FechamentoMeses } from './FechamentoMeses';
 import { TetoGastos } from './TetoGastos';
+import { SharedMonthProvider } from './SharedMonthContext';
 import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
@@ -196,6 +197,7 @@ export function RealizadoModule({ schoolId }: Props) {
   }
 
   return (
+    <SharedMonthProvider>
     <div>
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2 flex-wrap">
@@ -319,5 +321,6 @@ export function RealizadoModule({ schoolId }: Props) {
         selectedYear={exportYear}
       />
     </div>
+    </SharedMonthProvider>
   );
 }

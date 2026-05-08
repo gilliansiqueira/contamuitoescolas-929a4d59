@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { IconLibraryPicker } from '@/components/icons/IconLibraryPicker';
 import { useAuth } from '@/hooks/useAuth';
+import { useMonthSync } from './SharedMonthContext';
 
 interface Props { schoolId: string; }
 
@@ -40,6 +41,7 @@ export function RecebimentoCategoria({ schoolId }: Props) {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
   const [month, setMonth] = useState(currentMonth());
+  const pushShared = useMonthSync(month, setMonth);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -96,7 +98,7 @@ export function RecebimentoCategoria({ schoolId }: Props) {
         <div className="flex items-end gap-2">
           <div>
             <Label className="text-xs">Mês de referência</Label>
-            <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="h-9 w-44" />
+            <Input type="month" value={month} onChange={e => { setMonth(e.target.value); pushShared(e.target.value); }} className="h-9 w-44" />
           </div>
           {isAdmin && (
             <Button onClick={() => setCreating(true)} className="h-9">
