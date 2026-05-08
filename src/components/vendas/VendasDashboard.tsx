@@ -23,6 +23,11 @@ export function VendasDashboard({ schoolId }: Props) {
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
   const [hasManuallySelected, setHasManuallySelected] = useState(false);
 
+  const pushShared = useMonthSync(`${selectedYear}-${selectedMonth}`, (m) => {
+    const [y, mo] = m.split('-');
+    setSelectedYear(y); setSelectedMonth(mo); setHasManuallySelected(true);
+  });
+
   const { data: salesData = [] } = useQuery({
     queryKey: ['sales_data', schoolId],
     queryFn: async () => {
