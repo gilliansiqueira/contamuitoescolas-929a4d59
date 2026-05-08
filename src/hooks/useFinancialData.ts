@@ -448,8 +448,7 @@ export function useFluxoTipos(schoolId: string) {
     queryFn: async (): Promise<string[]> => {
       const [entries, hist] = await Promise.all([
         fetchAllRows<any>('financial_entries', q =>
-          q.select('tipo, tipo_original').eq('school_id', schoolId).eq('origem', 'fluxo'),
-        , 1000, 'tipo, tipo_original'),
+          q.eq('school_id', schoolId).eq('origem', 'fluxo'), 1000, 'tipo, tipo_original'),
         fetchAllRows<any>('historical_monthly', q =>
           q.eq('school_id', schoolId), 1000, 'tipo_valor'),
       ]);
