@@ -321,5 +321,6 @@ export function RealizadoModule({ schoolId }: Props) {
         selectedYear={exportYear}
       />
     </div>
+    </SharedMonthProvider>
   );
 }
