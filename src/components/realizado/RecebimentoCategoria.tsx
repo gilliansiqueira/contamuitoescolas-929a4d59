@@ -41,6 +41,7 @@ export function RecebimentoCategoria({ schoolId }: Props) {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
   const [month, setMonth] = useState(currentMonth());
+  const pushShared = useMonthSync(month, setMonth);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
 
