@@ -101,13 +101,10 @@ export function useEntries(schoolId: string) {
   return useQuery({
     queryKey: ['entries', schoolId],
     queryFn: async (): Promise<FinancialEntry[]> => {
-      const { data, error } = await supabase
-        .from('financial_entries')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('data');
-      if (error) throw error;
-      return (data ?? []).map(mapEntry);
+      const data = await fetchAllRows<any>('financial_entries', q =>
+        q.eq('school_id', schoolId).order('data'),
+      );
+      return data.map(mapEntry);
     },
     enabled: !!schoolId,
   });
@@ -119,24 +116,12 @@ export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
     queryFn: async (): Promise<FinancialEntry[]> => {
       // If baseDate is set, filter strictly from it. Empty result = empty result
       // (no silent fallback to all-time data — avoids mixing periods).
-      if (baseDate) {
-        const { data, error } = await supabase
-          .from('financial_entries')
-          .select('*')
-          .eq('school_id', schoolId)
-          .gte('data', baseDate)
-          .order('data');
-        if (error) throw error;
-        return (data ?? []).map(mapEntry);
-      }
-      // No baseDate configured — load all entries
-      const { data, error } = await supabase
-        .from('financial_entries')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('data');
-      if (error) throw error;
-      return (data ?? []).map(mapEntry);
+      const data = await fetchAllRows<any>('financial_entries', q => {
+        let qq = q.eq('school_id', schoolId);
+        if (baseDate) qq = qq.gte('data', baseDate);
+        return qq.order('data');
+      });
+      return data.map(mapEntry);
     },
     enabled: !!schoolId,
   });
