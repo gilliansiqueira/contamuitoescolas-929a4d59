@@ -485,4 +485,3 @@ export function useAvailableMonths(schoolId: string) {
     enabled: !!schoolId,
   });
 }
-}
