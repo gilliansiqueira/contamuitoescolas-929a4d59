@@ -1,4 +1,4 @@
-export type PaymentMethod = 'credito' | 'debito' | 'pix' | 'boleto' | 'cheque' | 'dinheiro';
+export type PaymentMethod = 'credito' | 'debito' | 'pix' | 'boleto' | 'cheque' | 'dinheiro' | 'sponte_pay';
 
 export interface SalesPaymentMethod {
   id: string;
@@ -32,4 +32,5 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'boleto', label: 'Boleto' },
   { value: 'cheque', label: 'Cheque' },
   { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'sponte_pay', label: 'Sponte Pay' },
 ];
