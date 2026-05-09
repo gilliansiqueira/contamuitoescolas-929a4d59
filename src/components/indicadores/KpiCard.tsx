@@ -56,9 +56,9 @@ function formatMonth(m: string) {
 }
 
 function formatValue(v: number, type: string) {
-  if (type === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  if (type === 'percent') return `${v}%`;
-  return v.toLocaleString('pt-BR');
+  if (type === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getThresholdColor(def: KpiDefinitionWithThresholds, value: number | null): string {
