@@ -117,7 +117,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
             id: `trend-${def.id}`,
             tone: isImprovement ? 'success' : 'warning',
             icon: isImprovement ? TrendingUp : TrendingDown,
-            title: `${def.name} ${isImprovement ? 'melhorou' : 'piorou'} ${pct.toFixed(0)}%`,
+            title: `${def.name} ${isImprovement ? 'melhorou' : 'piorou'} ${pct.toFixed(2)}%`,
             description: `Variação significativa vs mês anterior.`,
           });
         }
