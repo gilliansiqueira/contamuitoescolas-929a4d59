@@ -98,6 +98,9 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
       case 'boleto': return <FileText className="w-5 h-5 text-primary" />;
       case 'cheque': return <Receipt className="w-5 h-5 text-primary" />;
       case 'dinheiro': return <Banknote className="w-5 h-5 text-primary" />;
+      case 'sponte_pay': return (
+        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ backgroundColor: '#4C1D95' }}>S</span>
+      );
       default: return <HelpCircle className="w-5 h-5 text-primary" />;
     }
   };

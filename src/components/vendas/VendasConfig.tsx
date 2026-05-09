@@ -82,6 +82,9 @@ export function VendasConfig({ schoolId, onBack }: Props) {
       case 'boleto': return <FileText className="w-4 h-4" />;
       case 'cheque': return <Receipt className="w-4 h-4" />;
       case 'dinheiro': return <Banknote className="w-4 h-4" />;
+      case 'sponte_pay': return (
+        <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: '#4C1D95' }}>S</span>
+      );
       default: return <HelpCircle className="w-4 h-4" />;
     }
   };
