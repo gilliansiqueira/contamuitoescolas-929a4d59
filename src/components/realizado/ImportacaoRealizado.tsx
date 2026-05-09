@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -89,8 +90,9 @@ function formatCurrency(v: number) {
 export function ImportacaoRealizado({ schoolId }: Props) {
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>('idle');
+  const { isAdmin } = useAuth();
   const [showManual, setShowManual] = useState(false);
-  const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '' });
+  const [manual, setManual] = useState<{ data: string; descricao: string; valor: string; categoria: string; tipo: 'receita' | 'despesa' }>({ data: '', descricao: '', valor: '', categoria: '', tipo: 'receita' });
   const [rawRows, setRawRows] = useState<Record<string, any>[]>([]);
   const [fileColumns, setFileColumns] = useState<string[]>([]);
   const [fileName, setFileName] = useState('');
@@ -164,7 +166,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
         data: r.data,
         descricao: r.descricao || '',
         valor: Math.abs(r.valor),
-        tipo: 'despesa',
+        tipo: r.tipo === 'receita' ? 'receita' : 'despesa',
         conta_codigo: '',
         conta_nome: r.categoria || '',
         complemento: '',
@@ -294,14 +296,16 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       toast.error('Data, valor e categoria são obrigatórios');
       return;
     }
+    const cleaned = manual.valor.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
     insertMutation.mutate([{
       data: manual.data,
       descricao: manual.descricao,
-      valor: Math.abs(parseFloat(manual.valor.replace(',', '.')) || 0),
+      valor: Math.abs(parseFloat(cleaned) || 0),
       categoria: manual.categoria,
+      tipo: manual.tipo,
       origem_arquivo: 'manual',
     }]);
-    setManual({ data: '', descricao: '', valor: '', categoria: '' });
+    setManual({ data: '', descricao: '', valor: '', categoria: '', tipo: 'receita' });
     setShowManual(false);
   };
 
@@ -313,9 +317,11 @@ export function ImportacaoRealizado({ schoolId }: Props) {
           <div className="flex gap-2">
             {step === 'idle' && (
               <>
-                <Button size="sm" variant="outline" onClick={() => setShowManual(!showManual)} className="rounded-xl">
-                  <Plus className="w-4 h-4 mr-1" /> Manual
-                </Button>
+                {isAdmin && (
+                  <Button size="sm" variant="outline" onClick={() => setShowManual(!showManual)} className="rounded-xl" title="Lançamento manual (admin) — útil para ajustes como rendimento de conta">
+                    <Plus className="w-4 h-4 mr-1" /> Lançamento Manual
+                  </Button>
+                )}
                 <label>
                   <Button size="sm" asChild className="rounded-xl">
                     <span><Upload className="w-4 h-4 mr-1" /> Importar Arquivo</span>
@@ -344,18 +350,28 @@ export function ImportacaoRealizado({ schoolId }: Props) {
 
           {/* Manual entry */}
           <AnimatePresence>
-            {showManual && step === 'idle' && (
+            {showManual && step === 'idle' && isAdmin && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-xl border border-border bg-muted/30">
-                  <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} className="rounded-xl" />
-                  <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} className="rounded-xl" />
-                  <Input placeholder="Valor" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} className="rounded-xl" />
-                  <Select value={manual.categoria} onValueChange={v => setManual(m => ({ ...m, categoria: v }))}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Categoria *" /></SelectTrigger>
-                    <SelectContent>
-                      {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="p-3 rounded-xl border border-border bg-muted/30 space-y-2">
+                  <div className="text-xs text-muted-foreground">Lançamento manual — use para ajustes pontuais como rendimento de conta, tarifas, estornos, etc.</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <Select value={manual.tipo} onValueChange={(v: 'receita' | 'despesa') => setManual(m => ({ ...m, tipo: v }))}>
+                      <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="receita">Receita</SelectItem>
+                        <SelectItem value="despesa">Despesa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} className="rounded-xl" />
+                    <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} className="rounded-xl" />
+                    <Input placeholder="Valor" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} className="rounded-xl" />
+                    <Select value={manual.categoria} onValueChange={v => setManual(m => ({ ...m, categoria: v }))}>
+                      <SelectTrigger className="rounded-xl"><SelectValue placeholder="Categoria *" /></SelectTrigger>
+                      <SelectContent>
+                        {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="flex gap-1 col-span-2 sm:col-span-4">
                     <Button size="sm" onClick={handleManualAdd} disabled={insertMutation.isPending} className="flex-1 rounded-xl">
                       <Check className="w-4 h-4 mr-1" /> Salvar
