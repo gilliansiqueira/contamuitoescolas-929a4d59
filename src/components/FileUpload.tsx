@@ -312,6 +312,51 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [currentMapping, setCurrentMapping] = useState<Record<string, string>>({});
   const [pdfRawRows, setPdfRawRows] = useState<string[][] | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const { isAdmin } = useAuth();
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '', tipo: 'entrada' as 'entrada' | 'saida' });
+  const [savingManual, setSavingManual] = useState(false);
+
+  const handleManualSave = async () => {
+    if (!manual.data || !manual.descricao || !manual.valor) {
+      toast.error('Preencha data, descrição e valor.');
+      return;
+    }
+    const valorNum = parseNumber(manual.valor);
+    if (valorNum == null) {
+      toast.error('Valor inválido.');
+      return;
+    }
+    setSavingManual(true);
+    try {
+      const entry: FinancialEntry = {
+        id: crypto.randomUUID(),
+        data: manual.data,
+        descricao: manual.descricao,
+        valor: Math.abs(valorNum),
+        tipo: manual.tipo,
+        categoria: manual.categoria || (manual.tipo === 'entrada' ? 'receita' : 'despesa'),
+        origem: 'manual',
+        school_id: schoolId,
+        tipoRegistro: determineTipoRegistro(manual.data),
+        editadoManualmente: true,
+      };
+      await addEntriesMut.mutateAsync([entry]);
+      await addAuditMut.mutateAsync({
+        school_id: schoolId,
+        action: 'manual_entry',
+        description: `Lançamento manual (Projeção): ${entry.data} - ${entry.descricao} - ${entry.valor}`,
+      });
+      toast.success('Lançamento manual adicionado.');
+      setManual({ data: '', descricao: '', valor: '', categoria: '', tipo: 'entrada' });
+      setManualOpen(false);
+      onImported();
+    } catch (err: any) {
+      toast.error(`Erro ao salvar: ${err?.message ?? 'desconhecido'}`);
+    } finally {
+      setSavingManual(false);
+    }
+  };
 
   // Tipo-mapping step (apenas para uploadType.key === 'fluxo')
   const [tipoMapping, setTipoMapping] = useState<TipoMappingRow[] | null>(null);
