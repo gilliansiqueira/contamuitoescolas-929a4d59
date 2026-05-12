@@ -651,23 +651,61 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   return (
     <div className="space-y-4">
       {!selectedType ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {UPLOAD_TYPES.map((ut, i) => (
-            <motion.button
-              key={ut.key}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              onClick={() => setSelectedType(ut)}
-              className="glass-card rounded-xl p-5 text-left hover:border-primary/50 transition-all group"
-            >
-              <FileSpreadsheet className="w-6 h-6 text-primary mb-2 group-hover:scale-110 transition-transform" />
-              <h4 className="font-display font-semibold text-sm text-foreground">{ut.label}</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                Colunas: {ut.requiredColumns.join(', ')}
+        <div className="space-y-4">
+          {isAdmin && (
+            <div className="glass-card rounded-xl p-4 space-y-3 border border-primary/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-sm text-foreground">Lançamento Manual (Projeção)</span>
+                  <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary rounded px-1.5 py-0.5">Admin</span>
+                </div>
+                <Button size="sm" variant={manualOpen ? 'ghost' : 'outline'} onClick={() => setManualOpen(o => !o)}>
+                  {manualOpen ? 'Fechar' : 'Adicionar'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Use para lançar valores avulsos (rendimentos, ajustes, previsões) — aceita datas passadas ou futuras.
               </p>
-            </motion.button>
-          ))}
+              {manualOpen && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 pt-2">
+                  <select
+                    value={manual.tipo}
+                    onChange={e => setManual(m => ({ ...m, tipo: e.target.value as 'entrada' | 'saida' }))}
+                    className="h-9 border rounded px-2 text-sm bg-background"
+                  >
+                    <option value="entrada">Entrada</option>
+                    <option value="saida">Saída</option>
+                  </select>
+                  <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} className="h-9" />
+                  <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} className="h-9 lg:col-span-2" />
+                  <Input placeholder="Valor (ex: 1.500,50)" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} className="h-9" />
+                  <Input placeholder="Categoria" value={manual.categoria} onChange={e => setManual(m => ({ ...m, categoria: e.target.value }))} className="h-9" />
+                  <Button size="sm" onClick={handleManualSave} disabled={savingManual} className="lg:col-span-6">
+                    {savingManual ? 'Salvando...' : 'Salvar lançamento'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {UPLOAD_TYPES.map((ut, i) => (
+              <motion.button
+                key={ut.key}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => setSelectedType(ut)}
+                className="glass-card rounded-xl p-5 text-left hover:border-primary/50 transition-all group"
+              >
+                <FileSpreadsheet className="w-6 h-6 text-primary mb-2 group-hover:scale-110 transition-transform" />
+                <h4 className="font-display font-semibold text-sm text-foreground">{ut.label}</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Colunas: {ut.requiredColumns.join(', ')}
+                </p>
+              </motion.button>
+            ))}
+          </div>
         </div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -676,6 +714,14 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             <Button variant="ghost" size="sm" onClick={handleReset}>
               <X className="w-4 h-4" />
             </Button>
+          </div>
+
+          <div className="rounded-xl border border-amber-300/50 bg-amber-50/60 dark:bg-amber-950/20 p-3 flex items-start gap-2">
+            <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <div className="text-xs text-amber-800 dark:text-amber-200">
+              <strong>Conferir lançamentos manuais antes de importar.</strong> Verifique se valores que você lançou manualmente
+              (rendimentos, ajustes, previsões) não já estão presentes neste arquivo, para evitar duplicidade.
+            </div>
           </div>
 
           {tipoMapping && (
