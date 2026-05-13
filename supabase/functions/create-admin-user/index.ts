@@ -81,7 +81,12 @@ Deno.serve(async (req) => {
 
     // 2. Garante profile (trigger handle_new_user pode já ter criado)
     await adminClient.from("profiles").upsert(
-      { user_id: userId, email, school_id: role === "cliente" ? school_id : null },
+      {
+        user_id: userId,
+        email,
+        school_id: role === "cliente" ? school_id : (school_id ?? null),
+        admin_scope: role === "admin" ? scope : "all",
+      },
       { onConflict: "user_id" },
     );
 
