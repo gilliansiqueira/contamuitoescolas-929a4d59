@@ -180,10 +180,22 @@ export function UsersConfig() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cliente">Cliente</SelectItem>
-                <SelectItem value="admin">Admin (vê todas as empresas)</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {role === 'admin' && (
+            <div className="space-y-1.5">
+              <Label>Escopo do admin</Label>
+              <Select value={adminScope} onValueChange={(v) => setAdminScope(v as 'all' | 'list')}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Acessar todas as empresas</SelectItem>
+                  <SelectItem value="list">Acessar apenas lista definida</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>
               Empresa principal {role === 'admin' && <span className="text-xs text-muted-foreground">(opcional)</span>}
