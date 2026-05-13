@@ -509,6 +509,51 @@ export type Database = {
           },
         ]
       }
+      investment_entries: {
+        Row: {
+          aplicacao: number
+          created_at: string
+          encargos: number
+          id: string
+          month: string
+          rendimento_provisionado: number
+          rendimentos: number
+          resgate: number
+          saldo_final: number
+          saldo_inicial: number
+          school_id: string
+          updated_at: string
+        }
+        Insert: {
+          aplicacao?: number
+          created_at?: string
+          encargos?: number
+          id?: string
+          month: string
+          rendimento_provisionado?: number
+          rendimentos?: number
+          resgate?: number
+          saldo_final?: number
+          saldo_inicial?: number
+          school_id: string
+          updated_at?: string
+        }
+        Update: {
+          aplicacao?: number
+          created_at?: string
+          encargos?: number
+          id?: string
+          month?: string
+          rendimento_provisionado?: number
+          rendimentos?: number
+          resgate?: number
+          saldo_final?: number
+          saldo_inicial?: number
+          school_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       kpi_definitions: {
         Row: {
           created_at: string
