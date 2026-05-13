@@ -922,6 +922,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          admin_scope: string
           created_at: string
           email: string
           id: string
@@ -929,6 +930,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_scope?: string
           created_at?: string
           email: string
           id?: string
@@ -936,6 +938,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_scope?: string
           created_at?: string
           email?: string
           id?: string
