@@ -78,7 +78,8 @@ export function UsersConfig() {
           email: cleanEmail,
           password,
           role,
-          school_id: role === 'cliente' ? schoolId : null,
+          school_id: role === 'cliente' ? schoolId : (schoolId || null),
+          admin_scope: role === 'admin' ? adminScope : 'all',
         },
       });
       if (error) throw new Error(error.message ?? 'Erro ao criar usuário');
@@ -86,7 +87,7 @@ export function UsersConfig() {
     },
     onSuccess: () => {
       toast.success('Usuário criado com sucesso');
-      setEmail(''); setPassword(''); setSchoolId(''); setRole('cliente');
+      setEmail(''); setPassword(''); setSchoolId(''); setRole('cliente'); setAdminScope('all');
       qc.invalidateQueries({ queryKey: ['app_users'] });
     },
     onError: (e: Error) => toast.error(e.message),
