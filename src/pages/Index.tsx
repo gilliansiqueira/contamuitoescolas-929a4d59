@@ -89,12 +89,12 @@ const Index = () => {
   // Auto-seleção: cliente vai direto se tiver UMA única empresa acessível.
   // Se tiver múltiplas, mostra o seletor para escolher.
   useEffect(() => {
-    if (school || isAdmin) return;
+    if (school || isAdminAll) return;
     if (accessibleSchoolIds.length === 1) {
       const mine = allSchools.find(s => s.id === accessibleSchoolIds[0]);
       if (mine) setSchool(mine);
     }
-  }, [school, isAdmin, accessibleSchoolIds, allSchools]);
+  }, [school, isAdminAll, accessibleSchoolIds, allSchools]);
 
   // Se ativaram o modo apresentação e estamos numa aba de configuração, forçar ida para o dashboard
   if (isPresentationMode && isSettingsTab) {
