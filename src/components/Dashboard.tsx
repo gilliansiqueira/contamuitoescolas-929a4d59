@@ -654,6 +654,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
+      {/* Investimentos */}
+      <InvestimentoSection schoolId={schoolId} selectedMonth={selectedMonth} />
+
+
       {/* Realizado vs Projetado - apenas se houver lançamentos (não para meses só-histórico) */}
       {hasRealizado && (sourcesUsed.hasUpload || sourcesUsed.hasProjecao) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
