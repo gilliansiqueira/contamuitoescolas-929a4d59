@@ -34,6 +34,7 @@ export function UsersConfig() {
   const [password, setPassword] = useState('');
   const [schoolId, setSchoolId] = useState<string>('');
   const [role, setRole] = useState<'admin' | 'cliente'>('cliente');
+  const [adminScope, setAdminScope] = useState<'all' | 'list'>('all');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [extraToAdd, setExtraToAdd] = useState<Record<string, string>>({});
@@ -42,16 +43,17 @@ export function UsersConfig() {
     queryKey: ['app_users'],
     queryFn: async (): Promise<UserRow[]> => {
       const [{ data: profiles }, { data: roles }, { data: extras }] = await Promise.all([
-        supabase.from('profiles').select('user_id, email, school_id'),
+        supabase.from('profiles').select('user_id, email, school_id, admin_scope'),
         supabase.from('user_roles').select('user_id, role'),
         supabase.from('user_schools').select('user_id, school_id'),
       ]);
       const schoolMap = new Map(schools.map(s => [s.id, s.nome]));
-      return (profiles ?? []).map(p => ({
+      return (profiles ?? []).map((p: any) => ({
         user_id: p.user_id,
         email: p.email,
         school_id: p.school_id,
         role: (roles?.find(r => r.user_id === p.user_id)?.role as 'admin' | 'cliente') ?? 'cliente',
+        admin_scope: (p.admin_scope === 'list' ? 'list' : 'all'),
         school_nome: p.school_id ? schoolMap.get(p.school_id) : undefined,
         extra_school_ids: (extras ?? [])
           .filter((e: any) => e.user_id === p.user_id)
