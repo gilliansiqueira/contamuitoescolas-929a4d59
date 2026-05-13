@@ -20,6 +20,7 @@ interface UserRow {
   email: string;
   school_id: string | null;
   role: 'admin' | 'cliente';
+  admin_scope: 'all' | 'list';
   school_nome?: string;
   extra_school_ids: string[];
 }
