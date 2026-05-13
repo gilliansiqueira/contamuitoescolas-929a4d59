@@ -124,7 +124,7 @@ const Index = () => {
           <div className="flex items-center gap-3">
             <SchoolSelector selectedSchool={school} onSelect={(s) => {
               // Cliente só pode trocar se tiver acesso a 2+ empresas
-              if (!isAdmin && accessibleSchoolIds.length < 2) return;
+              if (!isAdminAll && accessibleSchoolIds.length < 2) return;
               if (s?.id === school.id) setSchool(null);
               else setSchool(s);
             }} />
