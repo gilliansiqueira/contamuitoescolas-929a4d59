@@ -113,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         isAdmin: profile?.role === 'admin',
+        isAdminAll: profile?.role === 'admin' && profile?.admin_scope !== 'list',
         accessibleSchoolIds,
         loading,
         signIn,
