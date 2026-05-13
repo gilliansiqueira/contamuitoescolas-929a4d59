@@ -71,7 +71,7 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
 
 const Index = () => {
   const { isPresentationMode } = usePresentation();
-  const { isAdmin, profile, accessibleSchoolIds, signOut } = useAuth();
+  const { isAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
   const { data: allSchools = [] } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
   const [appModule, setAppModule] = useState<AppModule>('projecao');
