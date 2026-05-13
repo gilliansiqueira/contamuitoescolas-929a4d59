@@ -19,7 +19,7 @@ interface SchoolSelectorProps {
 }
 
 export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps) {
-  const { isAdminAll, accessibleSchoolIds } = useAuth();
+  const { isAdmin, isAdminAll, accessibleSchoolIds } = useAuth();
   const { data: allSchools = [], isLoading } = useSchools();
   // Admin com escopo 'all' vê todas; demais (admins restritos e clientes) veem apenas as empresas vinculadas.
   const schools = useMemo(
