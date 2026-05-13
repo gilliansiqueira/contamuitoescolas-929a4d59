@@ -4,11 +4,15 @@ import type { Session, User } from '@supabase/supabase-js';
 
 export type UserRole = 'admin' | 'cliente';
 
+export type AdminScope = 'all' | 'list';
+
 export interface UserProfile {
   user_id: string;
   email: string;
   school_id: string | null;
   role: UserRole;
+  /** Para admins: 'all' = vê todas as empresas; 'list' = restrito ao conjunto vinculado. Ignorado para clientes. */
+  admin_scope: AdminScope;
   /** IDs adicionais (tabela user_schools) — combinados com school_id formam o conjunto acessível */
   extra_school_ids: string[];
 }
@@ -18,7 +22,9 @@ interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   isAdmin: boolean;
-  /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin, vazio = todas. */
+  /** True quando admin com acesso global (scope='all'). False para admins restritos a uma lista. */
+  isAdminAll: boolean;
+  /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin scope='all' = todas. */
   accessibleSchoolIds: string[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -30,14 +36,15 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 async function loadProfile(userId: string): Promise<UserProfile | null> {
   const [{ data: profile }, { data: roles }, { data: extras }] = await Promise.all([
-    supabase.from('profiles').select('user_id, email, school_id').eq('user_id', userId).maybeSingle(),
+    supabase.from('profiles').select('user_id, email, school_id, admin_scope').eq('user_id', userId).maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', userId),
     supabase.from('user_schools').select('school_id').eq('user_id', userId),
   ]);
   if (!profile) return null;
   const role: UserRole = roles?.some(r => r.role === 'admin') ? 'admin' : 'cliente';
   const extra_school_ids = (extras ?? []).map((r: any) => r.school_id).filter(Boolean);
-  return { ...profile, role, extra_school_ids };
+  const admin_scope: AdminScope = ((profile as any).admin_scope === 'list' ? 'list' : 'all');
+  return { ...profile, role, admin_scope, extra_school_ids };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -106,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         isAdmin: profile?.role === 'admin',
+        isAdminAll: profile?.role === 'admin' && profile?.admin_scope !== 'list',
         accessibleSchoolIds,
         loading,
         signIn,

@@ -20,6 +20,7 @@ interface UserRow {
   email: string;
   school_id: string | null;
   role: 'admin' | 'cliente';
+  admin_scope: 'all' | 'list';
   school_nome?: string;
   extra_school_ids: string[];
 }
@@ -33,6 +34,7 @@ export function UsersConfig() {
   const [password, setPassword] = useState('');
   const [schoolId, setSchoolId] = useState<string>('');
   const [role, setRole] = useState<'admin' | 'cliente'>('cliente');
+  const [adminScope, setAdminScope] = useState<'all' | 'list'>('all');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [extraToAdd, setExtraToAdd] = useState<Record<string, string>>({});
@@ -41,16 +43,17 @@ export function UsersConfig() {
     queryKey: ['app_users'],
     queryFn: async (): Promise<UserRow[]> => {
       const [{ data: profiles }, { data: roles }, { data: extras }] = await Promise.all([
-        supabase.from('profiles').select('user_id, email, school_id'),
+        supabase.from('profiles').select('user_id, email, school_id, admin_scope'),
         supabase.from('user_roles').select('user_id, role'),
         supabase.from('user_schools').select('user_id, school_id'),
       ]);
       const schoolMap = new Map(schools.map(s => [s.id, s.nome]));
-      return (profiles ?? []).map(p => ({
+      return (profiles ?? []).map((p: any) => ({
         user_id: p.user_id,
         email: p.email,
         school_id: p.school_id,
         role: (roles?.find(r => r.user_id === p.user_id)?.role as 'admin' | 'cliente') ?? 'cliente',
+        admin_scope: (p.admin_scope === 'list' ? 'list' : 'all'),
         school_nome: p.school_id ? schoolMap.get(p.school_id) : undefined,
         extra_school_ids: (extras ?? [])
           .filter((e: any) => e.user_id === p.user_id)
@@ -75,7 +78,8 @@ export function UsersConfig() {
           email: cleanEmail,
           password,
           role,
-          school_id: role === 'cliente' ? schoolId : null,
+          school_id: role === 'cliente' ? schoolId : (schoolId || null),
+          admin_scope: role === 'admin' ? adminScope : 'all',
         },
       });
       if (error) throw new Error(error.message ?? 'Erro ao criar usuário');
@@ -83,7 +87,7 @@ export function UsersConfig() {
     },
     onSuccess: () => {
       toast.success('Usuário criado com sucesso');
-      setEmail(''); setPassword(''); setSchoolId(''); setRole('cliente');
+      setEmail(''); setPassword(''); setSchoolId(''); setRole('cliente'); setAdminScope('all');
       qc.invalidateQueries({ queryKey: ['app_users'] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -131,6 +135,20 @@ export function UsersConfig() {
     onError: () => toast.error('Erro ao desvincular empresa'),
   });
 
+  const updateAdminScope = useMutation({
+    mutationFn: async ({ userId, scope }: { userId: string; scope: 'all' | 'list' }) => {
+      const { error } = await (supabase.from('profiles') as any)
+        .update({ admin_scope: scope })
+        .eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Escopo do administrador atualizado');
+      qc.invalidateQueries({ queryKey: ['app_users'] });
+    },
+    onError: (e: any) => toast.error(e.message ?? 'Erro ao atualizar escopo'),
+  });
+
   if (!isAdmin) {
     return (
       <div className="p-8 text-center text-muted-foreground">
@@ -162,10 +180,22 @@ export function UsersConfig() {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cliente">Cliente</SelectItem>
-                <SelectItem value="admin">Admin (vê todas as empresas)</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {role === 'admin' && (
+            <div className="space-y-1.5">
+              <Label>Escopo do admin</Label>
+              <Select value={adminScope} onValueChange={(v) => setAdminScope(v as 'all' | 'list')}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Acessar todas as empresas</SelectItem>
+                  <SelectItem value="list">Acessar apenas lista definida</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>
               Empresa principal {role === 'admin' && <span className="text-xs text-muted-foreground">(opcional)</span>}
@@ -218,6 +248,11 @@ export function UsersConfig() {
                         <p className="font-medium text-sm">{u.email}</p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
                           {u.role === 'admin' ? 'Administrador' : 'Cliente'}
+                          {u.role === 'admin' && (
+                            <Badge variant={u.admin_scope === 'all' ? 'default' : 'secondary'} className="text-[10px] py-0 h-4">
+                              {u.admin_scope === 'all' ? 'Todas as empresas' : 'Lista definida'}
+                            </Badge>
+                          )}
                           {u.school_nome && (
                             <Badge variant="outline" className="text-[10px] py-0 h-4">
                               <Building2 className="w-2.5 h-2.5 mr-0.5" />
@@ -255,6 +290,28 @@ export function UsersConfig() {
 
                   {expanded && (
                     <div className="border-t border-border p-3 space-y-3 bg-background/50">
+                      {u.role === 'admin' && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                            Escopo do administrador
+                          </Label>
+                          <Select
+                            value={u.admin_scope}
+                            onValueChange={(v) => updateAdminScope.mutate({ userId: u.user_id, scope: v as 'all' | 'list' })}
+                          >
+                            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Acessar todas as empresas</SelectItem>
+                              <SelectItem value="list">Acessar apenas lista definida</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {u.admin_scope === 'list' && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Este admin verá apenas a empresa principal e as adicionais vinculadas abaixo.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                           Empresas vinculadas

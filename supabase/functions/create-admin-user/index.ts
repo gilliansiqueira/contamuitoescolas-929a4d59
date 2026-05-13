@@ -9,7 +9,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { email, password, role = "admin", school_id = null } = await req.json();
+    const { email, password, role = "admin", school_id = null, admin_scope = "all" } = await req.json();
+    const scope = admin_scope === "list" ? "list" : "all";
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "email e password obrigatórios" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -80,7 +81,12 @@ Deno.serve(async (req) => {
 
     // 2. Garante profile (trigger handle_new_user pode já ter criado)
     await adminClient.from("profiles").upsert(
-      { user_id: userId, email, school_id: role === "cliente" ? school_id : null },
+      {
+        user_id: userId,
+        email,
+        school_id: role === "cliente" ? school_id : (school_id ?? null),
+        admin_scope: role === "admin" ? scope : "all",
+      },
       { onConflict: "user_id" },
     );
 

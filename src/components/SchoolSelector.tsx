@@ -19,12 +19,12 @@ interface SchoolSelectorProps {
 }
 
 export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps) {
-  const { isAdmin, accessibleSchoolIds } = useAuth();
+  const { isAdmin, isAdminAll, accessibleSchoolIds } = useAuth();
   const { data: allSchools = [], isLoading } = useSchools();
-  // Admin vê todas; cliente vê todas as empresas a que tem acesso (principal + extras)
+  // Admin com escopo 'all' vê todas; demais (admins restritos e clientes) veem apenas as empresas vinculadas.
   const schools = useMemo(
-    () => isAdmin ? allSchools : allSchools.filter(s => accessibleSchoolIds.includes(s.id)),
-    [allSchools, isAdmin, accessibleSchoolIds]
+    () => isAdminAll ? allSchools : allSchools.filter(s => accessibleSchoolIds.includes(s.id)),
+    [allSchools, isAdminAll, accessibleSchoolIds]
   );
   const addSchoolMut = useAddSchool();
   const deleteSchoolMut = useDeleteSchool();

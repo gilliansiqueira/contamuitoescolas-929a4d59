@@ -71,7 +71,7 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
 
 const Index = () => {
   const { isPresentationMode } = usePresentation();
-  const { isAdmin, profile, accessibleSchoolIds, signOut } = useAuth();
+  const { isAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
   const { data: allSchools = [] } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
   const [appModule, setAppModule] = useState<AppModule>('projecao');
@@ -89,12 +89,12 @@ const Index = () => {
   // Auto-seleção: cliente vai direto se tiver UMA única empresa acessível.
   // Se tiver múltiplas, mostra o seletor para escolher.
   useEffect(() => {
-    if (school || isAdmin) return;
+    if (school || isAdminAll) return;
     if (accessibleSchoolIds.length === 1) {
       const mine = allSchools.find(s => s.id === accessibleSchoolIds[0]);
       if (mine) setSchool(mine);
     }
-  }, [school, isAdmin, accessibleSchoolIds, allSchools]);
+  }, [school, isAdminAll, accessibleSchoolIds, allSchools]);
 
   // Se ativaram o modo apresentação e estamos numa aba de configuração, forçar ida para o dashboard
   if (isPresentationMode && isSettingsTab) {
@@ -124,7 +124,7 @@ const Index = () => {
           <div className="flex items-center gap-3">
             <SchoolSelector selectedSchool={school} onSelect={(s) => {
               // Cliente só pode trocar se tiver acesso a 2+ empresas
-              if (!isAdmin && accessibleSchoolIds.length < 2) return;
+              if (!isAdminAll && accessibleSchoolIds.length < 2) return;
               if (s?.id === school.id) setSchool(null);
               else setSchool(s);
             }} />
