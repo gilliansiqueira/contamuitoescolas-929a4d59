@@ -135,6 +135,20 @@ export function UsersConfig() {
     onError: () => toast.error('Erro ao desvincular empresa'),
   });
 
+  const updateAdminScope = useMutation({
+    mutationFn: async ({ userId, scope }: { userId: string; scope: 'all' | 'list' }) => {
+      const { error } = await (supabase.from('profiles') as any)
+        .update({ admin_scope: scope })
+        .eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Escopo do administrador atualizado');
+      qc.invalidateQueries({ queryKey: ['app_users'] });
+    },
+    onError: (e: any) => toast.error(e.message ?? 'Erro ao atualizar escopo'),
+  });
+
   if (!isAdmin) {
     return (
       <div className="p-8 text-center text-muted-foreground">
