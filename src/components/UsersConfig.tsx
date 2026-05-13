@@ -290,6 +290,28 @@ export function UsersConfig() {
 
                   {expanded && (
                     <div className="border-t border-border p-3 space-y-3 bg-background/50">
+                      {u.role === 'admin' && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                            Escopo do administrador
+                          </Label>
+                          <Select
+                            value={u.admin_scope}
+                            onValueChange={(v) => updateAdminScope.mutate({ userId: u.user_id, scope: v as 'all' | 'list' })}
+                          >
+                            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Acessar todas as empresas</SelectItem>
+                              <SelectItem value="list">Acessar apenas lista definida</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {u.admin_scope === 'list' && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Este admin verá apenas a empresa principal e as adicionais vinculadas abaixo.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                           Empresas vinculadas
