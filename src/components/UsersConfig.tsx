@@ -248,6 +248,11 @@ export function UsersConfig() {
                         <p className="font-medium text-sm">{u.email}</p>
                         <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
                           {u.role === 'admin' ? 'Administrador' : 'Cliente'}
+                          {u.role === 'admin' && (
+                            <Badge variant={u.admin_scope === 'all' ? 'default' : 'secondary'} className="text-[10px] py-0 h-4">
+                              {u.admin_scope === 'all' ? 'Todas as empresas' : 'Lista definida'}
+                            </Badge>
+                          )}
                           {u.school_nome && (
                             <Badge variant="outline" className="text-[10px] py-0 h-4">
                               <Building2 className="w-2.5 h-2.5 mr-0.5" />
