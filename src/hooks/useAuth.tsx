@@ -4,11 +4,15 @@ import type { Session, User } from '@supabase/supabase-js';
 
 export type UserRole = 'admin' | 'cliente';
 
+export type AdminScope = 'all' | 'list';
+
 export interface UserProfile {
   user_id: string;
   email: string;
   school_id: string | null;
   role: UserRole;
+  /** Para admins: 'all' = vê todas as empresas; 'list' = restrito ao conjunto vinculado. Ignorado para clientes. */
+  admin_scope: AdminScope;
   /** IDs adicionais (tabela user_schools) — combinados com school_id formam o conjunto acessível */
   extra_school_ids: string[];
 }
