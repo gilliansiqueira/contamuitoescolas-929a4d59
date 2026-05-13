@@ -22,7 +22,9 @@ interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   isAdmin: boolean;
-  /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin, vazio = todas. */
+  /** True quando admin com acesso global (scope='all'). False para admins restritos a uma lista. */
+  isAdminAll: boolean;
+  /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin scope='all' = todas. */
   accessibleSchoolIds: string[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
