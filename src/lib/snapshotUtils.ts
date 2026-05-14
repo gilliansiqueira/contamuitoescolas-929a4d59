@@ -194,3 +194,73 @@ export async function computeMonthSnapshot(
     })),
   };
 }
+
+/**
+ * Snapshot consolidado de um mês fechado no módulo Realizado.
+ * Agrega `realized_entries` por tipo (receita/despesa/operacao) — totais finais
+ * que serão congelados no fechamento e usados pelos relatórios sem
+ * recalcular a partir do detalhe.
+ *
+ * Saldo inicial/final ficam zerados aqui (o módulo Realizado não controla
+ * saldo de caixa do dia-a-dia — quem faz isso é a Projeção).
+ */
+export async function computeRealizadoMonthSnapshot(
+  schoolId: string,
+  month: string
+): Promise<ComputedSnapshot> {
+  const monthStart = `${month}-01`;
+  const [y, mm] = month.split('-').map(Number);
+  const nextMonth = mm === 12 ? `${y + 1}-01-01` : `${y}-${String(mm + 1).padStart(2, '0')}-01`;
+
+  const { data: rows = [], error } = await supabase
+    .from('realized_entries')
+    .select('tipo, valor, conta_nome')
+    .eq('school_id', schoolId)
+    .gte('data', monthStart)
+    .lt('data', nextMonth);
+  if (error) throw error;
+
+  type Agg = {
+    tipo: string; label: string;
+    classificacao: SnapshotPorTipo['classificacao'];
+    sinal: 'somar' | 'subtrair';
+    valor: number;
+  };
+  const aggMap: Record<string, Agg> = {};
+  let receitas = 0, despesas = 0, opIn = 0, opOut = 0;
+
+  for (const r of rows as any[]) {
+    const tipo = String(r.tipo || 'despesa').toLowerCase();
+    const valor = Math.abs(Number(r.valor) || 0);
+    const label = r.conta_nome || tipo;
+    const key = label;
+    let cls: SnapshotPorTipo['classificacao'] = 'despesa';
+    let sinal: 'somar' | 'subtrair' = 'subtrair';
+    if (tipo === 'receita' || tipo === 'entrada') { cls = 'receita'; sinal = 'somar'; receitas += valor; }
+    else if (tipo === 'operacao') { cls = 'operacao'; sinal = 'somar'; opIn += valor; }
+    else { cls = 'despesa'; sinal = 'subtrair'; despesas += valor; }
+
+    if (!aggMap[key]) aggMap[key] = { tipo: key, label, classificacao: cls, sinal, valor: 0 };
+    aggMap[key].valor += valor;
+  }
+
+  const saldoMovimento = receitas - despesas + opIn - opOut;
+  return {
+    month,
+    receitas,
+    despesas,
+    resultado: receitas - despesas,
+    operacoes_in: opIn,
+    operacoes_out: opOut,
+    saldo_movimento: saldoMovimento,
+    saldo_inicial: 0,
+    saldo_final: saldoMovimento,
+    por_tipo: Object.values(aggMap).map(a => ({
+      tipo: a.tipo,
+      label: a.label,
+      classificacao: a.classificacao,
+      sinal: a.sinal,
+      valor: a.valor,
+    })),
+  };
+}

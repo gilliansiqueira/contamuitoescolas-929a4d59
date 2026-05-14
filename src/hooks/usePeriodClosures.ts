@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { computeMonthSnapshot } from '@/lib/snapshotUtils';
+import { computeMonthSnapshot, computeRealizadoMonthSnapshot } from '@/lib/snapshotUtils';
 import type { TypeClassification } from '@/types/financial';
 
 export type ClosureModule = 'realizado' | 'projecao';
@@ -94,16 +94,19 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
         .select('id, month');
       if (error) throw error;
 
-      // 3) Grava snapshot por mês (apenas Projeção)
-      if (module === 'projecao' && created) {
+      // 3) Grava snapshot por mês (Projeção e Realizado)
+      if (created && created.length > 0) {
         const snapshotRows: any[] = [];
+        const histRows: any[] = [];
         for (const c of created as any[]) {
           try {
-            const snap = await computeMonthSnapshot(schoolId, c.month, classifications);
+            const snap = module === 'projecao'
+              ? await computeMonthSnapshot(schoolId, c.month, classifications)
+              : await computeRealizadoMonthSnapshot(schoolId, c.month);
             snapshotRows.push({
               school_id: schoolId,
               month: c.month,
-              module: 'projecao',
+              module,
               closure_id: c.id,
               receitas: snap.receitas,
               despesas: snap.despesas,
@@ -116,6 +119,16 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
               por_tipo: snap.por_tipo,
               created_by: user?.id || null,
             });
+            // Para Realizado: também consolida no Histórico Financeiro
+            // (tipo_valor "Receita" e "Despesa") para alimentar a Projeção.
+            if (module === 'realizado') {
+              if (snap.receitas > 0) histRows.push({
+                school_id: schoolId, month: c.month, tipo_valor: 'Receita', valor: snap.receitas,
+              });
+              if (snap.despesas > 0) histRows.push({
+                school_id: schoolId, month: c.month, tipo_valor: 'Despesa', valor: snap.despesas,
+              });
+            }
           } catch (e) {
             console.error('Erro ao gerar snapshot de', c.month, e);
           }
@@ -125,6 +138,12 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
             .from('period_closure_snapshots' as any)
             .insert(snapshotRows);
           if (snapErr) console.error('Erro ao gravar snapshots:', snapErr);
+        }
+        if (histRows.length) {
+          const { error: histErr } = await supabase
+            .from('historical_monthly' as any)
+            .upsert(histRows, { onConflict: 'school_id,month,tipo_valor' });
+          if (histErr) console.error('Erro ao consolidar Histórico Financeiro:', histErr);
         }
       }
 

@@ -2,6 +2,13 @@ import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
+import { supabase } from '@/integrations/supabase/client';
+
+// Tipos de upload que representam PROJEÇÃO de recebíveis/contas a pagar.
+// Para esses tipos, um novo upload SUBSTITUI a projeção futura existente
+// (a partir da menor data do novo arquivo) — preservando lançamentos manuais
+// e tudo que estiver marcado como `realizado`.
+const PROJECTION_REPLACE_TYPES = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight, Plus, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -603,6 +610,31 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     try {
       const uploadId = crypto.randomUUID();
       const entriesWithUploadId = preview.map(e => ({ ...e, origem_upload_id: uploadId }));
+
+      // SUBSTITUIÇÃO DE PROJEÇÃO: para uploads de recebíveis/contas a pagar,
+      // remove projeções antigas da MESMA origem a partir da menor data deste upload.
+      // Preserva lançamentos manuais (editado_manualmente=true) e qualquer
+      // entrada já marcada como `realizado`.
+      let removedCount = 0;
+      let minDate: string | null = null;
+      if (PROJECTION_REPLACE_TYPES.has(selectedType.key)) {
+        const projetadas = preview.filter(e => e.tipoRegistro === 'projetado');
+        if (projetadas.length > 0) {
+          minDate = projetadas.reduce((min, e) => (e.data < min ? e.data : min), projetadas[0].data);
+          const { data: deleted, error: delErr } = await supabase
+            .from('financial_entries')
+            .delete()
+            .eq('school_id', schoolId)
+            .eq('origem', selectedType.key)
+            .eq('tipo_registro', 'projetado')
+            .eq('editado_manualmente', false)
+            .gte('data', minDate)
+            .select('id');
+          if (delErr) throw delErr;
+          removedCount = deleted?.length ?? 0;
+        }
+      }
+
       await addEntriesMut.mutateAsync(entriesWithUploadId);
       await addUploadMut.mutateAsync({
         id: uploadId,
@@ -612,10 +644,13 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         uploadedAt: new Date().toISOString(),
         recordCount: preview.length,
       });
+      const replaceNote = removedCount > 0
+        ? ` — substituiu ${removedCount} projeção(ões) antiga(s) a partir de ${minDate}`
+        : '';
       await addAuditMut.mutateAsync({
         school_id: schoolId,
         action: 'upload',
-        description: `Upload "${fileName}" (${selectedType.label}) - ${preview.length} registros`,
+        description: `Upload "${fileName}" (${selectedType.label}) - ${preview.length} registros${replaceNote}`,
       });
       setPreview([]);
       setErrors([]);
@@ -623,7 +658,8 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       setFileName('');
       onImported();
       const skipped = errors.length > 0 ? ` (${errors.length} linhas com erro ignoradas)` : '';
-      toast.success(`${preview.length} registros importados com sucesso!${skipped}`);
+      const replaced = removedCount > 0 ? ` Substituiu ${removedCount} projeção(ões) anterior(es).` : '';
+      toast.success(`${preview.length} registros importados!${skipped}${replaced}`);
     } catch (err: any) {
       console.error('Erro ao salvar dados:', err);
       toast.error(`Erro ao salvar dados: ${err?.message ?? 'desconhecido'}`);
