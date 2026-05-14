@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { computeMonthSnapshot } from '@/lib/snapshotUtils';
+import { computeMonthSnapshot, computeRealizadoMonthSnapshot } from '@/lib/snapshotUtils';
 import type { TypeClassification } from '@/types/financial';
 
 export type ClosureModule = 'realizado' | 'projecao';
