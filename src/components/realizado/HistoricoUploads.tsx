@@ -32,6 +32,7 @@ export function HistoricoUploads({ schoolId }: Props) {
   const { isAdmin, user } = useAuth();
   const { isPresentationMode } = usePresentation();
   const canManage = isAdmin && !isPresentationMode;
+  const closedMonths = useClosedMonths(schoolId, 'realizado');
 
   const [deleteFile, setDeleteFile] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState('');
