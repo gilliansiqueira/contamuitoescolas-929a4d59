@@ -2,6 +2,13 @@ import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
+import { supabase } from '@/integrations/supabase/client';
+
+// Tipos de upload que representam PROJEÇÃO de recebíveis/contas a pagar.
+// Para esses tipos, um novo upload SUBSTITUI a projeção futura existente
+// (a partir da menor data do novo arquivo) — preservando lançamentos manuais
+// e tudo que estiver marcado como `realizado`.
+const PROJECTION_REPLACE_TYPES = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight, Plus, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
