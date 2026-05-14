@@ -15,6 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { useClosedMonths } from '@/hooks/usePeriodClosures';
+import { Lock } from 'lucide-react';
 import { usePresentation } from '@/components/presentation-provider';
 
 interface Props {
