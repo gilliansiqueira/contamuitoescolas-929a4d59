@@ -158,6 +158,20 @@ export function HistoricoUploads({ schoolId }: Props) {
     <div className="space-y-3">
       {uploads.map((u, i) => {
         const isOpen = viewFile === u.fileName;
+        const firstM = u.firstDate?.slice(0, 7);
+        const lastM = u.lastDate?.slice(0, 7);
+        const allMonthsClosed = !!firstM && !!lastM &&
+          (() => {
+            // Verifica se todos os meses cobertos pelo upload estão fechados
+            const [fy, fm] = firstM.split('-').map(Number);
+            const [ly, lm] = lastM.split('-').map(Number);
+            for (let y = fy, m = fm; y < ly || (y === ly && m <= lm); ) {
+              const key = `${y}-${String(m).padStart(2, '0')}`;
+              if (!closedMonths.has(key)) return false;
+              m++; if (m > 12) { m = 1; y++; }
+            }
+            return true;
+          })();
         return (
         <motion.div key={u.fileName} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
           <Card className="overflow-hidden">
@@ -173,6 +187,11 @@ export function HistoricoUploads({ schoolId }: Props) {
                       <Badge variant="secondary" className="text-xs">{u.count} registros</Badge>
                       <span className="text-xs text-muted-foreground">{getMonthRange(u.firstDate, u.lastDate)}</span>
                       <span className="text-xs text-muted-foreground">• Importado em {formatDate(u.uploadDate)}</span>
+                      {allMonthsClosed && (
+                        <Badge variant="outline" className="text-xs gap-1 border-emerald-500/50 text-emerald-700 dark:text-emerald-300">
+                          <Lock className="w-3 h-3" /> Mês fechado — pode excluir com segurança
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
