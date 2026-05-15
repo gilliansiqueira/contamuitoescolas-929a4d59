@@ -448,7 +448,15 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     for (const e of activeEntries) {
       const m = e.data.slice(0, 7);
       if (snapMonthsSet.has(m)) continue;
-      if (uploadMonthsSet.has(m) && e.origem !== 'fluxo') continue;
+      // Em meses com fluxo: aceita fluxo, manuais e projeções futuras
+      if (uploadMonthsSet.has(m)) {
+        if (e.origem === 'fluxo' || e.origem === 'manual') {
+          // ok
+        } else if (e.tipoRegistro === 'projetado' && e.data >= todayStr) {
+          // ok
+        } else continue;
+      }
+      // Em meses sem fluxo mas com histórico: ignora projeções (histórico manda)
       if (!uploadMonthsSet.has(m) && histMonthsSet.has(m) && e.origem !== 'fluxo') continue;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'receita') ensure(m).entradas += e.valor;
