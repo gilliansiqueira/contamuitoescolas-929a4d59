@@ -214,10 +214,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           const agg = ensure(r.tipo_valor);
           agg.valor += Number(r.valor) || 0;
         }
-      } else if (src === 'upload' || src === 'projecao') {
+      } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
         for (const e of monthEntries) {
-          if (src === 'upload' && e.origem !== 'fluxo') continue;
+          if (!includeEntry(e, src)) continue;
           const tipoKey = e.tipoOriginal || e.tipo;
           const agg = ensure(tipoKey);
           agg.valor += e.valor;
