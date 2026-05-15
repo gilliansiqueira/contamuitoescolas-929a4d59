@@ -1,60 +1,64 @@
-Vou corrigir os dois problemas em duas frentes independentes, sem mexer em nada além do necessário.
 
-## 1. Projeção do Contas a Receber (sem duplicidade)
+## 1. Dashboard — Projetado e Realizado coexistem
 
-**Problema atual**: cada upload de Sponte/Cheque/Cartão/Contas a Pagar é apenas inserido — os lançamentos projetados antigos da mesma origem ficam ativos, somando com os novos.
+**Bug atual** (`src/components/Dashboard.tsx`): quando o mês tem upload de Fluxo, `monthSources[m] = 'upload'` e o agregador ignora qualquer entry cuja `origem !== 'fluxo'`. Resultado: Sponte/Cheque/Cartão/Contas a Pagar somem do Dashboard, e lançamentos manuais (`origem='manual'`) também.
 
-**Correção em `src/components/FileUpload.tsx` → `handleConfirm`**:
-- Antes de inserir os novos `entries`, calcular `minDate` = menor data do upload novo (apenas entries `tipoRegistro = 'projetado'`).
-- Para os tipos de projeção (`sponte`, `cheque`, `cartao`, `contas_pagar`), executar:
-  ```
-  DELETE FROM financial_entries
-  WHERE school_id = X
-    AND origem = <tipo>
-    AND tipo_registro = 'projetado'
-    AND data >= minDate
-    AND editado_manualmente = false
-  ```
-- Lançamentos `editado_manualmente = true` são **preservados** (lançamentos manuais do admin nunca são apagados).
-- Lançamentos `tipo_registro = 'realizado'` permanecem intactos (acumulativos).
-- Nada acontece para upload do tipo `fluxo` (esse é histórico de caixa, não projeção de recebíveis).
-- Adicionar log de auditoria: "Substituiu projeção `<tipo>` a partir de `<minDate>` (N lançamentos antigos removidos)".
-- Mostrar no preview (antes do confirmar) um aviso amarelo: "Esta importação substituirá X lançamentos projetados de `<tipo>` a partir de `<data>`".
+**Correção**:
+- Nova fonte `'misto'` em `monthSources`: quando o mês tem `upload` E também tem entries projetadas (`tipoRegistro='projetado'`) ou manuais.
+- No agregador `tipoAggregations`, `monthlyChart`, `topExpenseCategories` e `annualLineChart`: para `src === 'upload'` ou `'misto'`, somar:
+  - **Realizado**: entries com `origem='fluxo'` OU (`origem='manual'` AND `tipoRegistro='realizado'`).
+  - **Projetado**: entries com `tipoRegistro='projetado'` (qualquer origem) cuja data >= hoje OU não tenham equivalente em fluxo.
+- O painel "Realizado vs Projetado" continua usando `tipoRegistro` — passa a incluir manuais.
+- **Saldo Final do período**: `saldo_inicial + realizado_até_hoje + projetado_após_hoje`. Cards passam a mostrar três valores: **Realizado**, **Projetado restante**, **Saldo Final estimado**.
 
-## 2. Fechamento e consolidação de meses (Realizado)
+## 2. Investimentos — múltiplos cards por mês
 
-**Problema atual**: fechar mês no Realizado só cria `period_closures` — não gera snapshot nem consolida no Histórico Financeiro. Uploads detalhados ficam pesados.
+**Schema atual**: `investment_entries` tem `UNIQUE(school_id, month)` — só 1 registro por mês.
 
-**Correção em `src/hooks/usePeriodClosures.ts` → `useCloseMonths` (módulo `realizado`)**:
-- Já existe o snapshot para `projecao`. Estender o mesmo fluxo para `realizado`:
-  - Para cada mês fechado, chamar uma nova função `computeRealizadoMonthSnapshot(schoolId, month)` em `src/lib/snapshotUtils.ts` que agrega `realized_entries` por tipo (receita / despesa / operação) — totais consolidados.
-  - Gravar em `period_closure_snapshots` com `module='realizado'`.
-  - **Adicionalmente**: fazer upsert dos totais agregados em `historical_monthly` (para que o histórico financeiro da Projeção também fique alimentado automaticamente). Cada `tipo_valor` ganha uma linha com o valor consolidado.
+**Migração**:
+- Remover constraint `UNIQUE(school_id, month)`.
+- Adicionar coluna `nome TEXT NOT NULL DEFAULT 'Investimento'` para identificar cada card.
+- Adicionar `sort_order INTEGER DEFAULT 0`.
 
-**Permitir excluir uploads detalhados de meses fechados**:
-- Em `src/components/realizado/HistoricoUploads.tsx`, exibir badge "Mês fechado — pode excluir" para uploads cujo `data` esteja inteiramente em meses com snapshot de realizado.
-- O delete já existe; só precisa garantir que ao deletar um upload de mês fechado o sistema continue funcionando (consumindo do snapshot/historical_monthly em vez de re-agregar `realized_entries`).
+**UI** (`src/components/InvestimentoSection.tsx`):
+- Lista cada card como bloco editável com **nome**, 7 campos, botão **Duplicar** e **Remover**.
+- Botão **+ Adicionar investimento** (cria novo registro com nome editável).
+- Tabela agregada continua somando todos os cards do mês.
+- Comportamento atual de cálculo preservado.
 
-**Garantir que meses fechados não recalculem**:
-- Onde o Dashboard/relatórios consomem `realized_entries` agregados, adicionar um `useSnapshotMap(schoolId, 'realizado')` (já existe o hook genérico) e priorizar o snapshot quando presente — mesma lógica já usada para projeção.
+## 3. Lançamentos manuais — impactam Dashboard
 
-## Alterações no banco
+**Bug**: manuais (`origem='manual'`) são salvos com `tipoRegistro = determineTipoRegistro(data)` mas o Dashboard os filtra junto com as projeções quando o mês tem upload (item 1).
 
-Nenhuma migração nova: as tabelas `period_closure_snapshots` e `historical_monthly` já existem e já aceitam `module='realizado'`. Os triggers existentes não bloqueiam consolidação porque `is_admin()` (e fechamento é admin-only) faz bypass.
+**Correção**:
+- Coberta pela mudança em #1 — manuais passam a ser sempre incluídos:
+  - Manuais com `tipoRegistro='realizado'` somam ao Realizado mesmo em meses com upload.
+  - Manuais com `tipoRegistro='projetado'` somam ao Projetado.
+- `getEffectiveClassification` em `classificationUtils.ts` já trata `origem='manual'` via `tipo` (entrada/saída) → mapeia para receita/despesa.
+
+## 4. Consolidação automática ao subir Fluxo de Caixa
+
+**Hoje**: `historical_monthly` só é alimentado no fechamento do mês.
+
+**Correção** em `src/components/FileUpload.tsx → handleConfirm` (somente quando `selectedType.key === 'fluxo'`):
+- Após inserir entries, identificar os meses únicos do upload.
+- Para cada mês:
+  - Se está fechado em `period_closures` → **pular** (não recalcula meses fechados).
+  - Senão: agregar entries de `origem='fluxo'` (somando manuais realizados) por classificação efetiva e fazer **upsert em `historical_monthly`** com `onConflict: 'school_id,month,tipo_valor'` para `tipo_valor='Receita'` e `'Despesa'` (e operações se houver).
+- Auditoria: registra "Consolidou histórico financeiro de {N} mês(es)".
 
 ## Arquivos afetados
 
-- `src/components/FileUpload.tsx` — substituição de projeção por origem antes do insert.
-- `src/lib/snapshotUtils.ts` — adicionar `computeRealizadoMonthSnapshot`.
-- `src/hooks/usePeriodClosures.ts` — estender `useCloseMonths` para gerar snapshot + upsert em `historical_monthly` quando `module='realizado'`.
-- `src/components/realizado/HistoricoUploads.tsx` — badge informando que upload pode ser excluído com segurança.
-- (Opcional) componentes do Realizado que agregam totais — passar a preferir snapshot quando mês fechado.
+- `src/components/Dashboard.tsx` — nova fonte `'misto'`, lógica de coexistência projetado/realizado, novos KPIs.
+- `src/components/InvestimentoSection.tsx` — múltiplos cards (add/duplicar/remover/nome).
+- `src/components/FileUpload.tsx` — consolidação automática pós-upload de Fluxo.
+- Migração: `investment_entries` (drop unique, +nome, +sort_order).
 
-## O que NÃO será alterado
+## O que NÃO muda
 
-- Lógica de classificação por tipo
-- Upload do fluxo de caixa
-- Estrutura de tabelas
-- Fluxo de fechamento da Projeção (já existente)
-- Lançamentos manuais do admin (preservados em qualquer reupload)
-- Realizado vs Projetado — continuam isolados
+- Estrutura de `financial_entries` / `realized_entries` / `period_closures`.
+- Lógica de classificação por tipo.
+- Lógica de fechamento de mês (snapshot já existente continua igual).
+- Lançamentos manuais (preserva flag `editado_manualmente`).
+- Substituição de projeção por origem (já feita).
+- RLS / autenticação / roles.

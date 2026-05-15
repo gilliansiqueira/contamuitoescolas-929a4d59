@@ -516,12 +516,14 @@ export type Database = {
           encargos: number
           id: string
           month: string
+          nome: string
           rendimento_provisionado: number
           rendimentos: number
           resgate: number
           saldo_final: number
           saldo_inicial: number
           school_id: string
+          sort_order: number
           updated_at: string
         }
         Insert: {
@@ -530,12 +532,14 @@ export type Database = {
           encargos?: number
           id?: string
           month: string
+          nome?: string
           rendimento_provisionado?: number
           rendimentos?: number
           resgate?: number
           saldo_final?: number
           saldo_inicial?: number
           school_id: string
+          sort_order?: number
           updated_at?: string
         }
         Update: {
@@ -544,12 +548,14 @@ export type Database = {
           encargos?: number
           id?: string
           month?: string
+          nome?: string
           rendimento_provisionado?: number
           rendimentos?: number
           resgate?: number
           saldo_final?: number
           saldo_inicial?: number
           school_id?: string
+          sort_order?: number
           updated_at?: string
         }
         Relationships: []
