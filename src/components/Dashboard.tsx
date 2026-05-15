@@ -310,27 +310,29 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   // ─── Bandeiras para condicionar UI ───
   const sourcesUsed = useMemo(() => {
     const set = new Set(Object.values(monthSources));
+    const hasUpload = set.has('upload') || set.has('misto');
+    const hasProjecao = set.has('projecao') || set.has('misto');
     return {
-      hasUpload: set.has('upload'),
+      hasUpload,
       hasHistorico: set.has('historico'),
-      hasProjecao: set.has('projecao'),
-      onlyHistorico: set.has('historico') && !set.has('upload') && !set.has('projecao'),
+      hasProjecao,
+      onlyHistorico: set.has('historico') && !hasUpload && !hasProjecao,
     };
   }, [monthSources]);
 
   const hasRealizado = sourcesUsed.hasUpload || sourcesUsed.hasHistorico;
 
-  // ─── Realizado vs Projetado (apenas para meses de upload/projeção, não histórico) ───
+  // ─── Realizado vs Projetado ───
+  // Realizado: fluxo + manuais realizados.
+  // Projetado: tudo com tipoRegistro='projetado' (sponte/cheque/cartao/contas_pagar/manual futuro).
   const entriesForRealVsProj = useMemo(() => {
     return activeEntries.filter(e => {
       const m = e.data.slice(0, 7);
       const src = monthSources[m];
-      if (!src) return false;
-      if (src === 'historico') return false;
-      if (src === 'upload') return e.origem === 'fluxo';
-      return true;
+      if (!src || src === 'historico' || src === 'snapshot' || src === 'vazio') return false;
+      return includeEntry(e, src);
     });
-  }, [activeEntries, monthSources]);
+  }, [activeEntries, monthSources, includeEntry]);
 
   const realizadoTotals = useMemo(() =>
     calculateTotals(entriesForRealVsProj.filter(e => e.tipoRegistro === 'realizado'), classifications),
