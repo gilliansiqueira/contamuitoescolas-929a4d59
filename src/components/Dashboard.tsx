@@ -365,8 +365,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     for (const e of activeEntries.filter(x => x.data < today)) {
       const m = e.data.slice(0, 7);
       const src = monthSources[m];
-      if (src === 'historico') continue;
-      if (src === 'upload' && e.origem !== 'fluxo') continue;
+      if (src === 'historico' || src === 'snapshot' || src === 'vazio' || !src) continue;
+      if (!includeEntry(e, src)) continue;
       // Mês atual fora do filtro: pula
       if (!selectedMonths.includes(m) && selectedMonth !== 'all') continue;
       saldoToday += getSaldoImpact(e, classifications);
