@@ -133,21 +133,46 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return selectedMonth.split(',').map(m => m.trim()).filter(Boolean).sort();
   }, [selectedMonth, activeEntries, historicalRows]);
 
-  // ─── Classifica cada mês por fonte: snapshot > upload > histórico > projeção ───
+  // Data de "hoje" (YYYY-MM-DD) usada para distinguir realizado x projetado restante.
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  // ─── Classifica cada mês por fonte: snapshot > upload/misto > histórico > projeção ───
+  // 'upload' = mês tem fluxo realizado; podemos somar projeções FUTURAS (>= hoje) por cima.
+  // 'misto'  = upload + projeções futuras coexistem.
   const monthSources = useMemo(() => {
-    const result: Record<string, 'snapshot' | 'upload' | 'historico' | 'projecao' | 'vazio'> = {};
+    const result: Record<string, 'snapshot' | 'upload' | 'misto' | 'historico' | 'projecao' | 'vazio'> = {};
     for (const m of selectedMonths) {
       if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
-      const hasUpload = activeEntries.some(e => e.data.startsWith(m) && e.origem === 'fluxo');
+      const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
+      const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
       const hasHist = historicalRows.some(r => r.month === m);
-      const hasOther = activeEntries.some(e => e.data.startsWith(m) && e.origem !== 'fluxo');
-      if (hasUpload) result[m] = 'upload';
+      const hasFutureProj = monthEntries.some(e =>
+        e.tipoRegistro === 'projetado' && e.origem !== 'fluxo' && e.data >= todayStr
+      );
+      const hasManual = monthEntries.some(e => e.origem === 'manual');
+      const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
+      if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
+      else if (hasUpload) result[m] = 'upload';
       else if (hasHist) result[m] = 'historico';
       else if (hasOther) result[m] = 'projecao';
       else result[m] = 'vazio';
     }
     return result;
-  }, [selectedMonths, activeEntries, historicalRows, snapshotMap]);
+  }, [selectedMonths, activeEntries, historicalRows, snapshotMap, todayStr]);
+
+  // Helper: inclui entry no agregador de um mês conforme a fonte.
+  // Para meses com fluxo (upload/misto): pega fluxo + manuais + projeções futuras (>= hoje).
+  // Para meses sem fluxo (projecao): pega tudo que não seja fluxo.
+  const includeEntry = useCallback((e: FinancialEntry, src: string) => {
+    if (src === 'upload' || src === 'misto') {
+      if (e.origem === 'fluxo') return true;
+      if (e.origem === 'manual') return true;
+      if (e.tipoRegistro === 'projetado' && e.data >= todayStr) return true;
+      return false;
+    }
+    if (src === 'projecao') return e.origem !== 'fluxo';
+    return false;
+  }, [todayStr]);
 
   // ─── KPIs DINÂMICOS por tipo (agregado de todas as fontes ativas no período) ───
   type TipoAgg = { key: string; label: string; valor: number; isEntrada: boolean; entraNoResultado: boolean; impactaCaixa: boolean; classificacao: string };
