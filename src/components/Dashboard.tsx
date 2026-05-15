@@ -513,9 +513,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const map: Record<string, number> = {};
     for (const m of selectedMonths) {
       const src = monthSources[m];
-      if (src === 'historico' || src === 'vazio') continue;
+      if (src === 'historico' || src === 'vazio' || src === 'snapshot' || !src) continue;
       for (const e of activeEntries.filter(x => x.data.startsWith(m))) {
-        if (src === 'upload' && e.origem !== 'fluxo') continue;
+        if (!includeEntry(e, src)) continue;
         const cls = getEffectiveClassification(e, classifications);
         if (cls !== 'despesa') continue;
         const cat = e.categoria || 'Sem categoria';
