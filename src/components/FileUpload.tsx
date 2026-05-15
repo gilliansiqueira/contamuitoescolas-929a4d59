@@ -644,13 +644,58 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         uploadedAt: new Date().toISOString(),
         recordCount: preview.length,
       });
+
+      // CONSOLIDAÇÃO AUTOMÁTICA: para uploads de Fluxo (realizado),
+      // agrega Receitas/Despesas por mês e faz upsert em historical_monthly,
+      // pulando meses fechados (não recalcula histórico congelado).
+      let consolidatedMonths = 0;
+      if (selectedType.key === 'fluxo') {
+        try {
+          const monthsInUpload = Array.from(new Set(preview.map(e => e.data.slice(0, 7))));
+          const { data: closures } = await supabase
+            .from('period_closures')
+            .select('month')
+            .eq('school_id', schoolId)
+            .eq('module', 'realizado')
+            .eq('status', 'closed')
+            .in('month', monthsInUpload);
+          const closedSet = new Set((closures || []).map((c: any) => c.month));
+          const histRows: Array<{ school_id: string; month: string; tipo_valor: string; valor: number }> = [];
+          for (const m of monthsInUpload) {
+            if (closedSet.has(m)) continue;
+            let receitas = 0, despesas = 0;
+            for (const e of preview.filter(x => x.data.startsWith(m))) {
+              const cls = classifyTipoName(e.tipoOriginal || e.tipo, classifications);
+              const effective = cls === 'receita' || cls === 'despesa' ? cls
+                : (e.tipo === 'entrada' ? 'receita' : 'despesa');
+              if (effective === 'receita') receitas += e.valor;
+              else if (effective === 'despesa') despesas += e.valor;
+            }
+            if (receitas > 0) histRows.push({ school_id: schoolId, month: m, tipo_valor: 'Receita', valor: receitas });
+            if (despesas > 0) histRows.push({ school_id: schoolId, month: m, tipo_valor: 'Despesa', valor: despesas });
+          }
+          if (histRows.length > 0) {
+            const { error: histErr } = await supabase
+              .from('historical_monthly')
+              .upsert(histRows as any, { onConflict: 'school_id,month,tipo_valor' });
+            if (histErr) console.error('Falha ao consolidar Histórico Financeiro:', histErr);
+            else consolidatedMonths = new Set(histRows.map(r => r.month)).size;
+          }
+        } catch (consErr) {
+          console.error('Erro consolidando histórico:', consErr);
+        }
+      }
+
       const replaceNote = removedCount > 0
         ? ` — substituiu ${removedCount} projeção(ões) antiga(s) a partir de ${minDate}`
+        : '';
+      const consNote = consolidatedMonths > 0
+        ? ` — consolidou ${consolidatedMonths} mês(es) no Histórico Financeiro`
         : '';
       await addAuditMut.mutateAsync({
         school_id: schoolId,
         action: 'upload',
-        description: `Upload "${fileName}" (${selectedType.label}) - ${preview.length} registros${replaceNote}`,
+        description: `Upload "${fileName}" (${selectedType.label}) - ${preview.length} registros${replaceNote}${consNote}`,
       });
       setPreview([]);
       setErrors([]);
@@ -659,7 +704,8 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       onImported();
       const skipped = errors.length > 0 ? ` (${errors.length} linhas com erro ignoradas)` : '';
       const replaced = removedCount > 0 ? ` Substituiu ${removedCount} projeção(ões) anterior(es).` : '';
-      toast.success(`${preview.length} registros importados!${skipped}${replaced}`);
+      const consolidatedTxt = consolidatedMonths > 0 ? ` ${consolidatedMonths} mês(es) consolidado(s) no histórico.` : '';
+      toast.success(`${preview.length} registros importados!${skipped}${replaced}${consolidatedTxt}`);
     } catch (err: any) {
       console.error('Erro ao salvar dados:', err);
       toast.error(`Erro ao salvar dados: ${err?.message ?? 'desconhecido'}`);
