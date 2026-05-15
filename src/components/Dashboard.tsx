@@ -408,9 +408,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           if (meta.classificacao === 'receita') map[m].entradas += v;
           else if (meta.classificacao === 'despesa') map[m].saidas += v;
         }
-      } else if (src === 'upload' || src === 'projecao') {
+      } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
         for (const e of activeEntries.filter(x => x.data.startsWith(m))) {
-          if (src === 'upload' && e.origem !== 'fluxo') continue;
+          if (!includeEntry(e, src)) continue;
           const cls = getEffectiveClassification(e, classifications);
           if (cls === 'receita') map[m].entradas += e.valor;
           else if (cls === 'despesa') map[m].saidas += e.valor;
