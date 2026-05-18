@@ -103,6 +103,13 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicial;
 
+  const totals = useMemo(() => dailyData.reduce((acc, d) => ({
+    entradaPrevista: acc.entradaPrevista + d.entradaPrevista,
+    entradaRealizada: acc.entradaRealizada + d.entradaRealizada,
+    saidaPrevista: acc.saidaPrevista + d.saidaPrevista,
+    saidaRealizada: acc.saidaRealizada + d.saidaRealizada,
+  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 }), [dailyData]);
+
   if (allDays.length === 0) {
     return (
       <div className="glass-card rounded-xl p-8 text-center text-muted-foreground text-sm">
