@@ -738,6 +738,51 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       )}
 
+      {/* Comparativo Previsto x Realizado */}
+      {hasRealizado && (sourcesUsed.hasUpload || sourcesUsed.hasProjecao) && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
+          className="glass-card rounded-xl p-5">
+          <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
+            ⚖️ Previsto x Realizado
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(() => {
+              const blocks: Array<{ titulo: string; previsto: number; realizado: number; kind: 'receita' | 'despesa' }> = [
+                { titulo: 'RECEITAS', previsto: projetadoTotals.receitas + realizadoTotals.receitas, realizado: realizadoTotals.receitas, kind: 'receita' },
+                { titulo: 'DESPESAS', previsto: projetadoTotals.despesas + realizadoTotals.despesas, realizado: realizadoTotals.despesas, kind: 'despesa' },
+              ];
+              return blocks.map((b) => {
+                const diff = b.realizado - b.previsto;
+                const pct = b.previsto > 0 ? (diff / b.previsto) * 100 : 0;
+                const good = b.kind === 'receita' ? diff >= 0 : diff <= 0;
+                const diffColor = good ? 'text-success' : 'text-destructive';
+                return (
+                  <div key={b.titulo} className="rounded-lg border border-border/40 p-4 bg-surface/40">
+                    <h5 className="text-[11px] font-bold tracking-widest text-muted-foreground mb-3">{b.titulo}</h5>
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Prevista</span><span className="font-semibold">{formatCurrency(b.previsto)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Realizada</span><span className="font-semibold">{formatCurrency(b.realizado)}</span></div>
+                      <div className="flex justify-between border-t border-border/40 pt-1.5 mt-1.5">
+                        <span className="text-muted-foreground">Diferença</span>
+                        <span className={`font-bold ${diffColor}`}>
+                          {diff >= 0 ? '+' : ''}{formatCurrency(diff)}{' '}
+                          <span className="text-xs font-normal">({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-3">
+            Previsto = projeções (Sponte/Cheques/Cartões/Contas a Pagar) + realizado já lançado no período. Realizado = Fluxo de Caixa + manuais realizados.
+          </p>
+        </motion.div>
+      )}
+
+
+
       {/* Entradas vs Saídas Bar Chart (mensal — sempre disponível, inclusive só-histórico) */}
       {monthlyChart.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
