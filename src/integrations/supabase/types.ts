@@ -1568,6 +1568,42 @@ export type Database = {
         }
         Relationships: []
       }
+      simulation_entries: {
+        Row: {
+          created_at: string
+          id: string
+          mes_inicio: string
+          nome: string
+          parcelas: number
+          school_id: string
+          sort_order: number
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mes_inicio: string
+          nome?: string
+          parcelas?: number
+          school_id: string
+          sort_order?: number
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mes_inicio?: string
+          nome?: string
+          parcelas?: number
+          school_id?: string
+          sort_order?: number
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: []
+      }
       type_classifications: {
         Row: {
           classificacao: string
