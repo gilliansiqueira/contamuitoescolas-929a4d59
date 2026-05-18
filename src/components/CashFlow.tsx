@@ -146,7 +146,17 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
                 </tr>
               ))}
             </tbody>
+            <tfoot className="sticky bottom-0 bg-card">
+              <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                <td className="px-4 py-2 text-foreground text-xs">TOTAIS</td>
+                <td className="px-4 py-2 text-right text-primary text-xs">{formatCurrency(dailyTotals.entradas)}</td>
+                <td className="px-4 py-2 text-right text-destructive text-xs">{formatCurrency(dailyTotals.saidas)}</td>
+                <td className="px-4 py-2 text-right text-muted-foreground text-xs">—</td>
+                <td className="px-4 py-2 text-right text-xs">—</td>
+              </tr>
+            </tfoot>
           </table>
+
         </div>
       </motion.div>
     </div>
