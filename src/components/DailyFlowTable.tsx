@@ -183,9 +183,20 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 );
               })}
             </tbody>
+            <tfoot className="sticky bottom-0 bg-card z-10">
+              <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                <td className="px-3 py-2.5 text-foreground" colSpan={2}>TOTAIS</td>
+                <td className="px-3 py-2.5 text-right text-blue-600">{formatCurrency(totals.entradaPrevista)}</td>
+                <td className="px-3 py-2.5 text-right text-primary">{formatCurrency(totals.entradaRealizada)}</td>
+                <td className="px-3 py-2.5 text-right text-orange-500">{formatCurrency(totals.saidaPrevista)}</td>
+                <td className="px-3 py-2.5 text-right text-destructive">{formatCurrency(totals.saidaRealizada)}</td>
+                <td className={`px-3 py-2.5 text-right ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoFinalPeriodo)}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
     </motion.div>
   );
 }
+
