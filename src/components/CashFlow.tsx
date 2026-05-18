@@ -60,6 +60,14 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
       return { mes, receitas: t.receitas, despesas: t.despesas, resultado: t.resultado };
     });
   }, [entries, classifications]);
+  const monthlyTotals = useMemo(() => monthly.reduce((a, m) => ({
+    receitas: a.receitas + m.receitas, despesas: a.despesas + m.despesas, resultado: a.resultado + m.resultado,
+  }), { receitas: 0, despesas: 0, resultado: 0 }), [monthly]);
+
+  const dailyTotals = useMemo(() => cashFlow.reduce((a, d) => ({
+    entradas: a.entradas + d.entradas, saidas: a.saidas + d.saidas,
+  }), { entradas: 0, saidas: 0 }), [cashFlow]);
+
 
   if (cashFlow.length === 0) {
     return (
