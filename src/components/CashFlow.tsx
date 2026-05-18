@@ -60,6 +60,14 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
       return { mes, receitas: t.receitas, despesas: t.despesas, resultado: t.resultado };
     });
   }, [entries, classifications]);
+  const monthlyTotals = useMemo(() => monthly.reduce((a, m) => ({
+    receitas: a.receitas + m.receitas, despesas: a.despesas + m.despesas, resultado: a.resultado + m.resultado,
+  }), { receitas: 0, despesas: 0, resultado: 0 }), [monthly]);
+
+  const dailyTotals = useMemo(() => cashFlow.reduce((a, d) => ({
+    entradas: a.entradas + d.entradas, saidas: a.saidas + d.saidas,
+  }), { entradas: 0, saidas: 0 }), [cashFlow]);
+
 
   if (cashFlow.length === 0) {
     return (
@@ -97,7 +105,16 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                <td className="px-4 py-3 text-foreground">TOTAIS</td>
+                <td className="px-4 py-3 text-right text-primary">{formatCurrency(monthlyTotals.receitas)}</td>
+                <td className="px-4 py-3 text-right text-destructive">{formatCurrency(monthlyTotals.despesas)}</td>
+                <td className={`px-4 py-3 text-right ${monthlyTotals.resultado >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(monthlyTotals.resultado)}</td>
+              </tr>
+            </tfoot>
           </table>
+
         </div>
       </motion.div>
 
@@ -129,7 +146,17 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
                 </tr>
               ))}
             </tbody>
+            <tfoot className="sticky bottom-0 bg-card">
+              <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                <td className="px-4 py-2 text-foreground text-xs">TOTAIS</td>
+                <td className="px-4 py-2 text-right text-primary text-xs">{formatCurrency(dailyTotals.entradas)}</td>
+                <td className="px-4 py-2 text-right text-destructive text-xs">{formatCurrency(dailyTotals.saidas)}</td>
+                <td className="px-4 py-2 text-right text-muted-foreground text-xs">—</td>
+                <td className="px-4 py-2 text-right text-xs">—</td>
+              </tr>
+            </tfoot>
           </table>
+
         </div>
       </motion.div>
     </div>

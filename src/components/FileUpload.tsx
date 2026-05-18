@@ -597,42 +597,39 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     setTipoMappingPending(null);
   };
 
-  const handleConfirm = async () => {
-    if (!selectedType) {
-      toast.error('Selecione o tipo de arquivo antes de importar.');
-      return;
-    }
-    if (preview.length === 0) {
-      toast.error('Nenhum registro válido para importar.');
-      return;
-    }
+  // Diálogo de substituição parcial para uploads de projeção
+  const [replaceDialog, setReplaceDialog] = useState<{
+    open: boolean;
+    cutoff: string;
+    existingCount: number;
+    minNewDate: string;
+  } | null>(null);
+
+  const performImport = async (cutoffDate: string | null) => {
+    if (!selectedType) return;
     setIsUploading(true);
     try {
       const uploadId = crypto.randomUUID();
       const entriesWithUploadId = preview.map(e => ({ ...e, origem_upload_id: uploadId }));
 
       // SUBSTITUIÇÃO DE PROJEÇÃO: para uploads de recebíveis/contas a pagar,
-      // remove projeções antigas da MESMA origem a partir da menor data deste upload.
-      // Preserva lançamentos manuais (editado_manualmente=true) e qualquer
-      // entrada já marcada como `realizado`.
+      // remove projeções antigas da MESMA origem a partir de cutoffDate.
+      // cutoffDate = null → não remove nada (apenas adiciona).
+      // cutoffDate = '0000-01-01' → remove todas as projeções desta origem.
+      // Preserva lançamentos manuais e qualquer entrada marcada como 'realizado'.
       let removedCount = 0;
-      let minDate: string | null = null;
-      if (PROJECTION_REPLACE_TYPES.has(selectedType.key)) {
-        const projetadas = preview.filter(e => e.tipoRegistro === 'projetado');
-        if (projetadas.length > 0) {
-          minDate = projetadas.reduce((min, e) => (e.data < min ? e.data : min), projetadas[0].data);
-          const { data: deleted, error: delErr } = await supabase
-            .from('financial_entries')
-            .delete()
-            .eq('school_id', schoolId)
-            .eq('origem', selectedType.key)
-            .eq('tipo_registro', 'projetado')
-            .eq('editado_manualmente', false)
-            .gte('data', minDate)
-            .select('id');
-          if (delErr) throw delErr;
-          removedCount = deleted?.length ?? 0;
-        }
+      if (PROJECTION_REPLACE_TYPES.has(selectedType.key) && cutoffDate) {
+        const { data: deleted, error: delErr } = await supabase
+          .from('financial_entries')
+          .delete()
+          .eq('school_id', schoolId)
+          .eq('origem', selectedType.key)
+          .eq('tipo_registro', 'projetado')
+          .eq('editado_manualmente', false)
+          .gte('data', cutoffDate)
+          .select('id');
+        if (delErr) throw delErr;
+        removedCount = deleted?.length ?? 0;
       }
 
       await addEntriesMut.mutateAsync(entriesWithUploadId);
@@ -645,9 +642,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         recordCount: preview.length,
       });
 
-      // CONSOLIDAÇÃO AUTOMÁTICA: para uploads de Fluxo (realizado),
-      // agrega Receitas/Despesas por mês e faz upsert em historical_monthly,
-      // pulando meses fechados (não recalcula histórico congelado).
+      // CONSOLIDAÇÃO AUTOMÁTICA para Fluxo (realizado)
       let consolidatedMonths = 0;
       if (selectedType.key === 'fluxo') {
         try {
@@ -687,7 +682,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       }
 
       const replaceNote = removedCount > 0
-        ? ` — substituiu ${removedCount} projeção(ões) antiga(s) a partir de ${minDate}`
+        ? ` — substituiu ${removedCount} projeção(ões) a partir de ${cutoffDate}`
         : '';
       const consNote = consolidatedMonths > 0
         ? ` — consolidou ${consolidatedMonths} mês(es) no Histórico Financeiro`
@@ -711,8 +706,42 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       toast.error(`Erro ao salvar dados: ${err?.message ?? 'desconhecido'}`);
     } finally {
       setIsUploading(false);
+      setReplaceDialog(null);
     }
   };
+
+  const handleConfirm = async () => {
+    if (!selectedType) {
+      toast.error('Selecione o tipo de arquivo antes de importar.');
+      return;
+    }
+    if (preview.length === 0) {
+      toast.error('Nenhum registro válido para importar.');
+      return;
+    }
+
+    // Para tipos de projeção, verifica se já existem projeções no banco e abre diálogo.
+    if (PROJECTION_REPLACE_TYPES.has(selectedType.key)) {
+      const projetadas = preview.filter(e => e.tipoRegistro === 'projetado');
+      const minNewDate = projetadas.length > 0
+        ? projetadas.reduce((min, e) => (e.data < min ? e.data : min), projetadas[0].data)
+        : preview.reduce((min, e) => (e.data < min ? e.data : min), preview[0].data);
+      const { count } = await supabase
+        .from('financial_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('school_id', schoolId)
+        .eq('origem', selectedType.key)
+        .eq('tipo_registro', 'projetado')
+        .eq('editado_manualmente', false);
+      if ((count ?? 0) > 0) {
+        setReplaceDialog({ open: true, cutoff: minNewDate, existingCount: count ?? 0, minNewDate });
+        return;
+      }
+    }
+
+    await performImport(null);
+  };
+
 
   const handleReset = () => {
     setPreview([]);
@@ -955,6 +984,46 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
           )}
         </motion.div>
       )}
+
+      {/* Diálogo de substituição parcial de projeção */}
+      {replaceDialog?.open && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-card rounded-xl p-6 max-w-md w-full space-y-4 border border-border">
+            <div>
+              <h3 className="font-display font-semibold text-foreground">Substituir projeções existentes?</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Já existem <strong>{replaceDialog.existingCount}</strong> projeção(ões) desta origem no banco.
+                Lançamentos manuais e o realizado não serão afetados.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Substituir projeções a partir de:</label>
+              <Input
+                type="date"
+                value={replaceDialog.cutoff}
+                onChange={e => setReplaceDialog(d => d ? { ...d, cutoff: e.target.value } : d)}
+                className="h-9"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Padrão: <strong>{replaceDialog.minNewDate}</strong> (menor data do novo arquivo). Histórico anterior será preservado.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setReplaceDialog(null)} disabled={isUploading}>Cancelar</Button>
+              <Button variant="outline" size="sm" onClick={() => performImport(null)} disabled={isUploading}>
+                Adicionar sem substituir
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => performImport('0000-01-01')} disabled={isUploading}>
+                Substituir tudo
+              </Button>
+              <Button size="sm" onClick={() => performImport(replaceDialog.cutoff)} disabled={isUploading || !replaceDialog.cutoff}>
+                {isUploading ? 'Salvando...' : 'Substituir a partir da data'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

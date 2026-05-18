@@ -103,6 +103,13 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicial;
 
+  const totals = useMemo(() => dailyData.reduce((acc, d) => ({
+    entradaPrevista: acc.entradaPrevista + d.entradaPrevista,
+    entradaRealizada: acc.entradaRealizada + d.entradaRealizada,
+    saidaPrevista: acc.saidaPrevista + d.saidaPrevista,
+    saidaRealizada: acc.saidaRealizada + d.saidaRealizada,
+  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 }), [dailyData]);
+
   if (allDays.length === 0) {
     return (
       <div className="glass-card rounded-xl p-8 text-center text-muted-foreground text-sm">
@@ -176,9 +183,20 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 );
               })}
             </tbody>
+            <tfoot className="sticky bottom-0 bg-card z-10">
+              <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                <td className="px-3 py-2.5 text-foreground" colSpan={2}>TOTAIS</td>
+                <td className="px-3 py-2.5 text-right text-blue-600">{formatCurrency(totals.entradaPrevista)}</td>
+                <td className="px-3 py-2.5 text-right text-primary">{formatCurrency(totals.entradaRealizada)}</td>
+                <td className="px-3 py-2.5 text-right text-orange-500">{formatCurrency(totals.saidaPrevista)}</td>
+                <td className="px-3 py-2.5 text-right text-destructive">{formatCurrency(totals.saidaRealizada)}</td>
+                <td className={`px-3 py-2.5 text-right ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoFinalPeriodo)}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
     </motion.div>
   );
 }
+
