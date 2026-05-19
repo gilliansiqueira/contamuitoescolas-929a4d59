@@ -34,17 +34,25 @@ function generateMonths(values: { month: string }[]): string[] {
 export function IndicadoresDashboard({ schoolId }: Props) {
   const { isPresentationMode } = usePresentation();
   const [configOpen, setConfigOpen] = useState(false);
-  const [referenceMonth, setReferenceMonth] = useState<string>(''); // '' = mais recente
+  const [referenceMonth, setReferenceMonth] = useState<string>(''); // '' or comma-separated list
   const { definitions, isLoading, icons } = useKpiDefinitions(schoolId);
   const { data: allValues = [] } = useKpiValues(schoolId);
   
   const months = useMemo(() => generateMonths(allValues), [allValues]);
   const enabledDefs = useMemo(() => definitions.filter(d => d.enabled), [definitions]);
 
-  // Mês de referência efetivo (default: mais recente disponível)
-  const effectiveRefMonth = referenceMonth || months[months.length - 1];
+  const selectedRefList = useMemo(
+    () => referenceMonth ? referenceMonth.split(',').map(s => s.trim()).filter(Boolean) : [],
+    [referenceMonth]
+  );
+  // Effective reference = latest of the selected, or latest available
+  const effectiveRefMonth = selectedRefList[selectedRefList.length - 1] || months[months.length - 1];
+  const isMultiRef = selectedRefList.length > 1;
 
-  const pushShared = useMonthSync(referenceMonth || null, (m) => setReferenceMonth(m));
+  const pushShared = useMonthSync(
+    selectedRefList.length === 1 ? selectedRefList[0] : null,
+    (m) => setReferenceMonth(m)
+  );
 
   // Lista de meses com dados (para o seletor)
   const monthsWithData = useMemo(() => {
@@ -148,12 +156,22 @@ export function IndicadoresDashboard({ schoolId }: Props) {
               Mês de referência:
             </span>
             <SingleMonthPicker
+              multi
               value={referenceMonth}
-              onChange={(m) => { setReferenceMonth(m); if (m) pushShared(m); }}
+              onChange={(m) => {
+                setReferenceMonth(m);
+                const list = m ? m.split(',') : [];
+                if (list.length === 1) pushShared(list[0]);
+              }}
               availableMonths={monthsWithData}
               allowEmpty
               emptyLabel={`Mais recente (${formatMonthLabel(months[months.length - 1])})`}
             />
+            {isMultiRef && (
+              <span className="text-[10px] text-muted-foreground">
+                Referência: <strong>{formatMonthLabel(effectiveRefMonth)}</strong> (último selecionado)
+              </span>
+            )}
           </div>
         )}
         {!isPresentationMode && (
