@@ -114,18 +114,32 @@ export function RelatorioRealizado({ schoolId }: Props) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }, []);
 
-  const activeMes = mesFilter === 'all' ? currentYM : mesFilter;
+  const selectedList = useMemo(() => {
+    if (!mesFilter || mesFilter === 'all') return [] as string[];
+    return mesFilter.split(',').map(s => s.trim()).filter(Boolean);
+  }, [mesFilter]);
+  const effectiveMonths = selectedList.length ? selectedList : [currentYM];
+  const activeMes = effectiveMonths[effectiveMonths.length - 1]; // latest, for single-month ops
+  const isMulti = effectiveMonths.length > 1;
 
-  const pushShared = useMonthSync(mesFilter === 'all' ? null : mesFilter, (m) => setMesFilter(m));
+  const pushShared = useMonthSync(
+    selectedList.length === 1 ? selectedList[0] : null,
+    (m) => setMesFilter(m)
+  );
 
   const filtered = useMemo(() => {
-    return entries.filter(e => e.data?.startsWith(activeMes));
-  }, [entries, activeMes]);
+    const set = new Set(effectiveMonths);
+    return entries.filter(e => {
+      const ym = e.data?.slice(0, 7);
+      return ym && set.has(ym);
+    });
+  }, [entries, effectiveMonths.join(',')]);
 
   const currentRevenue = useMemo(() => {
-    if (!activeMes) return 0;
-    return revenues.find(r => r.month === activeMes)?.value || 0;
-  }, [revenues, activeMes]);
+    return revenues
+      .filter(r => effectiveMonths.includes(r.month))
+      .reduce((s, r) => s + (r.value || 0), 0);
+  }, [revenues, effectiveMonths.join(',')]);
 
   useMemo(() => {
     if (currentRevenue > 0 && !editingFat) {
@@ -186,14 +200,14 @@ export function RelatorioRealizado({ schoolId }: Props) {
     saveFaturamento.mutate({ month: activeMes, value: val });
   }, [activeMes, faturamentoInput, saveFaturamento]);
 
-  // Compare current month to previous (total despesas)
+  // Compare current month to previous (total despesas) - only when single month selected
   const prevMonthTotal = useMemo(() => {
-    if (!activeMes || mesesDisponiveis.length < 2) return null;
+    if (isMulti || !activeMes || mesesDisponiveis.length < 2) return null;
     const idx = mesesDisponiveis.indexOf(activeMes);
     if (idx <= 0) return null;
     const prev = mesesDisponiveis[idx - 1];
     return entries.filter(e => e.data?.startsWith(prev)).reduce((s, e) => s + Number(e.valor || 0), 0);
-  }, [entries, mesesDisponiveis, activeMes]);
+  }, [entries, mesesDisponiveis, activeMes, isMulti]);
 
   const insights = useMemo<Insight[]>(() => {
     const list: Insight[] = [];
@@ -314,12 +328,23 @@ export function RelatorioRealizado({ schoolId }: Props) {
       {/* Filter row */}
       <div className="flex items-center gap-3 flex-wrap">
         <SingleMonthPicker
+          multi
           value={mesFilter === 'all' ? '' : mesFilter}
-          onChange={(m) => { const v = m || 'all'; setMesFilter(v); if (m) pushShared(m); }}
+          onChange={(m) => {
+            const v = m || 'all';
+            setMesFilter(v);
+            const list = m ? m.split(',') : [];
+            if (list.length === 1) pushShared(list[0]);
+          }}
           availableMonths={mesesDisponiveis}
           allowEmpty
           emptyLabel="Mês atual"
         />
+        {isMulti && (
+          <span className="text-xs text-muted-foreground">
+            Agregando {effectiveMonths.length} meses · faturamento de <strong>{formatMonth(activeMes)}</strong>
+          </span>
+        )}
       </div>
 
       {/* Insights */}
