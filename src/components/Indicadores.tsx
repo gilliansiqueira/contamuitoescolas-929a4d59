@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Save } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 import lucratividadeIcon from '@/assets/lucratividade.png';
 import inadimplenciaIcon from '@/assets/inadimplencia.png';
