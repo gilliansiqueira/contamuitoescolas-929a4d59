@@ -7,8 +7,8 @@ import { VendasTable } from './VendasTable';
 import { VendasCharts } from './VendasCharts';
 import { Button } from '@/components/ui/button';
 import { Settings2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMonthSync } from '@/components/realizado/SharedMonthContext';
+import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 interface Props {
   schoolId: string;
