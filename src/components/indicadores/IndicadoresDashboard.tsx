@@ -9,6 +9,7 @@ import { usePresentation } from '@/components/presentation-provider';
 import type { Insight } from '@/components/InsightsBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMonthSync } from '@/components/realizado/SharedMonthContext';
+import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 interface Props {
   schoolId: string;
