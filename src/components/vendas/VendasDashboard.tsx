@@ -72,34 +72,18 @@ export function VendasDashboard({ schoolId }: Props) {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          <Select 
-            value={selectedMonth} 
-            onValueChange={(v) => { setHasManuallySelected(true); setSelectedMonth(v); pushShared(`${selectedYear}-${v}`); }}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Mês" />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTHS_LABELS.map((label, index) => {
-                const val = (index + 1).toString().padStart(2, '0');
-                return <SelectItem key={val} value={val}>{label}</SelectItem>;
-              })}
-            </SelectContent>
-          </Select>
-          
-          <Select 
-            value={selectedYear} 
-            onValueChange={(v) => { setHasManuallySelected(true); setSelectedYear(v); pushShared(`${v}-${selectedMonth}`); }}
-          >
-            <SelectTrigger className="w-[100px]">
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableYears.map(yr => (
-                <SelectItem key={yr} value={yr}>{yr}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SingleMonthPicker
+            value={`${selectedYear}-${selectedMonth}`}
+            onChange={(m) => {
+              if (!m) return;
+              const [y, mo] = m.split('-');
+              setHasManuallySelected(true);
+              setSelectedYear(y);
+              setSelectedMonth(mo);
+              pushShared(`${y}-${mo}`);
+            }}
+            availableMonths={salesData.map(s => s.month)}
+          />
 
           <Button variant="outline" size="sm" onClick={() => setShowConfig(true)}>
             <Settings2 className="w-4 h-4 mr-2" />
