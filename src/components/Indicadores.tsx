@@ -124,8 +124,15 @@ function generateMonths(): string[] {
 export function Indicadores({ schoolId }: Props) {
   const queryClient = useQueryClient();
   const months = useMemo(generateMonths, []);
-  const [selectedMonth, setSelectedMonth] = useState(months[months.length - 1]);
+  const [monthsValue, setMonthsValue] = useState(months[months.length - 1]); // comma-separated
   const [form, setForm] = useState<Record<string, number | ''>>({});
+
+  const selectedMonths = useMemo(
+    () => monthsValue ? monthsValue.split(',').map(s => s.trim()).filter(Boolean) : [],
+    [monthsValue]
+  );
+  const isMulti = selectedMonths.length > 1;
+  const selectedMonth = selectedMonths[selectedMonths.length - 1] || months[months.length - 1]; // editing target
 
   const { data: kpis = [] } = useQuery({
     queryKey: ['school_kpis', schoolId],
@@ -140,17 +147,28 @@ export function Indicadores({ schoolId }: Props) {
     },
   });
 
-  const currentKpi = useMemo(() => kpis.find(k => k.month === selectedMonth), [kpis, selectedMonth]);
+  // Aggregated (average) KPI values for selected months, or single row when one selected
+  const currentKpi = useMemo(() => {
+    if (!isMulti) return kpis.find(k => k.month === selectedMonth);
+    const rows = kpis.filter(k => selectedMonths.includes(k.month));
+    if (rows.length === 0) return undefined;
+    const agg: any = { id: 'agg', school_id: schoolId, month: 'agg' };
+    for (const def of KPI_DEFS) {
+      const vals = rows.map(r => r[def.key]).filter((v): v is number => v != null);
+      agg[def.key] = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+    }
+    return agg as KpiRow;
+  }, [kpis, selectedMonth, selectedMonths, isMulti, schoolId]);
 
-  // Initialize form when month changes
+  // Initialize form when selection/data changes
   useMemo(() => {
     const vals: Record<string, number | ''> = {};
     for (const def of KPI_DEFS) {
       const v = currentKpi?.[def.key];
-      vals[def.key] = v != null ? v : '';
+      vals[def.key] = v != null ? (typeof v === 'number' ? Number(v.toFixed(2)) : v) : '';
     }
     setForm(vals);
-  }, [currentKpi, selectedMonth]);
+  }, [currentKpi, monthsValue]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -190,10 +208,16 @@ export function Indicadores({ schoolId }: Props) {
       <div className="flex items-center gap-3 flex-wrap">
         <label className="text-sm font-medium text-muted-foreground">Mês:</label>
         <SingleMonthPicker
-          value={selectedMonth}
-          onChange={(m) => m && setSelectedMonth(m)}
+          multi
+          value={monthsValue}
+          onChange={(m) => setMonthsValue(m || months[months.length - 1])}
           availableMonths={kpis.map(k => k.month)}
         />
+        {isMulti && (
+          <span className="text-xs text-muted-foreground">
+            Média de {selectedMonths.length} meses · edição em <strong>{formatMonth(selectedMonth)}</strong>
+          </span>
+        )}
       </div>
 
       {/* KPI Cards with input */}
@@ -223,6 +247,7 @@ export function Indicadores({ schoolId }: Props) {
                   onChange={e => setForm({ ...form, [def.key]: e.target.value === '' ? '' : Number(e.target.value) })}
                   className="bg-surface h-8 text-sm"
                   placeholder="—"
+                  disabled={isMulti}
                 />
                 {def.unit && <span className="text-xs text-muted-foreground shrink-0">{def.unit}</span>}
               </div>
@@ -240,9 +265,9 @@ export function Indicadores({ schoolId }: Props) {
       </div>
 
       <div className="flex justify-end">
-        <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+        <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || isMulti}>
           <Save className="w-4 h-4 mr-1" />
-          Salvar {formatMonth(selectedMonth)}
+          {isMulti ? 'Selecione 1 mês para salvar' : `Salvar ${formatMonth(selectedMonth)}`}
         </Button>
       </div>
 
