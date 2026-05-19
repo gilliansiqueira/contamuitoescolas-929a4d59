@@ -188,21 +188,11 @@ export function Indicadores({ schoolId }: Props) {
       {/* Month selector */}
       <div className="flex items-center gap-3 flex-wrap">
         <label className="text-sm font-medium text-muted-foreground">Mês:</label>
-        <div className="flex gap-1 flex-wrap">
-          {months.map(m => (
-            <button
-              key={m}
-              onClick={() => setSelectedMonth(m)}
-              className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
-                m === selectedMonth
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
-              {formatMonth(m)}
-            </button>
-          ))}
-        </div>
+        <SingleMonthPicker
+          value={selectedMonth}
+          onChange={(m) => m && setSelectedMonth(m)}
+          availableMonths={kpis.map(k => k.month)}
+        />
       </div>
 
       {/* KPI Cards with input */}
