@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import { IconLibraryPicker } from '@/components/icons/IconLibraryPicker';
 import { useAuth } from '@/hooks/useAuth';
 import { useMonthSync } from './SharedMonthContext';
+import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 interface Props { schoolId: string; }
 
@@ -98,7 +99,10 @@ export function RecebimentoCategoria({ schoolId }: Props) {
         <div className="flex items-end gap-2">
           <div>
             <Label className="text-xs">Mês de referência</Label>
-            <Input type="month" value={month} onChange={e => { setMonth(e.target.value); pushShared(e.target.value); }} className="h-9 w-44" />
+            <SingleMonthPicker
+              value={month}
+              onChange={(m) => { if (m) { setMonth(m); pushShared(m); } }}
+            />
           </div>
           {isAdmin && (
             <Button onClick={() => setCreating(true)} className="h-9">
