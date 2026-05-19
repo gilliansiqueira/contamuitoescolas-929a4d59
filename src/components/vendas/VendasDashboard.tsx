@@ -73,14 +73,18 @@ export function VendasDashboard({ schoolId }: Props) {
         
         <div className="flex flex-wrap items-center gap-2">
           <SingleMonthPicker
+            multi
             value={`${selectedYear}-${selectedMonth}`}
             onChange={(m) => {
               if (!m) return;
-              const [y, mo] = m.split('-');
+              // Use the LATEST selected month as the active one
+              const list = m.split(',').map(s => s.trim()).filter(Boolean).sort();
+              const latest = list[list.length - 1] || m;
+              const [y, mo] = latest.split('-');
               setHasManuallySelected(true);
               setSelectedYear(y);
               setSelectedMonth(mo);
-              pushShared(`${y}-${mo}`);
+              if (list.length === 1) pushShared(`${y}-${mo}`);
             }}
             availableMonths={salesData.map(s => s.month)}
           />
