@@ -143,21 +143,16 @@ export function IndicadoresDashboard({ schoolId }: Props) {
         {/* Filtro de mês de referência */}
         {monthsWithData.length > 0 && (
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Mês de referência:
             </span>
-            <Select value={referenceMonth || '__latest__'} onValueChange={(v) => { const next = v === '__latest__' ? '' : v; setReferenceMonth(next); if (next) pushShared(next); }}>
-              <SelectTrigger className="h-8 w-44 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__latest__">Mais recente ({formatMonthLabel(months[months.length - 1])})</SelectItem>
-                {[...monthsWithData].reverse().map(m => (
-                  <SelectItem key={m} value={m}>{formatMonthLabel(m)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SingleMonthPicker
+              value={referenceMonth}
+              onChange={(m) => { setReferenceMonth(m); if (m) pushShared(m); }}
+              availableMonths={monthsWithData}
+              allowEmpty
+              emptyLabel={`Mais recente (${formatMonthLabel(months[months.length - 1])})`}
+            />
           </div>
         )}
         {!isPresentationMode && (
