@@ -41,8 +41,17 @@ function prevMonth(m: string): string {
 export function RecebimentoCategoria({ schoolId }: Props) {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
-  const [month, setMonth] = useState(currentMonth());
-  const pushShared = useMonthSync(month, setMonth);
+  const [monthsValue, setMonthsValue] = useState(currentMonth()); // comma-separated
+  const selectedMonthsList = useMemo(
+    () => monthsValue ? monthsValue.split(',').map(s => s.trim()).filter(Boolean) : [],
+    [monthsValue]
+  );
+  const isMulti = selectedMonthsList.length > 1;
+  const month = selectedMonthsList[selectedMonthsList.length - 1] || currentMonth(); // edit target = latest
+  const pushShared = useMonthSync(
+    selectedMonthsList.length === 1 ? selectedMonthsList[0] : null,
+    (m) => setMonthsValue(m)
+  );
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -59,33 +68,43 @@ export function RecebimentoCategoria({ schoolId }: Props) {
   });
 
   const prevM = prevMonth(month);
+  const queryMonths = useMemo(
+    () => Array.from(new Set([...selectedMonthsList, month, prevM])),
+    [selectedMonthsList, month, prevM]
+  );
 
   const { data: values = [] } = useQuery({
-    queryKey: ['receivable_category_values', schoolId, month, prevM],
+    queryKey: ['receivable_category_values', schoolId, queryMonths.sort().join(',')],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('receivable_category_values')
-        .select('*').eq('school_id', schoolId).in('month', [month, prevM]);
+        .select('*').eq('school_id', schoolId).in('month', queryMonths);
       if (error) throw error;
       return data as CategoryValue[];
     },
   });
 
+  // currentMap: sum across all selected months per category
   const currentMap = useMemo(() => {
     const m = new Map<string, number>();
-    values.filter(v => v.month === month).forEach(v => m.set(v.category_id, Number(v.value)));
+    const selSet = new Set(selectedMonthsList.length ? selectedMonthsList : [month]);
+    values.filter(v => selSet.has(v.month)).forEach(v => {
+      m.set(v.category_id, (m.get(v.category_id) || 0) + Number(v.value));
+    });
     return m;
-  }, [values, month]);
+  }, [values, selectedMonthsList, month]);
 
+  // prevMap: only meaningful when single month selected
   const prevMap = useMemo(() => {
     const m = new Map<string, number>();
+    if (isMulti) return m;
     values.filter(v => v.month === prevM).forEach(v => m.set(v.category_id, Number(v.value)));
     return m;
-  }, [values, prevM]);
+  }, [values, prevM, isMulti]);
 
   const totalCurrent = useMemo(() => Array.from(currentMap.values()).reduce((s, v) => s + v, 0), [currentMap]);
   const totalPrev = useMemo(() => Array.from(prevMap.values()).reduce((s, v) => s + v, 0), [prevMap]);
-  const totalVar = totalPrev > 0 ? ((totalCurrent - totalPrev) / totalPrev) * 100 : null;
+  const totalVar = !isMulti && totalPrev > 0 ? ((totalCurrent - totalPrev) / totalPrev) * 100 : null;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -100,9 +119,19 @@ export function RecebimentoCategoria({ schoolId }: Props) {
           <div>
             <Label className="text-xs">Mês de referência</Label>
             <SingleMonthPicker
-              value={month}
-              onChange={(m) => { if (m) { setMonth(m); pushShared(m); } }}
+              multi
+              value={monthsValue}
+              onChange={(m) => {
+                setMonthsValue(m || currentMonth());
+                const list = m ? m.split(',') : [];
+                if (list.length === 1) pushShared(list[0]);
+              }}
             />
+            {isMulti && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Somando {selectedMonthsList.length} meses · edição em <strong>{month}</strong>
+              </p>
+            )}
           </div>
           {isAdmin && (
             <Button onClick={() => setCreating(true)} className="h-9">
