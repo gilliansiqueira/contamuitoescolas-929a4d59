@@ -312,13 +312,13 @@ export function RelatorioRealizado({ schoolId }: Props) {
     <div className="space-y-6">
       {/* Filter row */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Select value={mesFilter} onValueChange={(v) => { setMesFilter(v); if (v !== 'all') pushShared(v); }}>
-          <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="Mês atual" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Mês atual</SelectItem>
-            {mesesDisponiveis.map(m => <SelectItem key={m} value={m}>{formatMonth(m)}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <SingleMonthPicker
+          value={mesFilter === 'all' ? '' : mesFilter}
+          onChange={(m) => { const v = m || 'all'; setMesFilter(v); if (m) pushShared(m); }}
+          availableMonths={mesesDisponiveis}
+          allowEmpty
+          emptyLabel="Mês atual"
+        />
       </div>
 
       {/* Insights */}
