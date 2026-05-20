@@ -1,113 +1,77 @@
-## Escopo
+# Plano de execução
 
-Implementar 6 melhorias coordenadas em Projeção, Realizado, Dashboard, Simulação e tabelas de Fluxo, **sem alterar** lógica de fechamento de meses, RLS, autenticação, ou outras funcionalidades existentes.
-
----
-
-### 1. Lógica oficial Projetado x Realizado (consolidar)
-
-Hoje já existe a base (`source: 'misto'` no Dashboard). Vou padronizar e documentar a regra única:
-
-- **Realizado** = apenas `origem='fluxo'` + manuais marcados como realizado (`tipo_registro='realizado'`).
-- **Projetado** = qualquer entrada com `origem ∈ {sponte, cheque, cartao, contas_pagar}` ou manual com `tipo_registro='projetado'`.
-- Realizado **nunca apaga** projetado. Coexistem sempre no mesmo mês.
-- Centralizar essa regra em `src/lib/financialClassification.ts` (novo helper `isRealizado(entry)` / `isProjetado(entry)`) e usar em Dashboard, CashFlow, DailyFlowTable, ProjectedVsReal.
-
-### 2. Upload de projeção com substituição parcial por data
-
-Em `FileUpload.tsx`, quando o tipo for `sponte | cheque | cartao | contas_pagar` e já existirem projeções no banco para essa origem:
-
-- Abrir diálogo de confirmação:
-  - **Opção A:** "Substituir projeções a partir de DD/MM/AAAA" (default = menor data do novo arquivo). Mostra DatePicker.
-  - **Opção B:** "Substituir tudo desta origem" (atual).
-  - **Opção C:** "Cancelar".
-- Delete apenas onde `origem = X AND tipo_registro='projetado' AND editado_manualmente=false AND data >= cutoffDate`.
-- Realizado nunca é tocado. Manuais nunca são tocadas.
-
-### 3. Card comparativo Previsto x Realizado no Dashboard
-
-Em `Dashboard.tsx`, na aba **Projeção**, abaixo dos KPIs de Realizado/Projetado, adicionar um novo card "Previsto x Realizado":
-
-```
-RECEITAS                          DESPESAS
-Prevista:   R$ X                  Prevista:   R$ X
-Realizada:  R$ Y                  Realizada:  R$ Y
-Diferença:  R$ Z (+/- N%)         Diferença:  R$ Z (+/- N%)
-```
-
-- Cores: verde quando realizado ≥ previsto (receita) / realizado ≤ previsto (despesa); vermelho ao contrário.
-- Usa o mesmo período filtrado.
-
-### 4. Linha de totais em Fluxo Diário e Fluxo
-
-Em `DailyFlowTable.tsx` e `CashFlow.tsx`, adicionar linha fixa de totais ao final:
-
-- Colunas: Entrada Prevista, Entrada Realizada, Saída Prevista, Saída Realizada (apenas as que existirem na tabela).
-- Atualiza com filtros e período.
-- Estilo: fundo `bg-muted`, `font-semibold`, `border-t-2`.
-
-### 5. Aba de Simulação — nova estrutura
-
-Reescrever `src/components/Simulation.tsx`:
-
-**Tabela principal (entradas):**
-- Colunas fixas: `Matrícula/Venda` | `Valor` | `Parcelas` | `Total` | [mês atual] | [+1] ... [+10]
-- 11 colunas de meses a partir do mês atual.
-- Para cada linha: distribuir `Valor` em N parcelas a partir do mês atual; coluna `Total` = Valor × Parcelas.
-- Linha "+ Adicionar simulação" para nova entrada.
-
-**Tabela secundária (consolidação):**
-- Linhas: `Receita Projetada (sistema)` | `Receita Simulada` | `Total Consolidado`.
-- Colunas: mesmos 11 meses.
-- "Projetada do sistema" = soma de entradas projetadas por mês (origem ≠ fluxo, tipo='entrada').
-- "Simulada" = soma das parcelas distribuídas das simulações.
-
-Persistência: nova tabela `simulation_entries` (school_id, nome, valor, parcelas, mes_inicio, created_at).
-
-### 6. Filtro de meses dinâmico no Dashboard
-
-Substituir `MonthSelector.tsx` por um popover agrupado por ano:
-
-- Trigger mostra resumo: "3 meses selecionados" / "Mai/2026 - Jul/2026" / "Todos os meses".
-- Conteúdo: lista por ano (2024, 2025, 2026...) com chips de meses (Jan–Dez), múltipla seleção.
-- Botões: "Todos", "Limpar", "Últimos 3 meses", "Ano atual".
-- Suporte a intervalo: shift+click seleciona range.
-- Valor continua sendo string (`'all'` ou CSV `'2026-05,2026-06,...'`) para manter compatibilidade com `matchesMonthFilter` que já aceita CSV.
+Vou entregar em 4 blocos independentes pra você poder testar cada um antes do próximo. Tudo respeita os filtros multi-mês já existentes (`SingleMonthPicker` em modo multi) e os módulos atuais de Projeção vs Realizado (sem misturar lógica).
 
 ---
 
-## Banco de dados
+## Bloco 1 — Card de Investimentos (Dashboard da Projeção)
 
-Apenas uma nova tabela:
+**Objetivo:** card moderno estilo app de banco, com gráfico de área e métricas vivas.
 
-```sql
-CREATE TABLE public.simulation_entries (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  school_id uuid NOT NULL,
-  nome text NOT NULL DEFAULT '',
-  valor numeric NOT NULL DEFAULT 0,
-  parcelas integer NOT NULL DEFAULT 1,
-  mes_inicio text NOT NULL,  -- 'YYYY-MM'
-  sort_order integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
--- RLS análoga a investment_entries (is_admin OR user_has_school_access).
-```
+- Reescrever `src/components/InvestimentoSection.tsx` (ou criar `InvestimentoCard.tsx` consumido no `Dashboard.tsx`).
+- Gráfico de **área (Recharts `AreaChart`)** com gradiente, evolução mês a mês do **saldo acumulado**.
+- Métricas no topo do card:
+  - Total Investido = Σ `aplicacao`
+  - Total Resgatado = Σ `resgate` (secundário, pequeno)
+  - Rendimento = Σ `rendimentos` + Σ `rendimento_provisionado` − Σ `encargos`
+  - Rentabilidade % = Rendimento / Total Investido
+  - Valor Total Acumulado = último `saldo_final` do período
+- Respeita os filtros globais do Dashboard (multi-mês). Recalcula via `useMemo` a partir de `investment_entries` filtrado.
+- Sem mudança de schema — a tabela `investment_entries` já tem todos os campos.
+
+## Bloco 2 — Categorias e Tipos Financeiros (CRUD + modelos base)
+
+**Objetivo:** gerir categorias usadas em Histórico Financeiro (projeção) e Fechamento (realizado).
+
+- Tela única `CategoriasManager` acessível em **Configurações**, com abas:
+  - **Histórico Financeiro** → CRUD em `historical_monthly.tipo_valor` (via tabela auxiliar nova `historical_tipos` pra permitir editar/renomear sem perder vínculo).
+  - **Plano de Contas** → já existe (`chart_of_accounts`), só adicionar atalho.
+- Migration:
+  - Nova tabela `historical_tipos (id, school_id, nome, grupo, sort_order, ativo)` com RLS por escola.
+  - Seed automático por escola com os modelos base: **Receitas, Despesas, Distribuição de Lucros, Investimentos, Impostos, Custos Fixos, Custos Variáveis, Outros**.
+- Renomear categoria atualiza referências em `historical_monthly` via update em lote.
+- Excluir categoria pede confirmação se houver dados vinculados (mantém histórico, só desativa).
+
+## Bloco 3 — Históricos editáveis (Vendas / Indicadores / Conversão)
+
+**Objetivo:** dar CRUD + import por planilha + filtros em cada um.
+
+Em **Relatório Realizado**, adicionar sub-aba **"Histórico"** dentro de cada módulo:
+
+- **Vendas** (`monthly_revenue` e/ou `sales_analysis_orders` — confirmar com você qual é o alvo de "vendas" antes de mexer; meu padrão será `sales_analysis_orders` por ser o registro detalhado).
+- **Indicadores** (`kpi_values`): tabela editável mês × KPI, com import CSV (colunas: mês, kpi_nome, valor).
+- **Conversão** (`conversion_data`): tabela editável com contatos/matrículas por mês e tipo.
+
+Cada histórico ganha:
+- Filtro multi-mês (mesmo `SingleMonthPicker multi`).
+- Campo de busca.
+- Edição inline + exclusão.
+- Botão "Importar planilha" reutilizando o fluxo de 3 passos do `ImportacaoRealizado`.
+
+Sem schema novo (tabelas já existem).
+
+## Bloco 4 — Simulação por mês (colunas)
+
+**Objetivo:** transformar a aba Simulação numa matriz de meses em colunas.
+
+- Reescrever `src/components/Simulation.tsx`:
+  - Linhas: campos editáveis (Nº Vendas/Matrículas, Ticket Médio, Nº Parcelas).
+  - Colunas: meses selecionados no filtro multi-mês.
+  - Linhas calculadas (read-only): Total Vendido, Valor Parcela, **Projetado a Receber por mês** (distribuído pelas parcelas a partir do mês da venda), **Projetado a Pagar** (puxado de `financial_entries` projetado já existente — não simula despesa nova), **Resultado**.
+- Persistência: nova tabela `simulation_monthly (school_id, scenario_id, month, vendas, ticket, parcelas)` com RLS.
+- Resultado da simulação **soma** com a projeção existente nos dashboards (flag `origem='simulacao'` já existe em `FinancialEntry`).
 
 ---
 
-## Arquivos afetados
+## Ordem sugerida de execução
 
-- **Novo:** `src/lib/financialClassification.ts` — helpers `isRealizado/isProjetado`.
-- **Novo:** `src/components/dashboard/PrevistoRealizadoCard.tsx` — card comparativo.
-- **Novo:** migration `simulation_entries`.
-- **Reescrito:** `src/components/Simulation.tsx`, `src/components/MonthSelector.tsx`.
-- **Editado:** `src/components/FileUpload.tsx` (diálogo de substituição parcial), `src/components/Dashboard.tsx` (novo card + uso de helpers), `src/components/CashFlow.tsx` + `src/components/DailyFlowTable.tsx` (linha de totais).
+1. Bloco 1 (rápido, visual, baixo risco) ✅
+2. Bloco 4 (simulação) — é o que mais muda fluxo, melhor cedo
+3. Bloco 2 (categorias)
+4. Bloco 3 (históricos CRUD) — maior em volume de UI
 
-## Não-mudanças (garantidas)
+## Perguntas antes de começar
 
-- Fechamento de meses, snapshots, consolidação em `historical_monthly` permanecem como estão.
-- `realized_entries`, `period_closures`, RLS, auth, roles, investimentos: intocados.
-- Manuais (`editado_manualmente=true`) nunca apagados.
-- Auto-consolidação após upload de fluxo permanece.
+1. Em **Bloco 3 / Vendas**, o "histórico de vendas" é o `sales_analysis_orders` (pedidos detalhados) ou o `monthly_revenue` (faturamento mensal agregado)?
+2. Em **Bloco 4**, a Simulação deve substituir a tela atual (matrículas/ticket/inadimplência em campos únicos) ou conviver como nova aba "Simulação por mês"?
+3. Posso começar pelo **Bloco 1** já enquanto você responde 1 e 2?
