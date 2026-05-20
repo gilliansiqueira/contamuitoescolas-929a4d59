@@ -375,9 +375,11 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const years = useMemo(() => {
     const arr: number[] = [];
-    for (let y = yearsRange.start; y <= yearsRange.end; y++) arr.push(y);
+    for (let y = yearsRange.start; y <= yearsRange.end; y++) {
+      if (!hiddenYears.has(y)) arr.push(y);
+    }
     return arr;
-  }, [yearsRange]);
+  }, [yearsRange, hiddenYears]);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
