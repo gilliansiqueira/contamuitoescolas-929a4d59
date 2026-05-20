@@ -374,12 +374,16 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           if (!tipoKey) continue;
           const valor = parseBRNumber(row[c]);
           if (valor === 0) continue;
+          // Tipo precisa existir no modelo financeiro da escola
+          if (!tipos.includes(tipoKey)) {
+            novosTipos.add(tipoKey); // reaproveitado: lista de rejeitados (fora do modelo)
+            continue;
+          }
           if (Math.abs(valor) > 100_000_000) {
             warnings.push(`Linha ${idx + 2} (${c}): valor muito alto (${formatBR(valor)})`);
           }
           items.push({ month, tipo_valor: tipoKey, valor });
           rowHasValue = true;
-          if (!tipos.includes(tipoKey)) novosTipos.add(tipoKey);
           const agg = byTipo[tipoKey] || { count: 0, total: 0 };
           agg.count++;
           agg.total += valor;
@@ -387,6 +391,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         }
         if (!rowHasValue) skipped++;
       });
+
 
       const months = Array.from(monthsSet).sort();
       const conflicts = months.filter(m => uploadMonths.has(m));
