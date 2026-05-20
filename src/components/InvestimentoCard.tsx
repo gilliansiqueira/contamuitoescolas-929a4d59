@@ -120,7 +120,7 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
     rendimento: m.rendimento,
   })), [allMonthly]);
 
-  const hasData = monthly.length > 0;
+  const hasData = chartData.length > 0;
 
   return (
     <motion.div
