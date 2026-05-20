@@ -6,9 +6,10 @@ import { VendasConfig } from './VendasConfig';
 import { VendasTable } from './VendasTable';
 import { VendasCharts } from './VendasCharts';
 import { Button } from '@/components/ui/button';
-import { Settings2 } from 'lucide-react';
+import { Settings2, Upload } from 'lucide-react';
 import { useMonthSync } from '@/components/realizado/SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
+import { ImportacaoVendas } from './ImportacaoVendas';
 
 interface Props {
   schoolId: string;
@@ -18,6 +19,7 @@ const MONTHS_LABELS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho
 
 export function VendasDashboard({ schoolId }: Props) {
   const [showConfig, setShowConfig] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
@@ -88,6 +90,11 @@ export function VendasDashboard({ schoolId }: Props) {
             }}
             availableMonths={salesData.map(s => s.month)}
           />
+
+          <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Importar planilha
+          </Button>
 
           <Button variant="outline" size="sm" onClick={() => setShowConfig(true)}>
             <Settings2 className="w-4 h-4 mr-2" />
