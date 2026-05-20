@@ -757,22 +757,16 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                           </tr>
                         </thead>
                         <tbody>
-                          {Object.entries(importPreview.byTipo).map(([k, v]) => {
-                            const isNew = importPreview.novosTipos.includes(k);
-                            return (
-                              <tr key={k} className="border-t border-border/40">
-                                <td className="px-2 py-1 font-medium">{labelFor(k)}</td>
-                                <td className="px-2 py-1 text-right tabular-nums">{v.count}</td>
-                                <td className="px-2 py-1 text-right tabular-nums">{formatBR(v.total)}</td>
-                                <td className="px-2 py-1 text-center">
-                                  {isNew ? (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">novo</span>
-                                  ) : (
-                                    <span className="text-[10px] text-muted-foreground">existente</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
+                          {Object.entries(importPreview.byTipo).map(([k, v]) => (
+                            <tr key={k} className="border-t border-border/40">
+                              <td className="px-2 py-1 font-medium">{labelFor(k)}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{v.count}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{formatBR(v.total)}</td>
+                              <td className="px-2 py-1 text-center">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">no modelo</span>
+                              </td>
+                            </tr>
+                          ))}
                           })}
                         </tbody>
                       </table>
