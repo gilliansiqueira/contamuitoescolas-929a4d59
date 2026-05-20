@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchTemplates, fetchTemplateItems, type FinancialModelTemplate, type FinancialModelTemplateItem } from '@/lib/financialModels';
@@ -177,21 +177,13 @@ function TemplateItemsEditor({ templateId }: { templateId: string }) {
 
   const [rows, setRows] = useState<ItemRow[]>([]);
 
-  // Sync state when items load
-  useState(() => {
+  useEffect(() => {
     setRows(items.map(i => ({
       id: i.id, name: i.name, tipo: i.tipo,
       impacta_caixa: i.impacta_caixa, entra_no_resultado: i.entra_no_resultado, sort_order: i.sort_order,
     })));
-  });
-
-  // Re-sync when template changes
-  if (rows.length === 0 && items.length > 0 && !isFetching) {
-    setRows(items.map(i => ({
-      id: i.id, name: i.name, tipo: i.tipo,
-      impacta_caixa: i.impacta_caixa, entra_no_resultado: i.entra_no_resultado, sort_order: i.sort_order,
-    })));
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateId, items.length, isFetching]);
 
   const update = (id: string, field: keyof ItemRow, value: any) => {
     setRows(rs => rs.map(r => r.id === id ? { ...r, [field]: value, dirty: true } : r));
