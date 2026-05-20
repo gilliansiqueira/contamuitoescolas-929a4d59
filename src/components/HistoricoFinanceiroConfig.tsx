@@ -57,6 +57,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   });
   const [extraTipos, setExtraTipos] = useState<string[]>([]);
   const [newTipoInput, setNewTipoInput] = useState('');
+  const [hiddenYears, setHiddenYears] = useState<Set<number>>(new Set());
 
   // Fechamento de períodos (módulo projeção)
   const { isAdmin } = useAuth();
@@ -297,6 +298,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         .gte('month', `${year}-01`)
         .lte('month', `${year}-12`);
       if (error) throw error;
+      setHiddenYears(prev => new Set(prev).add(year));
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
       qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
@@ -373,9 +375,11 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const years = useMemo(() => {
     const arr: number[] = [];
-    for (let y = yearsRange.start; y <= yearsRange.end; y++) arr.push(y);
+    for (let y = yearsRange.start; y <= yearsRange.end; y++) {
+      if (!hiddenYears.has(y)) arr.push(y);
+    }
     return arr;
-  }, [yearsRange]);
+  }, [yearsRange, hiddenYears]);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
