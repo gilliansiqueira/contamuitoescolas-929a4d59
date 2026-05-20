@@ -1,9 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useTypeClassifications, useFluxoTipos } from '@/hooks/useFinancialData';
 import { motion } from 'framer-motion';
-import { History, Upload, Plus, Trash2, Download, Info, AlertTriangle, Lock, Unlock } from 'lucide-react';
+import { History, Upload, Trash2, Download, Info, AlertTriangle, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,6 +13,8 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { usePeriodClosures, useClosedMonths, useCloseMonths, useReopenMonth, type PeriodClosure } from '@/hooks/usePeriodClosures';
 import { useAuth } from '@/hooks/useAuth';
+import { fetchSchoolTemplateId, fetchTemplateItems, type FinancialModelTemplateItem } from '@/lib/financialModels';
+import { normalizeTipo } from '@/lib/classificationUtils';
 
 interface Props {
   schoolId: string;
@@ -55,8 +56,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     const y = new Date().getFullYear();
     return { start: y - 2, end: y };
   });
-  const [extraTipos, setExtraTipos] = useState<string[]>([]);
-  const [newTipoInput, setNewTipoInput] = useState('');
+  // (Tipos vêm exclusivamente do modelo financeiro — sem estado local de tipos extras)
   const hiddenYearsStorageKey = `historicoFinanceiro:hiddenYears:${schoolId || 'none'}`;
   const [hiddenYears, setHiddenYears] = useState<Set<number>>(() => {
     try {
@@ -116,28 +116,43 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   };
 
 
-  const { data: classifications = [] } = useTypeClassifications(schoolId);
-  const { data: fluxoTipos = [] } = useFluxoTipos(schoolId);
+  // ===== Tipos vêm EXCLUSIVAMENTE do Modelo Financeiro aplicado à escola =====
+  const { data: templateId } = useQuery({
+    queryKey: ['schoolTemplateId', schoolId],
+    queryFn: () => fetchSchoolTemplateId(schoolId),
+    enabled: !!schoolId,
+  });
+  const { data: templateItems = [] } = useQuery({
+    queryKey: ['templateItems', templateId],
+    queryFn: () => fetchTemplateItems(templateId!),
+    enabled: !!templateId,
+  });
 
-  // Tipos disponíveis = base + classificações + tipos de fluxo (sem 'ignorar')
-  const tipos = useMemo(() => {
-    const base = ['receita', 'despesa', 'investimento'];
-    const fromCls = classifications
-      .filter(c => c.classificacao !== 'ignorar')
-      .map(c => normalize(c.tipoValor));
-    const fromFluxo = fluxoTipos.map(normalize);
-    const all = Array.from(new Set([...base, ...fromCls, ...fromFluxo, ...extraTipos]));
-    return all;
-  }, [classifications, fluxoTipos, extraTipos]);
+  // Itens do modelo, sem 'ignorar', deduplicados por tipo_valor normalizado, ordenados.
+  const modelItems = useMemo<FinancialModelTemplateItem[]>(() => {
+    const seen = new Set<string>();
+    const out: FinancialModelTemplateItem[] = [];
+    [...templateItems]
+      .filter(it => it.tipo !== 'ignorar')
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .forEach(it => {
+        const key = normalizeTipo(it.name);
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(it);
+      });
+    return out;
+  }, [templateItems]);
 
-  const labelFor = (tipoKey: string) => {
-    const cls = classifications.find(c => normalize(c.tipoValor) === tipoKey);
-    if (cls?.label) return cls.label;
-    return tipoKey
-      .split('_')
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  };
+  const tipos = useMemo(() => modelItems.map(it => normalizeTipo(it.name)), [modelItems]);
+  const labelByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    modelItems.forEach(it => m.set(normalizeTipo(it.name), it.name));
+    return m;
+  }, [modelItems]);
+  const labelFor = (tipoKey: string) =>
+    labelByKey.get(tipoKey) ??
+    tipoKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
@@ -177,14 +192,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     return m;
   }, [rows]);
 
-  // Adiciona tipos extras automaticamente se vierem do banco
-  useEffect(() => {
-    const seen = new Set(tipos);
-    const novos = rows
-      .map(r => normalize(r.tipo_valor))
-      .filter(t => !seen.has(t));
-    if (novos.length) setExtraTipos(prev => Array.from(new Set([...prev, ...novos])));
-  }, [rows]); // eslint-disable-line
+  // (removido auto-add de tipos extras — agora o modelo é a única fonte)
 
   const upsertMut = useMutation({
     mutationFn: async (payload: { month: string; tipo_valor: string; valor: number }) => {
@@ -273,35 +281,8 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     }
   };
 
-  const handleAddTipo = () => {
-    const k = normalize(newTipoInput);
-    if (!k) return;
-    if (tipos.includes(k)) {
-      toast.error('Esse tipo já existe na tabela');
-      return;
-    }
-    setExtraTipos(prev => [...prev, k]);
-    setNewTipoInput('');
-    toast.success(`Tipo "${labelFor(k)}" adicionado`);
-  };
+  // (handleAddTipo / handleRemoveTipo removidos — modelo financeiro é a base)
 
-  const handleRemoveTipo = async (tipoKey: string) => {
-    if (!confirm(`Remover tipo "${labelFor(tipoKey)}"? Todos os valores históricos desse tipo serão apagados.`)) return;
-    try {
-      const { error } = await supabase
-        .from('historical_monthly' as any)
-        .delete()
-        .eq('school_id', schoolId)
-        .eq('tipo_valor', tipoKey);
-      if (error) throw error;
-      setExtraTipos(prev => prev.filter(t => t !== tipoKey));
-      qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
-      qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
-      toast.success('Tipo removido');
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-  };
 
   const handleRemoveYear = async (year: number) => {
     if (!confirm(`Remover TODOS os valores do ano ${year}? Esta ação não pode ser desfeita.`)) return;
@@ -393,12 +374,16 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           if (!tipoKey) continue;
           const valor = parseBRNumber(row[c]);
           if (valor === 0) continue;
+          // Tipo precisa existir no modelo financeiro da escola
+          if (!tipos.includes(tipoKey)) {
+            novosTipos.add(tipoKey); // reaproveitado: lista de rejeitados (fora do modelo)
+            continue;
+          }
           if (Math.abs(valor) > 100_000_000) {
             warnings.push(`Linha ${idx + 2} (${c}): valor muito alto (${formatBR(valor)})`);
           }
           items.push({ month, tipo_valor: tipoKey, valor });
           rowHasValue = true;
-          if (!tipos.includes(tipoKey)) novosTipos.add(tipoKey);
           const agg = byTipo[tipoKey] || { count: 0, total: 0 };
           agg.count++;
           agg.total += valor;
@@ -406,6 +391,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         }
         if (!rowHasValue) skipped++;
       });
+
 
       const months = Array.from(monthsSet).sort();
       const conflicts = months.filter(m => uploadMonths.has(m));
@@ -439,7 +425,9 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     try {
       await bulkUpsertMut.mutateAsync(importPreview.items);
       if (importPreview.novosTipos.length) {
-        setExtraTipos(prev => Array.from(new Set([...prev, ...importPreview.novosTipos])));
+        toast.warning(
+          `${importPreview.novosTipos.length} tipo(s) ignorado(s) por não estarem no modelo: ${importPreview.novosTipos.join(', ')}`
+        );
       }
       // Expande intervalo de anos e desoculta anos importados
       if (importPreview.years.length) {
@@ -555,20 +543,26 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           </div>
         </div>
 
-        {/* Add tipo */}
-        <div className="flex items-center gap-2 pt-3">
-          <input
-            value={newTipoInput}
-            onChange={e => setNewTipoInput(e.target.value)}
-            placeholder='Adicionar tipo (ex: "Pró-labore")'
-            className="flex-1 h-8 text-sm border rounded px-2 bg-background"
-            onKeyDown={e => e.key === 'Enter' && handleAddTipo()}
-          />
-          <Button size="sm" onClick={handleAddTipo}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
-          </Button>
+        {/* Aviso: tipos vêm do modelo */}
+        <div className="flex items-start gap-2 pt-3">
+          <Info className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Os tipos exibidos são definidos pelo <strong>Modelo Financeiro</strong> aplicado à escola.
+            Para adicionar ou remover tipos, edite o modelo em <em>Configurações → Modelos Financeiros</em>.
+          </p>
         </div>
+
+        {!templateId && (
+          <div className="flex items-start gap-2 mt-2 rounded-lg p-3 border border-warning/40 bg-warning/10">
+            <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+            <p className="text-xs text-foreground leading-relaxed">
+              Nenhum modelo financeiro foi aplicado a esta escola. Aplique um modelo em
+              <em> Configurações → Modelo da Empresa</em> para liberar os tipos.
+            </p>
+          </div>
+        )}
       </div>
+
 
       {/* Tabela ano × mês */}
       <div className="glass-card rounded-xl p-2 overflow-x-auto">
@@ -640,15 +634,8 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                     let totalRow = 0;
                     return (
                       <tr key={`${year}-${tipoKey}`} className="border-b border-border/30 hover:bg-muted/20 group">
-                        <td className="px-2 py-1 sticky left-0 bg-card hover:bg-muted/20 font-medium text-foreground flex items-center justify-between gap-1 z-10">
-                          <span className="truncate" title={labelFor(tipoKey)}>{labelFor(tipoKey)}</span>
-                          <button
-                            onClick={() => handleRemoveTipo(tipoKey)}
-                            className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Remover tipo"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                        <td className="px-2 py-1 sticky left-0 bg-card hover:bg-muted/20 font-medium text-foreground z-10">
+                          <span className="truncate block" title={labelFor(tipoKey)}>{labelFor(tipoKey)}</span>
                         </td>
                         {MONTH_LABELS.map((_, idx) => {
                           const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
@@ -780,26 +767,28 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                           </tr>
                         </thead>
                         <tbody>
-                          {Object.entries(importPreview.byTipo).map(([k, v]) => {
-                            const isNew = importPreview.novosTipos.includes(k);
-                            return (
-                              <tr key={k} className="border-t border-border/40">
-                                <td className="px-2 py-1 font-medium">{labelFor(k)}</td>
-                                <td className="px-2 py-1 text-right tabular-nums">{v.count}</td>
-                                <td className="px-2 py-1 text-right tabular-nums">{formatBR(v.total)}</td>
-                                <td className="px-2 py-1 text-center">
-                                  {isNew ? (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">novo</span>
-                                  ) : (
-                                    <span className="text-[10px] text-muted-foreground">existente</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                          {Object.entries(importPreview.byTipo).map(([k, v]) => (
+                            <tr key={k} className="border-t border-border/40">
+                              <td className="px-2 py-1 font-medium">{labelFor(k)}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{v.count}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{formatBR(v.total)}</td>
+                              <td className="px-2 py-1 text-center">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">no modelo</span>
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
+
+                    {importPreview.novosTipos.length > 0 && (
+                      <div className="rounded p-2 border border-warning/40 bg-warning/10 text-xs">
+                        <div className="font-semibold text-foreground mb-1">
+                          {importPreview.novosTipos.length} tipo(s) ignorado(s) (não estão no modelo financeiro):
+                        </div>
+                        <div className="text-muted-foreground">{importPreview.novosTipos.join(', ')}</div>
+                      </div>
+                    )}
 
                     {importPreview.errors.length > 0 && (
                       <div className="rounded p-2 border border-destructive/40 bg-destructive/10 text-xs">
