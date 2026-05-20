@@ -298,6 +298,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         .gte('month', `${year}-01`)
         .lte('month', `${year}-12`);
       if (error) throw error;
+      setHiddenYears(prev => new Set(prev).add(year));
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
       qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
