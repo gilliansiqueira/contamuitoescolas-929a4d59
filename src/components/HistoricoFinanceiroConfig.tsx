@@ -117,28 +117,43 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   };
 
 
-  const { data: classifications = [] } = useTypeClassifications(schoolId);
-  const { data: fluxoTipos = [] } = useFluxoTipos(schoolId);
+  // ===== Tipos vêm EXCLUSIVAMENTE do Modelo Financeiro aplicado à escola =====
+  const { data: templateId } = useQuery({
+    queryKey: ['schoolTemplateId', schoolId],
+    queryFn: () => fetchSchoolTemplateId(schoolId),
+    enabled: !!schoolId,
+  });
+  const { data: templateItems = [] } = useQuery({
+    queryKey: ['templateItems', templateId],
+    queryFn: () => fetchTemplateItems(templateId!),
+    enabled: !!templateId,
+  });
 
-  // Tipos disponíveis = base + classificações + tipos de fluxo (sem 'ignorar')
-  const tipos = useMemo(() => {
-    const base = ['receita', 'despesa', 'investimento'];
-    const fromCls = classifications
-      .filter(c => c.classificacao !== 'ignorar')
-      .map(c => normalize(c.tipoValor));
-    const fromFluxo = fluxoTipos.map(normalize);
-    const all = Array.from(new Set([...base, ...fromCls, ...fromFluxo, ...extraTipos]));
-    return all;
-  }, [classifications, fluxoTipos, extraTipos]);
+  // Itens do modelo, sem 'ignorar', deduplicados por tipo_valor normalizado, ordenados.
+  const modelItems = useMemo<FinancialModelTemplateItem[]>(() => {
+    const seen = new Set<string>();
+    const out: FinancialModelTemplateItem[] = [];
+    [...templateItems]
+      .filter(it => it.tipo !== 'ignorar')
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .forEach(it => {
+        const key = normalizeTipo(it.name);
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(it);
+      });
+    return out;
+  }, [templateItems]);
 
-  const labelFor = (tipoKey: string) => {
-    const cls = classifications.find(c => normalize(c.tipoValor) === tipoKey);
-    if (cls?.label) return cls.label;
-    return tipoKey
-      .split('_')
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  };
+  const tipos = useMemo(() => modelItems.map(it => normalizeTipo(it.name)), [modelItems]);
+  const labelByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    modelItems.forEach(it => m.set(normalizeTipo(it.name), it.name));
+    return m;
+  }, [modelItems]);
+  const labelFor = (tipoKey: string) =>
+    labelByKey.get(tipoKey) ??
+    tipoKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
