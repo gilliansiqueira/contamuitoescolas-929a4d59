@@ -281,35 +281,8 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     }
   };
 
-  const handleAddTipo = () => {
-    const k = normalize(newTipoInput);
-    if (!k) return;
-    if (tipos.includes(k)) {
-      toast.error('Esse tipo já existe na tabela');
-      return;
-    }
-    setExtraTipos(prev => [...prev, k]);
-    setNewTipoInput('');
-    toast.success(`Tipo "${labelFor(k)}" adicionado`);
-  };
+  // (handleAddTipo / handleRemoveTipo removidos — modelo financeiro é a base)
 
-  const handleRemoveTipo = async (tipoKey: string) => {
-    if (!confirm(`Remover tipo "${labelFor(tipoKey)}"? Todos os valores históricos desse tipo serão apagados.`)) return;
-    try {
-      const { error } = await supabase
-        .from('historical_monthly' as any)
-        .delete()
-        .eq('school_id', schoolId)
-        .eq('tipo_valor', tipoKey);
-      if (error) throw error;
-      setExtraTipos(prev => prev.filter(t => t !== tipoKey));
-      qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
-      qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
-      toast.success('Tipo removido');
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-  };
 
   const handleRemoveYear = async (year: number) => {
     if (!confirm(`Remover TODOS os valores do ano ${year}? Esta ação não pode ser desfeita.`)) return;
