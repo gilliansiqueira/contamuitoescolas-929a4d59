@@ -57,7 +57,22 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   });
   const [extraTipos, setExtraTipos] = useState<string[]>([]);
   const [newTipoInput, setNewTipoInput] = useState('');
-  const [hiddenYears, setHiddenYears] = useState<Set<number>>(new Set());
+  const hiddenYearsStorageKey = `historicoFinanceiro:hiddenYears:${schoolId || 'none'}`;
+  const [hiddenYears, setHiddenYears] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(`historicoFinanceiro:hiddenYears:${schoolId || 'none'}`);
+      if (raw) return new Set(JSON.parse(raw) as number[]);
+    } catch {}
+    return new Set();
+  });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(hiddenYearsStorageKey);
+      setHiddenYears(raw ? new Set(JSON.parse(raw) as number[]) : new Set());
+    } catch {
+      setHiddenYears(new Set());
+    }
+  }, [hiddenYearsStorageKey]);
 
   // Fechamento de períodos (módulo projeção)
   const { isAdmin } = useAuth();
@@ -298,7 +313,12 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         .gte('month', `${year}-01`)
         .lte('month', `${year}-12`);
       if (error) throw error;
-      setHiddenYears(prev => new Set(prev).add(year));
+      setHiddenYears(prev => {
+        const next = new Set(prev);
+        next.add(year);
+        try { localStorage.setItem(hiddenYearsStorageKey, JSON.stringify([...next])); } catch {}
+        return next;
+      });
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
       qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
