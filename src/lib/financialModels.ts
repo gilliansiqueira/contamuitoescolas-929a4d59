@@ -33,12 +33,16 @@ export async function applyTemplateToSchool(schoolId: string, templateId: string
 
   for (const it of (items ?? []) as any[]) {
     const tipoValor = normalizeTipo(it.name);
+    const isIgnorar = it.tipo === 'ignorar';
+    const impactaCaixa = isIgnorar ? false : it.impacta_caixa;
+    const entraNoResultado = isIgnorar ? false : it.entra_no_resultado;
     const classificacao =
-      it.entra_no_resultado && it.tipo === 'entrada' ? 'receita' :
-      it.entra_no_resultado && it.tipo === 'saida'   ? 'despesa' :
-      it.impacta_caixa                                ? 'operacao' :
-                                                        'ignorar';
-    const operacao_sinal = it.tipo === 'entrada' ? 'somar' : 'subtrair';
+      isIgnorar                                          ? 'ignorar' :
+      entraNoResultado && it.tipo === 'entrada'          ? 'receita' :
+      entraNoResultado && it.tipo === 'saida'            ? 'despesa' :
+      impactaCaixa                                       ? 'operacao' :
+                                                           'ignorar';
+    const operacao_sinal = it.tipo === 'saida' ? 'subtrair' : 'somar';
 
     // procura existente por (school_id, tipo_valor)
     const { data: existing } = await supabase
