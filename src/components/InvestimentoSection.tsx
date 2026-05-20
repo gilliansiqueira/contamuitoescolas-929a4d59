@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { PiggyBank, Plus, Copy, Trash2, Save } from 'lucide-react';
+import { InvestimentoCard } from '@/components/InvestimentoCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -182,9 +183,12 @@ export function InvestimentoSection({ schoolId, selectedMonth }: Props) {
   }, [rows]);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="space-y-4">
+      {/* Card hero moderno com gráfico e métricas */}
+      <InvestimentoCard schoolId={schoolId} selectedMonth={selectedMonth} />
+
       <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-        <PiggyBank className="w-4 h-4" /> Investimentos
+        <PiggyBank className="w-4 h-4" /> Editar investimentos
       </h3>
 
       <div className="glass-card rounded-xl p-5 space-y-5">
