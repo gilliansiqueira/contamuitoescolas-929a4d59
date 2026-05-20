@@ -37,9 +37,13 @@ export function EmpresaModeloConfig({ schoolId, onChanged }: Props) {
     setApplying(true);
     try {
       await applyTemplateToSchool(schoolId, selected);
-      toast.success('Modelo aplicado à empresa. Edite tipos em "Classificação de Tipos".');
+      toast.success('Modelo aplicado. Tipos copiados para Classificação de Tipos e Histórico Financeiro.');
+      // Invalida tudo que depende de classificações / tipos / histórico
       qc.invalidateQueries({ queryKey: ['school_template', schoolId] });
       qc.invalidateQueries({ queryKey: ['typeClassifications'] });
+      qc.invalidateQueries({ queryKey: ['fluxoTipos'] });
+      qc.invalidateQueries({ queryKey: ['historicalMonthly'] });
+      qc.invalidateQueries({ queryKey: ['availableMonths'] });
       onChanged?.();
     } catch (e: any) {
       toast.error(e.message || 'Erro ao aplicar modelo');
