@@ -99,15 +99,28 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
   const rentabilidade = totals.investido > 0 ? (rendimentoLiquido / totals.investido) * 100 : 0;
   const positivo = rendimentoLiquido >= 0;
 
-  const chartData = useMemo(() => monthly.map(m => ({
+  // Gráfico sempre exibe TODOS os meses (visão histórica), independente do filtro
+  const allMonthly = useMemo(() => {
+    const map = new Map<string, { month: string; saldo: number; aplicacao: number; rendimento: number }>();
+    for (const r of rows) {
+      const cur = map.get(r.month) ?? { month: r.month, saldo: 0, aplicacao: 0, rendimento: 0 };
+      cur.saldo += Number(r.saldo_final) || 0;
+      cur.aplicacao += Number(r.aplicacao) || 0;
+      cur.rendimento += (Number(r.rendimentos) || 0) + (Number(r.rendimento_provisionado) || 0) - (Number(r.encargos) || 0);
+      map.set(r.month, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month));
+  }, [rows]);
+
+  const chartData = useMemo(() => allMonthly.map(m => ({
     month: m.month,
     label: m.month.split('-').reverse().slice(0, 2).join('/'),
-    saldo: m.saldo_final,
+    saldo: m.saldo,
     aplicacao: m.aplicacao,
-    rendimento: m.rendimentos + m.rendimento_provisionado - m.encargos,
-  })), [monthly]);
+    rendimento: m.rendimento,
+  })), [allMonthly]);
 
-  const hasData = monthly.length > 0;
+  const hasData = chartData.length > 0;
 
   return (
     <motion.div

@@ -257,25 +257,39 @@ function TemplateItemsEditor({ templateId }: { templateId: string }) {
             </tr>
           </thead>
           <tbody>
-            {visible.map(r => (
+            {visible.map(r => {
+              const isIgnorar = r.tipo === 'ignorar';
+              return (
               <tr key={r.id} className="border-t border-border/30">
                 <td className="px-2 py-1.5">
                   <Input value={r.name} onChange={e => update(r.id, 'name', e.target.value)} className="h-8 text-xs" placeholder="Ex: Receita" />
                 </td>
                 <td className="px-2 py-1.5 text-center">
-                  <select value={r.tipo} onChange={e => update(r.id, 'tipo', e.target.value)} className="h-8 text-xs border rounded px-2 bg-background">
+                  <select
+                    value={r.tipo}
+                    onChange={e => {
+                      const v = e.target.value as ItemRow['tipo'];
+                      setRows(rs => rs.map(x => x.id === r.id ? {
+                        ...x, tipo: v, dirty: true,
+                        impacta_caixa: v === 'ignorar' ? false : x.impacta_caixa,
+                        entra_no_resultado: v === 'ignorar' ? false : x.entra_no_resultado,
+                      } : x));
+                    }}
+                    className="h-8 text-xs border rounded px-2 bg-background"
+                  >
                     <option value="entrada">Entrada</option>
                     <option value="saida">Saída</option>
+                    <option value="ignorar">Ignorar</option>
                   </select>
                 </td>
                 <td className="px-2 py-1.5 text-center">
-                  <select value={String(r.impacta_caixa)} onChange={e => update(r.id, 'impacta_caixa', e.target.value === 'true')} className="h-8 text-xs border rounded px-2 bg-background">
+                  <select disabled={isIgnorar} value={String(r.impacta_caixa)} onChange={e => update(r.id, 'impacta_caixa', e.target.value === 'true')} className="h-8 text-xs border rounded px-2 bg-background disabled:opacity-50">
                     <option value="true">Sim</option>
                     <option value="false">Não</option>
                   </select>
                 </td>
                 <td className="px-2 py-1.5 text-center">
-                  <select value={String(r.entra_no_resultado)} onChange={e => update(r.id, 'entra_no_resultado', e.target.value === 'true')} className="h-8 text-xs border rounded px-2 bg-background">
+                  <select disabled={isIgnorar} value={String(r.entra_no_resultado)} onChange={e => update(r.id, 'entra_no_resultado', e.target.value === 'true')} className="h-8 text-xs border rounded px-2 bg-background disabled:opacity-50">
                     <option value="true">Sim</option>
                     <option value="false">Não</option>
                   </select>
@@ -286,7 +300,8 @@ function TemplateItemsEditor({ templateId }: { templateId: string }) {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {visible.length === 0 && (
               <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground text-xs">
                 Nenhum item. Clique em "Item" para adicionar.

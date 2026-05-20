@@ -2,11 +2,13 @@ import { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
-import { PiggyBank, Plus, Copy, Trash2, Save } from 'lucide-react';
+import { PiggyBank, Plus, Copy, Trash2, Save, Settings } from 'lucide-react';
 import { InvestimentoCard } from '@/components/InvestimentoCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 interface Props {
@@ -182,112 +184,132 @@ export function InvestimentoSection({ schoolId, selectedMonth }: Props) {
     return Array.from(set).sort();
   }, [rows]);
 
+  const { isAdmin } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="space-y-4">
-      {/* Card hero moderno com gráfico e métricas */}
-      <InvestimentoCard schoolId={schoolId} selectedMonth={selectedMonth} />
+      {/* Card hero moderno com gráfico e métricas (com engrenagem de admin) */}
+      <div className="relative">
+        <InvestimentoCard schoolId={schoolId} selectedMonth={selectedMonth} />
+        {isAdmin && (
+          <Dialog open={editOpen} onOpenChange={setEditOpen}>
+            <DialogTrigger asChild>
+              <button
+                className="absolute top-4 right-4 z-10 p-2 rounded-full bg-background/60 hover:bg-background/90 backdrop-blur-sm border border-border/40 text-muted-foreground hover:text-foreground transition-colors"
+                title="Editar investimentos (admin)"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <PiggyBank className="w-4 h-4" /> Editar investimentos
+                </DialogTitle>
+              </DialogHeader>
 
-      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-        <PiggyBank className="w-4 h-4" /> Editar investimentos
-      </h3>
+              <div className="space-y-5 pt-2">
+                {/* Seletor de mês + ações */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">Mês:</span>
+                  <Select value={editMonth} onValueChange={setEditMonth}>
+                    <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {monthOptions.map(m => (
+                        <SelectItem key={m} value={m}>{m.split('-').reverse().join('/')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" onClick={handleAddCard}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar investimento
+                  </Button>
+                  <Button size="sm" onClick={handleSaveAll} disabled={upsertOne.isPending}>
+                    <Save className="w-3.5 h-3.5 mr-1" /> Salvar todos
+                  </Button>
+                </div>
 
-      <div className="glass-card rounded-xl p-5 space-y-5">
-        {/* Seletor de mês + ações */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Mês:</span>
-          <Select value={editMonth} onValueChange={setEditMonth}>
-            <SelectTrigger className="w-[160px] h-8 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent className="max-h-72">
-              {monthOptions.map(m => (
-                <SelectItem key={m} value={m}>{m.split('-').reverse().join('/')}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" variant="outline" onClick={handleAddCard}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar investimento
-          </Button>
-          <Button size="sm" onClick={handleSaveAll} disabled={upsertOne.isPending}>
-            <Save className="w-3.5 h-3.5 mr-1" /> Salvar todos
-          </Button>
-        </div>
-
-        {/* Cards configuráveis */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {editingCards.map((card, idx) => (
-            <div key={card.id || `new-${idx}`} className="border border-border/40 rounded-lg p-4 space-y-3 bg-background/40">
-              <div className="flex items-center gap-2">
-                <Input
-                  value={card.nome}
-                  onChange={e => updateField(idx, 'nome', e.target.value)}
-                  className="h-8 text-sm font-medium flex-1"
-                  placeholder="Nome do investimento"
-                />
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDuplicateCard(idx)} title="Duplicar">
-                  <Copy className="w-3.5 h-3.5" />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleRemoveCard(idx)} title="Remover">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {FIELDS.map(f => (
-                  <div key={f.key as string}>
-                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">{f.label}</label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={String(card[f.key] ?? '')}
-                      onChange={e => updateField(idx, f.key, parseBR(e.target.value))}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabela agregada */}
-        {visibleRows.length > 0 && (
-          <div className="overflow-x-auto border-t border-border/30 pt-4">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-muted-foreground uppercase tracking-wider">
-                  <th className="text-left py-2 pr-3">Mês</th>
-                  <th className="text-left py-2 pr-3">Nome</th>
-                  {FIELDS.map(f => (
-                    <th key={f.key as string} className="text-right py-2 px-2">{f.label}</th>
+                {/* Cards configuráveis */}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {editingCards.map((card, idx) => (
+                    <div key={card.id || `new-${idx}`} className="border border-border/40 rounded-lg p-4 space-y-3 bg-background/40">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={card.nome}
+                          onChange={e => updateField(idx, 'nome', e.target.value)}
+                          className="h-8 text-sm font-medium flex-1"
+                          placeholder="Nome do investimento"
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDuplicateCard(idx)} title="Duplicar">
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleRemoveCard(idx)} title="Remover">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {FIELDS.map(f => (
+                          <div key={f.key as string}>
+                            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">{f.label}</label>
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={String(card[f.key] ?? '')}
+                              onChange={e => updateField(idx, f.key, parseBR(e.target.value))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map(r => (
-                  <tr key={r.id} className="border-t border-border/20 hover:bg-muted/30 cursor-pointer"
-                      onClick={() => setEditMonth(r.month)}>
-                    <td className="py-2 pr-3 font-medium">{r.month.split('-').reverse().join('/')}</td>
-                    <td className="py-2 pr-3">{r.nome}</td>
-                    {FIELDS.map(f => (
-                      <td key={f.key as string} className="text-right py-2 px-2 tabular-nums">
-                        {formatCurrency(Number(r[f.key]) || 0)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                {visibleRows.length > 1 && (
-                  <tr className="border-t border-border/40 font-semibold">
-                    <td className="py-2 pr-3" colSpan={2}>Total</td>
-                    <td className="text-right py-2 px-2">—</td>
-                    <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.aplicacao)}</td>
-                    <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.resgate)}</td>
-                    <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.rendimentos)}</td>
-                    <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.encargos)}</td>
-                    <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.rendimento_provisionado)}</td>
-                    <td className="text-right py-2 px-2">—</td>
-                  </tr>
+                </div>
+
+                {/* Tabela agregada */}
+                {visibleRows.length > 0 && (
+                  <div className="overflow-x-auto border-t border-border/30 pt-4">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-muted-foreground uppercase tracking-wider">
+                          <th className="text-left py-2 pr-3">Mês</th>
+                          <th className="text-left py-2 pr-3">Nome</th>
+                          {FIELDS.map(f => (
+                            <th key={f.key as string} className="text-right py-2 px-2">{f.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleRows.map(r => (
+                          <tr key={r.id} className="border-t border-border/20 hover:bg-muted/30 cursor-pointer"
+                              onClick={() => setEditMonth(r.month)}>
+                            <td className="py-2 pr-3 font-medium">{r.month.split('-').reverse().join('/')}</td>
+                            <td className="py-2 pr-3">{r.nome}</td>
+                            {FIELDS.map(f => (
+                              <td key={f.key as string} className="text-right py-2 px-2 tabular-nums">
+                                {formatCurrency(Number(r[f.key]) || 0)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                        {visibleRows.length > 1 && (
+                          <tr className="border-t border-border/40 font-semibold">
+                            <td className="py-2 pr-3" colSpan={2}>Total</td>
+                            <td className="text-right py-2 px-2">—</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.aplicacao)}</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.resgate)}</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.rendimentos)}</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.encargos)}</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{formatCurrency(totals.rendimento_provisionado)}</td>
+                            <td className="text-right py-2 px-2">—</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
     </motion.div>
