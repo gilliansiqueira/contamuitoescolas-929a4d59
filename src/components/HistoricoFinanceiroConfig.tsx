@@ -56,8 +56,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     const y = new Date().getFullYear();
     return { start: y - 2, end: y };
   });
-  const [extraTipos, setExtraTipos] = useState<string[]>([]);
-  const [newTipoInput, setNewTipoInput] = useState('');
+  // (Tipos vêm exclusivamente do modelo financeiro — sem estado local de tipos extras)
   const hiddenYearsStorageKey = `historicoFinanceiro:hiddenYears:${schoolId || 'none'}`;
   const [hiddenYears, setHiddenYears] = useState<Set<number>>(() => {
     try {
