@@ -551,6 +551,16 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
             Para adicionar ou remover tipos, edite o modelo em <em>Configurações → Modelos Financeiros</em>.
           </p>
         </div>
+
+        {!templateId && (
+          <div className="flex items-start gap-2 mt-2 rounded-lg p-3 border border-warning/40 bg-warning/10">
+            <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+            <p className="text-xs text-foreground leading-relaxed">
+              Nenhum modelo financeiro foi aplicado a esta escola. Aplique um modelo em
+              <em> Configurações → Modelo da Empresa</em> para liberar os tipos.
+            </p>
+          </div>
+        )}
       </div>
 
 
