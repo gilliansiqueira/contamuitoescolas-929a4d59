@@ -57,6 +57,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   });
   const [extraTipos, setExtraTipos] = useState<string[]>([]);
   const [newTipoInput, setNewTipoInput] = useState('');
+  const [hiddenYears, setHiddenYears] = useState<Set<number>>(new Set());
 
   // Fechamento de períodos (módulo projeção)
   const { isAdmin } = useAuth();
