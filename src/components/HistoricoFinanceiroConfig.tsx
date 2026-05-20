@@ -329,56 +329,132 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     }
   };
 
+  const [importPreview, setImportPreview] = useState<null | {
+    items: { month: string; tipo_valor: string; valor: number }[];
+    novosTipos: string[];
+    errors: string[];
+    warnings: string[];
+    skippedRows: number;
+    totalRows: number;
+    months: string[];
+    years: number[];
+    byTipo: Record<string, { count: number; total: number }>;
+    conflicts: string[]; // meses já com upload de fluxo
+    closedHit: string[]; // meses fechados
+  }>(null);
+
   const handleImport = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+      if (fileRef.current) fileRef.current.value = '';
       if (!json.length) {
         toast.error('Arquivo vazio');
         return;
       }
-      // Identifica coluna de mês
       const cols = Object.keys(json[0]);
       const monthCol = cols.find(c => normalize(c).match(/^(mes|m[eê]s|month|periodo|per[ií]odo)$/));
       if (!monthCol) {
-        toast.error('Coluna "mês" (YYYY-MM) não encontrada');
+        toast.error('Coluna "mês" (YYYY-MM) não encontrada no arquivo');
         return;
       }
       const items: { month: string; tipo_valor: string; valor: number }[] = [];
       const novosTipos = new Set<string>();
-      for (const row of json) {
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      const monthsSet = new Set<string>();
+      const yearsSet = new Set<number>();
+      const byTipo: Record<string, { count: number; total: number }> = {};
+      let skipped = 0;
+      json.forEach((row, idx) => {
         const monthRaw = String(row[monthCol] ?? '').trim();
-        // Aceita YYYY-MM, MM/YYYY, ou data completa
         let month = '';
         if (/^\d{4}-\d{2}$/.test(monthRaw)) month = monthRaw;
         else if (/^\d{1,2}\/\d{4}$/.test(monthRaw)) {
           const [m, y] = monthRaw.split('/');
           month = `${y}-${m.padStart(2, '0')}`;
-        } else {
+        } else if (monthRaw) {
           const d = new Date(monthRaw);
           if (!isNaN(d.getTime())) month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         }
-        if (!month) continue;
+        if (!month) {
+          skipped++;
+          if (errors.length < 5) errors.push(`Linha ${idx + 2}: mês inválido ("${monthRaw}")`);
+          return;
+        }
+        monthsSet.add(month);
+        yearsSet.add(Number(month.slice(0, 4)));
+        let rowHasValue = false;
         for (const c of cols) {
           if (c === monthCol) continue;
           const tipoKey = normalize(c);
           if (!tipoKey) continue;
           const valor = parseBRNumber(row[c]);
           if (valor === 0) continue;
+          if (Math.abs(valor) > 100_000_000) {
+            warnings.push(`Linha ${idx + 2} (${c}): valor muito alto (${formatBR(valor)})`);
+          }
           items.push({ month, tipo_valor: tipoKey, valor });
+          rowHasValue = true;
           if (!tipos.includes(tipoKey)) novosTipos.add(tipoKey);
+          const agg = byTipo[tipoKey] || { count: 0, total: 0 };
+          agg.count++;
+          agg.total += valor;
+          byTipo[tipoKey] = agg;
         }
-      }
+        if (!rowHasValue) skipped++;
+      });
+
+      const months = Array.from(monthsSet).sort();
+      const conflicts = months.filter(m => uploadMonths.has(m));
+      const closedHit = months.filter(m => closedMonths.has(m));
+
       if (!items.length) {
-        toast.error('Nenhum valor válido encontrado');
+        toast.error('Nenhum valor válido encontrado no arquivo');
         return;
       }
-      await bulkUpsertMut.mutateAsync(items);
-      if (novosTipos.size) setExtraTipos(prev => Array.from(new Set([...prev, ...novosTipos])));
-      toast.success(`${items.length} valores importados`);
-      if (fileRef.current) fileRef.current.value = '';
+
+      setImportPreview({
+        items,
+        novosTipos: Array.from(novosTipos),
+        errors,
+        warnings: warnings.slice(0, 10),
+        skippedRows: skipped,
+        totalRows: json.length,
+        months,
+        years: Array.from(yearsSet).sort(),
+        byTipo,
+        conflicts,
+        closedHit,
+      });
+    } catch (e: any) {
+      toast.error('Erro ao ler arquivo: ' + e.message);
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importPreview) return;
+    try {
+      await bulkUpsertMut.mutateAsync(importPreview.items);
+      if (importPreview.novosTipos.length) {
+        setExtraTipos(prev => Array.from(new Set([...prev, ...importPreview.novosTipos])));
+      }
+      // Expande intervalo de anos e desoculta anos importados
+      if (importPreview.years.length) {
+        const minY = Math.min(...importPreview.years);
+        const maxY = Math.max(...importPreview.years);
+        setYearsRange(r => ({ start: Math.min(r.start, minY), end: Math.max(r.end, maxY) }));
+        setHiddenYears(prev => {
+          const next = new Set(prev);
+          importPreview.years.forEach(y => next.delete(y));
+          try { localStorage.setItem(hiddenYearsStorageKey, JSON.stringify([...next])); } catch {}
+          return next;
+        });
+      }
+      toast.success(`${importPreview.items.length} valores importados`);
+      setImportPreview(null);
     } catch (e: any) {
       toast.error('Erro ao importar: ' + e.message);
     }
