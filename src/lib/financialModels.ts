@@ -12,7 +12,7 @@ export interface FinancialModelTemplateItem {
   id: string;
   template_id: string;
   name: string;
-  tipo: 'entrada' | 'saida';
+  tipo: 'entrada' | 'saida' | 'ignorar';
   impacta_caixa: boolean;
   entra_no_resultado: boolean;
   sort_order: number;
