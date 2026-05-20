@@ -767,10 +767,18 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                               </td>
                             </tr>
                           ))}
-                          })}
                         </tbody>
                       </table>
                     </div>
+
+                    {importPreview.novosTipos.length > 0 && (
+                      <div className="rounded p-2 border border-warning/40 bg-warning/10 text-xs">
+                        <div className="font-semibold text-foreground mb-1">
+                          {importPreview.novosTipos.length} tipo(s) ignorado(s) (não estão no modelo financeiro):
+                        </div>
+                        <div className="text-muted-foreground">{importPreview.novosTipos.join(', ')}</div>
+                      </div>
+                    )}
 
                     {importPreview.errors.length > 0 && (
                       <div className="rounded p-2 border border-destructive/40 bg-destructive/10 text-xs">
