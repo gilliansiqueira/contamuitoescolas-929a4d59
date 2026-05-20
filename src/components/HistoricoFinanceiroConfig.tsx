@@ -494,7 +494,16 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                 <>
                   <tr key={`year-${year}`} className="bg-muted/40">
                     <td className="px-2 py-1.5 font-bold text-primary text-sm sticky left-0 bg-muted/40 z-10">
-                      {year}
+                      <div className="flex items-center justify-between gap-1">
+                        <span>{year}</span>
+                        <button
+                          onClick={() => handleRemoveYear(year)}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                          title={`Remover todos os valores de ${year}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </td>
                     {MONTH_LABELS.map((_, idx) => {
                       const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
@@ -530,18 +539,16 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                   {tipos.map(tipoKey => {
                     let totalRow = 0;
                     return (
-                      <tr key={`${year}-${tipoKey}`} className="border-b border-border/30 hover:bg-muted/20">
+                      <tr key={`${year}-${tipoKey}`} className="border-b border-border/30 hover:bg-muted/20 group">
                         <td className="px-2 py-1 sticky left-0 bg-card hover:bg-muted/20 font-medium text-foreground flex items-center justify-between gap-1 z-10">
                           <span className="truncate" title={labelFor(tipoKey)}>{labelFor(tipoKey)}</span>
-                          {!['receita', 'despesa', 'investimento'].includes(tipoKey) && (
-                            <button
-                              onClick={() => handleRemoveTipo(tipoKey)}
-                              className="text-muted-foreground hover:text-destructive opacity-0 hover:opacity-100 group-hover:opacity-100"
-                              title="Remover tipo"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleRemoveTipo(tipoKey)}
+                            className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remover tipo"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </td>
                         {MONTH_LABELS.map((_, idx) => {
                           const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
