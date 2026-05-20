@@ -192,14 +192,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     return m;
   }, [rows]);
 
-  // Adiciona tipos extras automaticamente se vierem do banco
-  useEffect(() => {
-    const seen = new Set(tipos);
-    const novos = rows
-      .map(r => normalize(r.tipo_valor))
-      .filter(t => !seen.has(t));
-    if (novos.length) setExtraTipos(prev => Array.from(new Set([...prev, ...novos])));
-  }, [rows]); // eslint-disable-line
+  // (removido auto-add de tipos extras — agora o modelo é a única fonte)
 
   const upsertMut = useMutation({
     mutationFn: async (payload: { month: string; tipo_valor: string; valor: number }) => {
