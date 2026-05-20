@@ -571,20 +571,16 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           </div>
         </div>
 
-        {/* Add tipo */}
-        <div className="flex items-center gap-2 pt-3">
-          <input
-            value={newTipoInput}
-            onChange={e => setNewTipoInput(e.target.value)}
-            placeholder='Adicionar tipo (ex: "Pró-labore")'
-            className="flex-1 h-8 text-sm border rounded px-2 bg-background"
-            onKeyDown={e => e.key === 'Enter' && handleAddTipo()}
-          />
-          <Button size="sm" onClick={handleAddTipo}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar
-          </Button>
+        {/* Aviso: tipos vêm do modelo */}
+        <div className="flex items-start gap-2 pt-3">
+          <Info className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Os tipos exibidos são definidos pelo <strong>Modelo Financeiro</strong> aplicado à escola.
+            Para adicionar ou remover tipos, edite o modelo em <em>Configurações → Modelos Financeiros</em>.
+          </p>
         </div>
       </div>
+
 
       {/* Tabela ano × mês */}
       <div className="glass-card rounded-xl p-2 overflow-x-auto">
