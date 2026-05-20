@@ -57,7 +57,22 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   });
   const [extraTipos, setExtraTipos] = useState<string[]>([]);
   const [newTipoInput, setNewTipoInput] = useState('');
-  const [hiddenYears, setHiddenYears] = useState<Set<number>>(new Set());
+  const hiddenYearsStorageKey = `historicoFinanceiro:hiddenYears:${schoolId || 'none'}`;
+  const [hiddenYears, setHiddenYears] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(`historicoFinanceiro:hiddenYears:${schoolId || 'none'}`);
+      if (raw) return new Set(JSON.parse(raw) as number[]);
+    } catch {}
+    return new Set();
+  });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(hiddenYearsStorageKey);
+      setHiddenYears(raw ? new Set(JSON.parse(raw) as number[]) : new Set());
+    } catch {
+      setHiddenYears(new Set());
+    }
+  }, [hiddenYearsStorageKey]);
 
   // Fechamento de períodos (módulo projeção)
   const { isAdmin } = useAuth();
