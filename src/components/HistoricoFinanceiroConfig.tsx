@@ -270,11 +270,6 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   };
 
   const handleRemoveTipo = async (tipoKey: string) => {
-    const base = ['receita', 'despesa', 'investimento'];
-    if (base.includes(tipoKey)) {
-      toast.error('Tipos básicos não podem ser removidos');
-      return;
-    }
     if (!confirm(`Remover tipo "${labelFor(tipoKey)}"? Todos os valores históricos desse tipo serão apagados.`)) return;
     try {
       const { error } = await supabase
@@ -287,6 +282,26 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
       toast.success('Tipo removido');
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const handleRemoveYear = async (year: number) => {
+    if (!confirm(`Remover TODOS os valores do ano ${year}? Esta ação não pode ser desfeita.`)) return;
+    try {
+      const { error } = await supabase
+        .from('historical_monthly' as any)
+        .delete()
+        .eq('school_id', schoolId)
+        .gte('month', `${year}-01`)
+        .lte('month', `${year}-12`);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
+      qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
+      qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
+      onChanged?.();
+      toast.success(`Ano ${year} removido`);
     } catch (e: any) {
       toast.error(e.message);
     }
