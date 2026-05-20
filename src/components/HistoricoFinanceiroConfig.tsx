@@ -329,56 +329,132 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     }
   };
 
+  const [importPreview, setImportPreview] = useState<null | {
+    items: { month: string; tipo_valor: string; valor: number }[];
+    novosTipos: string[];
+    errors: string[];
+    warnings: string[];
+    skippedRows: number;
+    totalRows: number;
+    months: string[];
+    years: number[];
+    byTipo: Record<string, { count: number; total: number }>;
+    conflicts: string[]; // meses já com upload de fluxo
+    closedHit: string[]; // meses fechados
+  }>(null);
+
   const handleImport = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+      if (fileRef.current) fileRef.current.value = '';
       if (!json.length) {
         toast.error('Arquivo vazio');
         return;
       }
-      // Identifica coluna de mês
       const cols = Object.keys(json[0]);
       const monthCol = cols.find(c => normalize(c).match(/^(mes|m[eê]s|month|periodo|per[ií]odo)$/));
       if (!monthCol) {
-        toast.error('Coluna "mês" (YYYY-MM) não encontrada');
+        toast.error('Coluna "mês" (YYYY-MM) não encontrada no arquivo');
         return;
       }
       const items: { month: string; tipo_valor: string; valor: number }[] = [];
       const novosTipos = new Set<string>();
-      for (const row of json) {
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      const monthsSet = new Set<string>();
+      const yearsSet = new Set<number>();
+      const byTipo: Record<string, { count: number; total: number }> = {};
+      let skipped = 0;
+      json.forEach((row, idx) => {
         const monthRaw = String(row[monthCol] ?? '').trim();
-        // Aceita YYYY-MM, MM/YYYY, ou data completa
         let month = '';
         if (/^\d{4}-\d{2}$/.test(monthRaw)) month = monthRaw;
         else if (/^\d{1,2}\/\d{4}$/.test(monthRaw)) {
           const [m, y] = monthRaw.split('/');
           month = `${y}-${m.padStart(2, '0')}`;
-        } else {
+        } else if (monthRaw) {
           const d = new Date(monthRaw);
           if (!isNaN(d.getTime())) month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         }
-        if (!month) continue;
+        if (!month) {
+          skipped++;
+          if (errors.length < 5) errors.push(`Linha ${idx + 2}: mês inválido ("${monthRaw}")`);
+          return;
+        }
+        monthsSet.add(month);
+        yearsSet.add(Number(month.slice(0, 4)));
+        let rowHasValue = false;
         for (const c of cols) {
           if (c === monthCol) continue;
           const tipoKey = normalize(c);
           if (!tipoKey) continue;
           const valor = parseBRNumber(row[c]);
           if (valor === 0) continue;
+          if (Math.abs(valor) > 100_000_000) {
+            warnings.push(`Linha ${idx + 2} (${c}): valor muito alto (${formatBR(valor)})`);
+          }
           items.push({ month, tipo_valor: tipoKey, valor });
+          rowHasValue = true;
           if (!tipos.includes(tipoKey)) novosTipos.add(tipoKey);
+          const agg = byTipo[tipoKey] || { count: 0, total: 0 };
+          agg.count++;
+          agg.total += valor;
+          byTipo[tipoKey] = agg;
         }
-      }
+        if (!rowHasValue) skipped++;
+      });
+
+      const months = Array.from(monthsSet).sort();
+      const conflicts = months.filter(m => uploadMonths.has(m));
+      const closedHit = months.filter(m => closedMonths.has(m));
+
       if (!items.length) {
-        toast.error('Nenhum valor válido encontrado');
+        toast.error('Nenhum valor válido encontrado no arquivo');
         return;
       }
-      await bulkUpsertMut.mutateAsync(items);
-      if (novosTipos.size) setExtraTipos(prev => Array.from(new Set([...prev, ...novosTipos])));
-      toast.success(`${items.length} valores importados`);
-      if (fileRef.current) fileRef.current.value = '';
+
+      setImportPreview({
+        items,
+        novosTipos: Array.from(novosTipos),
+        errors,
+        warnings: warnings.slice(0, 10),
+        skippedRows: skipped,
+        totalRows: json.length,
+        months,
+        years: Array.from(yearsSet).sort(),
+        byTipo,
+        conflicts,
+        closedHit,
+      });
+    } catch (e: any) {
+      toast.error('Erro ao ler arquivo: ' + e.message);
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importPreview) return;
+    try {
+      await bulkUpsertMut.mutateAsync(importPreview.items);
+      if (importPreview.novosTipos.length) {
+        setExtraTipos(prev => Array.from(new Set([...prev, ...importPreview.novosTipos])));
+      }
+      // Expande intervalo de anos e desoculta anos importados
+      if (importPreview.years.length) {
+        const minY = Math.min(...importPreview.years);
+        const maxY = Math.max(...importPreview.years);
+        setYearsRange(r => ({ start: Math.min(r.start, minY), end: Math.max(r.end, maxY) }));
+        setHiddenYears(prev => {
+          const next = new Set(prev);
+          importPreview.years.forEach(y => next.delete(y));
+          try { localStorage.setItem(hiddenYearsStorageKey, JSON.stringify([...next])); } catch {}
+          return next;
+        });
+      }
+      toast.success(`${importPreview.items.length} valores importados`);
+      setImportPreview(null);
     } catch (e: any) {
       toast.error('Erro ao importar: ' + e.message);
     }
@@ -651,6 +727,128 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
             <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
             <AlertDialogAction className="rounded-xl" onClick={handleReopenMonth} disabled={reopenMut.isPending}>
               Reabrir mês
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Preview de importação */}
+      <AlertDialog open={!!importPreview} onOpenChange={o => !o && setImportPreview(null)}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5 text-primary" />
+              Revisar importação
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                {importPreview && (
+                  <>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="bg-muted/40 rounded p-2">
+                        <div className="text-muted-foreground">Linhas no arquivo</div>
+                        <div className="font-bold text-foreground text-base">{importPreview.totalRows}</div>
+                      </div>
+                      <div className="bg-muted/40 rounded p-2">
+                        <div className="text-muted-foreground">Valores a salvar</div>
+                        <div className="font-bold text-primary text-base">{importPreview.items.length}</div>
+                      </div>
+                      <div className="bg-muted/40 rounded p-2">
+                        <div className="text-muted-foreground">Linhas ignoradas</div>
+                        <div className="font-bold text-foreground text-base">{importPreview.skippedRows}</div>
+                      </div>
+                    </div>
+
+                    <div className="text-xs">
+                      <span className="text-muted-foreground">Período: </span>
+                      <span className="font-medium text-foreground">
+                        {importPreview.months[0]} → {importPreview.months[importPreview.months.length - 1]}
+                      </span>
+                      {' • '}
+                      <span className="text-muted-foreground">Anos: </span>
+                      <span className="font-medium text-foreground">{importPreview.years.join(', ')}</span>
+                    </div>
+
+                    <div className="max-h-40 overflow-y-auto border border-border rounded">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted/40 sticky top-0">
+                          <tr>
+                            <th className="text-left px-2 py-1">Tipo</th>
+                            <th className="text-right px-2 py-1">Qtd</th>
+                            <th className="text-right px-2 py-1">Total</th>
+                            <th className="text-center px-2 py-1">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(importPreview.byTipo).map(([k, v]) => {
+                            const isNew = importPreview.novosTipos.includes(k);
+                            return (
+                              <tr key={k} className="border-t border-border/40">
+                                <td className="px-2 py-1 font-medium">{labelFor(k)}</td>
+                                <td className="px-2 py-1 text-right tabular-nums">{v.count}</td>
+                                <td className="px-2 py-1 text-right tabular-nums">{formatBR(v.total)}</td>
+                                <td className="px-2 py-1 text-center">
+                                  {isNew ? (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">novo</span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground">existente</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {importPreview.errors.length > 0 && (
+                      <div className="rounded p-2 border border-destructive/40 bg-destructive/10 text-xs">
+                        <div className="font-semibold text-destructive mb-1">Erros ({importPreview.errors.length}):</div>
+                        <ul className="list-disc list-inside text-foreground space-y-0.5">
+                          {importPreview.errors.map((e, i) => <li key={i}>{e}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {importPreview.warnings.length > 0 && (
+                      <div className="rounded p-2 border border-warning/40 bg-warning/10 text-xs">
+                        <div className="font-semibold text-foreground mb-1">Avisos:</div>
+                        <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                          {importPreview.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {importPreview.conflicts.length > 0 && (
+                      <div className="rounded p-2 border border-warning/40 bg-warning/10 text-xs">
+                        <AlertTriangle className="w-3.5 h-3.5 inline mr-1 text-warning" />
+                        <span className="text-foreground">
+                          {importPreview.conflicts.length} mês(es) já têm upload de Fluxo e serão <strong>ignorados</strong> no Dashboard: {importPreview.conflicts.join(', ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {importPreview.closedHit.length > 0 && (
+                      <div className="rounded p-2 border border-destructive/40 bg-destructive/10 text-xs">
+                        <Lock className="w-3.5 h-3.5 inline mr-1 text-destructive" />
+                        <span className="text-foreground">
+                          {importPreview.closedHit.length} mês(es) estão <strong>fechados</strong>: {importPreview.closedHit.join(', ')}. A gravação será bloqueada {isAdmin ? '(você é admin, será permitido)' : '— reabra antes de importar'}.
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl"
+              onClick={confirmImport}
+              disabled={bulkUpsertMut.isPending || (importPreview?.closedHit.length ? !isAdmin : false)}
+            >
+              {bulkUpsertMut.isPending ? 'Salvando...' : `Confirmar e salvar (${importPreview?.items.length ?? 0})`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
