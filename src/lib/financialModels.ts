@@ -57,8 +57,8 @@ export async function applyTemplateToSchool(schoolId: string, templateId: string
       tipo_valor: tipoValor,
       label: it.name,
       classificacao,
-      entra_no_resultado: it.entra_no_resultado,
-      impacta_caixa: it.impacta_caixa,
+      entra_no_resultado: entraNoResultado,
+      impacta_caixa: impactaCaixa,
       operacao_sinal,
     };
 
