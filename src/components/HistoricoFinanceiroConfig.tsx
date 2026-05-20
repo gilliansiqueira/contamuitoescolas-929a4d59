@@ -652,15 +652,8 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                     let totalRow = 0;
                     return (
                       <tr key={`${year}-${tipoKey}`} className="border-b border-border/30 hover:bg-muted/20 group">
-                        <td className="px-2 py-1 sticky left-0 bg-card hover:bg-muted/20 font-medium text-foreground flex items-center justify-between gap-1 z-10">
-                          <span className="truncate" title={labelFor(tipoKey)}>{labelFor(tipoKey)}</span>
-                          <button
-                            onClick={() => handleRemoveTipo(tipoKey)}
-                            className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Remover tipo"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                        <td className="px-2 py-1 sticky left-0 bg-card hover:bg-muted/20 font-medium text-foreground z-10">
+                          <span className="truncate block" title={labelFor(tipoKey)}>{labelFor(tipoKey)}</span>
                         </td>
                         {MONTH_LABELS.map((_, idx) => {
                           const month = `${year}-${String(idx + 1).padStart(2, '0')}`;
