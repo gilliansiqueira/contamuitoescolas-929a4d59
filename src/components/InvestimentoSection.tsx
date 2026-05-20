@@ -2,11 +2,13 @@ import { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
-import { PiggyBank, Plus, Copy, Trash2, Save } from 'lucide-react';
+import { PiggyBank, Plus, Copy, Trash2, Save, Settings } from 'lucide-react';
 import { InvestimentoCard } from '@/components/InvestimentoCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 interface Props {
