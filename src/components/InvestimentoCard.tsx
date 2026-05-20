@@ -9,6 +9,8 @@ interface Props {
   schoolId: string;
   /** "all" | "YYYY-MM" | "YYYY-MM,YYYY-MM,..." */
   selectedMonth: string;
+  /** Filtra por nome do banco/investimento. Se omitido, agrega todos. */
+  bankName?: string;
 }
 
 interface Row {
@@ -33,8 +35,8 @@ function formatShort(v: number) {
   return formatCurrency(v);
 }
 
-export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
-  const { data: rows = [] } = useQuery({
+export function InvestimentoCard({ schoolId, selectedMonth, bankName }: Props) {
+  const { data: allRows = [] } = useQuery({
     queryKey: ['investment_entries_card', schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -48,6 +50,11 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
     enabled: !!schoolId,
   });
 
+  const rows = useMemo(
+    () => (bankName ? allRows.filter(r => r.nome === bankName) : allRows),
+    [allRows, bankName]
+  );
+
   const selectedMonths = useMemo(() => {
     if (selectedMonth === 'all') return null;
     return new Set(selectedMonth.split(',').map(s => s.trim()).filter(Boolean));
@@ -58,7 +65,6 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
     return rows.filter(r => selectedMonths.has(r.month));
   }, [rows, selectedMonths]);
 
-  // Agrega por mês (soma de todos os investimentos do mesmo mês)
   const monthly = useMemo(() => {
     const map = new Map<string, {
       month: string; aplicacao: number; resgate: number; rendimentos: number;
@@ -81,9 +87,7 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
   }, [filtered]);
 
   const totals = useMemo(() => {
-    const t = {
-      investido: 0, resgatado: 0, rendimento: 0, encargos: 0, provisionado: 0, acumulado: 0,
-    };
+    const t = { investido: 0, resgatado: 0, rendimento: 0, encargos: 0, provisionado: 0, acumulado: 0 };
     for (const m of monthly) {
       t.investido += m.aplicacao;
       t.resgatado += m.resgate;
@@ -99,7 +103,6 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
   const rentabilidade = totals.investido > 0 ? (rendimentoLiquido / totals.investido) * 100 : 0;
   const positivo = rendimentoLiquido >= 0;
 
-  // Gráfico sempre exibe TODOS os meses (visão histórica), independente do filtro
   const allMonthly = useMemo(() => {
     const map = new Map<string, { month: string; saldo: number; aplicacao: number; rendimento: number }>();
     for (const r of rows) {
@@ -121,6 +124,7 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
   })), [allMonthly]);
 
   const hasData = chartData.length > 0;
+  const title = bankName || 'Investimentos';
 
   return (
     <motion.div
@@ -129,14 +133,13 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
       transition={{ duration: 0.4 }}
       className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-primary/10 via-background to-accent/5 p-6 shadow-lg"
     >
-      {/* Glow decorativo */}
       <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-accent/10 blur-3xl" />
 
       <div className="relative flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            <PiggyBank className="w-4 h-4" /> Investimentos
+            <PiggyBank className="w-4 h-4" /> {title}
           </div>
           <div className="mt-2 text-4xl font-bold tabular-nums tracking-tight">
             {formatCurrency(totals.acumulado)}
@@ -156,7 +159,6 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
         </div>
       </div>
 
-      {/* Métricas */}
       <div className="relative mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
         <Metric icon={<ArrowUpRight className="w-3.5 h-3.5" />} label="Total Investido" value={formatShort(totals.investido)} tone="primary" />
         <Metric icon={<Wallet className="w-3.5 h-3.5" />} label="Rendimento" value={formatShort(rendimentoLiquido)} tone={positivo ? 'positive' : 'negative'} />
@@ -164,13 +166,12 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
         <Metric icon={<PiggyBank className="w-3.5 h-3.5" />} label="Acumulado" value={formatShort(totals.acumulado)} tone="muted" />
       </div>
 
-      {/* Gráfico */}
       <div className="relative mt-6 h-48">
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
               <defs>
-                <linearGradient id="invSaldoGrad" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={`invSaldoGrad-${(bankName || 'all').replace(/\s+/g,'_')}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.45} />
                   <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                 </linearGradient>
@@ -193,7 +194,7 @@ export function InvestimentoCard({ schoolId, selectedMonth }: Props) {
                 formatter={(v: any, k: string) => [formatCurrency(Number(v)), k === 'saldo' ? 'Saldo' : k === 'aplicacao' ? 'Aplicação' : 'Rendimento']}
                 labelFormatter={(l) => `Mês ${l}`}
               />
-              <Area type="monotone" dataKey="saldo" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#invSaldoGrad)" />
+              <Area type="monotone" dataKey="saldo" stroke="hsl(var(--primary))" strokeWidth={2.5} fill={`url(#invSaldoGrad-${(bankName || 'all').replace(/\s+/g,'_')})`} />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
