@@ -313,7 +313,12 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         .gte('month', `${year}-01`)
         .lte('month', `${year}-12`);
       if (error) throw error;
-      setHiddenYears(prev => new Set(prev).add(year));
+      setHiddenYears(prev => {
+        const next = new Set(prev);
+        next.add(year);
+        try { localStorage.setItem(hiddenYearsStorageKey, JSON.stringify([...next])); } catch {}
+        return next;
+      });
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
       qc.invalidateQueries({ queryKey: ['availableMonths', schoolId] });
       qc.invalidateQueries({ queryKey: ['fluxoTipos', schoolId] });
