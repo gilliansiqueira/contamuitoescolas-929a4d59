@@ -425,7 +425,9 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     try {
       await bulkUpsertMut.mutateAsync(importPreview.items);
       if (importPreview.novosTipos.length) {
-        setExtraTipos(prev => Array.from(new Set([...prev, ...importPreview.novosTipos])));
+        toast.warning(
+          `${importPreview.novosTipos.length} tipo(s) ignorado(s) por não estarem no modelo: ${importPreview.novosTipos.join(', ')}`
+        );
       }
       // Expande intervalo de anos e desoculta anos importados
       if (importPreview.years.length) {
