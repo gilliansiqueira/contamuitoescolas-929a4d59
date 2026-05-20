@@ -418,6 +418,74 @@ export type Database = {
           },
         ]
       }
+      financial_model_template_items: {
+        Row: {
+          created_at: string
+          entra_no_resultado: boolean
+          id: string
+          impacta_caixa: boolean
+          name: string
+          sort_order: number
+          template_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          entra_no_resultado?: boolean
+          id?: string
+          impacta_caixa?: boolean
+          name: string
+          sort_order?: number
+          template_id: string
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          entra_no_resultado?: boolean
+          id?: string
+          impacta_caixa?: boolean
+          name?: string
+          sort_order?: number
+          template_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_model_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "financial_model_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_model_templates: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_system: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_system?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_system?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       historical_monthly: {
         Row: {
           created_at: string
@@ -1547,6 +1615,7 @@ export type Database = {
       schools: {
         Row: {
           created_at: string
+          financial_model_template_id: string | null
           id: string
           nome: string
           saldo_inicial: number
@@ -1554,6 +1623,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          financial_model_template_id?: string | null
           id?: string
           nome: string
           saldo_inicial?: number
@@ -1561,12 +1631,21 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          financial_model_template_id?: string | null
           id?: string
           nome?: string
           saldo_inicial?: number
           saldo_inicial_data?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "schools_financial_model_template_id_fkey"
+            columns: ["financial_model_template_id"]
+            isOneToOne: false
+            referencedRelation: "financial_model_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       simulation_entries: {
         Row: {
@@ -1603,6 +1682,89 @@ export type Database = {
           valor?: number
         }
         Relationships: []
+      }
+      simulation_monthly_quantities: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          product_id: string
+          quantity: number
+          school_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          product_id: string
+          quantity?: number
+          school_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          product_id?: string
+          quantity?: number
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_monthly_quantities_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_monthly_quantities_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_products: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          parcelas: number
+          school_id: string
+          sort_order: number
+          updated_at: string
+          valor_unitario: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome?: string
+          parcelas?: number
+          school_id: string
+          sort_order?: number
+          updated_at?: string
+          valor_unitario?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          parcelas?: number
+          school_id?: string
+          sort_order?: number
+          updated_at?: string
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_products_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       type_classifications: {
         Row: {

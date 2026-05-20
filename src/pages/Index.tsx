@@ -27,6 +27,8 @@ import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
 import { UsersConfig } from '@/components/UsersConfig';
 import { HistoricoFinanceiroConfig } from '@/components/HistoricoFinanceiroConfig';
+import { ModelosFinanceirosManager } from '@/components/ModelosFinanceirosManager';
+import { EmpresaModeloConfig } from '@/components/EmpresaModeloConfig';
 import { Button } from '@/components/ui/button';
 
 import { RealizadoModule } from '@/components/realizado/RealizadoModule';
@@ -40,7 +42,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -59,6 +61,8 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
   { key: 'users', label: 'Usuários', adminOnly: true },
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
   { key: 'type_classification', label: 'Classificação de Tipos' },
+  { key: 'empresa_modelo', label: 'Modelo da Empresa' },
+  { key: 'modelos_financeiros', label: 'Modelos Financeiros (Templates)', adminOnly: true },
   { key: 'historico_financeiro', label: 'Histórico Financeiro' },
   { key: 'payment_delays', label: 'Prazos de Cobrança' },
   { key: 'upload', label: 'Upload de Dados' },
@@ -258,6 +262,9 @@ const Index = () => {
                 {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
                 {activeTab === 'users' && <UsersConfig />}
                 {activeTab === 'historico_financeiro' && <HistoricoFinanceiroConfig schoolId={school.id} onChanged={refresh} />}
+                {activeTab === 'modelos_financeiros' && <ModelosFinanceirosManager />}
+                {activeTab === 'empresa_modelo' && <EmpresaModeloConfig schoolId={school.id} onChanged={refresh} />}
+                
                 
               </motion.div>
             </AnimatePresence>
