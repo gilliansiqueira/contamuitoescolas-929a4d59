@@ -108,6 +108,8 @@ export function VendasDashboard({ schoolId }: Props) {
       <div className="pt-4 border-t border-border">
         <VendasTable schoolId={schoolId} defaultYear={selectedYear} availableYears={availableYears} />
       </div>
+
+      <ImportacaoVendas schoolId={schoolId} open={showImport} onClose={() => setShowImport(false)} />
     </div>
   );
 }
