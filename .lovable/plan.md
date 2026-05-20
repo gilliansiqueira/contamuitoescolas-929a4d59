@@ -1,77 +1,130 @@
-# Plano de execução
+# Plano — Modelos Financeiros + Simulação Planilha
 
-Vou entregar em 4 blocos independentes pra você poder testar cada um antes do próximo. Tudo respeita os filtros multi-mês já existentes (`SingleMonthPicker` em modo multi) e os módulos atuais de Projeção vs Realizado (sem misturar lógica).
-
----
-
-## Bloco 1 — Card de Investimentos (Dashboard da Projeção)
-
-**Objetivo:** card moderno estilo app de banco, com gráfico de área e métricas vivas.
-
-- Reescrever `src/components/InvestimentoSection.tsx` (ou criar `InvestimentoCard.tsx` consumido no `Dashboard.tsx`).
-- Gráfico de **área (Recharts `AreaChart`)** com gradiente, evolução mês a mês do **saldo acumulado**.
-- Métricas no topo do card:
-  - Total Investido = Σ `aplicacao`
-  - Total Resgatado = Σ `resgate` (secundário, pequeno)
-  - Rendimento = Σ `rendimentos` + Σ `rendimento_provisionado` − Σ `encargos`
-  - Rentabilidade % = Rendimento / Total Investido
-  - Valor Total Acumulado = último `saldo_final` do período
-- Respeita os filtros globais do Dashboard (multi-mês). Recalcula via `useMemo` a partir de `investment_entries` filtrado.
-- Sem mudança de schema — a tabela `investment_entries` já tem todos os campos.
-
-## Bloco 2 — Categorias e Tipos Financeiros (CRUD + modelos base)
-
-**Objetivo:** gerir categorias usadas em Histórico Financeiro (projeção) e Fechamento (realizado).
-
-- Tela única `CategoriasManager` acessível em **Configurações**, com abas:
-  - **Histórico Financeiro** → CRUD em `historical_monthly.tipo_valor` (via tabela auxiliar nova `historical_tipos` pra permitir editar/renomear sem perder vínculo).
-  - **Plano de Contas** → já existe (`chart_of_accounts`), só adicionar atalho.
-- Migration:
-  - Nova tabela `historical_tipos (id, school_id, nome, grupo, sort_order, ativo)` com RLS por escola.
-  - Seed automático por escola com os modelos base: **Receitas, Despesas, Distribuição de Lucros, Investimentos, Impostos, Custos Fixos, Custos Variáveis, Outros**.
-- Renomear categoria atualiza referências em `historical_monthly` via update em lote.
-- Excluir categoria pede confirmação se houver dados vinculados (mantém histórico, só desativa).
-
-## Bloco 3 — Históricos editáveis (Vendas / Indicadores / Conversão)
-
-**Objetivo:** dar CRUD + import por planilha + filtros em cada um.
-
-Em **Relatório Realizado**, adicionar sub-aba **"Histórico"** dentro de cada módulo:
-
-- **Vendas** (`monthly_revenue` e/ou `sales_analysis_orders` — confirmar com você qual é o alvo de "vendas" antes de mexer; meu padrão será `sales_analysis_orders` por ser o registro detalhado).
-- **Indicadores** (`kpi_values`): tabela editável mês × KPI, com import CSV (colunas: mês, kpi_nome, valor).
-- **Conversão** (`conversion_data`): tabela editável com contatos/matrículas por mês e tipo.
-
-Cada histórico ganha:
-- Filtro multi-mês (mesmo `SingleMonthPicker multi`).
-- Campo de busca.
-- Edição inline + exclusão.
-- Botão "Importar planilha" reutilizando o fluxo de 3 passos do `ImportacaoRealizado`.
-
-Sem schema novo (tabelas já existem).
-
-## Bloco 4 — Simulação por mês (colunas)
-
-**Objetivo:** transformar a aba Simulação numa matriz de meses em colunas.
-
-- Reescrever `src/components/Simulation.tsx`:
-  - Linhas: campos editáveis (Nº Vendas/Matrículas, Ticket Médio, Nº Parcelas).
-  - Colunas: meses selecionados no filtro multi-mês.
-  - Linhas calculadas (read-only): Total Vendido, Valor Parcela, **Projetado a Receber por mês** (distribuído pelas parcelas a partir do mês da venda), **Projetado a Pagar** (puxado de `financial_entries` projetado já existente — não simula despesa nova), **Resultado**.
-- Persistência: nova tabela `simulation_monthly (school_id, scenario_id, month, vendas, ticket, parcelas)` com RLS.
-- Resultado da simulação **soma** com a projeção existente nos dashboards (flag `origem='simulacao'` já existe em `FinancialEntry`).
+Dois blocos independentes. Execução em ordem: A → B.
 
 ---
 
-## Ordem sugerida de execução
+## Bloco A — Modelos Financeiros (templates de tipos)
 
-1. Bloco 1 (rápido, visual, baixo risco) ✅
-2. Bloco 4 (simulação) — é o que mais muda fluxo, melhor cedo
-3. Bloco 2 (categorias)
-4. Bloco 3 (históricos CRUD) — maior em volume de UI
+### Conceito
+- **Modelo global** = template reutilizável (ex.: Escola, Clínica, SaaS, Personalizado), compartilhado entre todas as empresas.
+- **Empresa** = ao escolher um modelo, recebe uma **cópia independente** dos itens. Pode editar/excluir/adicionar livremente, sem afetar o template original nem outras empresas.
+- Fonte única de classificação no Histórico Financeiro: a lista da própria empresa (que hoje já é `type_classifications` por `school_id`).
 
-## Perguntas antes de começar
+### Banco de dados (migration)
 
-1. Em **Bloco 3 / Vendas**, o "histórico de vendas" é o `sales_analysis_orders` (pedidos detalhados) ou o `monthly_revenue` (faturamento mensal agregado)?
-2. Em **Bloco 4**, a Simulação deve substituir a tela atual (matrículas/ticket/inadimplência em campos únicos) ou conviver como nova aba "Simulação por mês"?
-3. Posso começar pelo **Bloco 1** já enquanto você responde 1 e 2?
+Novas tabelas globais (sem `school_id`):
+
+```sql
+financial_model_templates
+  id, name, description, is_system (bool), created_at
+
+financial_model_template_items
+  id, template_id, name, tipo ('entrada'|'saida'),
+  impacta_caixa (bool), entra_no_resultado (bool), sort_order
+```
+
+RLS: SELECT público autenticado; INSERT/UPDATE/DELETE só `is_admin()`. Templates `is_system=true` não podem ser excluídos.
+
+Adicionar à tabela `schools`:
+```sql
+ALTER TABLE schools ADD COLUMN financial_model_template_id uuid NULL;
+```
+
+Seed dos 4 templates base (Escola / Clínica / SaaS / Personalizado vazio) com itens default conhecidos (Receita, Despesa, Aporte, Distribuição de Lucros, etc.).
+
+### Aplicar modelo na empresa
+Função client-side `applyTemplateToSchool(schoolId, templateId)`:
+1. Lê `financial_model_template_items` do template.
+2. Para cada item, faz upsert em `type_classifications` com:
+   - `tipoValor = nome` (key normalizado)
+   - `label = nome`
+   - `classificacao = 'receita'|'despesa'|'operacao'` (entrada+entraResultado=receita; saída+entraResultado=despesa; senão operacao)
+   - `entraNoResultado`, `impactaCaixa` conforme item
+3. **Não apaga** o que já existe na empresa (apenas adiciona/atualiza por chave). Após cópia, a empresa fica 100% independente.
+
+### UI
+
+**1. Configurações > Modelos Financeiros** (nova rota/aba dentro do menu Configurações, ao lado de "Histórico Financeiro"):
+- `src/components/ModelosFinanceirosManager.tsx`
+- Lista de templates com ações: Criar / Editar / Duplicar / Excluir (admin).
+- Editor do template: nome + tabela inline de itens (Nome | Tipo | Impacta saldo | Entra no resultado) com add/edit/delete por linha.
+
+**2. SchoolSelector / Cadastro de Empresa**:
+- Adicionar `<Select>` "Modelo Financeiro" ao criar/editar escola.
+- Botão "Aplicar modelo agora" que chama `applyTemplateToSchool` (com confirmação).
+
+**3. Histórico Financeiro** (`HistoricoFinanceiroConfig.tsx` + telas que usam `tipo_valor`):
+- Verificar que o dropdown de tipo já lê de `type_classifications` da escola atual. Se houver algum hard-code, remover.
+
+---
+
+## Bloco B — Simulação como planilha matricial
+
+Substituir o `Simulation.tsx` atual (matriz com linhas Nº Vendas/Ticket/Parcelas) por um grid Excel-like **por produto**.
+
+### Schema (migration)
+
+```sql
+simulation_products
+  id, school_id, nome, valor_unitario numeric, parcelas int,
+  sort_order, created_at, updated_at
+
+simulation_monthly_quantities
+  id, school_id, product_id, month text ('YYYY-MM'),
+  quantity int, UNIQUE(product_id, month)
+```
+
+RLS padrão: `is_admin() OR user_has_school_access(auth.uid(), school_id)`.
+
+### UI — `src/components/Simulation.tsx` (rewrite)
+
+Tabela com scroll horizontal, primeiras 3 colunas fixas (sticky):
+
+```
+Produto        | Valor   | Parcelas | Jan | Fev | Mar | ... | Dez
+Curso X        | 3.000   | 6        |  20 |  50 |  15 | ... |
+[+ Adicionar produto]
+```
+
+Linhas:
+- **Editáveis**: nome, valor, parcelas, quantidades por mês.
+- Botão remover por linha.
+- Botão "Adicionar produto" no final.
+- Persistência: debounce save por célula (upsert em `simulation_monthly_quantities`).
+
+### Cálculo de recebimento
+
+Para cada produto:
+- `totalVendidoMes = quantidade[m] * valor_unitario`
+- `parcelaValor = totalVendidoMes / parcelas`
+- Distribui `parcelaValor` em `m, m+1, ..., m+parcelas-1` (1ª parcela no próprio mês da venda).
+- Soma de **todas as parcelas de todos os produtos** por mês = `receita_simulada[mes]`.
+
+### Quadro de consolidação (abaixo da tabela)
+
+```
+Mês       | Projeção (sistema) | Simulação | Total
+Jan 26    | R$ 100.000         | R$ 25.000 | R$ 125.000
+...
+```
+
+- `Projeção (sistema)` = soma de `financial_entries` (tipo_registro='projetado', tipo='entrada') do mês.
+- `Simulação` = `receita_simulada[mes]` calculado acima.
+- **Simulação NÃO grava em `financial_entries`** — fica isolada, apenas visualização. (atende "não impacta nas outras abas").
+
+### Filtro de meses
+Reusa o `MonthSelector` multi-mês existente: filtra colunas exibidas e linhas do quadro de consolidação.
+
+---
+
+## Ordem de entrega
+1. Migration Bloco A (tabelas + seed templates).
+2. UI Modelos Financeiros + aplicar-na-empresa.
+3. Migration Bloco B (tabelas simulação).
+4. Rewrite `Simulation.tsx` (grid + consolidação).
+
+## Fora de escopo
+- Não mexer em outras abas/dashboards além do `Simulation.tsx`.
+- Não alterar como `type_classifications` é consumida hoje (só garantir que continua sendo a fonte).
+- Sem migração automática dos dados antigos da simulação anterior (será descartada).
