@@ -314,18 +314,22 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   };
 
   const [importPreview, setImportPreview] = useState<null | {
-    items: { month: string; tipo_valor: string; valor: number }[];
-    novosTipos: string[];
+    baseItems: { month: string; tipo_valor: string; valor: number }[];
+    unknownItems: { month: string; originalKey: string; originalLabel: string; valor: number }[];
+    unknownLabels: Record<string, string>; // originalKey -> originalLabel
+    unknownTotals: Record<string, { count: number; total: number }>;
     errors: string[];
     warnings: string[];
     skippedRows: number;
     totalRows: number;
     months: string[];
     years: number[];
-    byTipo: Record<string, { count: number; total: number }>;
-    conflicts: string[]; // meses já com upload de fluxo
-    closedHit: string[]; // meses fechados
+    conflicts: string[];
+    closedHit: string[];
   }>(null);
+
+  // mapping: originalKey -> modelKey | "__ignore__" | "" (não decidido)
+  const [unknownMapping, setUnknownMapping] = useState<Record<string, string>>({});
 
   const handleImport = async (file: File) => {
     try {
@@ -344,13 +348,14 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         toast.error('Coluna "mês" (YYYY-MM) não encontrada no arquivo');
         return;
       }
-      const items: { month: string; tipo_valor: string; valor: number }[] = [];
-      const novosTipos = new Set<string>();
+      const baseItems: { month: string; tipo_valor: string; valor: number }[] = [];
+      const unknownItems: { month: string; originalKey: string; originalLabel: string; valor: number }[] = [];
+      const unknownLabels: Record<string, string> = {};
+      const unknownTotals: Record<string, { count: number; total: number }> = {};
       const errors: string[] = [];
       const warnings: string[] = [];
       const monthsSet = new Set<string>();
       const yearsSet = new Set<number>();
-      const byTipo: Record<string, { count: number; total: number }> = {};
       let skipped = 0;
       json.forEach((row, idx) => {
         const monthRaw = String(row[monthCol] ?? '').trim();
@@ -377,44 +382,49 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           if (!tipoKey) continue;
           const valor = parseBRNumber(row[c]);
           if (valor === 0) continue;
-          // Tipo precisa existir no modelo financeiro da escola
-          if (!tipos.includes(tipoKey)) {
-            novosTipos.add(tipoKey); // reaproveitado: lista de rejeitados (fora do modelo)
-            continue;
-          }
           if (Math.abs(valor) > 100_000_000) {
             warnings.push(`Linha ${idx + 2} (${c}): valor muito alto (${formatBR(valor)})`);
           }
-          items.push({ month, tipo_valor: tipoKey, valor });
+          if (tipos.includes(tipoKey)) {
+            baseItems.push({ month, tipo_valor: tipoKey, valor });
+          } else {
+            unknownItems.push({ month, originalKey: tipoKey, originalLabel: c, valor });
+            unknownLabels[tipoKey] = c;
+            const agg = unknownTotals[tipoKey] || { count: 0, total: 0 };
+            agg.count++;
+            agg.total += valor;
+            unknownTotals[tipoKey] = agg;
+          }
           rowHasValue = true;
-          const agg = byTipo[tipoKey] || { count: 0, total: 0 };
-          agg.count++;
-          agg.total += valor;
-          byTipo[tipoKey] = agg;
         }
         if (!rowHasValue) skipped++;
       });
-
 
       const months = Array.from(monthsSet).sort();
       const conflicts = months.filter(m => uploadMonths.has(m));
       const closedHit = months.filter(m => closedMonths.has(m));
 
-      if (!items.length) {
+      if (!baseItems.length && !unknownItems.length) {
         toast.error('Nenhum valor válido encontrado no arquivo');
         return;
       }
 
+      // Inicializa mapping: tenta auto-match por nome normalizado já feito (sem match).
+      const initialMapping: Record<string, string> = {};
+      Object.keys(unknownTotals).forEach(k => { initialMapping[k] = ''; });
+      setUnknownMapping(initialMapping);
+
       setImportPreview({
-        items,
-        novosTipos: Array.from(novosTipos),
+        baseItems,
+        unknownItems,
+        unknownLabels,
+        unknownTotals,
         errors,
         warnings: warnings.slice(0, 10),
         skippedRows: skipped,
         totalRows: json.length,
         months,
         years: Array.from(yearsSet).sort(),
-        byTipo,
         conflicts,
         closedHit,
       });
@@ -423,16 +433,50 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     }
   };
 
+  // Itens efetivos = baseItems + unknownItems mapeados
+  const effectiveImport = useMemo(() => {
+    if (!importPreview) return { items: [] as { month: string; tipo_valor: string; valor: number }[], byTipo: {} as Record<string, { count: number; total: number }>, unmapped: [] as string[], ignored: [] as string[], mapped: [] as string[] };
+    const items = [...importPreview.baseItems];
+    const byTipo: Record<string, { count: number; total: number }> = {};
+    for (const it of importPreview.baseItems) {
+      const agg = byTipo[it.tipo_valor] || { count: 0, total: 0 };
+      agg.count++; agg.total += it.valor;
+      byTipo[it.tipo_valor] = agg;
+    }
+    const unmapped: string[] = [];
+    const ignored: string[] = [];
+    const mapped: string[] = [];
+    const unknownKeys = Object.keys(importPreview.unknownTotals);
+    for (const k of unknownKeys) {
+      const target = unknownMapping[k];
+      if (!target) { unmapped.push(k); continue; }
+      if (target === '__ignore__') { ignored.push(k); continue; }
+      mapped.push(k);
+    }
+    for (const u of importPreview.unknownItems) {
+      const target = unknownMapping[u.originalKey];
+      if (!target || target === '__ignore__') continue;
+      items.push({ month: u.month, tipo_valor: target, valor: u.valor });
+      const agg = byTipo[target] || { count: 0, total: 0 };
+      agg.count++; agg.total += u.valor;
+      byTipo[target] = agg;
+    }
+    return { items, byTipo, unmapped, ignored, mapped };
+  }, [importPreview, unknownMapping]);
+
   const confirmImport = async () => {
     if (!importPreview) return;
+    if (effectiveImport.unmapped.length > 0) {
+      toast.error('Mapeie ou ignore todos os tipos fora do modelo antes de importar.');
+      return;
+    }
     try {
-      await bulkUpsertMut.mutateAsync(importPreview.items);
-      if (importPreview.novosTipos.length) {
+      await bulkUpsertMut.mutateAsync(effectiveImport.items);
+      if (effectiveImport.ignored.length) {
         toast.warning(
-          `${importPreview.novosTipos.length} tipo(s) ignorado(s) por não estarem no modelo: ${importPreview.novosTipos.join(', ')}`
+          `${effectiveImport.ignored.length} tipo(s) ignorado(s): ${effectiveImport.ignored.map(k => importPreview.unknownLabels[k] || k).join(', ')}`
         );
       }
-      // Expande intervalo de anos e desoculta anos importados
       if (importPreview.years.length) {
         const minY = Math.min(...importPreview.years);
         const maxY = Math.max(...importPreview.years);
@@ -444,12 +488,14 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           return next;
         });
       }
-      toast.success(`${importPreview.items.length} valores importados`);
+      toast.success(`${effectiveImport.items.length} valores importados`);
       setImportPreview(null);
+      setUnknownMapping({});
     } catch (e: any) {
       toast.error('Erro ao importar: ' + e.message);
     }
   };
+
 
   const handleExportTemplate = () => {
     const header = ['mes', ...tipos.map(labelFor)];
