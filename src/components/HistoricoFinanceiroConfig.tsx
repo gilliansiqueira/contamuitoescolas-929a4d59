@@ -6,6 +6,9 @@ import { History, Upload, Trash2, Download, Info, AlertTriangle, Lock, Unlock } 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
@@ -311,18 +314,22 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   };
 
   const [importPreview, setImportPreview] = useState<null | {
-    items: { month: string; tipo_valor: string; valor: number }[];
-    novosTipos: string[];
+    baseItems: { month: string; tipo_valor: string; valor: number }[];
+    unknownItems: { month: string; originalKey: string; originalLabel: string; valor: number }[];
+    unknownLabels: Record<string, string>; // originalKey -> originalLabel
+    unknownTotals: Record<string, { count: number; total: number }>;
     errors: string[];
     warnings: string[];
     skippedRows: number;
     totalRows: number;
     months: string[];
     years: number[];
-    byTipo: Record<string, { count: number; total: number }>;
-    conflicts: string[]; // meses já com upload de fluxo
-    closedHit: string[]; // meses fechados
+    conflicts: string[];
+    closedHit: string[];
   }>(null);
+
+  // mapping: originalKey -> modelKey | "__ignore__" | "" (não decidido)
+  const [unknownMapping, setUnknownMapping] = useState<Record<string, string>>({});
 
   const handleImport = async (file: File) => {
     try {
@@ -341,13 +348,14 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         toast.error('Coluna "mês" (YYYY-MM) não encontrada no arquivo');
         return;
       }
-      const items: { month: string; tipo_valor: string; valor: number }[] = [];
-      const novosTipos = new Set<string>();
+      const baseItems: { month: string; tipo_valor: string; valor: number }[] = [];
+      const unknownItems: { month: string; originalKey: string; originalLabel: string; valor: number }[] = [];
+      const unknownLabels: Record<string, string> = {};
+      const unknownTotals: Record<string, { count: number; total: number }> = {};
       const errors: string[] = [];
       const warnings: string[] = [];
       const monthsSet = new Set<string>();
       const yearsSet = new Set<number>();
-      const byTipo: Record<string, { count: number; total: number }> = {};
       let skipped = 0;
       json.forEach((row, idx) => {
         const monthRaw = String(row[monthCol] ?? '').trim();
@@ -374,44 +382,49 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           if (!tipoKey) continue;
           const valor = parseBRNumber(row[c]);
           if (valor === 0) continue;
-          // Tipo precisa existir no modelo financeiro da escola
-          if (!tipos.includes(tipoKey)) {
-            novosTipos.add(tipoKey); // reaproveitado: lista de rejeitados (fora do modelo)
-            continue;
-          }
           if (Math.abs(valor) > 100_000_000) {
             warnings.push(`Linha ${idx + 2} (${c}): valor muito alto (${formatBR(valor)})`);
           }
-          items.push({ month, tipo_valor: tipoKey, valor });
+          if (tipos.includes(tipoKey)) {
+            baseItems.push({ month, tipo_valor: tipoKey, valor });
+          } else {
+            unknownItems.push({ month, originalKey: tipoKey, originalLabel: c, valor });
+            unknownLabels[tipoKey] = c;
+            const agg = unknownTotals[tipoKey] || { count: 0, total: 0 };
+            agg.count++;
+            agg.total += valor;
+            unknownTotals[tipoKey] = agg;
+          }
           rowHasValue = true;
-          const agg = byTipo[tipoKey] || { count: 0, total: 0 };
-          agg.count++;
-          agg.total += valor;
-          byTipo[tipoKey] = agg;
         }
         if (!rowHasValue) skipped++;
       });
-
 
       const months = Array.from(monthsSet).sort();
       const conflicts = months.filter(m => uploadMonths.has(m));
       const closedHit = months.filter(m => closedMonths.has(m));
 
-      if (!items.length) {
+      if (!baseItems.length && !unknownItems.length) {
         toast.error('Nenhum valor válido encontrado no arquivo');
         return;
       }
 
+      // Inicializa mapping: tenta auto-match por nome normalizado já feito (sem match).
+      const initialMapping: Record<string, string> = {};
+      Object.keys(unknownTotals).forEach(k => { initialMapping[k] = ''; });
+      setUnknownMapping(initialMapping);
+
       setImportPreview({
-        items,
-        novosTipos: Array.from(novosTipos),
+        baseItems,
+        unknownItems,
+        unknownLabels,
+        unknownTotals,
         errors,
         warnings: warnings.slice(0, 10),
         skippedRows: skipped,
         totalRows: json.length,
         months,
         years: Array.from(yearsSet).sort(),
-        byTipo,
         conflicts,
         closedHit,
       });
@@ -420,16 +433,50 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     }
   };
 
+  // Itens efetivos = baseItems + unknownItems mapeados
+  const effectiveImport = useMemo(() => {
+    if (!importPreview) return { items: [] as { month: string; tipo_valor: string; valor: number }[], byTipo: {} as Record<string, { count: number; total: number }>, unmapped: [] as string[], ignored: [] as string[], mapped: [] as string[] };
+    const items = [...importPreview.baseItems];
+    const byTipo: Record<string, { count: number; total: number }> = {};
+    for (const it of importPreview.baseItems) {
+      const agg = byTipo[it.tipo_valor] || { count: 0, total: 0 };
+      agg.count++; agg.total += it.valor;
+      byTipo[it.tipo_valor] = agg;
+    }
+    const unmapped: string[] = [];
+    const ignored: string[] = [];
+    const mapped: string[] = [];
+    const unknownKeys = Object.keys(importPreview.unknownTotals);
+    for (const k of unknownKeys) {
+      const target = unknownMapping[k];
+      if (!target) { unmapped.push(k); continue; }
+      if (target === '__ignore__') { ignored.push(k); continue; }
+      mapped.push(k);
+    }
+    for (const u of importPreview.unknownItems) {
+      const target = unknownMapping[u.originalKey];
+      if (!target || target === '__ignore__') continue;
+      items.push({ month: u.month, tipo_valor: target, valor: u.valor });
+      const agg = byTipo[target] || { count: 0, total: 0 };
+      agg.count++; agg.total += u.valor;
+      byTipo[target] = agg;
+    }
+    return { items, byTipo, unmapped, ignored, mapped };
+  }, [importPreview, unknownMapping]);
+
   const confirmImport = async () => {
     if (!importPreview) return;
+    if (effectiveImport.unmapped.length > 0) {
+      toast.error('Mapeie ou ignore todos os tipos fora do modelo antes de importar.');
+      return;
+    }
     try {
-      await bulkUpsertMut.mutateAsync(importPreview.items);
-      if (importPreview.novosTipos.length) {
+      await bulkUpsertMut.mutateAsync(effectiveImport.items);
+      if (effectiveImport.ignored.length) {
         toast.warning(
-          `${importPreview.novosTipos.length} tipo(s) ignorado(s) por não estarem no modelo: ${importPreview.novosTipos.join(', ')}`
+          `${effectiveImport.ignored.length} tipo(s) ignorado(s): ${effectiveImport.ignored.map(k => importPreview.unknownLabels[k] || k).join(', ')}`
         );
       }
-      // Expande intervalo de anos e desoculta anos importados
       if (importPreview.years.length) {
         const minY = Math.min(...importPreview.years);
         const maxY = Math.max(...importPreview.years);
@@ -441,12 +488,14 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
           return next;
         });
       }
-      toast.success(`${importPreview.items.length} valores importados`);
+      toast.success(`${effectiveImport.items.length} valores importados`);
       setImportPreview(null);
+      setUnknownMapping({});
     } catch (e: any) {
       toast.error('Erro ao importar: ' + e.message);
     }
   };
+
 
   const handleExportTemplate = () => {
     const header = ['mes', ...tipos.map(labelFor)];
@@ -738,7 +787,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                       </div>
                       <div className="bg-muted/40 rounded p-2">
                         <div className="text-muted-foreground">Valores a salvar</div>
-                        <div className="font-bold text-primary text-base">{importPreview.items.length}</div>
+                        <div className="font-bold text-primary text-base">{effectiveImport.items.length}</div>
                       </div>
                       <div className="bg-muted/40 rounded p-2">
                         <div className="text-muted-foreground">Linhas ignoradas</div>
@@ -760,33 +809,62 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                       <table className="w-full text-xs">
                         <thead className="bg-muted/40 sticky top-0">
                           <tr>
-                            <th className="text-left px-2 py-1">Tipo</th>
+                            <th className="text-left px-2 py-1">Tipo (modelo)</th>
                             <th className="text-right px-2 py-1">Qtd</th>
                             <th className="text-right px-2 py-1">Total</th>
-                            <th className="text-center px-2 py-1">Status</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {Object.entries(importPreview.byTipo).map(([k, v]) => (
+                          {Object.entries(effectiveImport.byTipo).map(([k, v]) => (
                             <tr key={k} className="border-t border-border/40">
                               <td className="px-2 py-1 font-medium">{labelFor(k)}</td>
                               <td className="px-2 py-1 text-right tabular-nums">{v.count}</td>
                               <td className="px-2 py-1 text-right tabular-nums">{formatBR(v.total)}</td>
-                              <td className="px-2 py-1 text-center">
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">no modelo</span>
-                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
 
-                    {importPreview.novosTipos.length > 0 && (
-                      <div className="rounded p-2 border border-warning/40 bg-warning/10 text-xs">
-                        <div className="font-semibold text-foreground mb-1">
-                          {importPreview.novosTipos.length} tipo(s) ignorado(s) (não estão no modelo financeiro):
+                    {Object.keys(importPreview.unknownTotals).length > 0 && (
+                      <div className={`rounded p-2 border text-xs ${effectiveImport.unmapped.length > 0 ? 'border-destructive/50 bg-destructive/10' : 'border-warning/40 bg-warning/10'}`}>
+                        <div className="font-semibold text-foreground mb-2 flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-warning" />
+                          {Object.keys(importPreview.unknownTotals).length} tipo(s) fora do modelo financeiro — alocar em uma categoria do modelo ou ignorar:
                         </div>
-                        <div className="text-muted-foreground">{importPreview.novosTipos.join(', ')}</div>
+                        <div className="space-y-1.5">
+                          {Object.entries(importPreview.unknownTotals).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-foreground truncate" title={importPreview.unknownLabels[k] || k}>
+                                  {importPreview.unknownLabels[k] || k}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {v.count} linhas • {formatBR(v.total)}
+                                </div>
+                              </div>
+                              <Select
+                                value={unknownMapping[k] || ''}
+                                onValueChange={(val) => setUnknownMapping(m => ({ ...m, [k]: val }))}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-56">
+                                  <SelectValue placeholder="Selecionar categoria..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__ignore__">Ignorar (não importar)</SelectItem>
+                                  {tipos.map(t => (
+                                    <SelectItem key={t} value={t}>{labelFor(t)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ))}
+                        </div>
+                        {effectiveImport.unmapped.length > 0 && (
+                          <div className="mt-2 text-destructive font-medium">
+                            Resolva todos os {effectiveImport.unmapped.length} pendente(s) para liberar a importação.
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -831,14 +909,19 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl" onClick={() => setUnknownMapping({})}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="rounded-xl"
               onClick={confirmImport}
-              disabled={bulkUpsertMut.isPending || (importPreview?.closedHit.length ? !isAdmin : false)}
+              disabled={
+                bulkUpsertMut.isPending ||
+                effectiveImport.unmapped.length > 0 ||
+                (importPreview?.closedHit.length ? !isAdmin : false)
+              }
             >
-              {bulkUpsertMut.isPending ? 'Salvando...' : `Confirmar e salvar (${importPreview?.items.length ?? 0})`}
+              {bulkUpsertMut.isPending ? 'Salvando...' : `Confirmar e salvar (${effectiveImport.items.length})`}
             </AlertDialogAction>
+
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
