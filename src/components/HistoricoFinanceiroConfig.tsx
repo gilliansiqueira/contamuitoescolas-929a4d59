@@ -191,7 +191,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   // Mapa: month|tipo → valor
   const valueMap = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of rows) m.set(`${r.month}|${normalize(r.tipo_valor)}`, Number(r.valor));
+    for (const r of rows) m.set(`${r.month}|${normalizeTipo(r.tipo_valor)}`, Number(r.valor));
     return m;
   }, [rows]);
 
