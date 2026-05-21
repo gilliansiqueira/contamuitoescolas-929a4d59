@@ -787,7 +787,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                       </div>
                       <div className="bg-muted/40 rounded p-2">
                         <div className="text-muted-foreground">Valores a salvar</div>
-                        <div className="font-bold text-primary text-base">{importPreview.items.length}</div>
+                        <div className="font-bold text-primary text-base">{effectiveImport.items.length}</div>
                       </div>
                       <div className="bg-muted/40 rounded p-2">
                         <div className="text-muted-foreground">Linhas ignoradas</div>
@@ -809,33 +809,62 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                       <table className="w-full text-xs">
                         <thead className="bg-muted/40 sticky top-0">
                           <tr>
-                            <th className="text-left px-2 py-1">Tipo</th>
+                            <th className="text-left px-2 py-1">Tipo (modelo)</th>
                             <th className="text-right px-2 py-1">Qtd</th>
                             <th className="text-right px-2 py-1">Total</th>
-                            <th className="text-center px-2 py-1">Status</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {Object.entries(importPreview.byTipo).map(([k, v]) => (
+                          {Object.entries(effectiveImport.byTipo).map(([k, v]) => (
                             <tr key={k} className="border-t border-border/40">
                               <td className="px-2 py-1 font-medium">{labelFor(k)}</td>
                               <td className="px-2 py-1 text-right tabular-nums">{v.count}</td>
                               <td className="px-2 py-1 text-right tabular-nums">{formatBR(v.total)}</td>
-                              <td className="px-2 py-1 text-center">
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">no modelo</span>
-                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
 
-                    {importPreview.novosTipos.length > 0 && (
-                      <div className="rounded p-2 border border-warning/40 bg-warning/10 text-xs">
-                        <div className="font-semibold text-foreground mb-1">
-                          {importPreview.novosTipos.length} tipo(s) ignorado(s) (não estão no modelo financeiro):
+                    {Object.keys(importPreview.unknownTotals).length > 0 && (
+                      <div className={`rounded p-2 border text-xs ${effectiveImport.unmapped.length > 0 ? 'border-destructive/50 bg-destructive/10' : 'border-warning/40 bg-warning/10'}`}>
+                        <div className="font-semibold text-foreground mb-2 flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-warning" />
+                          {Object.keys(importPreview.unknownTotals).length} tipo(s) fora do modelo financeiro — alocar em uma categoria do modelo ou ignorar:
                         </div>
-                        <div className="text-muted-foreground">{importPreview.novosTipos.join(', ')}</div>
+                        <div className="space-y-1.5">
+                          {Object.entries(importPreview.unknownTotals).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-foreground truncate" title={importPreview.unknownLabels[k] || k}>
+                                  {importPreview.unknownLabels[k] || k}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {v.count} linhas • {formatBR(v.total)}
+                                </div>
+                              </div>
+                              <Select
+                                value={unknownMapping[k] || ''}
+                                onValueChange={(val) => setUnknownMapping(m => ({ ...m, [k]: val }))}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-56">
+                                  <SelectValue placeholder="Selecionar categoria..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__ignore__">Ignorar (não importar)</SelectItem>
+                                  {tipos.map(t => (
+                                    <SelectItem key={t} value={t}>{labelFor(t)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ))}
+                        </div>
+                        {effectiveImport.unmapped.length > 0 && (
+                          <div className="mt-2 text-destructive font-medium">
+                            Resolva todos os {effectiveImport.unmapped.length} pendente(s) para liberar a importação.
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -880,14 +909,19 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-xl" onClick={() => setUnknownMapping({})}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="rounded-xl"
               onClick={confirmImport}
-              disabled={bulkUpsertMut.isPending || (importPreview?.closedHit.length ? !isAdmin : false)}
+              disabled={
+                bulkUpsertMut.isPending ||
+                effectiveImport.unmapped.length > 0 ||
+                (importPreview?.closedHit.length ? !isAdmin : false)
+              }
             >
-              {bulkUpsertMut.isPending ? 'Salvando...' : `Confirmar e salvar (${importPreview?.items.length ?? 0})`}
+              {bulkUpsertMut.isPending ? 'Salvando...' : `Confirmar e salvar (${effectiveImport.items.length})`}
             </AlertDialogAction>
+
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
