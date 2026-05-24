@@ -443,10 +443,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       ensure(m).saidas = snap.despesas;
     }
 
-    // Lançamentos (ignora meses com snapshot)
+    // Lançamentos (ignora meses com snapshot OU histórico — histórico é fonte de verdade)
     for (const e of activeEntries) {
       const m = e.data.slice(0, 7);
       if (snapMonthsSet.has(m)) continue;
+      if (histMonthsSet.has(m)) continue;
       // Em meses com fluxo: aceita fluxo, manuais e projeções futuras
       if (uploadMonthsSet.has(m)) {
         if (e.origem === 'fluxo' || e.origem === 'manual') {
@@ -455,17 +456,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           // ok
         } else continue;
       }
-      // Em meses sem fluxo mas com histórico: ignora projeções (histórico manda)
-      if (!uploadMonthsSet.has(m) && histMonthsSet.has(m) && e.origem !== 'fluxo') continue;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'receita') ensure(m).entradas += e.valor;
       else if (cls === 'despesa') ensure(m).saidas += e.valor;
     }
 
-    // Histórico (apenas meses sem upload e sem snapshot)
+    // Histórico (apenas meses sem snapshot) — sempre prevalece sobre upload
     for (const r of historicalRows) {
       if (snapMonthsSet.has(r.month)) continue;
-      if (uploadMonthsSet.has(r.month)) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
       if (!meta.entraNoResultado) continue;
       const v = Number(r.valor) || 0;
