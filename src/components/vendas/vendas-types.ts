@@ -1,4 +1,4 @@
-export type PaymentMethod = 'credito' | 'debito' | 'pix' | 'boleto' | 'cheque' | 'dinheiro' | 'sponte_pay';
+export type PaymentMethod = 'credito' | 'debito' | 'pix' | 'boleto' | 'cheque' | 'dinheiro' | 'sponte_pay' | 'asaas';
 
 export interface SalesPaymentMethod {
   id: string;
