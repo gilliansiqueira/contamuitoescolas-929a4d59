@@ -143,9 +143,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const result: Record<string, 'snapshot' | 'upload' | 'misto' | 'historico' | 'projecao' | 'vazio'> = {};
     for (const m of selectedMonths) {
       if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
+      // Histórico Financeiro é a fonte de verdade quando existe — independe de upload/fluxo.
+      // Uploads/fluxo são apenas porta de entrada; o que conta é o que foi consolidado.
+      const hasHist = historicalRows.some(r => r.month === m);
+      if (hasHist) { result[m] = 'historico'; continue; }
       const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
       const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
-      const hasHist = historicalRows.some(r => r.month === m);
       const hasFutureProj = monthEntries.some(e =>
         e.tipoRegistro === 'projetado' && e.origem !== 'fluxo' && e.data >= todayStr
       );
@@ -153,7 +156,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
       if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
       else if (hasUpload) result[m] = 'upload';
-      else if (hasHist) result[m] = 'historico';
       else if (hasOther) result[m] = 'projecao';
       else result[m] = 'vazio';
     }
@@ -274,22 +276,19 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     for (const sm of snapMonthsBefore) {
       saldo += snapshotMap.get(sm)!.saldo_movimento;
     }
-    // Lançamentos anteriores (apenas meses sem histórico/snapshot)
+    // Lançamentos anteriores (apenas meses sem histórico e sem snapshot)
     for (const e of activeEntries) {
       if (e.data >= monthStart) continue;
       const m = e.data.slice(0, 7);
       if (snapMonthsSet.has(m)) continue;
-      const hasUpload = activeEntries.some(x => x.data.startsWith(m) && x.origem === 'fluxo');
-      if (!hasUpload && histMonths.has(m)) continue;
-      if (hasUpload && e.origem !== 'fluxo') continue;
+      // Histórico Financeiro é a fonte de verdade — ignora qualquer entry (inclusive fluxo) do mês.
+      if (histMonths.has(m)) continue;
       saldo += getSaldoImpact(e, classifications);
     }
-    // Histórico anterior (apenas meses sem upload e sem snapshot)
+    // Histórico anterior (apenas meses sem snapshot)
     for (const r of historicalRows) {
       if (r.month >= firstMonth) continue;
       if (snapMonthsSet.has(r.month)) continue;
-      const hasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
-      if (hasUpload) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
       if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
@@ -444,10 +443,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       ensure(m).saidas = snap.despesas;
     }
 
-    // Lançamentos (ignora meses com snapshot)
+    // Lançamentos (ignora meses com snapshot OU histórico — histórico é fonte de verdade)
     for (const e of activeEntries) {
       const m = e.data.slice(0, 7);
       if (snapMonthsSet.has(m)) continue;
+      if (histMonthsSet.has(m)) continue;
       // Em meses com fluxo: aceita fluxo, manuais e projeções futuras
       if (uploadMonthsSet.has(m)) {
         if (e.origem === 'fluxo' || e.origem === 'manual') {
@@ -456,17 +456,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           // ok
         } else continue;
       }
-      // Em meses sem fluxo mas com histórico: ignora projeções (histórico manda)
-      if (!uploadMonthsSet.has(m) && histMonthsSet.has(m) && e.origem !== 'fluxo') continue;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'receita') ensure(m).entradas += e.valor;
       else if (cls === 'despesa') ensure(m).saidas += e.valor;
     }
 
-    // Histórico (apenas meses sem upload e sem snapshot)
+    // Histórico (apenas meses sem snapshot) — sempre prevalece sobre upload
     for (const r of historicalRows) {
       if (snapMonthsSet.has(r.month)) continue;
-      if (uploadMonthsSet.has(r.month)) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
       if (!meta.entraNoResultado) continue;
       const v = Number(r.valor) || 0;
