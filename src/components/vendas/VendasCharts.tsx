@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { SalesData, SalesCardBrand, PAYMENT_METHODS } from './vendas-types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { CreditCard, Smartphone, Receipt, FileText, Banknote, HelpCircle } from 'lucide-react';
+import asaasLogo from '@/assets/asaas-logo.png';
 
 interface Props {
   data: SalesData[];
@@ -101,6 +102,7 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
       case 'sponte_pay': return (
         <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ backgroundColor: '#4C1D95' }}>S</span>
       );
+      case 'asaas': return <img src={asaasLogo} alt="Asaas" className="w-5 h-5 object-contain rounded-sm" />;
       default: return <HelpCircle className="w-5 h-5 text-primary" />;
     }
   };
