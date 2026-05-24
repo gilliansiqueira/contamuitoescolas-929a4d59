@@ -276,22 +276,19 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     for (const sm of snapMonthsBefore) {
       saldo += snapshotMap.get(sm)!.saldo_movimento;
     }
-    // Lançamentos anteriores (apenas meses sem histórico/snapshot)
+    // Lançamentos anteriores (apenas meses sem histórico e sem snapshot)
     for (const e of activeEntries) {
       if (e.data >= monthStart) continue;
       const m = e.data.slice(0, 7);
       if (snapMonthsSet.has(m)) continue;
-      const hasUpload = activeEntries.some(x => x.data.startsWith(m) && x.origem === 'fluxo');
-      if (!hasUpload && histMonths.has(m)) continue;
-      if (hasUpload && e.origem !== 'fluxo') continue;
+      // Histórico Financeiro é a fonte de verdade — ignora qualquer entry (inclusive fluxo) do mês.
+      if (histMonths.has(m)) continue;
       saldo += getSaldoImpact(e, classifications);
     }
-    // Histórico anterior (apenas meses sem upload e sem snapshot)
+    // Histórico anterior (apenas meses sem snapshot)
     for (const r of historicalRows) {
       if (r.month >= firstMonth) continue;
       if (snapMonthsSet.has(r.month)) continue;
-      const hasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
-      if (hasUpload) continue;
       const meta = resolveTipoMeta(r.tipo_valor, classifications);
       if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
