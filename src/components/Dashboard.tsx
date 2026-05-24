@@ -143,9 +143,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const result: Record<string, 'snapshot' | 'upload' | 'misto' | 'historico' | 'projecao' | 'vazio'> = {};
     for (const m of selectedMonths) {
       if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
+      // Histórico Financeiro é a fonte de verdade quando existe — independe de upload/fluxo.
+      // Uploads/fluxo são apenas porta de entrada; o que conta é o que foi consolidado.
+      const hasHist = historicalRows.some(r => r.month === m);
+      if (hasHist) { result[m] = 'historico'; continue; }
       const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
       const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
-      const hasHist = historicalRows.some(r => r.month === m);
       const hasFutureProj = monthEntries.some(e =>
         e.tipoRegistro === 'projetado' && e.origem !== 'fluxo' && e.data >= todayStr
       );
@@ -153,7 +156,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
       if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
       else if (hasUpload) result[m] = 'upload';
-      else if (hasHist) result[m] = 'historico';
       else if (hasOther) result[m] = 'projecao';
       else result[m] = 'vazio';
     }
