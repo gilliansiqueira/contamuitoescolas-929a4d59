@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { SalesData, SalesCardBrand, PAYMENT_METHODS } from './vendas-types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { CreditCard, Smartphone, Receipt, FileText, Banknote, HelpCircle } from 'lucide-react';
+import asaasLogo from '@/assets/asaas-logo.png';
 
 interface Props {
   data: SalesData[];
