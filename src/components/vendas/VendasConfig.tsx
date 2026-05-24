@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { CreditCard, Smartphone, Receipt, FileText, Banknote, HelpCircle, ArrowLeft } from 'lucide-react';
+import asaasLogo from '@/assets/asaas-logo.png';
 
 interface Props {
   schoolId: string;
