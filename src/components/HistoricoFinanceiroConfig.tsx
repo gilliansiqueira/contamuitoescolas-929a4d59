@@ -197,8 +197,25 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   // (removido auto-add de tipos extras — agora o modelo é a única fonte)
 
+  // Apaga TODAS as linhas do mês cujo tipo_valor normalizado bate com tipoKey.
+  // Evita duplicatas órfãs (ex.: "aplicação" vs "aplicacao") que somariam no Dashboard.
+  async function purgeVariants(month: string, tipoKey: string) {
+    const variants = rows
+      .filter(r => r.month === month && normalizeTipo(r.tipo_valor) === tipoKey)
+      .map(r => r.id);
+    if (!variants.length) return;
+    const { error } = await supabase
+      .from('historical_monthly' as any)
+      .delete()
+      .in('id', variants);
+    if (error) throw error;
+  }
+
   const upsertMut = useMutation({
     mutationFn: async (payload: { month: string; tipo_valor: string; valor: number }) => {
+      const tipoKey = normalizeTipo(payload.tipo_valor);
+      // Limpa variantes antes de inserir a forma canônica
+      await purgeVariants(payload.month, tipoKey);
       const { error } = await supabase
         .from('historical_monthly' as any)
         .upsert(
@@ -222,7 +239,14 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const bulkUpsertMut = useMutation({
     mutationFn: async (items: { month: string; tipo_valor: string; valor: number }[]) => {
-      // Faz em lotes de 200
+      // Limpa variantes de cada (mês, tipo) antes de inserir
+      const seen = new Set<string>();
+      for (const it of items) {
+        const k = `${it.month}|${normalizeTipo(it.tipo_valor)}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        await purgeVariants(it.month, normalizeTipo(it.tipo_valor));
+      }
       const payload = items.map(i => ({
         school_id: schoolId,
         month: i.month,
@@ -247,13 +271,8 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const deleteMonthTypeMut = useMutation({
     mutationFn: async ({ month, tipo_valor }: { month: string; tipo_valor: string }) => {
-      const { error } = await supabase
-        .from('historical_monthly' as any)
-        .delete()
-        .eq('school_id', schoolId)
-        .eq('month', month)
-        .eq('tipo_valor', tipo_valor);
-      if (error) throw error;
+      // Apaga TODAS as variantes (com/sem acento, espaço/underscore) do tipo no mês
+      await purgeVariants(month, normalizeTipo(tipo_valor));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['historicalMonthly', schoolId] });
@@ -262,6 +281,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
       onChanged?.();
     },
   });
+
 
   const handleCellBlur = async (year: number, monthIdx: number, tipoKey: string, raw: string) => {
     const month = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
