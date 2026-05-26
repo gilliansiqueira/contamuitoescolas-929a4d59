@@ -18,6 +18,8 @@ import type { TypeClassification } from '@/types/financial';
 import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification } from '@/lib/classificationUtils';
 import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMappingStep';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { fetchSchoolTemplateId, fetchTemplateItems, type FinancialModelTemplateItem } from '@/lib/financialModels';
 
 interface FileUploadProps {
   schoolId: string;
