@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
@@ -18,6 +18,8 @@ import type { TypeClassification } from '@/types/financial';
 import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification } from '@/lib/classificationUtils';
 import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMappingStep';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { fetchSchoolTemplateId, fetchTemplateItems, type FinancialModelTemplateItem } from '@/lib/financialModels';
 
 interface FileUploadProps {
   schoolId: string;
@@ -321,12 +323,38 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const { isAdmin } = useAuth();
   const [manualOpen, setManualOpen] = useState(false);
-  const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '', tipo: 'entrada' as 'entrada' | 'saida' });
+  const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '' });
   const [savingManual, setSavingManual] = useState(false);
 
+  // Modelo Financeiro da escola — fonte das categorias do lançamento manual.
+  const { data: templateId } = useQuery({
+    queryKey: ['schoolTemplateId', schoolId],
+    queryFn: () => fetchSchoolTemplateId(schoolId),
+    enabled: !!schoolId,
+  });
+  const { data: templateItems = [] } = useQuery({
+    queryKey: ['templateItems', templateId],
+    queryFn: () => fetchTemplateItems(templateId!),
+    enabled: !!templateId,
+  });
+  const modelItems = useMemo<FinancialModelTemplateItem[]>(() => {
+    const seen = new Set<string>();
+    const out: FinancialModelTemplateItem[] = [];
+    [...templateItems]
+      .filter(it => it.tipo !== 'ignorar')
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .forEach(it => {
+        const key = normalizeTipo(it.name);
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(it);
+      });
+    return out;
+  }, [templateItems]);
+
   const handleManualSave = async () => {
-    if (!manual.data || !manual.descricao || !manual.valor) {
-      toast.error('Preencha data, descrição e valor.');
+    if (!manual.data || !manual.descricao || !manual.valor || !manual.categoria) {
+      toast.error('Preencha data, descrição, valor e categoria.');
       return;
     }
     const valorNum = parseNumber(manual.valor);
@@ -334,6 +362,12 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       toast.error('Valor inválido.');
       return;
     }
+    const item = modelItems.find(it => it.name === manual.categoria);
+    if (!item) {
+      toast.error('Categoria não encontrada no Modelo Financeiro.');
+      return;
+    }
+    const tipo: 'entrada' | 'saida' = item.tipo === 'entrada' ? 'entrada' : 'saida';
     setSavingManual(true);
     try {
       const entry: FinancialEntry = {
@@ -341,21 +375,43 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         data: manual.data,
         descricao: manual.descricao,
         valor: Math.abs(valorNum),
-        tipo: manual.tipo,
-        categoria: manual.categoria || (manual.tipo === 'entrada' ? 'receita' : 'despesa'),
+        tipo,
+        categoria: item.name,
         origem: 'manual',
         school_id: schoolId,
         tipoRegistro: determineTipoRegistro(manual.data),
         editadoManualmente: true,
       };
       await addEntriesMut.mutateAsync([entry]);
+
+      // Espelha no Histórico Financeiro (fonte do Dashboard) — soma ao valor existente
+      // do mesmo (school_id, month, tipo_valor); remove variantes para evitar fantasmas.
+      const month = manual.data.slice(0, 7);
+      const tipoKey = normalizeTipo(item.name);
+      const { data: existingRows } = await supabase
+        .from('historical_monthly' as any)
+        .select('id, valor, tipo_valor')
+        .eq('school_id', schoolId)
+        .eq('month', month);
+      const variants = (existingRows ?? []).filter((r: any) => normalizeTipo(r.tipo_valor) === tipoKey);
+      const prevSum = variants.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+      if (variants.length) {
+        await supabase.from('historical_monthly' as any).delete().in('id', variants.map((r: any) => r.id));
+      }
+      await supabase.from('historical_monthly' as any).insert({
+        school_id: schoolId,
+        month,
+        tipo_valor: tipoKey,
+        valor: prevSum + Math.abs(valorNum),
+      });
+
       await addAuditMut.mutateAsync({
         school_id: schoolId,
         action: 'manual_entry',
-        description: `Lançamento manual (Projeção): ${entry.data} - ${entry.descricao} - ${entry.valor}`,
+        description: `Lançamento manual (Projeção): ${entry.data} - ${entry.descricao} - ${entry.valor} [${item.name}]`,
       });
       toast.success('Lançamento manual adicionado.');
-      setManual({ data: '', descricao: '', valor: '', categoria: '', tipo: 'entrada' });
+      setManual({ data: '', descricao: '', valor: '', categoria: '' });
       setManualOpen(false);
       onImported();
     } catch (err: any) {
@@ -779,23 +835,32 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
                 Use para lançar valores avulsos (rendimentos, ajustes, previsões) — aceita datas passadas ou futuras.
               </p>
               {manualOpen && (
+                modelItems.length === 0 ? (
+                  <p className="text-xs text-destructive pt-2">
+                    Nenhum Modelo Financeiro aplicado a esta escola. Configure em Configurações → Modelo Financeiro antes de lançar manualmente.
+                  </p>
+                ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 pt-2">
                   <select
-                    value={manual.tipo}
-                    onChange={e => setManual(m => ({ ...m, tipo: e.target.value as 'entrada' | 'saida' }))}
-                    className="h-9 border rounded px-2 text-sm bg-background"
+                    value={manual.categoria}
+                    onChange={e => setManual(m => ({ ...m, categoria: e.target.value }))}
+                    className="h-9 border rounded px-2 text-sm bg-background lg:col-span-2"
                   >
-                    <option value="entrada">Entrada</option>
-                    <option value="saida">Saída</option>
+                    <option value="">Selecione a categoria…</option>
+                    {modelItems.map(it => (
+                      <option key={it.id} value={it.name}>
+                        {it.name} ({it.tipo === 'entrada' ? 'Entrada' : 'Saída'})
+                      </option>
+                    ))}
                   </select>
                   <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} className="h-9" />
                   <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} className="h-9 lg:col-span-2" />
                   <Input placeholder="Valor (ex: 1.500,50)" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} className="h-9" />
-                  <Input placeholder="Categoria" value={manual.categoria} onChange={e => setManual(m => ({ ...m, categoria: e.target.value }))} className="h-9" />
                   <Button size="sm" onClick={handleManualSave} disabled={savingManual} className="lg:col-span-6">
                     {savingManual ? 'Salvando...' : 'Salvar lançamento'}
                   </Button>
                 </div>
+                )
               )}
             </div>
           )}
