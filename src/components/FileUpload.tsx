@@ -835,23 +835,32 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
                 Use para lançar valores avulsos (rendimentos, ajustes, previsões) — aceita datas passadas ou futuras.
               </p>
               {manualOpen && (
+                modelItems.length === 0 ? (
+                  <p className="text-xs text-destructive pt-2">
+                    Nenhum Modelo Financeiro aplicado a esta escola. Configure em Configurações → Modelo Financeiro antes de lançar manualmente.
+                  </p>
+                ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 pt-2">
                   <select
-                    value={manual.tipo}
-                    onChange={e => setManual(m => ({ ...m, tipo: e.target.value as 'entrada' | 'saida' }))}
-                    className="h-9 border rounded px-2 text-sm bg-background"
+                    value={manual.categoria}
+                    onChange={e => setManual(m => ({ ...m, categoria: e.target.value }))}
+                    className="h-9 border rounded px-2 text-sm bg-background lg:col-span-2"
                   >
-                    <option value="entrada">Entrada</option>
-                    <option value="saida">Saída</option>
+                    <option value="">Selecione a categoria…</option>
+                    {modelItems.map(it => (
+                      <option key={it.id} value={it.name}>
+                        {it.name} ({it.tipo === 'entrada' ? 'Entrada' : 'Saída'})
+                      </option>
+                    ))}
                   </select>
                   <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} className="h-9" />
                   <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} className="h-9 lg:col-span-2" />
                   <Input placeholder="Valor (ex: 1.500,50)" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} className="h-9" />
-                  <Input placeholder="Categoria" value={manual.categoria} onChange={e => setManual(m => ({ ...m, categoria: e.target.value }))} className="h-9" />
                   <Button size="sm" onClick={handleManualSave} disabled={savingManual} className="lg:col-span-6">
                     {savingManual ? 'Salvando...' : 'Salvar lançamento'}
                   </Button>
                 </div>
+                )
               )}
             </div>
           )}
