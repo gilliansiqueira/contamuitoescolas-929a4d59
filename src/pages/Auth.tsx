@@ -91,7 +91,7 @@ export default function AuthPage() {
         </form>
 
         <p className="text-xs text-center text-muted-foreground">
-          Não possui acesso? Entre em contato com o administrador.
+          Não possui acesso? Entre em contato com o administrador. <a href="/demo" className="text-primary hover:underline font-medium">Ver demonstração</a>
         </p>
       </motion.div>
     </div>

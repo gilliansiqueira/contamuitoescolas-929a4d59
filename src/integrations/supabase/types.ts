@@ -1907,6 +1907,7 @@ export type Database = {
     }
     Functions: {
       current_user_school_id: { Args: never; Returns: string }
+      demo_school_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1923,6 +1924,7 @@ export type Database = {
         Args: { _date: string; _module: string; _school_id: string }
         Returns: boolean
       }
+      is_demo_school: { Args: { _id: string }; Returns: boolean }
       is_month_closed: {
         Args: { _month: string; _school_id: string }
         Returns: boolean

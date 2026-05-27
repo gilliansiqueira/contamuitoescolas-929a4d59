@@ -1,130 +1,54 @@
-# Plano — Modelos Financeiros + Simulação Planilha
+## Modo Demonstração Público (/demo)
 
-Dois blocos independentes. Execução em ordem: A → B.
+Criar uma experiência pública e somente-leitura do sistema financeiro com uma empresa fictícia "Demo", populada com dados realistas para preencher todas as telas (dashboard, gráficos, indicadores, previsão de caixa, projeção, realizado, vendas).
 
----
+### 1. Backend — Empresa e dados Demo
 
-## Bloco A — Modelos Financeiros (templates de tipos)
+Criar uma migração que insere (de forma idempotente, com `ON CONFLICT DO NOTHING` baseado em um `id` fixo bem conhecido):
 
-### Conceito
-- **Modelo global** = template reutilizável (ex.: Escola, Clínica, SaaS, Personalizado), compartilhado entre todas as empresas.
-- **Empresa** = ao escolher um modelo, recebe uma **cópia independente** dos itens. Pode editar/excluir/adicionar livremente, sem afetar o template original nem outras empresas.
-- Fonte única de classificação no Histórico Financeiro: a lista da própria empresa (que hoje já é `type_classifications` por `school_id`).
+- 1 escola `schools` com `id` fixo (ex.: `00000000-0000-0000-0000-00000000d3m0`) e nome **"Demo"**.
+- Modelo financeiro padrão associado.
+- 12 meses de dados (jan/2026 → dez/2026) realistas:
+  - `monthly_revenue` — faturamento crescente (R$ 180k → R$ 260k).
+  - `financial_entries` (projeção) — receitas (mensalidades, matrículas, material), despesas (folha, aluguel, marketing, fornecedores, impostos), recorrentes mês a mês.
+  - `realized_entries` — espelhando ~95% da projeção para meses passados.
+  - `historical_monthly` — saldos iniciais + valores históricos.
+  - `investment_entries` — aplicações, resgates, rendimentos.
+  - `receivable_categories` + `receivable_category_values` — recebíveis por canal.
+  - `sales_analysis_channels`, `sales_analysis_payment_methods`, `sales_analysis_products`, `sales_analysis_orders` + `_items` — ~40 pedidos espalhados nos 12 meses.
+  - `conversion_data` — contatos/matrículas (ativo e receptivo).
+  - `kpi_definitions` + `kpi_thresholds` + `kpi_values` — 4–5 indicadores típicos (margem, inadimplência, conversão, ticket médio).
+  - `expense_ceilings`, `payment_delay_rules`, `chart_of_accounts`, `module_tabs` — config mínima coerente.
+- Função `public.is_demo_school(uuid)` que retorna `true` quando o `school_id` é o ID da Demo.
+- **Política RLS pública**: adicionar policies `SELECT` extras (`USING (is_demo_school(school_id))`) em todas as tabelas listadas acima, permitindo leitura anônima (role `anon`) apenas dos dados da Demo. Nenhuma policy nova de INSERT/UPDATE/DELETE — escrita continua bloqueada.
+- `GRANT SELECT ON <tabela> TO anon` para cada tabela envolvida.
 
-### Banco de dados (migration)
+### 2. Frontend — Rota /demo somente leitura
 
-Novas tabelas globais (sem `school_id`):
+- Novo arquivo `src/contexts/DemoModeContext.tsx` com `useDemoMode()` retornando `{ isDemo, demoSchoolId }`.
+- Wrapper `<DemoRoute>` em `src/components/DemoRoute.tsx` que:
+  - Define `isDemo=true` e força `schoolId` = ID fixo da Demo.
+  - Renderiza o `<Index />` existente sem `ProtectedRoute`.
+  - Mostra um **banner fixo no topo**: "Modo Demonstração — somente visualização. [Criar minha conta]".
+- Em `src/App.tsx`: adicionar `<Route path="/demo" element={<DemoRoute><Index /></DemoRoute>} />` (pública, sem auth).
+- `useAuth` ajustado para tolerar sessão ausente quando `isDemo` (não redireciona).
+- `SchoolSelector`: quando `isDemo`, esconde o seletor e mostra apenas "Demo".
+- **Bloqueio de escrita na UI**:
+  - Criar hook `useReadOnly()` baseado em `useDemoMode`.
+  - Em componentes de configuração, formulários, botões de salvar/importar/excluir/upload/fechar período: quando `readOnly`, desabilitar (`disabled`) e adicionar tooltip "Indisponível no modo demonstração".
+  - Componentes mais críticos: `FileUpload`, `HistoricoFinanceiroConfig`, `UsersConfig`, `ModelosFinanceirosManager`, `ImportacaoRealizado`, `ImportacaoVendas`, `EditEntryDialog`, `PedidoDialog`, `FechamentoMeses`, `SaldoInicialConfig`, `PaymentDelayConfig`, `TypeClassificationConfig`, `KpiConfigDrawer`, `CadastrosConfig`, `ExportImport`, `reset-user-password` UI.
+  - Defesa em profundidade: as RLS impedem qualquer escrita mesmo se um botão escapar.
 
-```sql
-financial_model_templates
-  id, name, description, is_system (bool), created_at
+### 3. Detalhes técnicos
 
-financial_model_template_items
-  id, template_id, name, tipo ('entrada'|'saida'),
-  impacta_caixa (bool), entra_no_resultado (bool), sort_order
-```
+- ID fixo da Demo (UUID determinístico) usado tanto na seed quanto no frontend via `VITE_DEMO_SCHOOL_ID` lido de `src/lib/demo.ts` (constante hardcoded — sem env).
+- Seed roda em uma única migração; usa `INSERT ... WHERE NOT EXISTS` ou `ON CONFLICT` para ser reexecutável sem duplicar.
+- Banner usa cores semânticas do design system (sem cores diretas).
+- Não altera o fluxo de login real nem usuários existentes.
+- Nenhuma rota nova além de `/demo`.
 
-RLS: SELECT público autenticado; INSERT/UPDATE/DELETE só `is_admin()`. Templates `is_system=true` não podem ser excluídos.
+### 4. Fora de escopo
 
-Adicionar à tabela `schools`:
-```sql
-ALTER TABLE schools ADD COLUMN financial_model_template_id uuid NULL;
-```
-
-Seed dos 4 templates base (Escola / Clínica / SaaS / Personalizado vazio) com itens default conhecidos (Receita, Despesa, Aporte, Distribuição de Lucros, etc.).
-
-### Aplicar modelo na empresa
-Função client-side `applyTemplateToSchool(schoolId, templateId)`:
-1. Lê `financial_model_template_items` do template.
-2. Para cada item, faz upsert em `type_classifications` com:
-   - `tipoValor = nome` (key normalizado)
-   - `label = nome`
-   - `classificacao = 'receita'|'despesa'|'operacao'` (entrada+entraResultado=receita; saída+entraResultado=despesa; senão operacao)
-   - `entraNoResultado`, `impactaCaixa` conforme item
-3. **Não apaga** o que já existe na empresa (apenas adiciona/atualiza por chave). Após cópia, a empresa fica 100% independente.
-
-### UI
-
-**1. Configurações > Modelos Financeiros** (nova rota/aba dentro do menu Configurações, ao lado de "Histórico Financeiro"):
-- `src/components/ModelosFinanceirosManager.tsx`
-- Lista de templates com ações: Criar / Editar / Duplicar / Excluir (admin).
-- Editor do template: nome + tabela inline de itens (Nome | Tipo | Impacta saldo | Entra no resultado) com add/edit/delete por linha.
-
-**2. SchoolSelector / Cadastro de Empresa**:
-- Adicionar `<Select>` "Modelo Financeiro" ao criar/editar escola.
-- Botão "Aplicar modelo agora" que chama `applyTemplateToSchool` (com confirmação).
-
-**3. Histórico Financeiro** (`HistoricoFinanceiroConfig.tsx` + telas que usam `tipo_valor`):
-- Verificar que o dropdown de tipo já lê de `type_classifications` da escola atual. Se houver algum hard-code, remover.
-
----
-
-## Bloco B — Simulação como planilha matricial
-
-Substituir o `Simulation.tsx` atual (matriz com linhas Nº Vendas/Ticket/Parcelas) por um grid Excel-like **por produto**.
-
-### Schema (migration)
-
-```sql
-simulation_products
-  id, school_id, nome, valor_unitario numeric, parcelas int,
-  sort_order, created_at, updated_at
-
-simulation_monthly_quantities
-  id, school_id, product_id, month text ('YYYY-MM'),
-  quantity int, UNIQUE(product_id, month)
-```
-
-RLS padrão: `is_admin() OR user_has_school_access(auth.uid(), school_id)`.
-
-### UI — `src/components/Simulation.tsx` (rewrite)
-
-Tabela com scroll horizontal, primeiras 3 colunas fixas (sticky):
-
-```
-Produto        | Valor   | Parcelas | Jan | Fev | Mar | ... | Dez
-Curso X        | 3.000   | 6        |  20 |  50 |  15 | ... |
-[+ Adicionar produto]
-```
-
-Linhas:
-- **Editáveis**: nome, valor, parcelas, quantidades por mês.
-- Botão remover por linha.
-- Botão "Adicionar produto" no final.
-- Persistência: debounce save por célula (upsert em `simulation_monthly_quantities`).
-
-### Cálculo de recebimento
-
-Para cada produto:
-- `totalVendidoMes = quantidade[m] * valor_unitario`
-- `parcelaValor = totalVendidoMes / parcelas`
-- Distribui `parcelaValor` em `m, m+1, ..., m+parcelas-1` (1ª parcela no próprio mês da venda).
-- Soma de **todas as parcelas de todos os produtos** por mês = `receita_simulada[mes]`.
-
-### Quadro de consolidação (abaixo da tabela)
-
-```
-Mês       | Projeção (sistema) | Simulação | Total
-Jan 26    | R$ 100.000         | R$ 25.000 | R$ 125.000
-...
-```
-
-- `Projeção (sistema)` = soma de `financial_entries` (tipo_registro='projetado', tipo='entrada') do mês.
-- `Simulação` = `receita_simulada[mes]` calculado acima.
-- **Simulação NÃO grava em `financial_entries`** — fica isolada, apenas visualização. (atende "não impacta nas outras abas").
-
-### Filtro de meses
-Reusa o `MonthSelector` multi-mês existente: filtra colunas exibidas e linhas do quadro de consolidação.
-
----
-
-## Ordem de entrega
-1. Migration Bloco A (tabelas + seed templates).
-2. UI Modelos Financeiros + aplicar-na-empresa.
-3. Migration Bloco B (tabelas simulação).
-4. Rewrite `Simulation.tsx` (grid + consolidação).
-
-## Fora de escopo
-- Não mexer em outras abas/dashboards além do `Simulation.tsx`.
-- Não alterar como `type_classifications` é consumida hoje (só garantir que continua sendo a fonte).
-- Sem migração automática dos dados antigos da simulação anterior (será descartada).
+- Reset automático/agendado dos dados da Demo (pode ser feito manualmente reexecutando a seed).
+- Tradução do banner / multi-idioma.
+- Telemetria de visitas à demo.
