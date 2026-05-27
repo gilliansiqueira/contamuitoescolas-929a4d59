@@ -150,6 +150,22 @@ export function UsersConfig() {
     onError: (e: any) => toast.error(e.message ?? 'Erro ao atualizar escopo'),
   });
 
+  const resetPassword = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      if (!password || password.length < 6) throw new Error('Senha deve ter no mínimo 6 caracteres');
+      const { data, error } = await supabase.functions.invoke('reset-user-password', {
+        body: { user_id: userId, password },
+      });
+      if (error) throw new Error(error.message ?? 'Erro ao alterar senha');
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: (_, vars) => {
+      toast.success('Senha alterada com sucesso');
+      setNewPasswords(prev => ({ ...prev, [vars.userId]: '' }));
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (!isAdmin) {
     return (
       <div className="p-8 text-center text-muted-foreground">
