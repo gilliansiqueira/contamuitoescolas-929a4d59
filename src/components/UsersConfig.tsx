@@ -390,8 +390,34 @@ export function UsersConfig() {
                           >
                             <Plus className="w-4 h-4 mr-1" /> Vincular
                           </Button>
+                      </div>
+
+                      <div className="space-y-1.5 pt-3 border-t border-border">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <KeyRound className="w-3 h-3" /> Alterar senha
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            placeholder="Nova senha (mín. 6 caracteres)"
+                            value={newPasswords[u.user_id] ?? ''}
+                            onChange={(e) => setNewPasswords(prev => ({ ...prev, [u.user_id]: e.target.value }))}
+                            className="flex-1 h-9"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={!newPasswords[u.user_id] || resetPassword.isPending}
+                            onClick={() => resetPassword.mutate({
+                              userId: u.user_id,
+                              password: newPasswords[u.user_id],
+                            })}
+                            variant="secondary"
+                          >
+                            <KeyRound className="w-4 h-4 mr-1" /> Salvar
+                          </Button>
                         </div>
                       </div>
+                    </div>
                     </div>
                   )}
                 </div>
