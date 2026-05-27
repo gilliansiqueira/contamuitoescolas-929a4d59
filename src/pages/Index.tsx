@@ -77,7 +77,9 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
 
 const Index = () => {
   const { isPresentationMode } = usePresentation();
-  const { isAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
+  const { isDemo, demoSchoolId } = useDemoMode();
+  const { isAdmin: realIsAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
+  const isAdmin = isDemo ? false : realIsAdmin;
   const { data: allSchools = [] } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
   const [appModule, setAppModule] = useState<AppModule>('projecao');
@@ -88,29 +90,40 @@ const Index = () => {
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
-  // Filtra abas de configuração conforme papel
   const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
 
-  // Auto-seleção: cliente vai direto se tiver UMA única empresa acessível.
-  // Se tiver múltiplas, mostra o seletor para escolher.
+  // Auto-select demo school
   useEffect(() => {
-    if (school || isAdminAll) return;
+    if (isDemo && !school) {
+      const demo = allSchools.find(s => s.id === demoSchoolId);
+      if (demo) setSchool(demo);
+    }
+  }, [isDemo, demoSchoolId, allSchools, school]);
+
+  useEffect(() => {
+    if (isDemo || school || isAdminAll) return;
     if (accessibleSchoolIds.length === 1) {
       const mine = allSchools.find(s => s.id === accessibleSchoolIds[0]);
       if (mine) setSchool(mine);
     }
-  }, [school, isAdminAll, accessibleSchoolIds, allSchools]);
+  }, [isDemo, school, isAdminAll, accessibleSchoolIds, allSchools]);
 
-  // Se ativaram o modo apresentação e estamos numa aba de configuração, forçar ida para o dashboard
-  if (isPresentationMode && isSettingsTab) {
+  if ((isPresentationMode || isDemo) && isSettingsTab) {
     setActiveTab('dashboard');
   }
 
   if (!school) {
     return (
       <div className="min-h-screen bg-background">
-        <SchoolSelector selectedSchool={null} onSelect={setSchool} />
+        {isDemo && <DemoBanner />}
+        {isDemo ? (
+          <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
+            Carregando demonstração...
+          </div>
+        ) : (
+          <SchoolSelector selectedSchool={null} onSelect={setSchool} />
+        )}
       </div>
     );
   }
