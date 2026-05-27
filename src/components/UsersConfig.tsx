@@ -38,6 +38,7 @@ export function UsersConfig() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [extraToAdd, setExtraToAdd] = useState<Record<string, string>>({});
+  const [newPasswords, setNewPasswords] = useState<Record<string, string>>({});
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['app_users'],
