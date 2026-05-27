@@ -133,6 +133,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {isDemo && <DemoBanner />}
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card/90 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -141,24 +142,31 @@ const Index = () => {
             <h1 className="font-display font-bold text-lg hidden sm:block text-foreground">Relatório Financeiro</h1>
           </div>
           <div className="flex items-center gap-3">
-            <SchoolSelector selectedSchool={school} onSelect={(s) => {
-              // Cliente só pode trocar se tiver acesso a 2+ empresas
-              if (!isAdminAll && accessibleSchoolIds.length < 2) return;
-              if (s?.id === school.id) setSchool(null);
-              else setSchool(s);
-            }} />
+            {isDemo ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium">
+                {school.nome}
+              </div>
+            ) : (
+              <SchoolSelector selectedSchool={school} onSelect={(s) => {
+                if (!isAdminAll && accessibleSchoolIds.length < 2) return;
+                if (s?.id === school.id) setSchool(null);
+                else setSchool(s);
+              }} />
+            )}
             <PresentationToggle />
             <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={signOut}
-              title={profile?.email}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden md:inline ml-1">Sair</span>
-            </Button>
+            {!isDemo && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={signOut}
+                title={profile?.email}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline ml-1">Sair</span>
+              </Button>
+            )}
           </div>
         </div>
       </header>
