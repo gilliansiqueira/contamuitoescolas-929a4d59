@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Trash2, UserPlus, Shield, User as UserIcon, Building2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, UserPlus, Shield, User as UserIcon, Building2, Plus, X, ChevronDown, ChevronUp, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UserRow {
@@ -38,6 +38,7 @@ export function UsersConfig() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [extraToAdd, setExtraToAdd] = useState<Record<string, string>>({});
+  const [newPasswords, setNewPasswords] = useState<Record<string, string>>({});
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['app_users'],
@@ -147,6 +148,22 @@ export function UsersConfig() {
       qc.invalidateQueries({ queryKey: ['app_users'] });
     },
     onError: (e: any) => toast.error(e.message ?? 'Erro ao atualizar escopo'),
+  });
+
+  const resetPassword = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      if (!password || password.length < 6) throw new Error('Senha deve ter no mínimo 6 caracteres');
+      const { data, error } = await supabase.functions.invoke('reset-user-password', {
+        body: { user_id: userId, password },
+      });
+      if (error) throw new Error(error.message ?? 'Erro ao alterar senha');
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: (_, vars) => {
+      toast.success('Senha alterada com sucesso');
+      setNewPasswords(prev => ({ ...prev, [vars.userId]: '' }));
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   if (!isAdmin) {
@@ -373,8 +390,34 @@ export function UsersConfig() {
                           >
                             <Plus className="w-4 h-4 mr-1" /> Vincular
                           </Button>
+                      </div>
+
+                      <div className="space-y-1.5 pt-3 border-t border-border">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <KeyRound className="w-3 h-3" /> Alterar senha
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            placeholder="Nova senha (mín. 6 caracteres)"
+                            value={newPasswords[u.user_id] ?? ''}
+                            onChange={(e) => setNewPasswords(prev => ({ ...prev, [u.user_id]: e.target.value }))}
+                            className="flex-1 h-9"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={!newPasswords[u.user_id] || resetPassword.isPending}
+                            onClick={() => resetPassword.mutate({
+                              userId: u.user_id,
+                              password: newPasswords[u.user_id],
+                            })}
+                            variant="secondary"
+                          >
+                            <KeyRound className="w-4 h-4 mr-1" /> Salvar
+                          </Button>
                         </div>
                       </div>
+                    </div>
                     </div>
                   )}
                 </div>
