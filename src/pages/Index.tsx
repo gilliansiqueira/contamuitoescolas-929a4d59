@@ -6,6 +6,8 @@ import { PresentationToggle } from '@/components/PresentationToggle';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
 import { useSchools } from '@/hooks/useFinancialData';
+import { useDemoMode } from '@/contexts/DemoModeContext';
+import { DemoBanner } from '@/components/DemoBanner';
 import { Dashboard } from '@/components/Dashboard';
 import { FileUpload } from '@/components/FileUpload';
 import { CashFlow } from '@/components/CashFlow';
