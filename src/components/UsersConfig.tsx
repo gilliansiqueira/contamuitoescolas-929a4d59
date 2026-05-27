@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Trash2, UserPlus, Shield, User as UserIcon, Building2, Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, UserPlus, Shield, User as UserIcon, Building2, Plus, X, ChevronDown, ChevronUp, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UserRow {
