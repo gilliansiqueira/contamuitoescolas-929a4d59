@@ -115,8 +115,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo));
   }, [allEntries, classifications, hasModel, isInModel]);
 
-  // ─── Histórico Financeiro (consolidado mensal) ───
-  const { data: historicalRows = [] } = useQuery({
+  // ─── Histórico Financeiro (consolidado mensal) — aplica gate do modelo ───
+  const { data: historicalRowsRaw = [] } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -128,6 +128,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     },
     enabled: !!schoolId,
   });
+  const historicalRows = useMemo(
+    () => hasModel ? historicalRowsRaw.filter(r => isInModel(r.tipo_valor)) : historicalRowsRaw,
+    [historicalRowsRaw, hasModel, isInModel]
+  );
 
   // ─── Determina meses selecionados ───
   const selectedMonths = useMemo<string[]>(() => {
