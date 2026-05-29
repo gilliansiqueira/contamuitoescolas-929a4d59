@@ -285,7 +285,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       const auto = parsedWithRules.filter((r: any) => r._autoMapped).length;
       toast.success(`${parsedWithRules.length} lançamentos válidos${auto > 0 ? ` · ${auto} categorizados automaticamente por regras` : ''}`);
     }
-  }, [columnMapping, rawRows, contas, fileName, rulesByNorm]);
+  }, [columnMapping, rawRows, knownCategoriaNorms, fileName, rulesByNorm]);
 
   const handleConfirmImport = () => {
     // Check all unmapped are resolved
