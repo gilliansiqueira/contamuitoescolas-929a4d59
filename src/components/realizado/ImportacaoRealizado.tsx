@@ -244,7 +244,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       return;
     }
     saveMappingToStorage(columnMapping);
-    const knownNorm = new Set(contas.map(c => normalizeStr(c.nome)));
+    const knownNorm = knownCategoriaNorms;
     let invalid = 0;
 
     const parsed = rawRows.map(r => {
