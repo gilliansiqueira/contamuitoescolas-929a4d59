@@ -813,6 +813,9 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       const minNewDate = projetadas.length > 0
         ? projetadas.reduce((min, e) => (e.data < min ? e.data : min), projetadas[0].data)
         : preview.reduce((min, e) => (e.data < min ? e.data : min), preview[0].data);
+      // Cutoff seguro: nunca anterior a hoje — protege qualquer projeção que já tenha virado realizado.
+      const today = new Date().toISOString().slice(0, 10);
+      const safeCutoff = minNewDate < today ? today : minNewDate;
       const { count } = await supabase
         .from('financial_entries')
         .select('id', { count: 'exact', head: true })
@@ -821,7 +824,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         .eq('tipo_registro', 'projetado')
         .eq('editado_manualmente', false);
       if ((count ?? 0) > 0) {
-        setReplaceDialog({ open: true, cutoff: minNewDate, existingCount: count ?? 0, minNewDate });
+        setReplaceDialog({ open: true, cutoff: safeCutoff, existingCount: count ?? 0, minNewDate });
         return;
       }
     }
