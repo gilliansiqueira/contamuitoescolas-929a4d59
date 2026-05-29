@@ -33,6 +33,7 @@ Updated: agora
 - [Isolamento de Módulos](mem://projeto/diretrizes-isolamento-modulos) — Separação estrita Projeção vs Relatório Realizado
 - [Abas Modulares](mem://features/relatorio-realizado-modularidade-abas) — Ativação/desativação por escola persistida em module_tabs
 - [Faixas de Conversão](mem://features/relatorio-realizado-conversao-thresholds) — Limites percentuais para origens Ativo e Receptivo
+- [Integridade Formato Mês](mem://financeiro/integridade-mes-formato) — CHECK no banco impede mês fora de AAAA-MM em todas as tabelas
 - [Snapshot Fechamento Projeção](mem://features/projecao-snapshot-fechamento) — Mês fechado grava snapshot imutável; Dashboard usa valores congelados
 - [Fechamento Projeção](mem://features/projecao-fechamento-periodos) — Fechar/reabrir meses no Histórico Financeiro, independente do Realizado
 - [Fechamento de Períodos](mem://features/realizado-fechamento-periodos) — Fechar/reabrir meses no Realizado, bloqueio via triggers de banco
