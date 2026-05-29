@@ -205,9 +205,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     for (const m of selectedMonths) {
       const src = monthSources[m];
       if (src === 'snapshot') {
-        // Mês fechado — usa valores congelados
+        // Mês fechado — usa valores congelados.
+        // Aplica filtros estritos: ignora 'ignorar' e tipos fora do modelo financeiro.
         const snap = snapshotMap.get(m)!;
         for (const t of snap.por_tipo) {
+          if (t.classificacao === 'ignorar') continue;
+          if (!isInModel(t.label) && !isInModel(t.tipo)) continue;
           const k = t.tipo;
           if (!map[k]) {
             map[k] = {
@@ -216,7 +219,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
               valor: 0,
               isEntrada: t.sinal === 'somar',
               entraNoResultado: t.classificacao === 'receita' || t.classificacao === 'despesa',
-              impactaCaixa: t.classificacao !== 'ignorar',
+              impactaCaixa: true,
               classificacao: t.classificacao,
             };
           }
