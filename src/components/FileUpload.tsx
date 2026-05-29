@@ -706,6 +706,12 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       // Preserva lançamentos manuais e qualquer entrada marcada como 'realizado'.
       let removedCount = 0;
       if (PROJECTION_REPLACE_TYPES.has(selectedType.key) && cutoffDate) {
+        // Floor de segurança: nunca apaga projeções anteriores a hoje (a menos que o usuário tenha
+        // pedido explicitamente "Substituir tudo" com o sentinel 0000-01-01).
+        const today = new Date().toISOString().slice(0, 10);
+        const effectiveCutoff = cutoffDate === '0000-01-01'
+          ? cutoffDate
+          : (cutoffDate < today ? today : cutoffDate);
         const { data: deleted, error: delErr } = await supabase
           .from('financial_entries')
           .delete()
@@ -713,7 +719,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
           .eq('origem', selectedType.key)
           .eq('tipo_registro', 'projetado')
           .eq('editado_manualmente', false)
-          .gte('data', cutoffDate)
+          .gte('data', effectiveCutoff)
           .select('id');
         if (delErr) throw delErr;
         removedCount = deleted?.length ?? 0;
