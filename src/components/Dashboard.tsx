@@ -103,10 +103,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
   // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
+  // Modelo financeiro ativo: gate estrito de categorias válidas.
+  const { hasModel, isInModel } = useSchoolModel(schoolId);
   const [showInsights, setShowInsights] = useState(true);
 
   const allEntries = useMemo(() => applyDelays(rawEntries, delayRules), [rawEntries, delayRules]);
-  const activeEntries = useMemo(() => filterActiveEntries(allEntries, classifications), [allEntries, classifications]);
+  // 1) Remove entries 'ignorar'; 2) Aplica gate do modelo financeiro (se houver).
+  const activeEntries = useMemo(() => {
+    const noIgnored = filterActiveEntries(allEntries, classifications);
+    if (!hasModel) return noIgnored;
+    return noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo));
+  }, [allEntries, classifications, hasModel, isInModel]);
 
   // ─── Histórico Financeiro (consolidado mensal) ───
   const { data: historicalRows = [] } = useQuery({
