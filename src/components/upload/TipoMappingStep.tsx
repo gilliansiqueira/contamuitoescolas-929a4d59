@@ -41,12 +41,11 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
   function update(i: number, patch: Partial<TipoMappingRow>) {
     const next = rows.slice();
     next[i] = { ...next[i], ...patch };
-    // Auto-suggest sinal when classificacao changes
-    if (patch.classificacao && patch.classificacao !== next[i].classificacao) {
-      next[i].classificacao = patch.classificacao;
-      if (patch.classificacao !== '') {
-        next[i].operacaoSinal = defaultSinalFor(patch.classificacao as EffectiveClassification);
-      }
+    // Auto-suggest sinal when classificacao changes para um valor não-vazio
+    const newCls = patch.classificacao as TipoMappingRow['classificacao'] | undefined;
+    if (newCls !== undefined && newCls !== '' && newCls !== rows[i].classificacao) {
+      next[i].classificacao = newCls;
+      next[i].operacaoSinal = defaultSinalFor(newCls as EffectiveClassification);
     }
     onChange(next);
   }
