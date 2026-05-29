@@ -17,6 +17,7 @@ import {
   filterActiveEntries,
   normalizeTipo,
 } from '@/lib/classificationUtils';
+import { loadSchoolModelItems } from '@/lib/modelValidation';
 import type { SnapshotPorTipo } from '@/hooks/usePeriodSnapshots';
 
 export interface ComputedSnapshot {
