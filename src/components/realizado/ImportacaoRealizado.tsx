@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
+import { loadSchoolModelItems } from '@/lib/modelValidation';
 
 interface Props { schoolId: string; }
 type Step = 'idle' | 'mapping' | 'preview';
@@ -126,8 +127,23 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     return m;
   }, [rules]);
 
+  // Itens do Modelo Financeiro da escola — fonte oficial de categorias válidas.
+  const { data: modelItems = [] } = useQuery({
+    queryKey: ['schoolModelItems', schoolId],
+    queryFn: () => loadSchoolModelItems(schoolId),
+    enabled: !!schoolId,
+  });
+
   const categoriaFilhas = useMemo(() => contas.filter(c => c.nivel > 1), [contas]);
   const groupNames = useMemo(() => [...new Set(contas.filter(c => c.nivel === 1).map(c => c.grupo))], [contas]);
+
+  // Conjunto de nomes válidos (plano de contas + modelo financeiro).
+  const knownCategoriaNorms = useMemo(() => {
+    const set = new Set<string>();
+    contas.forEach(c => set.add(normalizeStr(c.nome)));
+    modelItems.forEach(it => set.add(normalizeStr(it.name)));
+    return set;
+  }, [contas, modelItems]);
 
   const insertMutation = useMutation({
     mutationFn: async (rows: any[]) => {
