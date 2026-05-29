@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
+import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
