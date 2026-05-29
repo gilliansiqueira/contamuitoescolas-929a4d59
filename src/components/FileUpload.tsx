@@ -443,20 +443,47 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         else counts.set(key, { label: raw, count: 1 });
       }
 
+      const modelKeys = new Set(modelItems.map(it => normalizeTipo(it.name)));
+      const modelByKey = new Map(modelItems.map(it => [normalizeTipo(it.name), it]));
+
       const tipoRows: TipoMappingRow[] = Array.from(counts.entries())
         .map(([key, { label, count }]) => {
           const cfg = findClassification(label, classifications);
-          const cls = (cfg?.classificacao as TipoMappingRow['classificacao']) ?? 'despesa';
+          const inModel = modelKeys.has(key);
+          const modelItem = modelByKey.get(key);
+
+          // Pré-preenche classificação SOMENTE se houver config existente OU o
+          // tipo bater com um item do Modelo Financeiro. Caso contrário, deixa
+          // vazio para forçar o usuário a classificar manualmente.
+          let cls: TipoMappingRow['classificacao'] = '';
+          let prefilled = false;
+          if (cfg) {
+            cls = cfg.classificacao as TipoMappingRow['classificacao'];
+            prefilled = true;
+          } else if (modelItem) {
+            cls =
+              modelItem.tipo === 'entrada' && modelItem.entra_no_resultado ? 'receita' :
+              modelItem.tipo === 'saida' && modelItem.entra_no_resultado ? 'despesa' :
+              modelItem.impacta_caixa ? 'operacao' :
+              'ignorar';
+            prefilled = true;
+          }
+
           const sinalRaw = cfg?.operacaoSinal;
           const sinal: TipoMappingRow['operacaoSinal'] =
-            sinalRaw === 'somar' || sinalRaw === 'subtrair' ? sinalRaw : defaultSinalFor(cls);
+            sinalRaw === 'somar' || sinalRaw === 'subtrair'
+              ? sinalRaw
+              : cls
+                ? defaultSinalFor(cls as EffectiveClassification)
+                : 'somar';
           return {
             tipoValor: key,
             label,
             count,
             classificacao: cls,
             operacaoSinal: sinal,
-            prefilled: !!cfg,
+            prefilled,
+            inModel,
           };
         })
         .sort((a, b) => b.count - a.count);
