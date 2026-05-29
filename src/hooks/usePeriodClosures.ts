@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { computeMonthSnapshot, computeRealizadoMonthSnapshot } from '@/lib/snapshotUtils';
+import { validateClosure } from '@/lib/closureValidation';
 import type { TypeClassification } from '@/types/financial';
 
 export type ClosureModule = 'realizado' | 'projecao';
@@ -60,6 +61,22 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (months: string[]) => {
+      // 0) Validação de pré-fechamento — bloqueia se houver inconsistência crítica
+      const validationErrors: string[] = [];
+      for (const m of months) {
+        const v = await validateClosure(schoolId, m, module);
+        if (!v.ok) {
+          validationErrors.push(`${m}:\n  • ${v.errors.join('\n  • ')}`);
+        }
+      }
+      if (validationErrors.length > 0) {
+        const err: any = new Error(
+          `Não é possível fechar — corrija as inconsistências antes:\n\n${validationErrors.join('\n\n')}`
+        );
+        err.validation = true;
+        throw err;
+      }
+
       // 1) Para Projeção, calcula snapshot de cada mês ANTES de fechar
       //    (assim o snapshot reflete os valores correntes naquele momento)
       let classifications: TypeClassification[] = [];
@@ -119,15 +136,24 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
               por_tipo: snap.por_tipo,
               created_by: user?.id || null,
             });
-            // Para Realizado: também consolida no Histórico Financeiro
-            // (tipo_valor "Receita" e "Despesa") para alimentar a Projeção.
+            // Consolidação no Histórico Financeiro (vale para os dois módulos)
+            // — congela receitas, despesas, operações e saldo do mês fechado.
+            const pushHist = (tipo: string, valor: number) => {
+              if (Math.abs(valor) > 0.005) {
+                histRows.push({ school_id: schoolId, month: c.month, tipo_valor: tipo, valor });
+              }
+            };
             if (module === 'realizado') {
-              if (snap.receitas > 0) histRows.push({
-                school_id: schoolId, month: c.month, tipo_valor: 'Receita', valor: snap.receitas,
-              });
-              if (snap.despesas > 0) histRows.push({
-                school_id: schoolId, month: c.month, tipo_valor: 'Despesa', valor: snap.despesas,
-              });
+              pushHist('Receita', snap.receitas);
+              pushHist('Despesa', snap.despesas);
+              if (snap.operacoes_in > 0) pushHist('Operação (entrada)', snap.operacoes_in);
+              if (snap.operacoes_out > 0) pushHist('Operação (saída)', snap.operacoes_out);
+            } else {
+              // projecao — consolida totais e também o saldo final como marcador
+              pushHist('Receita', snap.receitas);
+              pushHist('Despesa', snap.despesas);
+              if (snap.operacoes_in > 0) pushHist('Operação (entrada)', snap.operacoes_in);
+              if (snap.operacoes_out > 0) pushHist('Operação (saída)', snap.operacoes_out);
             }
           } catch (e) {
             console.error('Erro ao gerar snapshot de', c.month, e);
