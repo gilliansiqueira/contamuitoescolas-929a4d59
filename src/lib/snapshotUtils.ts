@@ -152,27 +152,46 @@ export async function computeMonthSnapshot(
     }
   }
 
-  // 6) Saldo inicial: acumula tudo antes do mês
-  let saldoInicial = saldoInicialBase;
+  // 6) Saldo inicial — REGRA TRAVADA:
+  //    Se o mês anterior tem snapshot fechado, saldo_inicial = snapshot.saldo_final.
+  //    Isso garante: saldo inicial do mês N == saldo final do mês N-1, SEMPRE.
+  const [yy, mm0] = month.split('-').map(Number);
+  const prevDate = new Date(yy, mm0 - 2, 1);
+  const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  const { data: prevSnap } = await supabase
+    .from('period_closure_snapshots' as any)
+    .select('saldo_final, created_at')
+    .eq('school_id', schoolId)
+    .eq('module', 'projecao')
+    .eq('month', prevMonthStr)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let saldoInicial: number;
   const monthStart = `${month}-01`;
-  const histMonthsSet = new Set(historicalRows.map(r => r.month));
-  // Lançamentos anteriores (respeita prioridade upload > histórico)
-  for (const e of activeEntries) {
-    if (e.data >= monthStart) continue;
-    const m = e.data.slice(0, 7);
-    const monthHasUpload = activeEntries.some(x => x.data.startsWith(m) && x.origem === 'fluxo');
-    if (!monthHasUpload && histMonthsSet.has(m)) continue;
-    if (monthHasUpload && e.origem !== 'fluxo') continue;
-    saldoInicial += getSaldoImpact(e, classifications);
-  }
-  // Histórico anterior (apenas meses sem upload)
-  for (const r of historicalRows) {
-    if (r.month >= month) continue;
-    const monthHasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
-    if (monthHasUpload) continue;
-    const meta = resolveHistTipo(r.tipo_valor, classifications);
-    const v = Number(r.valor) || 0;
-    saldoInicial += meta.sinal === 'somar' ? v : -v;
+  if (prevSnap && typeof (prevSnap as any).saldo_final === 'number') {
+    saldoInicial = Number((prevSnap as any).saldo_final);
+  } else {
+    // Sem snapshot anterior — calcula dinâmico a partir do saldo base da escola.
+    saldoInicial = saldoInicialBase;
+    const histMonthsSet = new Set(historicalRows.map(r => r.month));
+    for (const e of activeEntries) {
+      if (e.data >= monthStart) continue;
+      const m = e.data.slice(0, 7);
+      const monthHasUpload = activeEntries.some(x => x.data.startsWith(m) && x.origem === 'fluxo');
+      if (!monthHasUpload && histMonthsSet.has(m)) continue;
+      if (monthHasUpload && e.origem !== 'fluxo') continue;
+      saldoInicial += getSaldoImpact(e, classifications);
+    }
+    for (const r of historicalRows) {
+      if (r.month >= month) continue;
+      const monthHasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
+      if (monthHasUpload) continue;
+      const meta = resolveHistTipo(r.tipo_valor, classifications);
+      const v = Number(r.valor) || 0;
+      saldoInicial += meta.sinal === 'somar' ? v : -v;
+    }
   }
 
   return {
