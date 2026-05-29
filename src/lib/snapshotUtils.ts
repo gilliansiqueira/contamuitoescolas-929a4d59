@@ -17,6 +17,7 @@ import {
   filterActiveEntries,
   normalizeTipo,
 } from '@/lib/classificationUtils';
+import { loadSchoolModelItems } from '@/lib/modelValidation';
 import type { SnapshotPorTipo } from '@/hooks/usePeriodSnapshots';
 
 export interface ComputedSnapshot {
@@ -89,6 +90,14 @@ export async function computeMonthSnapshot(
   const saldoInicialBase = Number(schoolRow?.saldo_inicial) || 0;
   const baseDate = (schoolRow?.saldo_inicial_data as string | null) || null;
 
+  // 1.b) Carrega o modelo financeiro ativo da escola.
+  //     Gate estrito: tipos fora do modelo são desconsiderados.
+  const modelItems = await loadSchoolModelItems(schoolId);
+  const hasModel = modelItems.length > 0;
+  const validModelKeys = new Set(modelItems.map(i => normalizeTipo(i.name)));
+  const isInModel = (label: string) =>
+    !hasModel || (!!label && validModelKeys.has(normalizeTipo(label)));
+
   // 2) Busca todas as entries (a partir da data base, se houver)
   const fromDate = baseDate || '0000-01-01';
   const { data: entriesRaw = [] } = await supabase
@@ -97,15 +106,18 @@ export async function computeMonthSnapshot(
     .eq('school_id', schoolId)
     .gte('data', fromDate);
 
-  const allEntries = (entriesRaw as any[]).map(mapEntryRow);
-  const activeEntries = filterActiveEntries(allEntries, classifications);
+  const allEntriesRaw = (entriesRaw as any[]).map(mapEntryRow);
+  const noIgnored = filterActiveEntries(allEntriesRaw, classifications);
+  const allEntries = noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo));
+  const activeEntries = allEntries;
 
-  // 3) Busca histórico
+  // 3) Busca histórico (e aplica gate do modelo)
   const { data: histRaw = [] } = await supabase
     .from('historical_monthly' as any)
     .select('month, tipo_valor, valor')
     .eq('school_id', schoolId);
-  const historicalRows = (histRaw as any[]) as HistoricalRow[];
+  const historicalRows = ((histRaw as any[]) as HistoricalRow[])
+    .filter(r => isInModel(r.tipo_valor));
 
   // 4) Resolve fonte do mês
   const monthEntries = activeEntries.filter(e => e.data.startsWith(month));

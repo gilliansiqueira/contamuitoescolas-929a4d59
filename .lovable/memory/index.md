@@ -38,4 +38,5 @@ Updated: agora
 - [Fechamento de Períodos](mem://features/realizado-fechamento-periodos) — Fechar/reabrir meses no Realizado, bloqueio via triggers de banco
 - [Edição de Tipos no Histórico](mem://features/historico-edicao-tipos) — Renomear/excluir conta_nome com reclassificação obrigatória
 - [Análise de Vendas](mem://features/relatorio-realizado-analise-vendas) — Aba MVP com pedidos, cards dinâmicos, filtros e cadastros (produtos/canais/formas)
+- [Gate do Modelo Financeiro](mem://funcionalidades/modelo-financeiro-gate-estrito) — Dashboard/Histórico/Snapshots filtram tipos fora do modelo ativo
 - [Aba Vendas](mem://features/relatorio-realizado-vendas) — Receitas por forma de pagamento + bandeiras de cartão com ícones
