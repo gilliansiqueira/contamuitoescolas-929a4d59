@@ -1095,31 +1095,36 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="glass-card rounded-xl p-6 max-w-md w-full space-y-4 border border-border">
             <div>
-              <h3 className="font-display font-semibold text-foreground">Substituir projeções existentes?</h3>
+              <h3 className="font-display font-semibold text-foreground">Já existe projeção para esta origem</h3>
               <p className="text-xs text-muted-foreground mt-1">
-                Já existem <strong>{replaceDialog.existingCount}</strong> projeção(ões) desta origem no banco.
-                Lançamentos manuais e o realizado não serão afetados.
+                Encontramos <strong>{replaceDialog.existingCount}</strong> projeção(ões) anterior(es) desta origem.
+                Escolha como tratar o novo arquivo. Lançamentos manuais e tudo que já virou
+                <strong> realizado</strong> serão sempre preservados.
               </p>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">Substituir projeções a partir de:</label>
+              <label className="text-xs font-medium text-muted-foreground">Substituir a partir de (somente futuro):</label>
               <Input
                 type="date"
                 value={replaceDialog.cutoff}
+                min={new Date().toISOString().slice(0, 10)}
                 onChange={e => setReplaceDialog(d => d ? { ...d, cutoff: e.target.value } : d)}
                 className="h-9"
               />
               <p className="text-[10px] text-muted-foreground">
-                Padrão: <strong>{replaceDialog.minNewDate}</strong> (menor data do novo arquivo). Histórico anterior será preservado.
+                Sugerido: <strong>{replaceDialog.minNewDate}</strong> (menor data do novo arquivo).
+                Datas anteriores a hoje são bloqueadas para não afetar o realizado.
               </p>
             </div>
             <div className="flex gap-2 flex-wrap justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setReplaceDialog(null)} disabled={isUploading}>Cancelar</Button>
+              <Button variant="ghost" size="sm" onClick={() => setReplaceDialog(null)} disabled={isUploading}>
+                Cancelar
+              </Button>
               <Button variant="outline" size="sm" onClick={() => performImport(null)} disabled={isUploading}>
-                Adicionar sem substituir
+                Somar ao existente
               </Button>
               <Button variant="outline" size="sm" onClick={() => performImport('0000-01-01')} disabled={isUploading}>
-                Substituir tudo
+                Substituir projeção inteira
               </Button>
               <Button size="sm" onClick={() => performImport(replaceDialog.cutoff)} disabled={isUploading || !replaceDialog.cutoff}>
                 {isUploading ? 'Salvando...' : 'Substituir a partir da data'}
