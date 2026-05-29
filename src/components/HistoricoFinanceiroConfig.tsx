@@ -486,6 +486,21 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const confirmImport = async () => {
     if (!importPreview) return;
+    // Bloqueia importação parcial se houver QUALQUER linha com mês inválido.
+    if (importPreview.errors.length > 0 || importPreview.skippedRows > 0) {
+      toast.error(
+        `Importação cancelada: ${importPreview.errors.length || importPreview.skippedRows} linha(s) com mês inválido. ` +
+        `Use o formato AAAA-MM (ex.: 2025-01). Corrija o arquivo e tente novamente.`
+      );
+      return;
+    }
+    // Defesa em profundidade: revalida cada item parseado.
+    const monthRe = /^\d{4}-(0[1-9]|1[0-2])$/;
+    const invalid = effectiveImport.items.filter(it => !monthRe.test(it.month));
+    if (invalid.length > 0) {
+      toast.error(`Importação cancelada: ${invalid.length} linha(s) com mês fora do padrão AAAA-MM.`);
+      return;
+    }
     if (effectiveImport.unmapped.length > 0) {
       toast.error('Mapeie ou ignore todos os tipos fora do modelo antes de importar.');
       return;
