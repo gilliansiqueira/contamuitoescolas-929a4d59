@@ -8,9 +8,13 @@ export interface TipoMappingRow {
   tipoValor: string;        // canonical key (normalized)
   label: string;            // first raw spelling encountered
   count: number;            // occurrences in file
-  classificacao: EffectiveClassification;
+  /** Vazio quando o tipo não corresponde a nenhum item do Modelo Financeiro
+   *  e ainda não foi classificado manualmente. */
+  classificacao: EffectiveClassification | '';
   operacaoSinal: OperacaoSinal;
   prefilled: boolean;       // pre-loaded from existing config (sugestão apenas)
+  /** True quando o label não bate com nenhum item do Modelo Financeiro. */
+  inModel?: boolean;
 }
 
 interface Props {
@@ -32,14 +36,16 @@ const CLASS_LABEL: Record<EffectiveClassification, string> = {
 export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsDefault }: Props) {
   const allMapped = rows.every(r => !!r.classificacao);
   const suggestedCount = rows.filter(r => r.prefilled).length;
+  const unknownCount = rows.filter(r => r.inModel === false).length;
 
   function update(i: number, patch: Partial<TipoMappingRow>) {
     const next = rows.slice();
     next[i] = { ...next[i], ...patch };
-    // Auto-suggest sinal when classificacao changes
-    if (patch.classificacao && patch.classificacao !== next[i].classificacao) {
-      next[i].classificacao = patch.classificacao;
-      next[i].operacaoSinal = defaultSinalFor(patch.classificacao);
+    // Auto-suggest sinal when classificacao changes para um valor não-vazio
+    const newCls = patch.classificacao as TipoMappingRow['classificacao'] | undefined;
+    if (newCls !== undefined && newCls !== '' && newCls !== rows[i].classificacao) {
+      next[i].classificacao = newCls;
+      next[i].operacaoSinal = defaultSinalFor(newCls as EffectiveClassification);
     }
     onChange(next);
   }
@@ -67,6 +73,12 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
             <p className="text-xs text-muted-foreground/80 mt-1 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
               {suggestedCount} tipo(s) pré-sugerido(s) a partir do padrão salvo (você pode alterar livremente).
+            </p>
+          )}
+          {unknownCount > 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {unknownCount} tipo(s) fora do Modelo Financeiro — classifique manualmente para prosseguir.
             </p>
           )}
         </div>
@@ -97,11 +109,14 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
                       value={r.classificacao}
                       onChange={e =>
                         update(i, {
-                          classificacao: e.target.value as EffectiveClassification,
+                          classificacao: e.target.value as EffectiveClassification | '',
                         })
                       }
-                      className="h-8 border rounded px-2 bg-background w-full"
+                      className={`h-8 border rounded px-2 bg-background w-full ${
+                        !r.classificacao ? 'border-destructive/60 ring-1 ring-destructive/30' : ''
+                      }`}
                     >
+                      <option value="">— Selecione —</option>
                       <option value="receita">{CLASS_LABEL.receita}</option>
                       <option value="despesa">{CLASS_LABEL.despesa}</option>
                       <option value="operacao">{CLASS_LABEL.operacao}</option>
@@ -111,7 +126,7 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
                   <td className="px-3 py-2">
                     <select
                       value={r.operacaoSinal}
-                      disabled={sinalDisabled}
+                      disabled={sinalDisabled || !r.classificacao}
                       onChange={e =>
                         update(i, {
                           operacaoSinal: e.target.value as OperacaoSinal,
@@ -126,12 +141,14 @@ export function TipoMappingStep({ rows, onChange, onConfirm, onCancel, onSaveAsD
                   <td className="px-3 py-2">
                     <span
                       className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${
-                        r.prefilled
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-muted text-muted-foreground'
+                        r.inModel === false
+                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                          : r.prefilled
+                            ? 'bg-primary/10 text-primary'
+                            : 'bg-muted text-muted-foreground'
                       }`}
                     >
-                      {r.prefilled ? 'Sugerido' : 'Novo'}
+                      {r.inModel === false ? 'Fora do modelo' : r.prefilled ? 'Sugerido' : 'Novo'}
                     </span>
                   </td>
                 </tr>

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
+import { loadSchoolModelItems } from '@/lib/modelValidation';
 
 interface Props { schoolId: string; }
 type Step = 'idle' | 'mapping' | 'preview';
@@ -126,8 +127,23 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     return m;
   }, [rules]);
 
+  // Itens do Modelo Financeiro da escola — fonte oficial de categorias válidas.
+  const { data: modelItems = [] } = useQuery({
+    queryKey: ['schoolModelItems', schoolId],
+    queryFn: () => loadSchoolModelItems(schoolId),
+    enabled: !!schoolId,
+  });
+
   const categoriaFilhas = useMemo(() => contas.filter(c => c.nivel > 1), [contas]);
   const groupNames = useMemo(() => [...new Set(contas.filter(c => c.nivel === 1).map(c => c.grupo))], [contas]);
+
+  // Conjunto de nomes válidos (plano de contas + modelo financeiro).
+  const knownCategoriaNorms = useMemo(() => {
+    const set = new Set<string>();
+    contas.forEach(c => set.add(normalizeStr(c.nome)));
+    modelItems.forEach(it => set.add(normalizeStr(it.name)));
+    return set;
+  }, [contas, modelItems]);
 
   const insertMutation = useMutation({
     mutationFn: async (rows: any[]) => {
@@ -228,7 +244,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       return;
     }
     saveMappingToStorage(columnMapping);
-    const knownNorm = new Set(contas.map(c => normalizeStr(c.nome)));
+    const knownNorm = knownCategoriaNorms;
     let invalid = 0;
 
     const parsed = rawRows.map(r => {
@@ -269,7 +285,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       const auto = parsedWithRules.filter((r: any) => r._autoMapped).length;
       toast.success(`${parsedWithRules.length} lançamentos válidos${auto > 0 ? ` · ${auto} categorizados automaticamente por regras` : ''}`);
     }
-  }, [columnMapping, rawRows, contas, fileName, rulesByNorm]);
+  }, [columnMapping, rawRows, knownCategoriaNorms, fileName, rulesByNorm]);
 
   const handleConfirmImport = () => {
     // Check all unmapped are resolved
@@ -497,6 +513,15 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                                 <SelectTrigger className="h-8 text-xs flex-1 rounded-lg"><SelectValue placeholder="Escolher..." /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="__new__">+ Criar nova categoria</SelectItem>
+                                  {modelItems.length > 0 && (
+                                    <>
+                                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Modelo Financeiro</div>
+                                      {modelItems.map(it => (
+                                        <SelectItem key={`m-${it.id}`} value={it.name}>★ {it.name}</SelectItem>
+                                      ))}
+                                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Plano de Contas</div>
+                                    </>
+                                  )}
                                   {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
                                 </SelectContent>
                               </Select>

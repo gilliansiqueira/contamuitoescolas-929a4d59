@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import type { TypeClassification } from '@/types/financial';
-import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification } from '@/lib/classificationUtils';
+import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification, type EffectiveClassification } from '@/lib/classificationUtils';
 import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMappingStep';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -443,20 +443,47 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         else counts.set(key, { label: raw, count: 1 });
       }
 
+      const modelKeys = new Set(modelItems.map(it => normalizeTipo(it.name)));
+      const modelByKey = new Map(modelItems.map(it => [normalizeTipo(it.name), it]));
+
       const tipoRows: TipoMappingRow[] = Array.from(counts.entries())
         .map(([key, { label, count }]) => {
           const cfg = findClassification(label, classifications);
-          const cls = (cfg?.classificacao as TipoMappingRow['classificacao']) ?? 'despesa';
+          const inModel = modelKeys.has(key);
+          const modelItem = modelByKey.get(key);
+
+          // Pré-preenche classificação SOMENTE se houver config existente OU o
+          // tipo bater com um item do Modelo Financeiro. Caso contrário, deixa
+          // vazio para forçar o usuário a classificar manualmente.
+          let cls: TipoMappingRow['classificacao'] = '';
+          let prefilled = false;
+          if (cfg) {
+            cls = cfg.classificacao as TipoMappingRow['classificacao'];
+            prefilled = true;
+          } else if (modelItem) {
+            cls =
+              modelItem.tipo === 'entrada' && modelItem.entra_no_resultado ? 'receita' :
+              modelItem.tipo === 'saida' && modelItem.entra_no_resultado ? 'despesa' :
+              modelItem.impacta_caixa ? 'operacao' :
+              'ignorar';
+            prefilled = true;
+          }
+
           const sinalRaw = cfg?.operacaoSinal;
           const sinal: TipoMappingRow['operacaoSinal'] =
-            sinalRaw === 'somar' || sinalRaw === 'subtrair' ? sinalRaw : defaultSinalFor(cls);
+            sinalRaw === 'somar' || sinalRaw === 'subtrair'
+              ? sinalRaw
+              : cls
+                ? defaultSinalFor(cls as EffectiveClassification)
+                : 'somar';
           return {
             tipoValor: key,
             label,
             count,
             classificacao: cls,
             operacaoSinal: sinal,
-            prefilled: !!cfg,
+            prefilled,
+            inModel,
           };
         })
         .sort((a, b) => b.count - a.count);
@@ -498,7 +525,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         }.`
       );
     }
-  }, [schoolId, rules, classifications]);
+  }, [schoolId, rules, classifications, modelItems]);
 
   const handleFile = useCallback(async (file: File, uploadType: UploadType) => {
     setFileName(file.name);
@@ -582,16 +609,19 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
 
     // Snapshot LOCAL — usado apenas para converter as linhas deste arquivo.
     // Não toca a tabela type_classifications.
-    const localClassifications: TypeClassification[] = tipoMapping.map(r => ({
-      id: crypto.randomUUID(),
-      school_id: schoolId,
-      tipoValor: r.label, // mantém o label original; classifyTipoName normaliza na leitura
-      classificacao: r.classificacao,
-      operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
-      entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
-      impactaCaixa: r.classificacao !== 'ignorar',
-      label: r.label,
-    }));
+    const localClassifications: TypeClassification[] = tipoMapping.map(r => {
+      const cls = r.classificacao as EffectiveClassification;
+      return {
+        id: crypto.randomUUID(),
+        school_id: schoolId,
+        tipoValor: r.label,
+        classificacao: cls,
+        operacaoSinal: cls === 'ignorar' ? defaultSinalFor(cls) : r.operacaoSinal,
+        entraNoResultado: cls === 'receita' || cls === 'despesa',
+        impactaCaixa: cls !== 'ignorar',
+        label: r.label,
+      };
+    });
 
     const { rows, mapping, uploadType } = tipoMappingPending;
     const { entries, errors: validationErrors } = convertRows(
@@ -630,14 +660,15 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     try {
       for (const r of tipoMapping) {
         const existing = findClassification(r.label, classifications);
+        const cls = r.classificacao as EffectiveClassification;
         const tc: TypeClassification = {
           id: existing?.id ?? crypto.randomUUID(),
           school_id: schoolId,
           tipoValor: r.tipoValor,
-          classificacao: r.classificacao,
-          operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
-          entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
-          impactaCaixa: r.classificacao !== 'ignorar',
+          classificacao: cls,
+          operacaoSinal: cls === 'ignorar' ? defaultSinalFor(cls) : r.operacaoSinal,
+          entraNoResultado: cls === 'receita' || cls === 'despesa',
+          impactaCaixa: cls !== 'ignorar',
           label: existing?.label ?? r.label,
         };
         await saveClassificationMut.mutateAsync(tc);
