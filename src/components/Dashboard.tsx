@@ -40,53 +40,52 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
   });
 }
 
-// Resolve the classification of a "tipo_valor" key (from upload or histórico).
-// Uses synonym map (despesa/despesas/saida → despesa, receita/entrada → receita)
-// before falling back to user-defined classifications.
-// `operacaoSinal` define o impacto no saldo para operações: 'somar' | 'subtrair' | 'auto'.
+// Resolve metadata para um nome de tipo (vindo de upload ou histórico).
+// Sem heurísticas/sinônimos por nome — a única fonte é a configuração do usuário.
+// "ignorar" SEMPRE significa: não entra no resultado e não impacta o caixa.
 function resolveTipoMeta(tipoKey: string, classifications: TypeClassification[]) {
   const key = normalize(tipoKey);
   const canonicalKey = getCanonicalKey(tipoKey);
-  const synonymCls = classifyTipoName(tipoKey, classifications);
-  // User config (only if not a fixed synonym)
   const userCls = classifications.find(c => normalize(c.tipoValor) === key);
 
-  if (synonymCls === 'receita' || synonymCls === 'despesa') {
-    return {
-      classificacao: synonymCls,
-      entraNoResultado: true,
-      impactaCaixa: true,
-      isEntrada: synonymCls === 'receita',
-      operacaoSinal: 'auto' as 'auto' | 'somar' | 'subtrair',
-      label: getCanonicalLabel(tipoKey),
-      canonicalKey,
-    };
-  }
   if (userCls) {
+    const classificacao = userCls.classificacao;
+    // ─── ENFORCEMENT: 'ignorar' nunca participa de nada ───
+    if (classificacao === 'ignorar') {
+      return {
+        classificacao: 'ignorar' as const,
+        entraNoResultado: false,
+        impactaCaixa: false,
+        isEntrada: false,
+        operacaoSinal: 'somar' as 'auto' | 'somar' | 'subtrair',
+        label: userCls.label || tipoKey,
+        canonicalKey,
+      };
+    }
     const operacaoSinal = (userCls.operacaoSinal ?? 'auto') as 'auto' | 'somar' | 'subtrair';
-    // Para operações: prioriza o sinal configurado; só cai no nome se 'auto'.
     let isEntrada: boolean;
-    if (userCls.classificacao === 'receita') isEntrada = true;
-    else if (userCls.classificacao === 'operacao') {
+    if (classificacao === 'receita') isEntrada = true;
+    else if (classificacao === 'operacao') {
       if (operacaoSinal === 'somar') isEntrada = true;
       else if (operacaoSinal === 'subtrair') isEntrada = false;
       else isEntrada = /entrada|recebimento|aplicacao|aporte|resgate/.test(key);
     } else isEntrada = false;
     return {
-      classificacao: userCls.classificacao,
-      entraNoResultado: userCls.entraNoResultado,
-      impactaCaixa: userCls.impactaCaixa,
+      classificacao,
+      entraNoResultado: classificacao === 'receita' || classificacao === 'despesa',
+      impactaCaixa: true,
       isEntrada,
       operacaoSinal,
       label: userCls.label || tipoKey,
       canonicalKey,
     };
   }
-  // Fallback for unknown tipos
+  // Sem configuração do usuário e (por gate de modelo) tipo não está no modelo:
+  // tratamos como operação neutra que NÃO impacta nada (será filtrado pelo gate de modelo).
   return {
     classificacao: 'operacao' as const,
     entraNoResultado: false,
-    impactaCaixa: true,
+    impactaCaixa: false,
     isEntrada: false,
     operacaoSinal: 'auto' as 'auto' | 'somar' | 'subtrair',
     label: tipoKey,
