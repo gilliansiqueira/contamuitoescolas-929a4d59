@@ -609,16 +609,19 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
 
     // Snapshot LOCAL — usado apenas para converter as linhas deste arquivo.
     // Não toca a tabela type_classifications.
-    const localClassifications: TypeClassification[] = tipoMapping.map(r => ({
-      id: crypto.randomUUID(),
-      school_id: schoolId,
-      tipoValor: r.label, // mantém o label original; classifyTipoName normaliza na leitura
-      classificacao: r.classificacao,
-      operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
-      entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
-      impactaCaixa: r.classificacao !== 'ignorar',
-      label: r.label,
-    }));
+    const localClassifications: TypeClassification[] = tipoMapping.map(r => {
+      const cls = r.classificacao as EffectiveClassification;
+      return {
+        id: crypto.randomUUID(),
+        school_id: schoolId,
+        tipoValor: r.label,
+        classificacao: cls,
+        operacaoSinal: cls === 'ignorar' ? defaultSinalFor(cls) : r.operacaoSinal,
+        entraNoResultado: cls === 'receita' || cls === 'despesa',
+        impactaCaixa: cls !== 'ignorar',
+        label: r.label,
+      };
+    });
 
     const { rows, mapping, uploadType } = tipoMappingPending;
     const { entries, errors: validationErrors } = convertRows(
@@ -657,14 +660,15 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
     try {
       for (const r of tipoMapping) {
         const existing = findClassification(r.label, classifications);
+        const cls = r.classificacao as EffectiveClassification;
         const tc: TypeClassification = {
           id: existing?.id ?? crypto.randomUUID(),
           school_id: schoolId,
           tipoValor: r.tipoValor,
-          classificacao: r.classificacao,
-          operacaoSinal: r.classificacao === 'ignorar' ? defaultSinalFor(r.classificacao) : r.operacaoSinal,
-          entraNoResultado: r.classificacao === 'receita' || r.classificacao === 'despesa',
-          impactaCaixa: r.classificacao !== 'ignorar',
+          classificacao: cls,
+          operacaoSinal: cls === 'ignorar' ? defaultSinalFor(cls) : r.operacaoSinal,
+          entraNoResultado: cls === 'receita' || cls === 'despesa',
+          impactaCaixa: cls !== 'ignorar',
           label: existing?.label ?? r.label,
         };
         await saveClassificationMut.mutateAsync(tc);
