@@ -105,7 +105,14 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor</label>
-            <Input className="rounded-xl" value={valor} onChange={e => setValor(e.target.value)} placeholder="0,00" />
+            <Input
+              className="rounded-xl"
+              inputMode="decimal"
+              value={valor}
+              onChange={e => setValor(formatBRL(parseBRL(e.target.value)))}
+              onBlur={() => setValor(formatBRL(parseBRL(valor)))}
+              placeholder="0,00"
+            />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Descrição</label>
