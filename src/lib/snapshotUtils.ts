@@ -111,12 +111,13 @@ export async function computeMonthSnapshot(
   const allEntries = noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo));
   const activeEntries = allEntries;
 
-  // 3) Busca histórico
+  // 3) Busca histórico (e aplica gate do modelo)
   const { data: histRaw = [] } = await supabase
     .from('historical_monthly' as any)
     .select('month, tipo_valor, valor')
     .eq('school_id', schoolId);
-  const historicalRows = (histRaw as any[]) as HistoricalRow[];
+  const historicalRows = ((histRaw as any[]) as HistoricalRow[])
+    .filter(r => isInModel(r.tipo_valor));
 
   // 4) Resolve fonte do mês
   const monthEntries = activeEntries.filter(e => e.data.startsWith(month));
