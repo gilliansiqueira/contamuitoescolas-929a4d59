@@ -136,15 +136,24 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
               por_tipo: snap.por_tipo,
               created_by: user?.id || null,
             });
-            // Para Realizado: também consolida no Histórico Financeiro
-            // (tipo_valor "Receita" e "Despesa") para alimentar a Projeção.
+            // Consolidação no Histórico Financeiro (vale para os dois módulos)
+            // — congela receitas, despesas, operações e saldo do mês fechado.
+            const pushHist = (tipo: string, valor: number) => {
+              if (Math.abs(valor) > 0.005) {
+                histRows.push({ school_id: schoolId, month: c.month, tipo_valor: tipo, valor });
+              }
+            };
             if (module === 'realizado') {
-              if (snap.receitas > 0) histRows.push({
-                school_id: schoolId, month: c.month, tipo_valor: 'Receita', valor: snap.receitas,
-              });
-              if (snap.despesas > 0) histRows.push({
-                school_id: schoolId, month: c.month, tipo_valor: 'Despesa', valor: snap.despesas,
-              });
+              pushHist('Receita', snap.receitas);
+              pushHist('Despesa', snap.despesas);
+              if (snap.operacoes_in > 0) pushHist('Operação (entrada)', snap.operacoes_in);
+              if (snap.operacoes_out > 0) pushHist('Operação (saída)', snap.operacoes_out);
+            } else {
+              // projecao — consolida totais e também o saldo final como marcador
+              pushHist('Receita', snap.receitas);
+              pushHist('Despesa', snap.despesas);
+              if (snap.operacoes_in > 0) pushHist('Operação (entrada)', snap.operacoes_in);
+              if (snap.operacoes_out > 0) pushHist('Operação (saída)', snap.operacoes_out);
             }
           } catch (e) {
             console.error('Erro ao gerar snapshot de', c.month, e);
