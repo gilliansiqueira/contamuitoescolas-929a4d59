@@ -31,6 +31,16 @@ interface Props {
   onSave: (id: string, updates: Partial<RealizedEntry>) => Promise<void>;
 }
 
+function formatBRL(num: number) {
+  if (!isFinite(num)) num = 0;
+  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function parseBRL(s: string) {
+  const digits = (s || '').replace(/\D/g, '');
+  if (!digits) return 0;
+  return parseInt(digits, 10) / 100;
+}
+
 export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: Props) {
   const [data, setData] = useState('');
   const [valor, setValor] = useState('');
@@ -43,25 +53,27 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
   const groups = [...new Set(contas.filter(c => c.nivel === 1).map(c => c.grupo || c.nome))].sort();
   const children = contas.filter(c => c.nivel > 1 && (c.grupo === grupo)).map(c => c.nome).sort();
 
+  // Only re-initialize when opening a different entry — NOT when the parent
+  // re-renders and produces a new `contas` reference (that would wipe user
+  // edits like the value mask, e.g. when changing the category).
   useEffect(() => {
     if (entry && open) {
       setData(entry.data || '');
-      setValor(String(entry.valor || 0));
+      setValor(formatBRL(Number(entry.valor) || 0));
       setDescricao(entry.descricao || '');
       setContaNome(entry.conta_nome || '');
-      // Find group for this conta_nome
       const found = contas.find(c => c.nome === entry.conta_nome && c.nivel > 1);
       setGrupo(found?.grupo || '');
     }
-  }, [entry, open, contas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.id, open]);
 
   const handleSave = async () => {
     if (!entry) return;
     setSaving(true);
     try {
-      const cleanVal = valor.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
-      const numVal = parseFloat(cleanVal);
-      if (isNaN(numVal)) { toast.error('Valor inválido'); setSaving(false); return; }
+      const numVal = parseBRL(valor);
+      if (!isFinite(numVal) || numVal <= 0) { toast.error('Valor inválido'); setSaving(false); return; }
 
       await onSave(entry.id, {
         data,
