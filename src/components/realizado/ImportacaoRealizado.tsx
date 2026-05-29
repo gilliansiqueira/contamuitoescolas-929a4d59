@@ -513,6 +513,15 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                                 <SelectTrigger className="h-8 text-xs flex-1 rounded-lg"><SelectValue placeholder="Escolher..." /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="__new__">+ Criar nova categoria</SelectItem>
+                                  {modelItems.length > 0 && (
+                                    <>
+                                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Modelo Financeiro</div>
+                                      {modelItems.map(it => (
+                                        <SelectItem key={`m-${it.id}`} value={it.name}>★ {it.name}</SelectItem>
+                                      ))}
+                                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Plano de Contas</div>
+                                    </>
+                                  )}
                                   {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
                                 </SelectContent>
                               </Select>
