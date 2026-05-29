@@ -61,6 +61,22 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (months: string[]) => {
+      // 0) Validação de pré-fechamento — bloqueia se houver inconsistência crítica
+      const validationErrors: string[] = [];
+      for (const m of months) {
+        const v = await validateClosure(schoolId, m, module);
+        if (!v.ok) {
+          validationErrors.push(`${m}:\n  • ${v.errors.join('\n  • ')}`);
+        }
+      }
+      if (validationErrors.length > 0) {
+        const err: any = new Error(
+          `Não é possível fechar — corrija as inconsistências antes:\n\n${validationErrors.join('\n\n')}`
+        );
+        err.validation = true;
+        throw err;
+      }
+
       // 1) Para Projeção, calcula snapshot de cada mês ANTES de fechar
       //    (assim o snapshot reflete os valores correntes naquele momento)
       let classifications: TypeClassification[] = [];
