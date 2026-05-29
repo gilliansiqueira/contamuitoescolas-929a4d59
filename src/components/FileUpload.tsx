@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import type { TypeClassification } from '@/types/financial';
-import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification } from '@/lib/classificationUtils';
+import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification, type EffectiveClassification } from '@/lib/classificationUtils';
 import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMappingStep';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
