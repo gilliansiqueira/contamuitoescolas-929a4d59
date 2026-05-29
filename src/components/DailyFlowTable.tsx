@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { FinancialEntry } from '@/types/financial';
 import { useSchool, useEntriesFromBaseDate, usePaymentDelayRules, useTypeClassifications } from '@/hooks/useFinancialData';
+import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR, addDaysAndAdjust } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
@@ -45,11 +46,13 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const { hasModel, isInModel } = useSchoolModel(schoolId);
 
   const adjustedEntries = useMemo(() => {
     const delayed = applyPaymentDelays(allEntries, delayRules);
-    return filterActiveEntries(delayed, classifications);
-  }, [allEntries, delayRules, classifications]);
+    const active = filterActiveEntries(delayed, classifications);
+    return hasModel ? active.filter(e => isInModel(e.tipoOriginal || e.tipo)) : active;
+  }, [allEntries, delayRules, classifications, hasModel, isInModel]);
 
   const months = useMemo(() => {
     if (selectedMonth === 'all') {
