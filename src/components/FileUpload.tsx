@@ -525,7 +525,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         }.`
       );
     }
-  }, [schoolId, rules, classifications]);
+  }, [schoolId, rules, classifications, modelItems]);
 
   const handleFile = useCallback(async (file: File, uploadType: UploadType) => {
     setFileName(file.name);
