@@ -196,6 +196,7 @@ export async function computeMonthSnapshot(
       const monthHasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
       if (monthHasUpload) continue;
       const meta = resolveHistTipo(r.tipo_valor, classifications);
+      if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
       saldoInicial += meta.sinal === 'somar' ? v : -v;
     }
