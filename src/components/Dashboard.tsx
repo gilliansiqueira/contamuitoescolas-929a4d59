@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
 import { calculateTotals, filterActiveEntries, getSaldoImpact, getEffectiveClassification, getCanonicalKey, normalizeTipo } from '@/lib/classificationUtils';
+import { resolveTipoMeta } from '@/lib/tipoMeta';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, BarChart, Bar, Legend, LineChart, Line } from 'recharts';
 import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
@@ -40,58 +41,7 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
   });
 }
 
-// Resolve metadata para um nome de tipo (vindo de upload ou histórico).
-// Sem heurísticas/sinônimos por nome — a única fonte é a configuração do usuário.
-// "ignorar" SEMPRE significa: não entra no resultado e não impacta o caixa.
-function resolveTipoMeta(tipoKey: string, classifications: TypeClassification[]) {
-  const key = normalize(tipoKey);
-  const canonicalKey = getCanonicalKey(tipoKey);
-  const userCls = classifications.find(c => normalize(c.tipoValor) === key);
-
-  if (userCls) {
-    const classificacao = userCls.classificacao;
-    // ─── ENFORCEMENT: 'ignorar' nunca participa de nada ───
-    if (classificacao === 'ignorar') {
-      return {
-        classificacao: 'ignorar' as const,
-        entraNoResultado: false,
-        impactaCaixa: false,
-        isEntrada: false,
-        operacaoSinal: 'somar' as 'auto' | 'somar' | 'subtrair',
-        label: userCls.label || tipoKey,
-        canonicalKey,
-      };
-    }
-    const operacaoSinal = (userCls.operacaoSinal ?? 'auto') as 'auto' | 'somar' | 'subtrair';
-    let isEntrada: boolean;
-    if (classificacao === 'receita') isEntrada = true;
-    else if (classificacao === 'operacao') {
-      if (operacaoSinal === 'somar') isEntrada = true;
-      else if (operacaoSinal === 'subtrair') isEntrada = false;
-      else isEntrada = /entrada|recebimento|aplicacao|aporte|resgate/.test(key);
-    } else isEntrada = false;
-    return {
-      classificacao,
-      entraNoResultado: classificacao === 'receita' || classificacao === 'despesa',
-      impactaCaixa: true,
-      isEntrada,
-      operacaoSinal,
-      label: userCls.label || tipoKey,
-      canonicalKey,
-    };
-  }
-  // Sem configuração do usuário e (por gate de modelo) tipo não está no modelo:
-  // tratamos como operação neutra que NÃO impacta nada (será filtrado pelo gate de modelo).
-  return {
-    classificacao: 'operacao' as const,
-    entraNoResultado: false,
-    impactaCaixa: false,
-    isEntrada: false,
-    operacaoSinal: 'auto' as 'auto' | 'somar' | 'subtrair',
-    label: tipoKey,
-    canonicalKey,
-  };
-}
+// resolveTipoMeta agora vem de @/lib/tipoMeta (SSOT).
 
 export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { isPresentationMode } = usePresentation();

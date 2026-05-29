@@ -17,6 +17,7 @@ import {
   filterActiveEntries,
   normalizeTipo,
 } from '@/lib/classificationUtils';
+import { resolveTipoMeta } from '@/lib/tipoMeta';
 import { loadSchoolModelItems } from '@/lib/modelValidation';
 import type { SnapshotPorTipo } from '@/hooks/usePeriodSnapshots';
 
@@ -52,24 +53,18 @@ function mapEntryRow(r: any): FinancialEntry {
   } as FinancialEntry;
 }
 
-/** Resolve label/classificação/sinal para um tipo do histórico (sem entry real). */
+/**
+ * Resolve metadados de um tipo do histórico mensal — delega para a SSOT
+ * `resolveTipoMeta`. Sem heurística por nome.
+ */
 function resolveHistTipo(tipoValor: string, classifications: TypeClassification[]) {
-  const cfg = classifications.find(c => normalizeTipo(c.tipoValor) === normalizeTipo(tipoValor));
-  if (cfg) {
-    const cls = cfg.classificacao as SnapshotPorTipo['classificacao'];
-    const rawSinal = cfg.operacaoSinal;
-    const sinal: 'somar' | 'subtrair' =
-      rawSinal === 'subtrair' ? 'subtrair'
-      : rawSinal === 'somar' ? 'somar'
-      : cls === 'despesa' ? 'subtrair' : 'somar';
-    return { classificacao: cls, sinal, label: cfg.label || tipoValor };
-  }
-  // Sem config: heurística mínima — receita/entrada → somar; despesa/saida → subtrair
-  const n = normalizeTipo(tipoValor);
-  if (n === 'receita' || n === 'entrada') return { classificacao: 'receita' as const, sinal: 'somar' as const, label: tipoValor };
-  if (n === 'despesa' || n === 'saida') return { classificacao: 'despesa' as const, sinal: 'subtrair' as const, label: tipoValor };
-  // Tipo desconhecido — trata como operação somando (não impacta resultado)
-  return { classificacao: 'operacao' as const, sinal: 'somar' as const, label: tipoValor };
+  const meta = resolveTipoMeta(tipoValor, classifications);
+  return {
+    classificacao: meta.classificacao as SnapshotPorTipo['classificacao'],
+    sinal: meta.sinal,
+    label: meta.label,
+    impactaCaixa: meta.impactaCaixa,
+  };
 }
 
 /**
@@ -201,6 +196,7 @@ export async function computeMonthSnapshot(
       const monthHasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
       if (monthHasUpload) continue;
       const meta = resolveHistTipo(r.tipo_valor, classifications);
+      if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
       saldoInicial += meta.sinal === 'somar' ? v : -v;
     }

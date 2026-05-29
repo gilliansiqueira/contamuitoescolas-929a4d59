@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useSchool, useEntriesFromBaseDate, useTypeClassifications } from '@/hooks/useFinancialData';
+import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { CashFlowDay } from '@/types/financial';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
@@ -20,8 +21,12 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
   const baseDate = school?.saldoInicialData;
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const { hasModel, isInModel } = useSchoolModel(schoolId);
 
-  const activeEntries = useMemo(() => filterActiveEntries(allEntries, classifications), [allEntries, classifications]);
+  const activeEntries = useMemo(() => {
+    const noIgnored = filterActiveEntries(allEntries, classifications);
+    return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo)) : noIgnored;
+  }, [allEntries, classifications, hasModel, isInModel]);
 
   const entries = useMemo(() =>
     activeEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),

@@ -40,3 +40,4 @@ Updated: agora
 - [Análise de Vendas](mem://features/relatorio-realizado-analise-vendas) — Aba MVP com pedidos, cards dinâmicos, filtros e cadastros (produtos/canais/formas)
 - [Gate do Modelo Financeiro](mem://funcionalidades/modelo-financeiro-gate-estrito) — Dashboard/Histórico/Snapshots filtram tipos fora do modelo ativo
 - [Aba Vendas](mem://features/relatorio-realizado-vendas) — Receitas por forma de pagamento + bandeiras de cartão com ícones
+- [SSOT Financeira](mem://financeiro/single-source-of-truth) — classificationUtils + tipoMeta + useSchoolModel em todas as telas, sem heurística por nome
