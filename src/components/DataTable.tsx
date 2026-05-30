@@ -171,8 +171,10 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
     } catch { toast.error('Erro ao excluir em massa'); }
   };
 
-  const totalEntradas = filtered.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0);
-  const totalSaidas = filtered.filter(e => e.tipo === 'saida').reduce((s, e) => s + e.valor, 0);
+  // SSOT: totais via calculateTotals — descarta 'ignorar' e respeita classificação do usuário.
+  const totals = useMemo(() => calculateTotals(filtered, classifications), [filtered, classifications]);
+  const totalEntradas = totals.receitas;
+  const totalSaidas = totals.despesas;
 
   // Available origins for filter
   const origens = useMemo(() => [...new Set(entries.map(e => e.origem))].sort(), [entries]);
