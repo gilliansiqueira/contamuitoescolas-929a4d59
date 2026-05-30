@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { getEffectiveClassification } from '@/lib/classificationUtils';
+import { getEffectiveClassification, getSaldoImpact, calculateTotals, filterActiveEntries } from '@/lib/classificationUtils';
 import { usePresentation } from '@/components/presentation-provider';
 
 interface DataTableProps {
