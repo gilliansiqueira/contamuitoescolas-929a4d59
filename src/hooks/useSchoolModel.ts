@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fetchSchoolTemplateId, fetchTemplateItems, type FinancialModelTemplateItem } from '@/lib/financialModels';
 import { normalizeTipo } from '@/lib/classificationUtils';
+import { useTypeClassifications } from '@/hooks/useFinancialData';
 
 export interface SchoolModel {
   hasModel: boolean;
@@ -35,15 +36,23 @@ export function useSchoolModel(schoolId: string): SchoolModel {
     staleTime: 60_000,
   });
 
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
+
   return useMemo<SchoolModel>(() => {
     const items = data?.items ?? [];
     const hasModel = !!data?.tplId && items.length > 0;
-    const validKeys = new Set(items.map(i => normalizeTipo(i.name)));
+    const validKeys = new Set([
+      ...items.map(i => normalizeTipo(i.name)),
+      ...classifications
+        .filter(c => c.classificacao !== 'ignorar')
+        .map(c => normalizeTipo(c.tipoValor))
+    ]);
+
     const isInModel = (label: string) => {
       if (!hasModel) return true; // fail-open quando a escola não tem modelo
       if (!label) return false;
       return validKeys.has(normalizeTipo(label));
     };
     return { hasModel, items, validKeys, isInModel };
-  }, [data]);
+  }, [data, classifications]);
 }
