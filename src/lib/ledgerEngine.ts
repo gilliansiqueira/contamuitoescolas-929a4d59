@@ -47,6 +47,7 @@ export const DEFAULT_MAPPINGS: Record<string, LedgerRule> = {
   'entrada emprestimo': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar' },
   'saida emprestimo': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
   'entrada devolucao': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar' },
+  'saida devolucao': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
   'ignorar': { entraNoResultado: false, impactaCaixa: false, operacaoSinal: 'somar' },
   'antecipacao': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar' },
   'antecipacoes': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar' },

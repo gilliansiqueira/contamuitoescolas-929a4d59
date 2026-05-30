@@ -609,13 +609,13 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       </div>
 
       {/* KPIs DINÂMICOS por tipo */}
-      {tipoAggregations.length > 0 && (
+      {tipoAggregations.filter(a => a.entraNoResultado).length > 0 && (
         <div>
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
             <Layers className="w-4 h-4" /> Por Tipo Financeiro
           </h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {tipoAggregations.map((a, i) => {
+            {tipoAggregations.filter(a => a.entraNoResultado).map((a, i) => {
               const Icon = a.classificacao === 'receita' ? ArrowUp : a.classificacao === 'despesa' ? ArrowDown : Coins;
               const color = a.classificacao === 'receita' ? 'text-success' : a.classificacao === 'despesa' ? 'text-destructive' : 'text-muted-foreground';
               const accent = a.classificacao === 'receita' ? 'bg-success/10 text-success' : a.classificacao === 'despesa' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground';
@@ -632,6 +632,36 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                   {!a.entraNoResultado && (
                     <p className="text-[10px] text-muted-foreground mt-1">Não entra no resultado</p>
                   )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Operações Financeiras */}
+      {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Coins className="w-4 h-4" /> Operações Financeiras
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).map((a, i) => {
+              const Icon = a.isEntrada ? ArrowUp : ArrowDown;
+              const color = a.isEntrada ? 'text-success' : 'text-destructive';
+              const accent = a.isEntrada ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive';
+              const label = a.isEntrada ? 'Entrada' : 'Saída';
+              return (
+                <motion.div key={a.key} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="glass-card rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${color}`} />
+                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">{a.label}</span>
+                    </div>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase ${accent}`}>{label}</span>
+                  </div>
+                  <p className={`text-xl font-display font-bold ${color}`}>{formatCurrency(a.valor)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Não entra no resultado</p>
                 </motion.div>
               );
             })}
