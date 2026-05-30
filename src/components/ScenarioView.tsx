@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSchool, useEntriesFromBaseDate } from '@/hooks/useFinancialData';
+import { useSchool, useEntriesFromBaseDate, useTypeClassifications } from '@/hooks/useFinancialData';
 import { FinancialEntry } from '@/types/financial';
 import { ScenarioType } from '@/components/ScenarioSelector';
 import { motion } from 'framer-motion';
@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, AlertTriangle, Plus, X } from 'lucide-react';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { usePresentation } from '@/components/presentation-provider';
+import { getSaldoImpact, isEntryIgnored } from '@/lib/classificationUtils';
 
 interface ScenarioViewProps { schoolId: string; scenario: ScenarioType; selectedMonth: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
