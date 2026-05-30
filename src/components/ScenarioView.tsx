@@ -19,7 +19,13 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, school?.saldoInicialData);
-  const entries = useMemo(() => allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)), [allEntries, selectedMonth]);
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const entries = useMemo(
+    () => allEntries
+      .filter(e => matchesMonthFilter(e.data, selectedMonth))
+      .filter(e => !isEntryIgnored(e, classifications)),
+    [allEntries, selectedMonth, classifications]
+  );
   const [reductionPct, setReductionPct] = useState(20);
   const [sales, setSales] = useState<SaleSimulation[]>([]);
   const addSale = () => setSales(s => [...s, { id: crypto.randomUUID(), quantidade: 1, valorUnitario: 1000, meses: 1 }]);
