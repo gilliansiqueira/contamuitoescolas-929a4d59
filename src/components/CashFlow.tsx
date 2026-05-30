@@ -4,7 +4,7 @@ import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { CashFlowDay } from '@/types/financial';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
-import { filterActiveEntries, getSaldoImpact, isReceita, isDespesa, calculateTotals } from '@/lib/classificationUtils';
+import { filterActiveEntries, getSaldoImpact, isReceita, isDespesa, calculateTotals, getEffectiveClassification } from '@/lib/classificationUtils';
 
 interface CashFlowProps {
   schoolId: string;
@@ -25,7 +25,12 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
 
   const activeEntries = useMemo(() => {
     const noIgnored = filterActiveEntries(allEntries, classifications);
-    return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : noIgnored;
+    if (!hasModel) return noIgnored;
+    return noIgnored.filter(e => {
+      const cls = getEffectiveClassification(e, classifications);
+      if (cls === 'operacao') return true;
+      return isInModel(e.tipoOriginal || e.categoria || e.tipo);
+    });
   }, [allEntries, classifications, hasModel, isInModel]);
 
   const entries = useMemo(() =>

@@ -4,6 +4,7 @@ import { useSchoolModel } from '@/hooks/useSchoolModel';
 import {
   filterActiveEntries,
   calculateTotals,
+  getEffectiveClassification,
 } from '@/lib/classificationUtils';
 import { motion } from 'framer-motion';
 
@@ -31,7 +32,12 @@ export function ProjectedVsReal({ schoolId }: ProjectedVsRealProps) {
 
   const activeEntries = useMemo(() => {
     const noIgnored = filterActiveEntries(entries, classifications);
-    return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : noIgnored;
+    if (!hasModel) return noIgnored;
+    return noIgnored.filter(e => {
+      const cls = getEffectiveClassification(e, classifications);
+      if (cls === 'operacao') return true;
+      return isInModel(e.tipoOriginal || e.categoria || e.tipo);
+    });
   }, [entries, classifications, hasModel, isInModel]);
 
   const byMonth = useMemo(() => {

@@ -6,7 +6,7 @@ import { matchesMonthFilter } from '@/components/MonthSelector';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR, addDaysAndAdjust } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
-import { filterActiveEntries, getSaldoImpact } from '@/lib/classificationUtils';
+import { filterActiveEntries, getSaldoImpact, getEffectiveClassification } from '@/lib/classificationUtils';
 
 interface DailyFlowTableProps {
   schoolId: string;
@@ -51,7 +51,12 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const adjustedEntries = useMemo(() => {
     const delayed = applyPaymentDelays(allEntries, delayRules);
     const active = filterActiveEntries(delayed, classifications);
-    return hasModel ? active.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : active;
+    if (!hasModel) return active;
+    return active.filter(e => {
+      const cls = getEffectiveClassification(e, classifications);
+      if (cls === 'operacao') return true;
+      return isInModel(e.tipoOriginal || e.categoria || e.tipo);
+    });
   }, [allEntries, delayRules, classifications, hasModel, isInModel]);
 
   const months = useMemo(() => {
