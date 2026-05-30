@@ -98,11 +98,12 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
   const withBalance = useMemo(() => {
     let saldo = saldoInicial;
     return filtered.map(e => {
-      if (e.tipo === 'entrada') saldo += e.valor;
-      else saldo -= e.valor;
+      // SSOT: respeita Ignorar, sinal configurado pelo usuário,
+      // Transferência entre Contas, etc.
+      saldo += getSaldoImpact(e, classifications);
       return { ...e, saldo };
     });
-  }, [filtered, saldoInicial]);
+  }, [filtered, saldoInicial, classifications]);
 
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<FinancialEntry>>({});
