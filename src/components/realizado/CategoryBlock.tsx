@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, LabelList, PieChart, Pie, Cell,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Entry {
@@ -24,6 +24,8 @@ interface Props {
   allMonths: string[];
   index: number;
   onEditEntry?: (entry: Entry) => void;
+  onDeleteEntries?: (params: { ids?: string[]; month?: string; grupoName?: string }) => Promise<void>;
+  activeMonth?: string;
 }
 
 const COLORS = [
@@ -52,11 +54,13 @@ function formatMonth(m: string) {
   return `${months[parseInt(mo) - 1]}/${y?.slice(2) || ''}`;
 }
 
-export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonths, index, onEditEntry }: Props) {
+export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonths, index, onEditEntry, onDeleteEntries, activeMonth }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showEntries, setShowEntries] = useState(false);
   const [filterCat, setFilterCat] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
   const total = useMemo(() => entries.reduce((s, e) => s + e.valor, 0), [entries]);
   const pct = totalGeral > 0 ? (total / totalGeral) * 100 : 0;
 
@@ -181,9 +185,27 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                 className="overflow-hidden"
               >
                 <div className="border-t border-border px-5 pb-5 space-y-5">
+                  {/* Category Mother block-level actions */}
+                  {activeMonth && onDeleteEntries && (
+                    <div className="pt-4 flex items-center justify-between border-b pb-3">
+                      <p className="text-xs font-semibold text-muted-foreground">Ações de Bloco</p>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Tem certeza que deseja excluir todos os lançamentos da categoria "${name}" no mês ${formatMonth(activeMonth)}? Esta ação não pode ser desfeita.`)) {
+                            await onDeleteEntries({ month: activeMonth, grupoName: name });
+                          }
+                        }}
+                        className="text-xs text-destructive hover:bg-destructive/10 border border-destructive/20 font-medium px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir Categoria neste Mês
+                      </button>
+                    </div>
+                  )}
+
                   {/* Subcategory chart */}
                   {bySubcat.length > 0 && (
-                    <div className="pt-4">
+                    <div className="pt-2">
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-xs text-muted-foreground font-medium">Categorias Filhas</p>
                         <p className="text-xs font-semibold text-foreground">Total: {formatCurrency(total)}</p>
@@ -285,7 +307,7 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                     </div>
                   )}
 
-                  {/* Entry list with edit */}
+                  {/* Entry list with edit & delete */}
                   {onEditEntry && (
                     <div className="pt-2">
                       <button
@@ -330,6 +352,22 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                                     Limpar
                                   </button>
                                 )}
+
+                                {selectedIds.length > 0 && onDeleteEntries && (
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm(`Tem certeza que deseja excluir os ${selectedIds.length} lançamentos selecionados?`)) {
+                                        await onDeleteEntries({ ids: selectedIds });
+                                        setSelectedIds([]);
+                                      }
+                                    }}
+                                    className="text-xs text-destructive hover:bg-destructive/10 border border-destructive/20 font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 animate-pulse" />
+                                    Excluir Selecionados ({selectedIds.length})
+                                  </button>
+                                )}
+
                                 <span className="text-xs text-muted-foreground ml-auto">
                                   {sortedEntries.length} • {formatCurrency(filteredTotal)}
                                 </span>
@@ -338,36 +376,86 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                                 <table className="w-full text-xs">
                                   <thead>
                                     <tr className="border-b text-muted-foreground">
+                                      <th className="w-8 py-1 px-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={sortedEntries.length > 0 && sortedEntries.every(e => e.id && selectedIds.includes(e.id))}
+                                          onChange={(evt) => {
+                                            if (evt.target.checked) {
+                                              const allIds = sortedEntries.map(e => e.id).filter(Boolean) as string[];
+                                              setSelectedIds(prev => Array.from(new Set([...prev, ...allIds])));
+                                            } else {
+                                              const allIds = sortedEntries.map(e => e.id).filter(Boolean);
+                                              setSelectedIds(prev => prev.filter(id => !allIds.includes(id)));
+                                            }
+                                          }}
+                                          className="accent-primary cursor-pointer rounded"
+                                        />
+                                      </th>
                                       <th className="text-left py-1 px-1 font-medium">Data</th>
                                       <th className="text-left py-1 px-1 font-medium">Descrição</th>
                                       <th className="text-left py-1 px-1 font-medium">Categoria</th>
                                       <th className="text-right py-1 px-1 font-medium">Valor</th>
-                                      <th className="w-8"></th>
+                                      <th className="w-16 text-right py-1 px-1 font-medium">Ações</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {sortedEntries.map(e => (
                                       <tr key={e.id || `${e.data}-${e.valor}`} className="border-b border-border/20 hover:bg-muted/30">
+                                        <td className="py-1.5 px-1">
+                                          {e.id && (
+                                            <input
+                                              type="checkbox"
+                                              checked={selectedIds.includes(e.id)}
+                                              onChange={(evt) => {
+                                                if (evt.target.checked) {
+                                                  setSelectedIds(prev => [...prev, e.id!]);
+                                                } else {
+                                                  setSelectedIds(prev => prev.filter(id => id !== e.id));
+                                                }
+                                              }}
+                                              className="accent-primary cursor-pointer rounded"
+                                            />
+                                          )}
+                                        </td>
                                         <td className="py-1.5 px-1 text-muted-foreground">{e.data}</td>
                                         <td className="py-1.5 px-1 truncate max-w-[150px]">{e.descricao || '—'}</td>
                                         <td className="py-1.5 px-1 text-muted-foreground truncate max-w-[100px]">{e.conta_nome}</td>
                                         <td className="py-1.5 px-1 text-right font-medium">{formatCurrency(e.valor)}</td>
-                                        <td className="py-1.5 px-1">
-                                          {e.id && (
-                                            <button
-                                              onClick={() => onEditEntry(e)}
-                                              className="text-muted-foreground hover:text-primary transition-colors"
-                                              title="Editar"
-                                            >
-                                              <Pencil className="w-3 h-3" />
-                                            </button>
-                                          )}
+                                        <td className="py-1.5 px-1 text-right">
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            {e.id && (
+                                              <>
+                                                <button
+                                                  onClick={() => onEditEntry(e)}
+                                                  className="text-muted-foreground hover:text-primary transition-colors"
+                                                  title="Editar"
+                                                >
+                                                  <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                                {onDeleteEntries && (
+                                                  <button
+                                                    onClick={async () => {
+                                                      if (confirm('Tem certeza que deseja excluir este lançamento?')) {
+                                                        await onDeleteEntries({ ids: [e.id!] });
+                                                        setSelectedIds(prev => prev.filter(id => id !== e.id));
+                                                      }
+                                                    }}
+                                                    className="text-muted-foreground hover:text-destructive transition-colors"
+                                                    title="Excluir"
+                                                  >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
                                         </td>
                                       </tr>
                                     ))}
                                     {sortedEntries.length === 0 && (
                                       <tr>
-                                        <td colSpan={5} className="py-4 text-center text-muted-foreground">Nenhum lançamento encontrado.</td>
+                                        <td colSpan={6} className="py-4 text-center text-muted-foreground">Nenhum lançamento encontrado.</td>
                                       </tr>
                                     )}
                                   </tbody>

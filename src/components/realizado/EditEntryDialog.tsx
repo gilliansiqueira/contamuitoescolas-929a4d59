@@ -28,7 +28,7 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   entry: RealizedEntry | null;
   contas: ContaRow[];
-  onSave: (id: string, updates: Partial<RealizedEntry>) => Promise<void>;
+  onSave: (id: string, updates: Partial<RealizedEntry>, scope: 'single' | 'all') => Promise<void>;
 }
 
 function formatBRL(num: number) {
@@ -47,6 +47,7 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
   const [descricao, setDescricao] = useState('');
   const [contaNome, setContaNome] = useState('');
   const [grupo, setGrupo] = useState('');
+  const [scope, setScope] = useState<'single' | 'all'>('single');
   const [saving, setSaving] = useState(false);
 
   // Derive groups and children
@@ -64,9 +65,12 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
       setContaNome(entry.conta_nome || '');
       const found = contas.find(c => c.nome === entry.conta_nome && c.nivel > 1);
       setGrupo(found?.grupo || '');
+      setScope('single');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, open]);
+
+  const isCategoryChanged = entry && contaNome !== entry.conta_nome;
 
   const handleSave = async () => {
     if (!entry) return;
@@ -80,7 +84,8 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
         valor: numVal,
         descricao,
         conta_nome: contaNome,
-      });
+      }, isCategoryChanged ? scope : 'single');
+      
       toast.success('Lançamento atualizado');
       onOpenChange(false);
     } catch {
@@ -136,6 +141,36 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
               </SelectContent>
             </Select>
           </div>
+
+          {isCategoryChanged && (
+            <div className="space-y-2 border-t pt-3 mt-3">
+              <label className="text-xs font-semibold text-foreground block">Escopo da Alteração de Categoria</label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input
+                    type="radio"
+                    name="edit-scope"
+                    value="single"
+                    checked={scope === 'single'}
+                    onChange={() => setScope('single')}
+                    className="accent-primary"
+                  />
+                  <span>Editar apenas esse lançamento</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input
+                    type="radio"
+                    name="edit-scope"
+                    value="all"
+                    checked={scope === 'all'}
+                    onChange={() => setScope('all')}
+                    className="accent-primary"
+                  />
+                  <span>Editar todos os lançamentos com a descrição <strong>"{entry.descricao}"</strong></span>
+                </label>
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" className="rounded-xl" onClick={() => onOpenChange(false)}>Cancelar</Button>

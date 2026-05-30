@@ -3,14 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { motion } from 'framer-motion';
 import { CategoryBlock } from './CategoryBlock';
 import { EditEntryDialog } from './EditEntryDialog';
-import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock } from 'lucide-react';
+import { AddEntryDialog } from './AddEntryDialog';
+import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
@@ -44,6 +43,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [editingFat, setEditingFat] = useState(false);
   const [editEntry, setEditEntry] = useState<any>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
@@ -90,8 +90,76 @@ export function RelatorioRealizado({ schoolId }: Props) {
   });
 
   const updateEntry = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
-      const { error } = await supabase.from('realized_entries').update(updates).eq('id', id);
+    mutationFn: async ({ id, updates, scope }: { id: string; updates: any; scope: 'single' | 'all' }) => {
+      if (scope === 'all') {
+        const { data: originalEntry, error: getErr } = await supabase
+          .from('realized_entries')
+          .select('descricao')
+          .eq('id', id)
+          .single();
+        if (getErr) throw getErr;
+
+        if (originalEntry?.descricao) {
+          // Update all matching entries with the same description and school_id
+          const { error: updateAllErr } = await supabase
+            .from('realized_entries')
+            .update({
+              conta_nome: updates.conta_nome,
+            })
+            .eq('school_id', schoolId)
+            .eq('descricao', originalEntry.descricao);
+          if (updateAllErr) throw updateAllErr;
+
+          // Upsert auto-categorization rule in category_rules
+          const sourceNormalized = normalizeStr(originalEntry.descricao);
+          const { error: ruleErr } = await supabase
+            .from('category_rules')
+            .upsert({
+              school_id: schoolId,
+              source_text: originalEntry.descricao,
+              source_normalized: sourceNormalized,
+              target_categoria: updates.conta_nome,
+              match_field: 'categoria'
+            }, {
+              onConflict: 'school_id,source_normalized,match_field'
+            });
+          if (ruleErr) throw ruleErr;
+        }
+      } else {
+        // Edit only this single entry
+        const { error } = await supabase.from('realized_entries').update(updates).eq('id', id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['category_rules', schoolId] });
+    },
+  });
+
+  const handleEditSave = useCallback(async (id: string, updates: any, scope: 'single' | 'all') => {
+    await updateEntry.mutateAsync({ id, updates, scope });
+  }, [updateEntry]);
+
+  const addEntry = useMutation({
+    mutationFn: async (entry: {
+      data: string;
+      valor: number;
+      descricao: string;
+      conta_nome: string;
+      conta_codigo?: string;
+    }) => {
+      const { error } = await supabase.from('realized_entries').insert({
+        school_id: schoolId,
+        data: entry.data,
+        descricao: entry.descricao,
+        valor: entry.valor,
+        conta_nome: entry.conta_nome,
+        conta_codigo: entry.conta_codigo || '',
+        tipo: 'despesa',
+        origem_arquivo: 'manual',
+        complemento: '',
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -99,9 +167,44 @@ export function RelatorioRealizado({ schoolId }: Props) {
     },
   });
 
-  const handleEditSave = useCallback(async (id: string, updates: any) => {
-    await updateEntry.mutateAsync({ id, updates });
-  }, [updateEntry]);
+  const deleteEntries = useMutation({
+    mutationFn: async ({
+      ids,
+      month,
+      grupoName,
+    }: {
+      ids?: string[];
+      month?: string;
+      grupoName?: string;
+    }) => {
+      let query = supabase.from('realized_entries').delete().eq('school_id', schoolId);
+
+      if (ids && ids.length > 0) {
+        query = query.in('id', ids);
+      } else if (month && grupoName) {
+        const subcategories = contas
+          .filter(c => c.nivel > 1 && (c.grupo === grupoName || (!c.grupo && grupoName === 'Outros')))
+          .map(c => c.nome);
+        
+        if (subcategories.length === 0) return;
+        query = query.like('data', `${month}%`).in('conta_nome', subcategories);
+      } else if (month) {
+        query = query.like('data', `${month}%`);
+      } else {
+        throw new Error('Parâmetros inválidos para exclusão');
+      }
+
+      const { error } = await query;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
+      toast.success('Exclusão executada com sucesso');
+    },
+    onError: (err: any) => {
+      toast.error(`Erro ao excluir: ${err?.message || 'Erro desconhecido'}`);
+    },
+  });
 
   const mesesDisponiveis = useMemo(() => {
     const meses = new Set<string>();
@@ -317,7 +420,13 @@ export function RelatorioRealizado({ schoolId }: Props) {
       <Card className="rounded-2xl border-dashed">
         <CardContent className="py-16 text-center">
           <DollarSign className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Importe dados nas Configurações para visualizar o relatório.</p>
+          <p className="text-sm text-muted-foreground mb-4">Importe dados nas Configurações ou adicione lançamentos manualmente para visualizar o relatório.</p>
+          <div className="flex gap-3 justify-center">
+            <Button size="sm" className="rounded-xl gap-2 font-medium" onClick={() => setAddOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Novo Lançamento
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -345,6 +454,35 @@ export function RelatorioRealizado({ schoolId }: Props) {
             Agregando {effectiveMonths.length} meses · faturamento de <strong>{formatMonth(activeMes)}</strong>
           </span>
         )}
+
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <Button
+            size="sm"
+            className="rounded-xl gap-2 font-medium bg-primary hover:bg-primary/95 text-primary-foreground shrink-0"
+            onClick={() => setAddOpen(true)}
+            disabled={activeMes ? closedMonths.has(activeMes) : false}
+          >
+            <Plus className="w-4 h-4" />
+            Novo Lançamento
+          </Button>
+
+          {!isMulti && activeMes && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="rounded-xl gap-2 font-medium shrink-0"
+              onClick={() => {
+                if (confirm(`Tem certeza que deseja excluir TODOS os lançamentos do mês ${formatMonth(activeMes)}? Esta ação não pode ser desfeita.`)) {
+                  deleteEntries.mutate({ month: activeMes });
+                }
+              }}
+              disabled={closedMonths.has(activeMes)}
+            >
+              <Trash2 className="w-4 h-4" />
+              Limpar Mês
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Insights */}
@@ -395,29 +533,31 @@ export function RelatorioRealizado({ schoolId }: Props) {
       </motion.div>
 
       {/* Despesas por Categoria Mãe */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-        <Card className="rounded-2xl">
-          <CardContent className="p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-4">Despesas por Categoria</h3>
-            <ResponsiveContainer width="100%" height={Math.max(barChartData.length * 44, 120)}>
-              <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
-                <Tooltip
-                  formatter={(v: number) => formatCurrency(v)}
-                  contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                />
-                <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={28}>
-                  {barChartData.map((_, i) => (
-                    <Cell key={i} fill="hsl(var(--primary))" />
-                  ))}
-                  <LabelList dataKey="value" position="right" formatter={(v: number) => formatCurrency(v)} style={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {barChartData.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          <Card className="rounded-2xl">
+            <CardContent className="p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Despesas por Categoria</h3>
+              <ResponsiveContainer width="100%" height={Math.max(barChartData.length * 44, 120)}>
+                <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
+                  <Tooltip
+                    formatter={(v: number) => formatCurrency(v)}
+                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                  />
+                  <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={28}>
+                    {barChartData.map((_, i) => (
+                      <Cell key={i} fill="hsl(var(--primary))" />
+                    ))}
+                    <LabelList dataKey="value" position="right" formatter={(v: number) => formatCurrency(v)} style={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Despesa x Faturamento */}
       {currentRevenue > 0 && revenueCompData.length > 0 && (
@@ -466,6 +606,14 @@ export function RelatorioRealizado({ schoolId }: Props) {
               setEditEntry(entry);
               setEditOpen(true);
             }}
+            onDeleteEntries={async (params) => {
+              if (activeMes && closedMonths.has(activeMes)) {
+                toast.error('Mês fechado. Edição bloqueada.');
+                return;
+              }
+              await deleteEntries.mutateAsync(params);
+            }}
+            activeMonth={!isMulti ? activeMes : undefined}
           />
         ))}
       </div>
@@ -477,6 +625,16 @@ export function RelatorioRealizado({ schoolId }: Props) {
         entry={editEntry}
         contas={contas as any}
         onSave={handleEditSave}
+      />
+
+      {/* Add Dialog */}
+      <AddEntryDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        contas={contas as any}
+        onSave={async (entry) => {
+          await addEntry.mutateAsync(entry);
+        }}
       />
     </div>
   );
