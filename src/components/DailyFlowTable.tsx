@@ -51,7 +51,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const adjustedEntries = useMemo(() => {
     const delayed = applyPaymentDelays(allEntries, delayRules);
     const active = filterActiveEntries(delayed, classifications);
-    return hasModel ? active.filter(e => isInModel(e.tipoOriginal || e.tipo)) : active;
+    return hasModel ? active.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : active;
   }, [allEntries, delayRules, classifications, hasModel, isInModel]);
 
   const months = useMemo(() => {

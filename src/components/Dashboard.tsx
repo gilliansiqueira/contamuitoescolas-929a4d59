@@ -61,8 +61,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   // 1) Remove entries 'ignorar'; 2) Aplica gate do modelo financeiro (se houver).
   const activeEntries = useMemo(() => {
     const noIgnored = filterActiveEntries(allEntries, classifications);
-    if (!hasModel) return noIgnored;
-    return noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo));
+    return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : noIgnored;
   }, [allEntries, classifications, hasModel, isInModel]);
 
   // ─── Histórico Financeiro (consolidado mensal) — aplica gate do modelo ───

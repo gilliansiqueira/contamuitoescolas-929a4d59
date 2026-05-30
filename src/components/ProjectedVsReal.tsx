@@ -31,9 +31,7 @@ export function ProjectedVsReal({ schoolId }: ProjectedVsRealProps) {
 
   const activeEntries = useMemo(() => {
     const noIgnored = filterActiveEntries(entries, classifications);
-    return hasModel
-      ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo))
-      : noIgnored;
+    return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : noIgnored;
   }, [entries, classifications, hasModel, isInModel]);
 
   const byMonth = useMemo(() => {

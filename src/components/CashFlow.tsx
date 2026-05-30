@@ -25,7 +25,7 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
 
   const activeEntries = useMemo(() => {
     const noIgnored = filterActiveEntries(allEntries, classifications);
-    return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.tipo)) : noIgnored;
+    return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : noIgnored;
   }, [allEntries, classifications, hasModel, isInModel]);
 
   const entries = useMemo(() =>
