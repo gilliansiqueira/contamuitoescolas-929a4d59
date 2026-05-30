@@ -212,7 +212,7 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                       </div>
                       {usePie ? (
                         <div className="flex items-center gap-6">
-                          <ResponsiveContainer width="50%" height={180}>
+                          <ResponsiveContainer key={JSON.stringify(bySubcat)} width="50%" height={180}>
                             <PieChart>
                               <Pie data={bySubcat} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={35}>
                                 {bySubcat.map((_, i) => (
@@ -235,7 +235,7 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                           </div>
                         </div>
                       ) : (
-                        <ResponsiveContainer width="100%" height={Math.max(bySubcat.length * 36, 80)}>
+                        <ResponsiveContainer key={JSON.stringify(bySubcat)} width="100%" height={Math.max(bySubcat.length * 36, 80)}>
                           <BarChart data={bySubcat} layout="vertical" margin={{ left: 10, right: 70, top: 0, bottom: 0 }}>
                             <XAxis type="number" hide />
                             <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={120} />
@@ -253,7 +253,7 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                   {monthlyData.length > 1 && (
                     <div>
                       <p className="text-xs text-muted-foreground font-medium mb-3">Evolução Mensal</p>
-                      <ResponsiveContainer width="100%" height={180}>
+                      <ResponsiveContainer key={JSON.stringify(monthlyData)} width="100%" height={180}>
                         <LineChart data={monthlyData} margin={{ left: 10, right: 10, top: 5, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis dataKey="mes" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />

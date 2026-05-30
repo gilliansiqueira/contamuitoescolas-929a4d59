@@ -86,7 +86,19 @@ export function RelatorioRealizado({ schoolId }: Props) {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      const cacheKey = ['monthly_revenue', schoolId];
+      const previous = queryClient.getQueryData<any[]>(cacheKey);
+      if (previous) {
+        let updated = [...previous];
+        const existingIdx = previous.findIndex(r => r.month === variables.month);
+        if (existingIdx > -1) {
+          updated[existingIdx] = { ...updated[existingIdx], value: variables.value };
+        } else {
+          updated.push({ id: crypto.randomUUID(), school_id: schoolId, month: variables.month, value: variables.value });
+        }
+        queryClient.setQueryData(cacheKey, updated);
+      }
       queryClient.invalidateQueries({ queryKey: ['monthly_revenue', schoolId] });
       toast.success('Faturamento salvo');
       setEditingFat(false);
@@ -146,7 +158,29 @@ export function RelatorioRealizado({ schoolId }: Props) {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      const cacheKey = ['realized_entries', schoolId];
+      const previousEntries = queryClient.getQueryData<any[]>(cacheKey);
+      if (previousEntries) {
+        let updatedEntries = [...previousEntries];
+        if (variables.scope === 'all') {
+          const selectedSet = new Set(variables.selectedIds || []);
+          updatedEntries = previousEntries.map(e => {
+            if (selectedSet.has(e.id)) {
+              return { ...e, conta_nome: variables.updates.conta_nome };
+            }
+            return e;
+          });
+        } else {
+          updatedEntries = previousEntries.map(e => {
+            if (e.id === variables.id) {
+              return { ...e, ...variables.updates };
+            }
+            return e;
+          });
+        }
+        queryClient.setQueryData(cacheKey, updatedEntries);
+      }
       queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
       queryClient.invalidateQueries({ queryKey: ['category_rules', schoolId] });
     },
@@ -251,7 +285,30 @@ export function RelatorioRealizado({ schoolId }: Props) {
       const { error } = await query;
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      const cacheKey = ['realized_entries', schoolId];
+      const previousEntries = queryClient.getQueryData<any[]>(cacheKey);
+      if (previousEntries) {
+        let updatedEntries = [...previousEntries];
+        if (variables.ids && variables.ids.length > 0) {
+          const deletedSet = new Set(variables.ids);
+          updatedEntries = previousEntries.filter(e => !deletedSet.has(e.id));
+        } else if (variables.month) {
+          if (variables.grupoName) {
+            const subcategories = contas
+              .filter(c => c.nivel > 1 && (c.grupo === variables.grupoName || (!c.grupo && variables.grupoName === 'Outros')))
+              .map(c => c.nome);
+            const subSet = new Set(subcategories);
+            updatedEntries = previousEntries.filter(e => {
+              const ym = e.data?.slice(0, 7);
+              return !(ym === variables.month && subSet.has(e.conta_nome));
+            });
+          } else {
+            updatedEntries = previousEntries.filter(e => e.data?.slice(0, 7) !== variables.month);
+          }
+        }
+        queryClient.setQueryData(cacheKey, updatedEntries);
+      }
       queryClient.invalidateQueries({ queryKey: ['realized_entries', schoolId] });
       toast.success('Exclusão executada com sucesso');
     },
@@ -592,7 +649,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
           <Card className="rounded-2xl">
             <CardContent className="p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Despesas por Categoria</h3>
-              <ResponsiveContainer width="100%" height={Math.max(barChartData.length * 44, 120)}>
+              <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 44, 120)}>
                 <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
@@ -620,7 +677,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
             <CardContent className="p-5">
               <h3 className="text-sm font-semibold text-foreground mb-1">Despesa × Faturamento</h3>
               <p className="text-xs text-muted-foreground mb-4">% de cada categoria sobre o faturamento ({formatCurrency(currentRevenue)})</p>
-              <ResponsiveContainer width="100%" height={Math.max(revenueCompData.length * 44, 120)}>
+              <ResponsiveContainer key={JSON.stringify(revenueCompData)} width="100%" height={Math.max(revenueCompData.length * 44, 120)}>
                 <BarChart data={revenueCompData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
