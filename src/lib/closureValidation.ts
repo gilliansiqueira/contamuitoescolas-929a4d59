@@ -2,17 +2,12 @@
  * Validações executadas ANTES de fechar um mês.
  *
  * Bloqueiam o fechamento quando há inconsistências que tornariam o
- * snapshot/histórico não-confiável:
- *
- *  - Tipos fora do modelo financeiro da escola
- *  - Categorias vazias / inválidas em entries
- *  - Saldo do mês anterior fechado deveria bater com o saldo inicial deste mês
- *
- * Usado por `usePeriodClosures.useCloseMonths`. Lança nada — apenas devolve
- * a lista de erros para a UI decidir como exibir.
+ * snapshot/histórico não-confiável.
+ * 
+ * Consome a lista oficial de chaves padrão resolvidas a partir do ledgerEngine.
  */
 import { supabase } from '@/integrations/supabase/client';
-import { normalizeTipo } from '@/lib/classificationUtils';
+import { normalizeTipo, DEFAULT_MAPPINGS } from '@/lib/ledgerEngine';
 import type { ClosureModule } from '@/hooks/usePeriodClosures';
 
 export interface ClosureValidationResult {
@@ -35,15 +30,25 @@ export async function validateClosure(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // 1) Tipos válidos do modelo da escola
+  // 1) Tipos válidos (banco + fallbacks padrão do Ledger Engine)
   const { data: clsRows = [] } = await supabase
     .from('type_classifications')
     .select('tipo_valor, label, classificacao')
     .eq('school_id', schoolId);
-  const validKeys = new Set(
-    (clsRows as any[]).map(c => normalizeTipo(c.tipo_valor))
-  );
-  // Aceita também valores genéricos sempre permitidos
+    
+  const validKeys = new Set<string>();
+  
+  // Adiciona do banco
+  (clsRows as any[]).forEach(c => {
+    validKeys.add(normalizeTipo(c.tipo_valor));
+  });
+
+  // Adiciona chaves padrão oficiais do ledgerEngine
+  Object.keys(DEFAULT_MAPPINGS).forEach(k => {
+    validKeys.add(normalizeTipo(k));
+  });
+
+  // Aceita também valores genéricos estruturais sempre permitidos
   ['receita', 'despesa', 'entrada', 'saida', 'operacao', 'ignorar'].forEach(k =>
     validKeys.add(k)
   );
@@ -106,8 +111,7 @@ export async function validateClosure(
   }
 
   // 3) Consistência de saldo: mês anterior fechado → saldo_final dele deve ser
-  //    a referência para este mês. Se este mês tem snapshot (reaberto e refechando),
-  //    avisamos quando houver divergência grande.
+  //    a referência para este mês.
   if (module === 'projecao') {
     const prev = prevMonth(month);
     const { data: prevSnap } = await supabase
@@ -121,7 +125,6 @@ export async function validateClosure(
       .maybeSingle();
     if (!prevSnap) {
       // Apenas aviso — pode ser o primeiro mês.
-      // (não bloqueia)
     }
   }
 

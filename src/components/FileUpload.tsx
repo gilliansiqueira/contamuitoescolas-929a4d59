@@ -14,8 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import type { TypeClassification } from '@/types/financial';
-import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification, type EffectiveClassification } from '@/lib/classificationUtils';
+import { normalizeTipo, classifyTipoName, defaultSinalFor, findClassification, type EffectiveClassification, getEffectiveClassification, calculateTotals } from '@/lib/classificationUtils';
 import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMappingStep';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -325,6 +324,10 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '' });
   const [savingManual, setSavingManual] = useState(false);
+
+  const totals = useMemo(() => {
+    return calculateTotals(preview, classifications);
+  }, [preview, classifications]);
 
   // Modelo Financeiro da escola — fonte das categorias do lançamento manual.
   const { data: templateId } = useQuery({
@@ -753,11 +756,9 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             if (closedSet.has(m)) continue;
             let receitas = 0, despesas = 0;
             for (const e of preview.filter(x => x.data.startsWith(m))) {
-              const cls = classifyTipoName(e.tipoOriginal || e.tipo, classifications);
-              const effective = cls === 'receita' || cls === 'despesa' ? cls
-                : (e.tipo === 'entrada' ? 'receita' : 'despesa');
-              if (effective === 'receita') receitas += e.valor;
-              else if (effective === 'despesa') despesas += e.valor;
+              const cls = getEffectiveClassification(e, classifications);
+              if (cls === 'receita') receitas += e.valor;
+              else if (cls === 'despesa') despesas += e.valor;
             }
             if (receitas > 0) histRows.push({ school_id: schoolId, month: m, tipo_valor: 'Receita', valor: receitas });
             if (despesas > 0) histRows.push({ school_id: schoolId, month: m, tipo_valor: 'Despesa', valor: despesas });
@@ -1020,10 +1021,10 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
                 </div>
                 <div className="flex items-center gap-3 text-xs">
                   <span className="text-primary font-semibold">
-                    Entradas: {formatCurrency(preview.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0))}
+                    Receitas: {formatCurrency(totals.receitas)}
                   </span>
                   <span className="text-destructive font-semibold">
-                    Saídas: {formatCurrency(preview.filter(e => e.tipo === 'saida').reduce((s, e) => s + e.valor, 0))}
+                    Despesas: {formatCurrency(totals.despesas)}
                   </span>
                 </div>
               </div>
@@ -1051,29 +1052,35 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.slice(0, 50).map(e => (
-                        <tr key={e.id} className="border-t border-border/30">
-                          <td className="px-3 py-1.5 text-foreground">{e.data}</td>
-                          <td className="px-3 py-1.5">
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                              e.tipo === 'entrada' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'
-                            }`}>
-                              {e.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-1.5">
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                              e.tipoRegistro === 'realizado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                            }`}>
-                              {e.tipoRegistro === 'realizado' ? 'Realizado' : 'Projetado'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[200px]">{e.descricao}</td>
-                          <td className={`px-3 py-1.5 text-right font-semibold ${e.tipo === 'entrada' ? 'text-primary' : 'text-destructive'}`}>
-                            {formatCurrency(e.valor)}
-                          </td>
-                        </tr>
-                      ))}
+                      {preview.slice(0, 50).map(e => {
+                        const cls = getEffectiveClassification(e, classifications);
+                        const isRec = cls === 'receita';
+                        const isDes = cls === 'despesa';
+                        const isOp = cls === 'operacao';
+                        return (
+                          <tr key={e.id} className="border-t border-border/30">
+                            <td className="px-3 py-1.5 text-foreground">{e.data}</td>
+                            <td className="px-3 py-1.5">
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                isRec ? 'bg-primary/10 text-primary' : isDes ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'
+                              }`}>
+                                {isRec ? 'Receita' : isDes ? 'Despesa' : isOp ? 'Operação' : 'Ignorado'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                e.tipoRegistro === 'realizado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {e.tipoRegistro === 'realizado' ? 'Realizado' : 'Projetado'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[200px]">{e.descricao}</td>
+                            <td className={`px-3 py-1.5 text-right font-semibold ${isRec ? 'text-primary' : isDes ? 'text-destructive' : 'text-muted-foreground'}`}>
+                              {formatCurrency(e.valor)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
