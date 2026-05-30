@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import { CategoryBlock } from './CategoryBlock';
 import { EditEntryDialog } from './EditEntryDialog';
 import { AddEntryDialog } from './AddEntryDialog';
+import { ReviewEntriesDialog } from './ReviewEntriesDialog';
 import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -44,6 +45,9 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [editEntry, setEditEntry] = useState<any>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewEntries, setReviewEntries] = useState<any[]>([]);
+  const [pendingUpdate, setPendingUpdate] = useState<{ id: string; updates: any; originalCategory: string; originalDescription: string } | null>(null);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
@@ -90,40 +94,51 @@ export function RelatorioRealizado({ schoolId }: Props) {
   });
 
   const updateEntry = useMutation({
-    mutationFn: async ({ id, updates, scope }: { id: string; updates: any; scope: 'single' | 'all' }) => {
+    mutationFn: async ({
+      id,
+      updates,
+      scope,
+      selectedIds = [],
+      saveRule = false,
+      originalCategoryName = '',
+      originalDescription = '',
+    }: {
+      id: string;
+      updates: any;
+      scope: 'single' | 'all';
+      selectedIds?: string[];
+      saveRule?: boolean;
+      originalCategoryName?: string;
+      originalDescription?: string;
+    }) => {
       if (scope === 'all') {
-        const { data: originalEntry, error: getErr } = await supabase
-          .from('realized_entries')
-          .select('descricao')
-          .eq('id', id)
-          .single();
-        if (getErr) throw getErr;
-
-        if (originalEntry?.descricao) {
-          // Update all matching entries with the same description and school_id
+        if (selectedIds.length > 0) {
+          // Update all selected entries
           const { error: updateAllErr } = await supabase
             .from('realized_entries')
             .update({
               conta_nome: updates.conta_nome,
             })
-            .eq('school_id', schoolId)
-            .eq('descricao', originalEntry.descricao);
+            .in('id', selectedIds);
           if (updateAllErr) throw updateAllErr;
 
-          // Upsert auto-categorization rule in category_rules
-          const sourceNormalized = normalizeStr(originalEntry.descricao);
-          const { error: ruleErr } = await supabase
-            .from('category_rules')
-            .upsert({
-              school_id: schoolId,
-              source_text: originalEntry.descricao,
-              source_normalized: sourceNormalized,
-              target_categoria: updates.conta_nome,
-              match_field: 'categoria'
-            }, {
-              onConflict: 'school_id,source_normalized,match_field'
-            });
-          if (ruleErr) throw ruleErr;
+          // Upsert auto-categorization rule in category_rules using composite key (description + original category) if saveRule is true
+          if (saveRule && originalDescription) {
+            const sourceText = `${originalDescription} | ${originalCategoryName}`;
+            const sourceNormalized = `${normalizeStr(originalDescription)}|${normalizeStr(originalCategoryName)}`;
+            const { error: ruleErr } = await supabase
+              .from('category_rules')
+              .upsert({
+                school_id: schoolId,
+                source_text: sourceText,
+                source_normalized: sourceNormalized,
+                target_categoria: updates.conta_nome,
+                match_field: 'categoria'
+              }, {
+                onConflict: 'school_id,source_normalized,match_field'
+              });
+            if (ruleErr) throw ruleErr;
+          }
         }
       } else {
         // Edit only this single entry
@@ -138,8 +153,47 @@ export function RelatorioRealizado({ schoolId }: Props) {
   });
 
   const handleEditSave = useCallback(async (id: string, updates: any, scope: 'single' | 'all') => {
-    await updateEntry.mutateAsync({ id, updates, scope });
-  }, [updateEntry]);
+    if (scope === 'all') {
+      const editedEntry = entries.find(e => e.id === id);
+      if (!editedEntry) return;
+
+      // Close edit modal
+      setEditOpen(false);
+
+      // Filter all local entries with same description
+      const affected = entries.filter(e => e.descricao === editedEntry.descricao);
+      setReviewEntries(affected);
+      setPendingUpdate({
+        id,
+        updates,
+        originalCategory: editedEntry.conta_nome,
+        originalDescription: editedEntry.descricao,
+      });
+      setReviewOpen(true);
+    } else {
+      await updateEntry.mutateAsync({ id, updates, scope: 'single' });
+      toast.success('Lançamento atualizado');
+    }
+  }, [entries, updateEntry]);
+
+  const handleReviewConfirm = useCallback(async (selectedIds: string[], saveRule: boolean) => {
+    if (!pendingUpdate) return;
+    try {
+      await updateEntry.mutateAsync({
+        id: pendingUpdate.id,
+        updates: pendingUpdate.updates,
+        scope: 'all',
+        selectedIds,
+        saveRule,
+        originalCategoryName: pendingUpdate.originalCategory,
+        originalDescription: pendingUpdate.originalDescription,
+      });
+      toast.success('Lançamentos atualizados com sucesso');
+      setPendingUpdate(null);
+    } catch (e: any) {
+      toast.error(`Erro ao salvar lançamentos: ${e?.message ?? 'Erro desconhecido'}`);
+    }
+  }, [pendingUpdate, updateEntry]);
 
   const addEntry = useMutation({
     mutationFn: async (entry: {
@@ -635,6 +689,17 @@ export function RelatorioRealizado({ schoolId }: Props) {
         onSave={async (entry) => {
           await addEntry.mutateAsync(entry);
         }}
+      />
+
+      {/* Review Dialog */}
+      <ReviewEntriesDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        entries={reviewEntries}
+        originalCategoryName={pendingUpdate?.originalCategory || ''}
+        newCategoryName={pendingUpdate?.updates.conta_nome || ''}
+        contaGrupoMap={contaGrupoMap}
+        onConfirm={handleReviewConfirm}
       />
     </div>
   );

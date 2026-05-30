@@ -166,7 +166,7 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
                     onChange={() => setScope('all')}
                     className="accent-primary"
                   />
-                  <span>Editar todos os lançamentos com a descrição <strong>"{entry.descricao}"</strong></span>
+                  <span>Editar todos os lançamentos com a descrição <strong>"{entry.descricao}"</strong> e categoria <strong>"{entry.conta_nome}"</strong></span>
                 </label>
               </div>
             </div>
