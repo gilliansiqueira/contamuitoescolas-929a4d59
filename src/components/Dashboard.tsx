@@ -87,6 +87,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     [historicalRowsRaw, hasModel, isInModel]
   );
 
+
+
   // ─── Determina meses selecionados ───
   const selectedMonths = useMemo<string[]>(() => {
     if (selectedMonth === 'all') {
