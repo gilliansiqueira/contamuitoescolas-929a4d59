@@ -184,6 +184,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           const agg = ensure(r.tipo_valor);
           agg.valor += Number(r.valor) || 0;
         }
+        // Agrega as operações de activeEntries deste mês, pois operações nunca são consolidadas no histórico
+        const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
+        for (const e of monthEntries) {
+          if (!includeEntry(e, 'upload')) continue;
+          const cls = getEffectiveClassification(e, classifications);
+          if (cls === 'operacao') {
+            const tipoKey = e.tipoOriginal || e.tipo;
+            const agg = ensure(tipoKey);
+            agg.valor += e.valor;
+          }
+        }
       } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
         for (const e of monthEntries) {
@@ -249,8 +260,15 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       if (e.data >= monthStart) continue;
       const m = e.data.slice(0, 7);
       if (snapMonthsSet.has(m)) continue;
-      // Histórico Financeiro é a fonte de verdade — ignora qualquer entry (inclusive fluxo) do mês.
-      if (histMonths.has(m)) continue;
+      // Histórico Financeiro é a fonte de verdade — ignora qualquer entry (inclusive fluxo) do mês,
+      // EXCETO as operações (pois elas nunca são consolidadas em historical_monthly!).
+      if (histMonths.has(m)) {
+        const cls = getEffectiveClassification(e, classifications);
+        if (cls === 'operacao') {
+          saldo += getSaldoImpact(e, classifications);
+        }
+        continue;
+      }
       saldo += getSaldoImpact(e, classifications);
     }
     // Histórico anterior (apenas meses sem snapshot)
