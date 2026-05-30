@@ -187,6 +187,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           const agg = ensure(tipoKey);
           agg.valor += e.valor;
         }
+      }
+    }
+
     return Object.values(map)
       .filter(a => a.valor > 0 && a.classificacao !== 'ignorar')
       .sort((a, b) => {
