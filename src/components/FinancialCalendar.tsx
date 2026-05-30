@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
-import { useEntries } from '@/hooks/useFinancialData';
+import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { FinancialEntry } from '@/types/financial';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { getSaldoImpact, isEntryIgnored } from '@/lib/classificationUtils';
 
 interface FinancialCalendarProps { schoolId: string; selectedMonth: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
 export function FinancialCalendar({ schoolId, selectedMonth }: FinancialCalendarProps) {
   const { data: entries = [] } = useEntries(schoolId);
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
   const now = new Date();
   const initialMonth = selectedMonth !== 'all' ? selectedMonth.split(',')[0] : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [viewMonth, setViewMonth] = useState(initialMonth);
@@ -17,10 +19,21 @@ export function FinancialCalendar({ schoolId, selectedMonth }: FinancialCalendar
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
   const dayData = useMemo(() => {
+    // SSOT: descarta 'ignorar' e usa getSaldoImpact (respeita Transferência entre Contas
+    // e o sinal configurado pelo usuário). Entradas/saídas exibidas pelo IMPACTO no saldo.
     const map: Record<string, { entradas: number; saidas: number; items: FinancialEntry[] }> = {};
-    entries.forEach(e => { if (!e.data.startsWith(viewMonth)) return; if (!map[e.data]) map[e.data] = { entradas: 0, saidas: 0, items: [] }; if (e.tipo === 'entrada') map[e.data].entradas += e.valor; else map[e.data].saidas += e.valor; map[e.data].items.push(e); });
+    entries.forEach(e => {
+      if (!e.data.startsWith(viewMonth)) return;
+      if (isEntryIgnored(e, classifications)) return;
+      const impact = getSaldoImpact(e, classifications);
+      if (impact === 0) return;
+      if (!map[e.data]) map[e.data] = { entradas: 0, saidas: 0, items: [] };
+      if (impact >= 0) map[e.data].entradas += impact;
+      else map[e.data].saidas += Math.abs(impact);
+      map[e.data].items.push(e);
+    });
     return map;
-  }, [entries, viewMonth]);
+  }, [entries, classifications, viewMonth]);
   const navigate = (dir: number) => { let m = month + dir; let y = year; if (m > 12) { m = 1; y++; } if (m < 1) { m = 12; y--; } setViewMonth(`${y}-${String(m).padStart(2, '0')}`); setSelectedDay(null); };
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -58,7 +71,7 @@ export function FinancialCalendar({ schoolId, selectedMonth }: FinancialCalendar
               <div className="text-center"><p className="text-xs text-muted-foreground">Saldo</p><p className={`text-sm font-bold ${selectedDayData.entradas - selectedDayData.saidas >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(selectedDayData.entradas - selectedDayData.saidas)}</p></div>
             </div>
             <div className="max-h-48 overflow-y-auto"><table className="w-full text-xs"><thead><tr className="bg-muted/30"><th className="px-4 py-1.5 text-left text-muted-foreground font-medium">Tipo</th><th className="px-4 py-1.5 text-left text-muted-foreground font-medium">Descrição</th><th className="px-4 py-1.5 text-right text-muted-foreground font-medium">Valor</th></tr></thead>
-            <tbody>{selectedDayData.items.map(e => (<tr key={e.id} className="border-t border-border/20"><td className={`px-4 py-1.5 font-medium ${e.tipo === 'entrada' ? 'text-primary' : 'text-destructive'}`}>{e.tipo === 'entrada' ? 'Entrada' : 'Saída'}</td><td className="px-4 py-1.5 text-muted-foreground truncate max-w-[180px]">{e.descricao}</td><td className={`px-4 py-1.5 text-right font-semibold ${e.tipo === 'entrada' ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(e.valor)}</td></tr>))}</tbody></table></div>
+            <tbody>{selectedDayData.items.map(e => { const imp = getSaldoImpact(e, classifications); const isIn = imp >= 0; return (<tr key={e.id} className="border-t border-border/20"><td className={`px-4 py-1.5 font-medium ${isIn ? 'text-primary' : 'text-destructive'}`}>{isIn ? 'Entrada' : 'Saída'}</td><td className="px-4 py-1.5 text-muted-foreground truncate max-w-[180px]">{e.descricao}</td><td className={`px-4 py-1.5 text-right font-semibold ${isIn ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(Math.abs(imp))}</td></tr>); })}</tbody></table></div>
           </motion.div>
         )}
       </AnimatePresence>

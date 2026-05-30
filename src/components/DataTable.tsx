@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { getEffectiveClassification } from '@/lib/classificationUtils';
+import { getEffectiveClassification, getSaldoImpact, calculateTotals } from '@/lib/classificationUtils';
 import { usePresentation } from '@/components/presentation-provider';
 
 interface DataTableProps {
@@ -98,11 +98,12 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
   const withBalance = useMemo(() => {
     let saldo = saldoInicial;
     return filtered.map(e => {
-      if (e.tipo === 'entrada') saldo += e.valor;
-      else saldo -= e.valor;
+      // SSOT: respeita Ignorar, sinal configurado pelo usuário,
+      // Transferência entre Contas, etc.
+      saldo += getSaldoImpact(e, classifications);
       return { ...e, saldo };
     });
-  }, [filtered, saldoInicial]);
+  }, [filtered, saldoInicial, classifications]);
 
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<FinancialEntry>>({});
@@ -170,8 +171,10 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
     } catch { toast.error('Erro ao excluir em massa'); }
   };
 
-  const totalEntradas = filtered.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.valor, 0);
-  const totalSaidas = filtered.filter(e => e.tipo === 'saida').reduce((s, e) => s + e.valor, 0);
+  // SSOT: totais via calculateTotals — descarta 'ignorar' e respeita classificação do usuário.
+  const totals = useMemo(() => calculateTotals(filtered, classifications), [filtered, classifications]);
+  const totalEntradas = totals.receitas;
+  const totalSaidas = totals.despesas;
 
   // Available origins for filter
   const origens = useMemo(() => [...new Set(entries.map(e => e.origem))].sort(), [entries]);

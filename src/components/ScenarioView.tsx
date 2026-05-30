@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSchool, useEntriesFromBaseDate } from '@/hooks/useFinancialData';
+import { useSchool, useEntriesFromBaseDate, useTypeClassifications } from '@/hooks/useFinancialData';
 import { FinancialEntry } from '@/types/financial';
 import { ScenarioType } from '@/components/ScenarioSelector';
 import { motion } from 'framer-motion';
@@ -8,6 +8,7 @@ import { TrendingUp, TrendingDown, AlertTriangle, Plus, X } from 'lucide-react';
 import { matchesMonthFilter } from '@/components/MonthSelector';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { usePresentation } from '@/components/presentation-provider';
+import { getSaldoImpact, isEntryIgnored } from '@/lib/classificationUtils';
 
 interface ScenarioViewProps { schoolId: string; scenario: ScenarioType; selectedMonth: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -18,7 +19,13 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
   const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, school?.saldoInicialData);
-  const entries = useMemo(() => allEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)), [allEntries, selectedMonth]);
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const entries = useMemo(
+    () => allEntries
+      .filter(e => matchesMonthFilter(e.data, selectedMonth))
+      .filter(e => !isEntryIgnored(e, classifications)),
+    [allEntries, selectedMonth, classifications]
+  );
   const [reductionPct, setReductionPct] = useState(20);
   const [sales, setSales] = useState<SaleSimulation[]>([]);
   const addSale = () => setSales(s => [...s, { id: crypto.randomUUID(), quantidade: 1, valorUnitario: 1000, meses: 1 }]);
@@ -26,15 +33,23 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
   const updateSale = (id: string, field: keyof Omit<SaleSimulation, 'id'>, value: number) => setSales(s => s.map(x => x.id === id ? { ...x, [field]: value } : x));
 
   const scenarioData = useMemo(() => {
+    // SSOT: agrega por IMPACTO no saldo (respeita Ignorar, Transferência entre Contas
+    // e o sinal configurado pelo usuário). Entradas = impactos positivos; saídas = negativos.
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
-    entries.forEach(e => { if (!byDate[e.data]) byDate[e.data] = { entradas: 0, saidas: 0 }; if (e.tipo === 'entrada') byDate[e.data].entradas += e.valor; else byDate[e.data].saidas += e.valor; });
+    entries.forEach(e => {
+      const impact = getSaldoImpact(e, classifications);
+      if (impact === 0) return;
+      if (!byDate[e.data]) byDate[e.data] = { entradas: 0, saidas: 0 };
+      if (impact >= 0) byDate[e.data].entradas += impact;
+      else byDate[e.data].saidas += Math.abs(impact);
+    });
     if (scenario === 'pessimista') { const factor = 1 - reductionPct / 100; Object.keys(byDate).forEach(d => { byDate[d].entradas *= factor; }); }
     if (scenario === 'otimista') {
       sales.forEach(sale => { const total = sale.quantidade * sale.valorUnitario; const monthly = total / sale.meses; const sortedDates = Object.keys(byDate).sort(); if (sortedDates.length === 0) return; const months = [...new Set(sortedDates.map(d => d.slice(0, 7)))].sort(); for (let i = 0; i < sale.meses && i < months.length; i++) { const dayKey = `${months[i]}-01`; if (!byDate[dayKey]) byDate[dayKey] = { entradas: 0, saidas: 0 }; byDate[dayKey].entradas += monthly; } });
     }
     const sorted = Object.keys(byDate).sort(); let saldo = saldoInicial;
     return sorted.map(data => { const { entradas, saidas } = byDate[data]; saldo += entradas - saidas; return { data: data.slice(5), fullDate: data, entradas, saidas, saldo }; });
-  }, [entries, scenario, reductionPct, sales, saldoInicial]);
+  }, [entries, classifications, scenario, reductionPct, sales, saldoInicial]);
 
   const totalEntradas = scenarioData.reduce((s, d) => s + d.entradas, 0);
   const totalSaidas = scenarioData.reduce((s, d) => s + d.saidas, 0);
