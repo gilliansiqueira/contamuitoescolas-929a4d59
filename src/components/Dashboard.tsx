@@ -54,7 +54,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
   // Modelo financeiro ativo: gate estrito de categorias válidas.
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
+  const { hasModel, isInModel, validKeys } = useSchoolModel(schoolId);
   const [showInsights, setShowInsights] = useState(true);
 
   const allEntries = useMemo(() => applyDelays(rawEntries, delayRules), [rawEntries, delayRules]);
@@ -63,6 +63,16 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const noIgnored = filterActiveEntries(allEntries, classifications);
     return hasModel ? noIgnored.filter(e => isInModel(e.tipoOriginal || e.categoria || e.tipo)) : noIgnored;
   }, [allEntries, classifications, hasModel, isInModel]);
+
+  console.log('DEBUG activeEntries:', activeEntries.length);
+  console.log('DEBUG hasModel:', hasModel);
+  console.log('DEBUG validKeys:', [...validKeys]);
+  console.log('DEBUG sample entries:', allEntries.slice(0, 3).map(e => ({
+    tipoOriginal: e.tipoOriginal,
+    categoria: e.categoria,
+    tipo: e.tipo,
+    origem: e.origem
+  })));
 
   // ─── Histórico Financeiro (consolidado mensal) — aplica gate do modelo ───
   const { data: historicalRowsRaw = [] } = useQuery({
