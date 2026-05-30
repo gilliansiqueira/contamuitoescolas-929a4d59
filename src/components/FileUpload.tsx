@@ -600,31 +600,40 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   };
 
   /**
-   * Aplica a classificação SOMENTE a este upload (não persiste em type_classifications).
-   * Cada upload é independente — o mesmo "tipo" pode ter classificação diferente.
+   * Aplica a classificação ao upload e salva automaticamente no banco (type_classifications).
    */
-  const handleTipoMappingConfirm = () => {
+  const handleTipoMappingConfirm = async () => {
     if (!tipoMapping || !tipoMappingPending) return;
     if (!tipoMapping.every(r => !!r.classificacao)) {
       toast.error('Defina a classificação de todos os tipos antes de continuar.');
       return;
     }
 
-    // Snapshot LOCAL — usado apenas para converter as linhas deste arquivo.
-    // Não toca a tabela type_classifications.
+    // Snapshot LOCAL — usado para converter as linhas deste arquivo e salvar no banco
     const localClassifications: TypeClassification[] = tipoMapping.map(r => {
       const cls = r.classificacao as EffectiveClassification;
+      const existing = findClassification(r.label, classifications);
       return {
-        id: crypto.randomUUID(),
+        id: existing?.id ?? crypto.randomUUID(),
         school_id: schoolId,
-        tipoValor: r.label,
+        tipoValor: r.tipoValor,
         classificacao: cls,
         operacaoSinal: cls === 'ignorar' ? defaultSinalFor(cls) : r.operacaoSinal,
         entraNoResultado: cls === 'receita' || cls === 'despesa',
         impactaCaixa: cls !== 'ignorar',
-        label: r.label,
+        label: existing?.label ?? r.label,
       };
     });
+
+    // Salva automaticamente as classificações configuradas no Supabase
+    try {
+      for (const tc of localClassifications) {
+        await saveClassificationMut.mutateAsync(tc);
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar classificações no banco:', err);
+      toast.error(`Falha ao salvar classificações no banco: ${err?.message ?? 'desconhecido'}`);
+    }
 
     const { rows, mapping, uploadType } = tipoMappingPending;
     const { entries, errors: validationErrors } = convertRows(

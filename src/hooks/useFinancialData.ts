@@ -246,7 +246,7 @@ export function useDeleteUpload() {
 
 // ─── Type Classifications ───────────────────────────
 export function useTypeClassifications(schoolId: string) {
-  const query = useQuery({
+  return useQuery({
     queryKey: ['typeClassifications', schoolId],
     queryFn: async (): Promise<TypeClassification[]> => {
       const { data, error } = await supabase
@@ -267,9 +267,6 @@ export function useTypeClassifications(schoolId: string) {
     },
     enabled: !!schoolId,
   });
-
-  console.log('DEBUG classifications do banco:', query.data);
-  return query;
 }
 
 export function useSaveTypeClassification() {
