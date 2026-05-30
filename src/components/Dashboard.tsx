@@ -200,6 +200,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       }
     }
 
+    console.log('DEBUG tipoAggregations antes do filter:', 
+      Object.values(map).map(a => ({
+        key: a.key, 
+        classificacao: a.classificacao, 
+        valor: a.valor
+      }))
+    );
+
     return Object.values(map)
       .filter(a => a.valor > 0 && a.classificacao !== 'ignorar')
       .sort((a, b) => {
