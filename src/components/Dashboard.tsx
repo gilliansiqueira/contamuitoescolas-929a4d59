@@ -337,13 +337,15 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       saldoToday += getSaldoImpact(e, classifications);
     }
 
+    // SSOT: agrega projeção por IMPACTO no saldo (Ignorar, Transferência entre Contas
+    // e sinal configurado pelo usuário são respeitados via getSaldoImpact).
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
     for (const e of futureEntries) {
+      const impact = getSaldoImpact(e, classifications);
+      if (impact === 0) continue;
       if (!byDate[e.data]) byDate[e.data] = { entradas: 0, saidas: 0 };
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls === 'ignorar') continue;
-      if (e.tipo === 'entrada') byDate[e.data].entradas += e.valor;
-      else byDate[e.data].saidas += e.valor;
+      if (impact >= 0) byDate[e.data].entradas += impact;
+      else byDate[e.data].saidas += Math.abs(impact);
     }
 
     const sorted = Object.keys(byDate).sort();
