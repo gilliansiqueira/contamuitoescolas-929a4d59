@@ -354,7 +354,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   const handleImport = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
       if (fileRef.current) fileRef.current.value = '';
@@ -378,15 +378,29 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
       const yearsSet = new Set<number>();
       let skipped = 0;
       json.forEach((row, idx) => {
-        const monthRaw = String(row[monthCol] ?? '').trim();
+        const rawVal = row[monthCol];
         let month = '';
-        if (/^\d{4}-\d{2}$/.test(monthRaw)) month = monthRaw;
-        else if (/^\d{1,2}\/\d{4}$/.test(monthRaw)) {
-          const [m, y] = monthRaw.split('/');
-          month = `${y}-${m.padStart(2, '0')}`;
-        } else if (monthRaw) {
-          const d = new Date(monthRaw);
-          if (!isNaN(d.getTime())) month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (rawVal instanceof Date) {
+          month = `${rawVal.getFullYear()}-${String(rawVal.getMonth() + 1).padStart(2, '0')}`;
+        } else {
+          const monthRaw = String(rawVal ?? '').trim();
+          if (/^\d{4}-\d{2}$/.test(monthRaw)) {
+            month = monthRaw;
+          } else if (/^\d{1,2}\/\d{4}$/.test(monthRaw)) {
+            const [m, y] = monthRaw.split('/');
+            month = `${y}-${m.padStart(2, '0')}`;
+          } else {
+            const num = Number(monthRaw);
+            if (!isNaN(num) && num >= 30000 && num <= 60000) {
+              const d = new Date((num - 25569) * 86400 * 1000);
+              month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+            } else if (monthRaw) {
+              const d = new Date(monthRaw);
+              if (!isNaN(d.getTime())) {
+                month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+              }
+            }
+          }
         }
         if (!month) {
           skipped++;
