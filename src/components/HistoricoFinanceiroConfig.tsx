@@ -379,15 +379,39 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
       let skipped = 0;
       json.forEach((row, idx) => {
         const rawVal = row[monthCol];
+        const monthRaw = String(rawVal ?? '').trim();
+
+        // Verifica se a linha tem alguma outra célula preenchida com valor diferente de zero ou vazio
+        const nonMonthValues = Object.entries(row)
+          .filter(([k, v]) => k !== monthCol && v !== null && v !== undefined && String(v).trim() !== '')
+          .map(([k, v]) => v);
+
+        // Se a coluna do mês estiver vazia e não houver nenhuma outra coluna preenchida,
+        // é uma linha em branco (comum no fim de planilhas). Ignoramos silenciosamente.
+        if (!monthRaw && nonMonthValues.length === 0) {
+          return;
+        }
+
         let month = '';
         if (rawVal instanceof Date) {
-          month = `${rawVal.getFullYear()}-${String(rawVal.getMonth() + 1).padStart(2, '0')}`;
+          // Usamos métodos UTC para evitar que fusos horários negativos (como UTC-3 do Brasil)
+          // desloquem a data para o mês anterior (ex: 2026-05-01T00:00:00Z vira 30/04/2026 21:00).
+          month = `${rawVal.getUTCFullYear()}-${String(rawVal.getUTCMonth() + 1).padStart(2, '0')}`;
         } else {
-          const monthRaw = String(rawVal ?? '').trim();
           if (/^\d{4}-\d{2}$/.test(monthRaw)) {
             month = monthRaw;
+          } else if (/^\d{4}\/\d{2}$/.test(monthRaw)) {
+            month = monthRaw.replace('/', '-');
+          } else if (/^\d{4}\.\d{2}$/.test(monthRaw)) {
+            month = monthRaw.replace('.', '-');
           } else if (/^\d{1,2}\/\d{4}$/.test(monthRaw)) {
             const [m, y] = monthRaw.split('/');
+            month = `${y}-${m.padStart(2, '0')}`;
+          } else if (/^\d{1,2}-\d{4}$/.test(monthRaw)) {
+            const [m, y] = monthRaw.split('-');
+            month = `${y}-${m.padStart(2, '0')}`;
+          } else if (/^\d{1,2}\.\d{4}$/.test(monthRaw)) {
+            const [m, y] = monthRaw.split('.');
             month = `${y}-${m.padStart(2, '0')}`;
           } else {
             const num = Number(monthRaw);
@@ -397,7 +421,7 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
             } else if (monthRaw) {
               const d = new Date(monthRaw);
               if (!isNaN(d.getTime())) {
-                month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
               }
             }
           }
@@ -500,11 +524,11 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
 
   const confirmImport = async () => {
     if (!importPreview) return;
-    // Bloqueia importação parcial se houver QUALQUER linha com mês inválido.
-    if (importPreview.errors.length > 0 || importPreview.skippedRows > 0) {
+    // Bloqueia importação se houver linhas com formato de data inválido.
+    if (importPreview.errors.length > 0) {
       toast.error(
-        `Importação cancelada: ${importPreview.errors.length || importPreview.skippedRows} linha(s) com mês inválido. ` +
-        `Use o formato AAAA-MM (ex.: 2025-01). Corrija o arquivo e tente novamente.`
+        `Importação cancelada: ${importPreview.errors.length} linha(s) com formato de data inválido. ` +
+        `Certifique-se de que os meses estão no formato AAAA-MM (ex.: 2026-05) ou MM/AAAA, corrija o arquivo e tente novamente.`
       );
       return;
     }
