@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { useSchool, useEntriesFromBaseDate, useTypeClassifications } from '@/hooks/useFinancialData';
-import { useSchoolModel } from '@/hooks/useSchoolModel';
+import { useTypeClassifications } from '@/hooks/useFinancialData';
+import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { CashFlowDay } from '@/types/financial';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
-import { filterActiveEntries, getSaldoImpact, isReceita, isDespesa, calculateTotals, getEffectiveClassification } from '@/lib/classificationUtils';
+import { calculateTotals } from '@/lib/classificationUtils';
 
 interface CashFlowProps {
   schoolId: string;
@@ -16,36 +16,24 @@ function formatCurrency(v: number) {
 }
 
 export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
-  const { data: school } = useSchool(schoolId);
-  const saldoInicial = school?.saldoInicial ?? 0;
-  const baseDate = school?.saldoInicialData;
-  const { data: allEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
+  // SSOT — já vem com dataProjetada (prazo aplicado), impacto, modelo aplicado, ignorar filtrado.
+  const { entries: activeEntries, saldoInicial } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
-
-  const activeEntries = useMemo(() => {
-    const noIgnored = filterActiveEntries(allEntries, classifications);
-    if (!hasModel) return noIgnored;
-    return noIgnored.filter(e => {
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls === 'operacao') return true;
-      return isInModel(e.tipoOriginal || e.categoria || e.tipo);
-    });
-  }, [allEntries, classifications, hasModel, isInModel]);
 
   const entries = useMemo(() =>
-    activeEntries.filter(e => matchesMonthFilter(e.data, selectedMonth)),
+    activeEntries.filter(e => matchesMonthFilter(e.dataProjetada, selectedMonth)),
     [activeEntries, selectedMonth]
   );
 
-  // Daily cash flow using proper classification
+  // Daily cash flow
   const cashFlow: CashFlowDay[] = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
     entries.forEach(e => {
-      if (!byDate[e.data]) byDate[e.data] = { entradas: 0, saidas: 0 };
-      const impact = getSaldoImpact(e, classifications);
-      if (impact > 0) byDate[e.data].entradas += impact;
-      else if (impact < 0) byDate[e.data].saidas += Math.abs(impact);
+      const data = e.dataProjetada;
+      if (!byDate[data]) byDate[data] = { entradas: 0, saidas: 0 };
+      const impact = e.impacto;
+      if (impact > 0) byDate[data].entradas += impact;
+      else if (impact < 0) byDate[data].saidas += Math.abs(impact);
     });
     const sorted = Object.keys(byDate).sort();
     let saldo = saldoInicial;
@@ -55,13 +43,13 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
       saldo += entradas - saidas;
       return { data, entradas, saidas, saldoAnterior, saldoDia: saldo };
     });
-  }, [entries, classifications, saldoInicial]);
+  }, [entries, saldoInicial]);
 
-  // Monthly consolidation using proper classification
+  // Monthly consolidation
   const monthly = useMemo(() => {
     const byMonth: Record<string, typeof entries> = {};
     entries.forEach(e => {
-      const m = e.data.slice(0, 7);
+      const m = e.dataProjetada.slice(0, 7);
       if (!byMonth[m]) byMonth[m] = [];
       byMonth[m].push(e);
     });
@@ -77,6 +65,7 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
   const dailyTotals = useMemo(() => cashFlow.reduce((a, d) => ({
     entradas: a.entradas + d.entradas, saidas: a.saidas + d.saidas,
   }), { entradas: 0, saidas: 0 }), [cashFlow]);
+
 
 
   if (cashFlow.length === 0) {
