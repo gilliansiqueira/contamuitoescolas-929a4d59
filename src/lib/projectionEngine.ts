@@ -65,10 +65,21 @@ export function projectEntries(
   let active = filterActiveEntries(entries, classifications);
 
   // 2) gate do modelo
+  // Aceita se:
+  //  a) classificação efetiva é 'operacao' (sempre passa), OU
+  //  b) a classificação efetiva (despesa/receita) está coberta pelo modelo, OU
+  //  c) o label bruto (tipoOriginal/categoria/tipo) bate em algum item do modelo
+  //     ou classificações ativas.
+  // Isso garante que entries projetadas — cujo `tipoOriginal` é vazio e
+  // `categoria` é a conta detalhada (ex.: "Material Didático") — não sejam
+  // descartadas indevidamente.
   if (options.hasModel) {
     active = active.filter(e => {
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'operacao') return true;
+      if (cls === 'despesa' || cls === 'receita') {
+        if (options.isInModel(cls)) return true;
+      }
       return options.isInModel(e.tipoOriginal || e.categoria || e.tipo);
     });
   }
