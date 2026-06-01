@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
-import { FinancialEntry } from '@/types/financial';
+import { useTypeClassifications } from '@/hooks/useFinancialData';
+import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { getSaldoImpact, isEntryIgnored } from '@/lib/classificationUtils';
+import { getSaldoImpact } from '@/lib/classificationUtils';
+import type { ProjectedEntry } from '@/lib/projectionEngine';
 
 interface FinancialCalendarProps { schoolId: string; selectedMonth: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
 export function FinancialCalendar({ schoolId, selectedMonth }: FinancialCalendarProps) {
-  const { data: entries = [] } = useEntries(schoolId);
+  const { entries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const now = new Date();
   const initialMonth = selectedMonth !== 'all' ? selectedMonth.split(',')[0] : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -19,21 +20,20 @@ export function FinancialCalendar({ schoolId, selectedMonth }: FinancialCalendar
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
   const dayData = useMemo(() => {
-    // SSOT: descarta 'ignorar' e usa getSaldoImpact (respeita Transferência entre Contas
-    // e o sinal configurado pelo usuário). Entradas/saídas exibidas pelo IMPACTO no saldo.
-    const map: Record<string, { entradas: number; saidas: number; items: FinancialEntry[] }> = {};
+    // SSOT — entries vêm com dataProjetada (prazo aplicado) e impacto. Ignorar já foi filtrado.
+    const map: Record<string, { entradas: number; saidas: number; items: ProjectedEntry[] }> = {};
     entries.forEach(e => {
-      if (!e.data.startsWith(viewMonth)) return;
-      if (isEntryIgnored(e, classifications)) return;
-      const impact = getSaldoImpact(e, classifications);
+      if (!e.dataProjetada.startsWith(viewMonth)) return;
+      const impact = e.impacto;
       if (impact === 0) return;
-      if (!map[e.data]) map[e.data] = { entradas: 0, saidas: 0, items: [] };
-      if (impact >= 0) map[e.data].entradas += impact;
-      else map[e.data].saidas += Math.abs(impact);
-      map[e.data].items.push(e);
+      if (!map[e.dataProjetada]) map[e.dataProjetada] = { entradas: 0, saidas: 0, items: [] };
+      if (impact >= 0) map[e.dataProjetada].entradas += impact;
+      else map[e.dataProjetada].saidas += Math.abs(impact);
+      map[e.dataProjetada].items.push(e);
     });
     return map;
-  }, [entries, classifications, viewMonth]);
+  }, [entries, viewMonth]);
+
   const navigate = (dir: number) => { let m = month + dir; let y = year; if (m > 12) { m = 1; y++; } if (m < 1) { m = 12; y--; } setViewMonth(`${y}-${String(m).padStart(2, '0')}`); setSelectedDay(null); };
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const dayNames = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
