@@ -1,92 +1,109 @@
-# Plano: Consistência Financeira (Projeção + Realizado)
+## Objetivo
 
-Mudanças críticas, aplicadas em duas fases para reduzir risco. Cada fase é entregável independente — você valida antes de seguir.
+Consolidar toda a lógica financeira em uma única SSOT, garantir que prazos de cobrança sejam aplicados em TODAS as telas, padronizar fontes de valor por tipo de importação, criar categoria independente "Sponte Pay", proibir lançamentos fantasmas e transformar a aba Dados em centro de auditoria com rastreabilidade completa.
 
----
+## Fase 0 — Mapeamento (sem código)
 
-## Fase 1 — Saldo travado por snapshot + Fechamento reforçado
+Antes de qualquer alteração, gerar um relatório curto identificando:
 
-### 1.1 Saldo inicial sempre = saldo final do mês anterior
+1. Pontos de cálculo financeiro hoje:
+   - `src/lib/classificationUtils.ts` (`calculateTotals`, `getSaldoImpact`)
+   - `src/lib/tipoMeta.ts` + `src/lib/ledgerEngine.ts`
+   - `src/lib/snapshotUtils.ts`
+   - `src/components/Dashboard.tsx`, `CashFlow.tsx`, `DailyFlowTable.tsx`, `DataTable.tsx`, `FinancialCalendar.tsx`, `Receivables.tsx`, `ProjectedVsReal.tsx`, `ScenarioView.tsx`
+2. Aplicação de prazos (`applyPaymentDelays`): hoje só em `DailyFlowTable.tsx` e `Dashboard.tsx`.
+3. Categorização de recebíveis: hoje hardcoded em `Receivables.tsx::categorizeReceivable`.
+4. Mapeamento de colunas na importação: `FileUpload.tsx` (alias prioritizado para `valor_com_desconto`).
 
-Hoje `Dashboard.tsx` recalcula tudo dinamicamente. Vamos tornar o **snapshot a fonte da verdade absoluta** para meses fechados.
+Entregar o mapa antes de prosseguir.
 
-Regra única, em ordem de prioridade:
-1. Existe snapshot do mês anterior → `saldoInicial = snapshot.saldo_final` (ponto final, não soma mais nada).
-2. Não existe → calcula dinâmico (como hoje), partindo de `school.saldo_inicial`.
+## Fase 1 — SSOT central de projeção
 
-Aplicado em:
-- `src/components/Dashboard.tsx` (cálculo de saldo)
-- `src/components/CashFlow.tsx` / `DailyFlowTable.tsx` (previsão de caixa)
-- `src/components/realizado/RelatorioRealizado.tsx` (saldo do realizado)
-- `src/lib/snapshotUtils.ts` (helper único `getSaldoInicialMes(month, snapshots, schoolSaldoInicial, entries, historical)`)
+Criar `src/lib/projectionEngine.ts` com:
 
-Resultado: depois de fechar Dezembro com saldo final R$ 150.000, Janeiro **sempre** abre em R$ 150.000, independente do que for editado depois.
+- `applyPaymentDelay(entry, rules)` — função pura, única, recebe entry + regras e devolve a data ajustada (ISO).
+- `projectEntries(entries, rules, classifications, model)` — pipeline canônico:
+  1. filtra `isEntryIgnored`
+  2. aplica gate do Modelo Financeiro (`useSchoolModel`)
+  3. aplica `applyPaymentDelay` SOMENTE para `tipo_registro = 'projetado'` (realizado nunca desloca)
+  4. retorna entries com `dataProjetada` e `impacto` (via `getSaldoImpact`)
+- Hook `useProjectedEntries(schoolId)` que carrega entries + rules + classifications + model e devolve a lista canônica.
 
-### 1.2 Fechar mês — bloqueios e consolidação automática no Histórico
+Substituir os usos atuais de `applyPaymentDelays` em `DailyFlowTable.tsx` e `Dashboard.tsx` pelo hook. Aplicar o mesmo hook em `Receivables.tsx`, `FinancialCalendar.tsx`, `CashFlow.tsx`, `DataTable.tsx`, `ScenarioView.tsx`, `ProjectedVsReal.tsx`.
 
-Nos componentes existentes (`FechamentoMeses.tsx` no Realizado, `usePeriodClosures` na Projeção):
+## Fase 2 — Categoria independente "Sponte Pay"
 
-**Antes de permitir fechar, validar:**
-- ✅ Não existem entries com `categoria`/`tipo` fora do modelo financeiro da escola (`financial_model_templates`)
-- ✅ Não existem categorias inválidas (tipo vazio, valor zero suspeito)
-- ✅ Saldo calculado bate com saldo do snapshot do mês anterior (se houver)
-- ❌ Se qualquer check falhar → modal lista as inconsistências, bloqueia o fechamento
+- Em `src/lib/receivableCategorization.ts` (novo, extraído de `Receivables.tsx`): adicionar categoria `sponte_pay` antes de `boleto_cobranca`. Regra: `origem` contém `sponte pay` OU `categoria` contém `sponte pay`.
+- Atualizar Dashboard, Fluxo, Recebíveis, Calendário, Dados, Relatórios para exibir a categoria como linha/coluna separada.
+- Migration: inserir `receivable_categories` `Sponte Pay` para escolas existentes (sort_order entre PIX e Boleto).
 
-**Ao fechar (transação única):**
-1. Grava `period_closure_snapshots` (já existe)
-2. **Novo:** `UPSERT` em `historical_monthly` por `tipo_valor` (receitas, despesas, investimentos, aportes, saldo_inicial, saldo_final) — torna o histórico a foto consolidada
-3. Marca `period_closures.status = 'closed'` (já existe)
+## Fase 3 — Fonte de valor por importação
 
-Arquivos:
-- `src/hooks/usePeriodClosures.ts` — adicionar validações + upsert histórico
-- `src/components/realizado/FechamentoMeses.tsx` — UI dos erros de validação
-- novo helper `src/lib/closureValidation.ts`
+Em `src/components/FileUpload.tsx` (e parsers correlatos):
 
----
+- **Cartões (Maquininha)**: usar EXCLUSIVAMENTE coluna `Valor Líquido` / `valor_liquido`. Remover fallbacks para `valor_com_desconto`, `valor`, `total`, `valor_bruto`.
+- **Cheques**: EXCLUSIVAMENTE `ValorComDesconto`.
+- **Sponte (Recebimentos)**: EXCLUSIVAMENTE `ValorComDesconto`.
+- Se a coluna obrigatória não existir → falhar a importação com mensagem explícita (sem fallback silencioso).
 
-## Fase 2 — Validação de upload por Modelo Financeiro
+## Fase 4 — Proibição de lançamentos fantasmas + rastreabilidade
 
-### 2.1 Validação estrita contra o modelo
+Migration em `financial_entries`:
 
-Hoje uploads aceitam qualquer tipo. Vamos validar contra os tipos cadastrados no **modelo financeiro da escola** (`financial_model_template_items` + `type_classifications`).
+```sql
+ALTER TABLE public.financial_entries
+  ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'manual'
+    CHECK (source_kind IN ('import','manual','manual_edit')),
+  ADD COLUMN IF NOT EXISTS source_file text,
+  ADD COLUMN IF NOT EXISTS import_batch_id uuid,
+  ADD COLUMN IF NOT EXISTS created_by uuid;
 
-Regra: só aceita match **exato** (após normalização de acento/case) com `name` do modelo. Variações como "Receita Real", "Saída", "Receita Operacional" **não** passam.
+CREATE INDEX IF NOT EXISTS idx_fe_import_batch ON public.financial_entries(import_batch_id);
+CREATE INDEX IF NOT EXISTS idx_fe_source_kind ON public.financial_entries(source_kind);
+```
 
-### 2.2 Tela de mapeamento obrigatório
+Criar tabela `import_batches` (id, school_id, source_kind, file_name, uploaded_at, uploaded_by, row_count, total_value) com GRANTs + RLS.
 
-No fluxo de upload (`src/components/upload/TipoMappingStep.tsx` + `src/components/realizado/ImportacaoRealizado.tsx`):
+Atualizar:
+- `FileUpload.tsx` e demais importadores → gravam `source_kind='import'`, `source_file`, `import_batch_id`, `created_by`.
+- Diálogos de inclusão/edição manual → gravam `source_kind='manual'` / `'manual_edit'`, `created_by`.
 
-- Após detectar tipos no arquivo, comparar com o modelo.
-- Tipos não reconhecidos abrem **etapa de mapeamento obrigatório**:
-  - Lista cada tipo desconhecido com select das categorias válidas do modelo
-  - Não permite avançar enquanto algum tipo estiver sem vínculo
-  - Salva o mapeamento em `category_rules` (já existe) para reuso futuro
-- Após mapear, o upload converte o tipo original para o tipo do modelo antes de inserir.
+Auditoria de coerência: criar `src/lib/auditConsistency.ts` com `assertSumMatches(displayed, entries)` usado em dev (console.warn em prod) para validar `soma === total exibido`.
 
----
+Remover qualquer ponto que crie entries sintéticas (verificar `Simulation.tsx`, `ScenarioView.tsx`, snapshots) — projeções de cenário devem ser cálculo de exibição, nunca insert no banco.
 
-## Arquivos novos
-- `src/lib/snapshotUtils.ts` — helpers de saldo travado (estender)
-- `src/lib/closureValidation.ts` — checks pré-fechamento
-- `src/lib/modelValidation.ts` — validação de tipos contra modelo da escola
+## Fase 5 — Aba Dados como Centro de Auditoria
 
-## Arquivos editados (principais)
-- `src/components/Dashboard.tsx`
-- `src/components/CashFlow.tsx`
-- `src/components/realizado/RelatorioRealizado.tsx`
-- `src/components/realizado/FechamentoMeses.tsx`
-- `src/hooks/usePeriodClosures.ts`
-- `src/components/upload/TipoMappingStep.tsx`
-- `src/components/realizado/ImportacaoRealizado.tsx`
+Refatorar `src/components/DataTable.tsx`:
 
-## Sem mudanças de schema
-Todas as tabelas necessárias já existem (`period_closure_snapshots`, `historical_monthly`, `financial_model_template_items`, `category_rules`, `type_classifications`). Sem migração.
+- Barra de filtros:
+  - Origem (`source_kind` + `origem`)
+  - Arquivo de origem (`source_file`, autocompletar a partir de `import_batches`)
+  - Tipo de inclusão (Importado / Manual / Todos)
+  - Lote (`import_batch_id`, dropdown)
+  - Período (existente)
+- Colunas visíveis: Origem, Arquivo, Lote, Data Upload, Usuário, Data Original, Data Projetada (via SSOT), Tipo (Importado/Manual badge), Valor Original (`valor` no momento da importação — adicionar `valor_original numeric`), Valor Atual, Status (`tipo_registro`).
+- Drawer "Lotes de Importação" listando registros de `import_batches` com totais; clique abre lista filtrada.
+- Badge visual "Manual" para `source_kind != 'import'`.
 
-## Riscos & mitigação
-- **Risco:** snapshots antigos podem ter `saldo_final` errado (gerados antes do fix). **Mitigação:** botão "Recalcular snapshot" no fechamento (admin) para regenerar pontualmente.
-- **Risco:** uploads em produção podem ter tipos legados não cadastrados. **Mitigação:** tela de mapeamento já cobre — usuário vincula uma vez e fica salvo.
-- **Risco:** quebrar cálculos do Dashboard. **Mitigação:** entrego Fase 1 isolada; você valida antes de eu mexer no upload.
+## Fase 6 — Validação
 
----
+- Testes em `src/test/projectionEngine.test.ts` cobrindo: aplicação de prazo, ignorar, transferência, modelo, soma === exibição.
+- Smoke manual em Rio Verde e Campo Largo.
+- Auditoria: para 5 dias aleatórios, abrir Calendário e Dados filtrados pelo mesmo dia → totais idênticos.
 
-**Pergunta antes de começar:** OK começar pela **Fase 1** (saldo travado + fechamento reforçado) e validar antes de seguir para a Fase 2 (upload)?
+## Detalhes técnicos
+
+- Não tocar em `src/integrations/supabase/{client,types}.ts`.
+- Toda alteração de schema via `supabase--migration` com GRANTs.
+- Manter `useSchoolModel` e `tipoMeta` atuais; o engine novo os consome.
+- Cenários e Simulação permanecem apenas em memória (sem inserts no banco).
+
+## Ordem de execução
+
+1. Fase 0 (relatório) → pausa para confirmação
+2. Fases 1 + 2 (engine + Sponte Pay)
+3. Fase 3 (colunas)
+4. Fase 4 (migration + rastreabilidade)
+5. Fase 5 (UI Dados)
+6. Fase 6 (validação)
