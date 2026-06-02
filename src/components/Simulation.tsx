@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Calculator, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { filterActiveEntries, getEffectiveClassification } from '@/lib/classificationUtils';
+import { getEffectiveClassification } from '@/lib/classificationUtils';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 interface SimulationProps { schoolId: string; }
