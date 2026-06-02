@@ -57,7 +57,7 @@ function formatMonth(m: string) {
   return `${months[parseInt(mo) - 1]}/${y?.slice(2) || ''}`;
 }
 
-export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonths, index, onEditEntry, onDeleteEntries, activeMonth }: Props) {
+export function CategoryBlock({ name, entries, allYearEntries, totalGeral, faturamento, allMonths, index, onEditEntry, onDeleteEntries, activeMonth }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showEntries, setShowEntries] = useState(false);
   const [filterCat, setFilterCat] = useState<string>('all');
