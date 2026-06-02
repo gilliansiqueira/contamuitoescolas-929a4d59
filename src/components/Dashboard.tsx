@@ -62,11 +62,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const [showInsights, setShowInsights] = useState(true);
 
   const allEntries = useMemo(() => applyDelays(rawEntries, delayRules), [rawEntries, delayRules]);
-  // 1) Remove entries 'ignorar'; 2) Aplica gate do modelo financeiro (se houver).
+  // Projeção/Dashboard NÃO aplica filtro de "ignorar". Apenas gate do modelo
+  // financeiro (se houver). Origem 'contas_pagar' sempre passa.
   const activeEntries = useMemo(() => {
-    const noIgnored = filterActiveEntries(allEntries, classifications);
-    if (!hasModel) return noIgnored;
-    return noIgnored.filter(e => {
+    if (!hasModel) return allEntries;
+    return allEntries.filter(e => {
+      if (e.origem === 'contas_pagar') return true;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'operacao') return true;
       return isInModel(e.tipoOriginal || e.categoria || e.tipo);
