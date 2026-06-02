@@ -248,6 +248,9 @@ function BankAdminControls({
   const [name, setName] = useState(bank);
   useEffect(() => setName(bank), [bank]);
 
+  // Raw text values for numeric fields so commas survive while typing
+  const [texts, setTexts] = useState<Record<string, string>>({});
+
   const monthOptions = useMemo(() => {
     const set = new Set<string>(rows.map(r => r.month));
     const now = new Date();
@@ -262,13 +265,31 @@ function BankAdminControls({
   const [draft, setDraft] = useState<InvestmentRow>(
     rowForMonth ?? emptyRow(schoolId, editMonth, bank, 0)
   );
+
+  // Sync draft and raw texts when row/month changes
   useEffect(() => {
-    setDraft(rowForMonth ?? emptyRow(schoolId, editMonth, bank, 0));
+    const base = rowForMonth ?? emptyRow(schoolId, editMonth, bank, 0);
+    setDraft(base);
+    const nextTexts: Record<string, string> = {};
+    FIELDS.forEach(f => {
+      const v = (base as any)[f.key];
+      nextTexts[f.key as string] = v === 0 || v == null ? '' : String(v);
+    });
+    setTexts(nextTexts);
   }, [rowForMonth, editMonth, bank, schoolId]);
 
   const handleSave = async () => {
+    const payload: InvestmentRow = {
+      ...draft,
+      nome: bank,
+      month: editMonth,
+      school_id: schoolId,
+    };
+    FIELDS.forEach(f => {
+      (payload as any)[f.key] = parseBR(texts[f.key as string] || '0');
+    });
     try {
-      await onUpsert({ ...draft, nome: bank, month: editMonth, school_id: schoolId });
+      await onUpsert(payload);
       toast.success('Salvo');
     } catch (e: any) {
       toast.error('Erro: ' + e.message);
@@ -344,8 +365,8 @@ function BankAdminControls({
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={String((draft as any)[f.key] ?? '')}
-                    onChange={e => setDraft(d => ({ ...d, [f.key]: parseBR(e.target.value) } as InvestmentRow))}
+                    value={texts[f.key as string] ?? ''}
+                    onChange={e => setTexts(t => ({ ...t, [f.key]: e.target.value }))}
                     className="h-8 text-sm"
                   />
                 </div>
