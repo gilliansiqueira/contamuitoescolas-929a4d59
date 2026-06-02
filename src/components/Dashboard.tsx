@@ -11,6 +11,7 @@ import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
 import { calculateTotals, getSaldoImpact, getEffectiveClassification, getCanonicalKey, normalizeTipo } from '@/lib/classificationUtils';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
+import { applyPaymentDelay } from '@/lib/projectionEngine';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, BarChart, Bar, Legend, LineChart, Line } from 'recharts';
 import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
@@ -28,20 +29,13 @@ function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// Usa a função canônica do sistema (lowercase + trim + remove acentos).
-const normalize = normalizeTipo;
-
-// Aplica prazo de cobrança APENAS a entries projetadas de origem 'sponte'
-// (mesma regra do projectionEngine SSOT — realizado nunca tem data deslocada).
+// Aplica prazo de cobrança usando a função canônica do projectionEngine (SSOT).
+// Apenas entries projetadas de origem 'sponte' têm a data deslocada — cartões
+// da maquininha (origem 'cartao') sempre usam o vencimento original.
 function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; prazo: number }[]): FinancialEntry[] {
   return entries.map(e => {
-    if (e.tipoRegistro !== 'projetado') return e;
-    if (e.origem !== 'sponte') return e;
-    const forma = e.categoria || '';
-    if (!forma) return e;
-    const rule = rules.find(r => forma.toLowerCase().includes(r.formaCobranca.toLowerCase()));
-    if (!rule || rule.prazo === 0) return e;
-    return { ...e, data: addDaysAndAdjust(e.data, rule.prazo) };
+    const data = applyPaymentDelay(e, rules as any);
+    return data === e.data ? e : { ...e, data };
   });
 }
 
