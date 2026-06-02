@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
 import {
-  filterActiveEntries,
+  
   calculateTotals,
   getEffectiveClassification,
 } from '@/lib/classificationUtils';
