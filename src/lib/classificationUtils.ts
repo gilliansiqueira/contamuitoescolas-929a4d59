@@ -2,6 +2,7 @@ import type { FinancialEntry, TypeClassification } from '@/types/financial';
 import {
   normalizeTipo,
   resolveLedgerRule,
+  resolveEntryLedgerRule,
   getLedgerSaldoImpact,
   processLedger,
   DEFAULT_MAPPINGS
