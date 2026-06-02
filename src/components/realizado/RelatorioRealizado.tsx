@@ -387,6 +387,23 @@ export function RelatorioRealizado({ schoolId }: Props) {
       .sort((a, b) => a.total - b.total);
   }, [filtered, contaGrupoMap]);
 
+  // Entradas de TODOS os meses/anos agrupadas por categoria-mãe (para gráficos YoY)
+  const allEntriesByGroup = useMemo(() => {
+    const map: Record<string, { data: string; valor: number }[]> = {};
+    entries.forEach((e: any) => {
+      const catName = e.conta_nome || '';
+      const grupo = contaGrupoMap[normalizeStr(catName)] || 'Outros';
+      if (!map[grupo]) map[grupo] = [];
+      map[grupo].push({ data: e.data || '', valor: Number(e.valor || 0) });
+    });
+    return map;
+  }, [entries, contaGrupoMap]);
+
+  const allEntriesForYoY = useMemo(
+    () => entries.map((e: any) => ({ data: e.data || '', valor: Number(e.valor || 0) })),
+    [entries]
+  );
+
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
   const barChartData = useMemo(() => {
