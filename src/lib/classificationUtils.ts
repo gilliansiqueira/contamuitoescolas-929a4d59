@@ -29,6 +29,28 @@ export function getCanonicalLabel(rawTipo: string): string {
  * 
  * Deriva essa classificação diretamente das propriedades do Ledger Engine.
  */
+/**
+ * Resolve a regra do ledger tentando, em ordem:
+ *   tipoOriginal → categoria → tipo
+ * Garante que entries projetadas (cujo `tipoOriginal` é vazio e a
+ * configuração de "Ignorar" foi feita pelo nome da categoria, ex.
+ * "Material Didático") sejam corretamente classificadas e filtradas.
+ */
+function resolveEffectiveRule(
+  entry: FinancialEntry,
+  classifications: TypeClassification[]
+) {
+  const candidates = [entry.tipoOriginal, entry.categoria, entry.tipo].filter(
+    (s): s is string => !!s && s.trim() !== ''
+  );
+  for (const key of candidates) {
+    const norm = normalizeTipo(key);
+    const cfg = classifications.find(c => normalizeTipo(c.tipoValor) === norm);
+    if (cfg) return resolveLedgerRule(key, classifications);
+  }
+  return resolveLedgerRule(candidates[0] || entry.tipo, classifications);
+}
+
 export function getEffectiveClassification(
   entry: FinancialEntry,
   classifications: TypeClassification[]
@@ -37,7 +59,7 @@ export function getEffectiveClassification(
     return entry.tipo === 'entrada' ? 'receita' : 'despesa';
   }
 
-  const rule = resolveLedgerRule(entry.tipoOriginal || entry.tipo, classifications);
+  const rule = resolveEffectiveRule(entry, classifications);
   if (!rule.impactaCaixa && !rule.entraNoResultado) return 'ignorar';
   if (rule.entraNoResultado) {
     return rule.operacaoSinal === 'somar' ? 'receita' : 'despesa';
