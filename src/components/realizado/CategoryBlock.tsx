@@ -21,7 +21,7 @@ interface Props {
   name: string;
   entries: Entry[];
   /** Entradas dessa categoria-mãe em TODOS os anos/meses (para YoY). Opcional. */
-  allYearEntries?: Entry[];
+  allYearEntries?: { data: string; valor: number }[];
   totalGeral: number;
   faturamento: number;
   allMonths: string[];
