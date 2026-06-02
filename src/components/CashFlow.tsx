@@ -4,7 +4,7 @@ import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { CashFlowDay } from '@/types/financial';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
-import { calculateTotals } from '@/lib/classificationUtils';
+import { calculateTotals, getEffectiveClassification } from '@/lib/classificationUtils';
 
 interface CashFlowProps {
   schoolId: string;
