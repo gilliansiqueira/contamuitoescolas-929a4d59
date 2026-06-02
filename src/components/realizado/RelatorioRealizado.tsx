@@ -651,13 +651,6 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Despesas por Categoria (com valores e percentuais) */}
-      {barChartData.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-          <Card className="rounded-2xl">
-            <CardContent className="p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-1">Despesas por Categoria</h3>
-              {currentRevenue > 0 && (
       {/* Comparativos MoM / YoY / Acumulado anual */}
       {!isMulti && activeMes && (
         <ComparativeMetrics
