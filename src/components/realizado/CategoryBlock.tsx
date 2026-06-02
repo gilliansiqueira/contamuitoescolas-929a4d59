@@ -348,6 +348,29 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                           })}
                         </div>
                       )}
+
+                      {/* YoY do mês ativo */}
+                      {yoyMonth && activeMonth && (
+                        <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+                          <span className="text-muted-foreground">
+                            YoY {formatMonth(activeMonth)} vs {formatMonth(yoyMonth.prevYM)}:
+                          </span>
+                          <span className="text-muted-foreground tabular-nums">
+                            {formatCurrency(yoyMonth.prev)} → {formatCurrency(yoyMonth.curr)}
+                          </span>
+                          {yoyMonth.prev > 0 && (() => {
+                            const diff = yoyMonth.curr - yoyMonth.prev;
+                            const pct = (diff / yoyMonth.prev) * 100;
+                            const isUp = diff > 0;
+                            return (
+                              <span className={`inline-flex items-center gap-0.5 font-semibold ${isUp ? 'text-destructive' : 'text-emerald-600'}`}>
+                                {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                {isUp ? '+' : ''}{formatCurrency(diff)} ({isUp ? '+' : ''}{pct.toFixed(1)}%)
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                   )}
 
