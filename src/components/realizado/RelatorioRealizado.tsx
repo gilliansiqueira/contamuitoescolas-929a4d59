@@ -17,6 +17,7 @@ import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { useClosedMonths } from '@/hooks/usePeriodClosures';
 import { useMonthSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
+import { ComparativeMetrics } from './ComparativeMetrics';
 
 interface Props {
   schoolId: string;
