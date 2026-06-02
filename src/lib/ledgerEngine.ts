@@ -113,6 +113,28 @@ export function resolveLedgerRule(
 }
 
 /**
+ * Resolve a regra do ledger para uma entry tentando, em ordem:
+ *   tipoOriginal → categoria → tipo
+ * Garante que entries projetadas (tipoOriginal vazio) sejam classificadas
+ * pelo nome da categoria configurada em type_classifications.
+ */
+export function resolveEntryLedgerRule(
+  entry: FinancialEntry,
+  classifications: TypeClassification[]
+): LedgerRule {
+  const candidates = [entry.tipoOriginal, entry.categoria, entry.tipo].filter(
+    (s): s is string => !!s && s.trim() !== ''
+  );
+  for (const key of candidates) {
+    const norm = normalizeTipo(key);
+    const cfg = classifications.find(c => normalizeTipo(c.tipoValor) === norm);
+    if (cfg) return resolveLedgerRule(key, classifications);
+    if (DEFAULT_MAPPINGS[norm]) return resolveLedgerRule(key, classifications);
+  }
+  return resolveLedgerRule(candidates[0] || entry.tipo, classifications);
+}
+
+/**
  * Retorna o impacto absoluto de saldo de uma transação.
  */
 export function getLedgerSaldoImpact(
@@ -124,15 +146,13 @@ export function getLedgerSaldoImpact(
     return sinal === 'somar' ? entry.valor : -entry.valor;
   }
 
-  const rule = resolveLedgerRule(entry.tipoOriginal || entry.tipo, classifications);
+  const rule = resolveEntryLedgerRule(entry, classifications);
   if (!rule.impactaCaixa) return 0;
   return rule.operacaoSinal === 'somar' ? entry.valor : -entry.valor;
 }
 
 /**
  * MOTOR CENTRAL DE PROCESSAMENTO E CONSOLIDAÇÃO FINANCEIRA.
- * 
- * É a ÚNICA fonte de verdade no cálculo de saldo e resultado do sistema.
  */
 export function processLedger(
   entries: FinancialEntry[],
@@ -145,20 +165,17 @@ export function processLedger(
   let saldoMovimento = 0;
 
   for (const e of entries) {
-    // Saldo é computado exclusivamente a partir do impacto do Ledger
     const impact = getLedgerSaldoImpact(e, classifications);
     saldoMovimento += impact;
 
-    // Resoluções de regra genérica
     const rule = e.editadoManualmente
       ? {
           impactaCaixa: true,
           entraNoResultado: true,
           operacaoSinal: e.tipo === 'entrada' ? ('somar' as const) : ('subtrair' as const)
         }
-      : resolveLedgerRule(e.tipoOriginal || e.tipo, classifications);
+      : resolveEntryLedgerRule(e, classifications);
 
-    // DRE / Resultado
     if (rule.entraNoResultado) {
       if (rule.operacaoSinal === 'somar') {
         receitas += e.valor;
@@ -166,7 +183,6 @@ export function processLedger(
         despesas += e.valor;
       }
     } else if (rule.impactaCaixa) {
-      // Movimentações que impactam o saldo mas estão fora do resultado operacional
       if (rule.operacaoSinal === 'somar') {
         operacoesIn += e.valor;
       } else {
