@@ -114,7 +114,7 @@ export function getEffectiveSinal(
     return entry.tipo === 'entrada' ? 'somar' : 'subtrair';
   }
 
-  const rule = resolveLedgerRule(entry.tipoOriginal || entry.tipo, classifications);
+  const rule = resolveEffectiveRule(entry, classifications);
   return rule.operacaoSinal;
 }
 
