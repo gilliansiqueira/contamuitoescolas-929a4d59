@@ -17,8 +17,18 @@ function formatCurrency(v: number) {
 
 export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
   // SSOT — já vem com dataProjetada (prazo aplicado), impacto, modelo aplicado, ignorar filtrado.
-  const { entries: activeEntries, saldoInicial } = useProjectedEntries(schoolId);
+  const { entries: projectedEntries, saldoInicial } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
+
+  // Regra de projeção: Fluxo considera APENAS Receitas e Despesas.
+  // Operações e Ignorar ficam fora dos cálculos.
+  const activeEntries = useMemo(
+    () => projectedEntries.filter(e => {
+      const cls = getEffectiveClassification(e, classifications);
+      return cls === 'receita' || cls === 'despesa';
+    }),
+    [projectedEntries, classifications]
+  );
 
   const entries = useMemo(() =>
     activeEntries.filter(e => matchesMonthFilter(e.dataProjetada, selectedMonth)),
