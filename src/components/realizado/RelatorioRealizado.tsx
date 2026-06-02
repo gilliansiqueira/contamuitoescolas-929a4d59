@@ -651,14 +651,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Comparativos MoM / YoY / Acumulado anual */}
-      {!isMulti && activeMes && (
-        <ComparativeMetrics
-          activeMonth={activeMes}
-          entries={entries.map((e: any) => ({ data: e.data, valor: Number(e.valor || 0) }))}
-          revenues={revenues}
-        />
-      )}
+      {/* (Cards de Faturamento / Despesas / Acumulado removidos — substituídos por linhas YoY abaixo de cada gráfico) */}
 
       {/* Despesas por Categoria (valor + % no mesmo rótulo) */}
       {barChartData.length > 0 && (
