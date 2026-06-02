@@ -261,7 +261,7 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
 
       {/* Variation */}
       {variation !== null && (
-        <div className="flex items-center justify-center gap-1 mb-3 text-xs">
+        <div className="flex items-center justify-center gap-1 mb-1 text-xs">
           {variation > 0 ? (
             <ArrowUp className="w-3.5 h-3.5" style={{ color: isImprovement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
           ) : variation < 0 ? (
@@ -273,6 +273,38 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
             {formatVariation(variation)}
           </span>
           <span className="text-muted-foreground">vs mês anterior</span>
+        </div>
+      )}
+
+      {/* YoY acumulado Jan→mês vs mesmo período do ano anterior */}
+      {yoy && (
+        <div className="flex flex-col items-center gap-0.5 mb-3 text-[11px]">
+          <div className="flex items-center gap-1">
+            {yoy.delta > 0 ? (
+              <ArrowUp className="w-3 h-3" style={{ color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
+            ) : yoy.delta < 0 ? (
+              <ArrowDown className="w-3 h-3" style={{ color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
+            ) : (
+              <Minus className="w-3 h-3 text-muted-foreground" />
+            )}
+            <span
+              className="font-semibold"
+              style={yoy.delta === 0 ? { color: 'hsl(var(--muted-foreground))' } : { color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }}
+            >
+              {yoy.isPercent
+                ? formatVariation(yoy.delta)
+                : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type)}`}
+            </span>
+            {yoy.relPct !== null && (
+              <span className="text-muted-foreground">
+                ({yoy.relPct > 0 ? '+' : ''}{yoy.relPct.toFixed(1)}%)
+              </span>
+            )}
+            <span className="text-muted-foreground">vs {yoy.prevYear}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            {yoy.isPercent ? 'Média' : 'Acum.'} Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
+          </div>
         </div>
       )}
 
