@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList, Legend, CartesianGrid } from 'recharts';
 import { motion } from 'framer-motion';
 import { CategoryBlock } from './CategoryBlock';
 import { EditEntryDialog } from './EditEntryDialog';
@@ -35,6 +35,17 @@ function formatMonth(m: string) {
 function normalizeStr(s: string) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
+
+const TREND_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(210, 97%, 50%)',
+  'hsl(280, 85%, 45%)',
+  'hsl(20, 90%, 50%)',
+  'hsl(120, 80%, 40%)',
+  'hsl(0, 85%, 50%)',
+  'hsl(40, 96%, 44%)',
+  'hsl(180, 70%, 45%)',
+];
 
 export function RelatorioRealizado({ schoolId }: Props) {
   const queryClient = useQueryClient();
@@ -396,6 +407,52 @@ export function RelatorioRealizado({ schoolId }: Props) {
     }));
   }, [categoryBlocks, currentRevenue]);
 
+  // Dados para tendência mensal por categoria
+  const trendData = useMemo(() => {
+    const sortedMonths = mesesDisponiveis.sort();
+    const monthlyByCategory: Record<string, Record<string, number>> = {};
+
+    // Inicializar estrutura de dados
+    sortedMonths.forEach(month => {
+      monthlyByCategory[month] = {};
+    });
+
+    // Agrupar despesas por mês e categoria
+    entries.forEach(e => {
+      const ym = e.data?.slice(0, 7);
+      if (!ym || !monthlyByCategory[ym]) return;
+
+      const catName = e.conta_nome || '';
+      const grupo = contaGrupoMap[normalizeStr(catName)] || 'Outros';
+      const valor = Number(e.valor || 0);
+
+      monthlyByCategory[ym][grupo] = (monthlyByCategory[ym][grupo] || 0) + valor;
+    });
+
+    // Converter para formato do Recharts
+    return sortedMonths.map(month => {
+      const data: any = { month: formatMonth(month) };
+      categoryBlocks.forEach(cat => {
+        data[cat.name] = monthlyByCategory[month][cat.name] || 0;
+      });
+      return data;
+    });
+  }, [mesesDisponiveis, entries, categoryBlocks, contaGrupoMap]);
+
+  // Valores acumulados por categoria (todos os tempos)
+  const accumulatedByCategory = useMemo(() => {
+    const accumulated: Record<string, number> = {};
+    
+    entries.forEach(e => {
+      const catName = e.conta_nome || '';
+      const grupo = contaGrupoMap[normalizeStr(catName)] || 'Outros';
+      const valor = Number(e.valor || 0);
+      accumulated[grupo] = (accumulated[grupo] || 0) + valor;
+    });
+
+    return accumulated;
+  }, [entries, contaGrupoMap]);
+
   const revenueCompData = useMemo(() => {
     if (currentRevenue <= 0) return [];
     return categoryBlocks.map(b => ({
@@ -648,9 +705,24 @@ export function RelatorioRealizado({ schoolId }: Props) {
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           <Card className="rounded-2xl">
             <CardContent className="p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">Despesas por Categoria</h3>
-              <div className="text-xs text-muted-foreground mb-4">
-                {currentRevenue > 0 ? `Total de cada categoria e % em relação ao faturamento (${formatCurrency(currentRevenue)})` : 'Total de cada categoria'}
+              <div className="flex items-start justify-between gap-6 mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-1">Despesas por Categoria</h3>
+                  <div className="text-xs text-muted-foreground">
+                    {currentRevenue > 0 ? `Total de cada categoria e % em relação ao faturamento (${formatCurrency(currentRevenue)})` : 'Total de cada categoria'}
+                  </div>
+                </div>
+                <div className="bg-muted rounded-lg p-3 min-w-max">
+                  <p className="text-xs text-muted-foreground font-medium mb-2">Acumulado (todos os tempos)</p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {barChartData.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-4 text-xs">
+                        <span className="text-foreground font-medium">{item.name}</span>
+                        <span className="font-semibold text-primary">{formatCurrency(accumulatedByCategory[item.name] || 0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
               <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 44, 120)}>
                 <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 120, top: 0, bottom: 0 }}>
@@ -695,6 +767,51 @@ export function RelatorioRealizado({ schoolId }: Props) {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Gráfico de Tendência - Linhas por Categoria */}
+      {trendData.length > 1 && categoryBlocks.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <Card className="rounded-2xl">
+            <CardContent className="p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Tendência de Despesas por Mês</h3>
+              <ResponsiveContainer key={JSON.stringify(trendData)} width="100%" height={300}>
+                <LineChart data={trendData} margin={{ left: 10, right: 20, top: 10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="month" 
+                    tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                    tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', backgroundColor: 'hsl(var(--background))' }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="line"
+                  />
+                  {categoryBlocks.map((cat, idx) => (
+                    <Line
+                      key={cat.name}
+                      type="monotone"
+                      dataKey={cat.name}
+                      stroke={TREND_COLORS[idx % TREND_COLORS.length]}
+                      strokeWidth={2}
+                      dot={{ r: 4, fill: TREND_COLORS[idx % TREND_COLORS.length] }}
+                      activeDot={{ r: 6 }}
+                      isAnimationActive
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </motion.div>
