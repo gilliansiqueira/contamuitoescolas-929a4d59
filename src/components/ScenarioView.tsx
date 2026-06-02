@@ -40,9 +40,16 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
     if (scenario === 'otimista') {
       sales.forEach(sale => { const total = sale.quantidade * sale.valorUnitario; const monthly = total / sale.meses; const sortedDates = Object.keys(byDate).sort(); if (sortedDates.length === 0) return; const months = [...new Set(sortedDates.map(d => d.slice(0, 7)))].sort(); for (let i = 0; i < sale.meses && i < months.length; i++) { const dayKey = `${months[i]}-01`; if (!byDate[dayKey]) byDate[dayKey] = { entradas: 0, saidas: 0 }; byDate[dayKey].entradas += monthly; } });
     }
-    const sorted = Object.keys(byDate).sort(); let saldo = saldoInicial;
+    const sorted = Object.keys(byDate).sort();
+    const firstDay = sorted[0];
+    let saldo = saldoInicial;
+    if (firstDay) {
+      allEntries
+        .filter(e => e.dataProjetada < firstDay)
+        .forEach(e => { saldo += e.impacto; });
+    }
     return sorted.map(data => { const { entradas, saidas } = byDate[data]; saldo += entradas - saidas; return { data: data.slice(5), fullDate: data, entradas, saidas, saldo }; });
-  }, [entries, scenario, reductionPct, sales, saldoInicial]);
+  }, [entries, allEntries, scenario, reductionPct, sales, saldoInicial]);
 
 
   const totalEntradas = scenarioData.reduce((s, d) => s + d.entradas, 0);
