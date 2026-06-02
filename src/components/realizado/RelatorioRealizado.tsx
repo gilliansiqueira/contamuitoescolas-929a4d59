@@ -643,28 +643,26 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Despesas por Categoria Mãe com Percentual e Acumulado */}
+      {/* Despesas por Categoria (com valores e percentuais) */}
       {barChartData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           <Card className="rounded-2xl">
             <CardContent className="p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">Despesas por Categoria</h3>
-              <div className="text-xs text-muted-foreground mb-4">
-                {currentRevenue > 0 ? `Total de cada categoria e % em relação ao faturamento (${formatCurrency(currentRevenue)})` : 'Total de cada categoria'}
-              </div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">Despesas por Categoria</h3>
+              {currentRevenue > 0 && (
+                <p className="text-xs text-muted-foreground mb-4">Valores totais e percentual do faturamento ({formatCurrency(currentRevenue)})</p>
+              )}
               <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 44, 120)}>
-                <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 120, top: 0, bottom: 0 }}>
+                <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 100, top: 0, bottom: 0 }}>
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
                   <Tooltip
-                    formatter={(v: any, name: string) => {
-                      if (name === 'value') {
-                        return [formatCurrency(v), 'Valor'];
-                      } else if (name === 'pctFat') {
-                        return [`${(v as number).toFixed(1)}%`, '% do faturamento'];
-                      }
-                      return [v, name];
+                    formatter={(v: number, name: string) => {
+                      if (name === 'value') return formatCurrency(v);
+                      if (name === 'pctFat') return `${v.toFixed(1)}%`;
+                      return v;
                     }}
+                    labelFormatter={(label) => `${label}`}
                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                   />
                   <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={28}>
@@ -680,19 +678,29 @@ export function RelatorioRealizado({ schoolId }: Props) {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              
+              {/* Legend with percentages */}
               {currentRevenue > 0 && (
-                <div className="mt-4 grid grid-cols-1 gap-2">
-                  {barChartData.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg hover:bg-muted/50">
-                      <span className="font-medium">{item.name}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-muted-foreground">{formatCurrency(item.value)}</span>
-                        <span className={`font-semibold ${item.pctFat > 30 ? 'text-destructive' : 'text-foreground'}`}>
-                          {item.pctFat.toFixed(1)}%
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium mb-2">Percentual do faturamento:</p>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {barChartData.map((d, i) => (
+                      <div key={d.name} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className="w-3 h-3 rounded shrink-0" 
+                            style={{ 
+                              background: d.pctFat > 30 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))' 
+                            }} 
+                          />
+                          <span className="text-muted-foreground">{d.name}</span>
+                        </div>
+                        <span className={`font-medium ${d.pctFat > 30 ? 'text-destructive' : 'text-foreground'}`}>
+                          {d.pctFat.toFixed(1)}%
                         </span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
