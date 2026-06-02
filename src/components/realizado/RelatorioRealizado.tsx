@@ -742,6 +742,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
             key={block.name}
             name={block.name}
             entries={block.entries}
+            allYearEntries={allEntriesByGroup[block.name] || []}
             totalGeral={totalDespesas}
             faturamento={currentRevenue}
             allMonths={mesesDisponiveis}
