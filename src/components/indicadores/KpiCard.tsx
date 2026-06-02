@@ -146,9 +146,41 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
   const color = getThresholdColor(def, currentVal);
   const label = getThresholdLabel(def, currentVal);
 
-  // Format variation with correct unit (no p.p.)
+  // ─── YoY acumulado Jan→mês selecionado vs mesmo período do ano anterior ───
+  // Para percent: média do período (p.p. é a unidade comparativa correta).
+  // Para currency/number: soma do período.
+  const yoy = useMemo(() => {
+    if (!currentMonth) return null;
+    const [yStr, moStr] = currentMonth.split('-');
+    const year = parseInt(yStr, 10);
+    const monthIdx = parseInt(moStr, 10);
+    if (!year || !monthIdx) return null;
+    const prevYear = year - 1;
+
+    const isPercent = def.value_type === 'percent';
+    let sumCur = 0, cntCur = 0, sumPrev = 0, cntPrev = 0;
+    for (let i = 1; i <= monthIdx; i++) {
+      const mm = String(i).padStart(2, '0');
+      const cur = values.find(v => v.month === `${year}-${mm}`)?.value;
+      const prev = values.find(v => v.month === `${prevYear}-${mm}`)?.value;
+      if (cur !== undefined && cur !== null) { sumCur += cur; cntCur++; }
+      if (prev !== undefined && prev !== null) { sumPrev += prev; cntPrev++; }
+    }
+    if (cntCur === 0 || cntPrev === 0) return null;
+    const aggCur = isPercent ? sumCur / cntCur : sumCur;
+    const aggPrev = isPercent ? sumPrev / cntPrev : sumPrev;
+    const delta = aggCur - aggPrev;
+    const relPct = aggPrev !== 0 ? (delta / Math.abs(aggPrev)) * 100 : null;
+    const improvement = def.direction === 'higher_is_better' ? delta > 0 : delta < 0;
+    return { aggCur, aggPrev, delta, relPct, improvement, isPercent, prevYear, monthIdx };
+  }, [currentMonth, values, def.value_type, def.direction]);
+
+  // Format variation with correct unit (p.p. for percent KPIs)
   const formatVariation = (v: number) => {
     const prefix = v > 0 ? '+' : '';
+    if (def.value_type === 'percent') {
+      return `${prefix}${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} p.p.`;
+    }
     return `${prefix}${formatValue(v, def.value_type)}`;
   };
 
@@ -229,7 +261,7 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
 
       {/* Variation */}
       {variation !== null && (
-        <div className="flex items-center justify-center gap-1 mb-3 text-xs">
+        <div className="flex items-center justify-center gap-1 mb-1 text-xs">
           {variation > 0 ? (
             <ArrowUp className="w-3.5 h-3.5" style={{ color: isImprovement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
           ) : variation < 0 ? (
@@ -241,6 +273,38 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
             {formatVariation(variation)}
           </span>
           <span className="text-muted-foreground">vs mês anterior</span>
+        </div>
+      )}
+
+      {/* YoY acumulado Jan→mês vs mesmo período do ano anterior */}
+      {yoy && (
+        <div className="flex flex-col items-center gap-0.5 mb-3 text-[11px]">
+          <div className="flex items-center gap-1">
+            {yoy.delta > 0 ? (
+              <ArrowUp className="w-3 h-3" style={{ color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
+            ) : yoy.delta < 0 ? (
+              <ArrowDown className="w-3 h-3" style={{ color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
+            ) : (
+              <Minus className="w-3 h-3 text-muted-foreground" />
+            )}
+            <span
+              className="font-semibold"
+              style={yoy.delta === 0 ? { color: 'hsl(var(--muted-foreground))' } : { color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }}
+            >
+              {yoy.isPercent
+                ? formatVariation(yoy.delta)
+                : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type)}`}
+            </span>
+            {yoy.relPct !== null && (
+              <span className="text-muted-foreground">
+                ({yoy.relPct > 0 ? '+' : ''}{yoy.relPct.toFixed(1)}%)
+              </span>
+            )}
+            <span className="text-muted-foreground">vs {yoy.prevYear}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            {yoy.isPercent ? 'Média' : 'Acum.'} Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
+          </div>
         </div>
       )}
 

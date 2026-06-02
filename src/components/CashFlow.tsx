@@ -25,7 +25,8 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
     [activeEntries, selectedMonth]
   );
 
-  // Daily cash flow
+  // Daily cash flow — saldo acumula entries anteriores ao período filtrado
+  // (consistente com DailyFlowTable).
   const cashFlow: CashFlowDay[] = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
     entries.forEach(e => {
@@ -36,14 +37,20 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
       else if (impact < 0) byDate[data].saidas += Math.abs(impact);
     });
     const sorted = Object.keys(byDate).sort();
+    const firstDay = sorted[0];
     let saldo = saldoInicial;
+    if (firstDay) {
+      activeEntries
+        .filter(e => e.dataProjetada < firstDay)
+        .forEach(e => { saldo += e.impacto; });
+    }
     return sorted.map(data => {
       const saldoAnterior = saldo;
       const { entradas, saidas } = byDate[data];
       saldo += entradas - saidas;
       return { data, entradas, saidas, saldoAnterior, saldoDia: saldo };
     });
-  }, [entries, saldoInicial]);
+  }, [entries, activeEntries, saldoInicial]);
 
   // Monthly consolidation
   const monthly = useMemo(() => {

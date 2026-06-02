@@ -31,10 +31,14 @@ function formatCurrency(v: number) {
 // Usa a função canônica do sistema (lowercase + trim + remove acentos).
 const normalize = normalizeTipo;
 
+// Aplica prazo de cobrança APENAS a entries projetadas de origem 'sponte'
+// (mesma regra do projectionEngine SSOT — realizado nunca tem data deslocada).
 function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; prazo: number }[]): FinancialEntry[] {
   return entries.map(e => {
-    if (e.origem !== 'sponte' || e.tipo !== 'entrada') return e;
+    if (e.tipoRegistro !== 'projetado') return e;
+    if (e.origem !== 'sponte') return e;
     const forma = e.categoria || '';
+    if (!forma) return e;
     const rule = rules.find(r => forma.toLowerCase().includes(r.formaCobranca.toLowerCase()));
     if (!rule || rule.prazo === 0) return e;
     return { ...e, data: addDaysAndAdjust(e.data, rule.prazo) };
