@@ -146,9 +146,41 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
   const color = getThresholdColor(def, currentVal);
   const label = getThresholdLabel(def, currentVal);
 
-  // Format variation with correct unit (no p.p.)
+  // ─── YoY acumulado Jan→mês selecionado vs mesmo período do ano anterior ───
+  // Para percent: média do período (p.p. é a unidade comparativa correta).
+  // Para currency/number: soma do período.
+  const yoy = useMemo(() => {
+    if (!currentMonth) return null;
+    const [yStr, moStr] = currentMonth.split('-');
+    const year = parseInt(yStr, 10);
+    const monthIdx = parseInt(moStr, 10);
+    if (!year || !monthIdx) return null;
+    const prevYear = year - 1;
+
+    const isPercent = def.value_type === 'percent';
+    let sumCur = 0, cntCur = 0, sumPrev = 0, cntPrev = 0;
+    for (let i = 1; i <= monthIdx; i++) {
+      const mm = String(i).padStart(2, '0');
+      const cur = values.find(v => v.month === `${year}-${mm}`)?.value;
+      const prev = values.find(v => v.month === `${prevYear}-${mm}`)?.value;
+      if (cur !== undefined && cur !== null) { sumCur += cur; cntCur++; }
+      if (prev !== undefined && prev !== null) { sumPrev += prev; cntPrev++; }
+    }
+    if (cntCur === 0 || cntPrev === 0) return null;
+    const aggCur = isPercent ? sumCur / cntCur : sumCur;
+    const aggPrev = isPercent ? sumPrev / cntPrev : sumPrev;
+    const delta = aggCur - aggPrev;
+    const relPct = aggPrev !== 0 ? (delta / Math.abs(aggPrev)) * 100 : null;
+    const improvement = def.direction === 'higher_is_better' ? delta > 0 : delta < 0;
+    return { aggCur, aggPrev, delta, relPct, improvement, isPercent, prevYear, monthIdx };
+  }, [currentMonth, values, def.value_type, def.direction]);
+
+  // Format variation with correct unit (p.p. for percent KPIs)
   const formatVariation = (v: number) => {
     const prefix = v > 0 ? '+' : '';
+    if (def.value_type === 'percent') {
+      return `${prefix}${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} p.p.`;
+    }
     return `${prefix}${formatValue(v, def.value_type)}`;
   };
 
