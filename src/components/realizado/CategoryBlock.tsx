@@ -3,10 +3,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid, LabelList, PieChart, Pie, Cell,
+  LabelList, PieChart, Pie, Cell,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { YoYLineChart } from './YoYLineChart';
 
 interface Entry {
   id?: string;
