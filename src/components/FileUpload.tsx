@@ -74,16 +74,19 @@ function parseNumber(val: any): number | null {
 }
 
 function applyRules(entry: FinancialEntry, rules: ExclusionRule[]): FinancialEntry | null {
+  // IMPORTAÇÃO: nenhum registro é descartado. Todos os dados precisam ser
+  // salvos integralmente. A regra de "ignorar" só vale em contextos de
+  // cálculo (Fluxo de Caixa Realizado e Histórico Financeiro), não aqui.
   for (const rule of rules) {
     const fieldValue = rule.campo === 'descricao' ? entry.descricao : entry.categoria;
     const matches = rule.operador === 'contem'
       ? fieldValue.toLowerCase().includes(rule.valor.toLowerCase())
       : fieldValue.toLowerCase() === rule.valor.toLowerCase();
     if (matches) {
-      if (rule.acao === 'ignorar') return null;
       if (rule.acao === 'recategorizar' && rule.novaCategoria) {
         return { ...entry, categoria: rule.novaCategoria };
       }
+      // 'ignorar' não descarta mais — entry segue para o próximo passo.
     }
   }
   return entry;
