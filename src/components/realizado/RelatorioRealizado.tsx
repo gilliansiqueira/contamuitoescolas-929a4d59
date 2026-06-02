@@ -718,6 +718,18 @@ export function RelatorioRealizado({ schoolId }: Props) {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+
+              {/* YoY: total despesas mensais — ano atual vs ano anterior */}
+              {!isMulti && activeMes && (
+                <div className="mt-6 pt-5 border-t border-border/60">
+                  <YoYLineChart
+                    title="Despesas totais — comparativo anual"
+                    activeMonth={activeMes}
+                    entries={allEntriesForYoY}
+                    invertColors={true}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
