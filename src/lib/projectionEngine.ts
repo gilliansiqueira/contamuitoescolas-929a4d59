@@ -5,21 +5,24 @@
  * Calendário, Dados, Relatórios, Indicadores) DEVE consumir esta camada.
  *
  * Pipeline canônico:
- *   1. filterActiveEntries  → remove categorias marcadas como 'ignorar'
- *   2. gate do Modelo Financeiro → tipos fora do modelo são descartados
- *   3. applyPaymentDelay → desloca SOMENTE entries projetados de origem 'sponte'
+ *   1. gate do Modelo Financeiro → tipos fora do modelo são descartados
+ *      (EXCEÇÃO: entries de origem 'contas_pagar' nunca são filtradas).
+ *   2. applyPaymentDelay → desloca SOMENTE entries projetados de origem 'sponte'
  *      pelo prazo configurado em payment_delay_rules
- *   4. anexa { dataProjetada, impacto } via getSaldoImpact
+ *   3. anexa { dataProjetada, impacto } via getSaldoImpact
  *
  * Importante:
+ *  - O filtro de categorias "ignorar" NÃO é aplicado aqui. Ele só é válido
+ *    nos contextos de Fluxo de Caixa Realizado e Histórico Financeiro
+ *    (ver snapshotUtils). Projeção, Dashboard, Fluxo Diário, Recebíveis e
+ *    Calendário incluem todos os registros.
  *  - Realizado nunca tem data deslocada.
  *  - Apenas origem 'sponte' tem prazo aplicado (regra do produto).
- *  - Sponte Pay também é Sponte; o prazo da forma de cobrança "Sponte Pay"
- *    é aplicado normalmente quando configurado em "Prazos de cobrança".
+ *  - Origem 'contas_pagar' nunca é filtrada por modelo ou categoria.
  */
 
 import type { FinancialEntry, TypeClassification, PaymentDelayRule } from '@/types/financial';
-import { filterActiveEntries, getSaldoImpact, getEffectiveClassification } from './classificationUtils';
+import { getSaldoImpact, getEffectiveClassification } from './classificationUtils';
 import { addDaysAndAdjust } from './dateUtils';
 
 export interface ProjectedEntry extends FinancialEntry {
@@ -54,6 +57,9 @@ export interface ProjectEntriesOptions {
 
 /**
  * Pipeline canônico. Retorna entries enriquecidas com dataProjetada e impacto.
+ *
+ * NÃO filtra categorias "ignorar" — essa regra vale apenas para Fluxo de
+ * Caixa Realizado e Histórico Financeiro (ver snapshotUtils).
  */
 export function projectEntries(
   entries: FinancialEntry[],
@@ -61,20 +67,12 @@ export function projectEntries(
   classifications: TypeClassification[],
   options: ProjectEntriesOptions
 ): ProjectedEntry[] {
-  // 1) ignora 'ignorar'
-  let active = filterActiveEntries(entries, classifications);
+  let active = entries;
 
-  // 2) gate do modelo
-  // Aceita se:
-  //  a) classificação efetiva é 'operacao' (sempre passa), OU
-  //  b) a classificação efetiva (despesa/receita) está coberta pelo modelo, OU
-  //  c) o label bruto (tipoOriginal/categoria/tipo) bate em algum item do modelo
-  //     ou classificações ativas.
-  // Isso garante que entries projetadas — cujo `tipoOriginal` é vazio e
-  // `categoria` é a conta detalhada (ex.: "Material Didático") — não sejam
-  // descartadas indevidamente.
+  // 1) gate do modelo — contas_pagar SEMPRE passa
   if (options.hasModel) {
     active = active.filter(e => {
+      if (e.origem === 'contas_pagar') return true;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'operacao') return true;
       if (cls === 'despesa' || cls === 'receita') {
@@ -84,7 +82,7 @@ export function projectEntries(
     });
   }
 
-  // 3 + 4) prazo + impacto
+  // 2 + 3) prazo + impacto
   return active.map(e => {
     const dataProjetada = applyPaymentDelay(e, rules);
     const impacto = getSaldoImpact(e, classifications);
