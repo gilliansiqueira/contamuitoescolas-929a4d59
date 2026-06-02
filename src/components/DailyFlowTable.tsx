@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
+import { useTypeClassifications } from '@/hooks/useFinancialData';
+import { getEffectiveClassification } from '@/lib/classificationUtils';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
@@ -26,7 +28,18 @@ interface DayRow {
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
   // SSOT — entries vêm com dataProjetada (prazo aplicado) e impacto
-  const { entries: adjustedEntries, saldoInicial } = useProjectedEntries(schoolId);
+  const { entries: rawEntries, saldoInicial } = useProjectedEntries(schoolId);
+  const { data: classifications = [] } = useTypeClassifications(schoolId);
+
+  // Regra de projeção: Fluxo Diário considera APENAS Receitas e Despesas.
+  // Operações e Ignorar ficam fora do cálculo (saldo, totais e linhas).
+  const adjustedEntries = useMemo(
+    () => rawEntries.filter(e => {
+      const cls = getEffectiveClassification(e, classifications);
+      return cls === 'receita' || cls === 'despesa';
+    }),
+    [rawEntries, classifications]
+  );
 
   const months = useMemo(() => {
     if (selectedMonth === 'all') {
