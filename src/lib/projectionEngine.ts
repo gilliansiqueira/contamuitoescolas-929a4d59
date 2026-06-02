@@ -24,6 +24,7 @@
 import type { FinancialEntry, TypeClassification, PaymentDelayRule } from '@/types/financial';
 import { getSaldoImpact, getEffectiveClassification } from './classificationUtils';
 import { addDaysAndAdjust } from './dateUtils';
+import { normalizeTipo } from './ledgerEngine';
 
 export interface ProjectedEntry extends FinancialEntry {
   /** Data ajustada pelo prazo de cobrança (se aplicável). Senão === entry.data */
@@ -33,8 +34,35 @@ export interface ProjectedEntry extends FinancialEntry {
 }
 
 /**
+ * Localiza a regra de prazo aplicável a uma forma de pagamento (Sponte).
+ * Faz match com normalização (sem acento / minúsculas) e tolera variações
+ * como "cartão de crédito", "cartao credito", "credito".
+ */
+function findDelayRule(forma: string, rules: PaymentDelayRule[]): PaymentDelayRule | undefined {
+  const f = normalizeTipo(forma);
+  if (!f) return undefined;
+  // 1) match direto por substring normalizada
+  let rule = rules.find(r => {
+    const k = normalizeTipo(r.formaCobranca);
+    return k && (f.includes(k) || k.includes(f));
+  });
+  if (rule) return rule;
+  // 2) heurística: se contém "credito" → procura regra cartão de crédito
+  if (f.includes('credito')) {
+    rule = rules.find(r => {
+      const k = normalizeTipo(r.formaCobranca);
+      return k.includes('credito');
+    });
+  }
+  return rule;
+}
+
+/**
  * Aplica prazo de cobrança a uma entry projetada de origem 'sponte'.
  * Demais entries retornam a data original inalterada.
+ *
+ * Cartões da maquininha (origem 'cartao') usam o vencimento original — não
+ * passam por esta função.
  */
 export function applyPaymentDelay(
   entry: FinancialEntry,
@@ -42,11 +70,24 @@ export function applyPaymentDelay(
 ): string {
   if (entry.tipoRegistro !== 'projetado') return entry.data;
   if (entry.origem !== 'sponte') return entry.data;
-  const forma = (entry.categoria || '').toLowerCase();
+  const forma = entry.categoria || '';
   if (!forma) return entry.data;
-  const rule = rules.find(r => forma.includes(r.formaCobranca.toLowerCase()));
-  if (!rule || rule.prazo === 0) return entry.data;
-  return addDaysAndAdjust(entry.data, rule.prazo);
+  const rule = findDelayRule(forma, rules);
+  const prazo = rule?.prazo ?? 0;
+  const dataFinal = prazo > 0 ? addDaysAndAdjust(entry.data, prazo) : entry.data;
+  // Debug para validação de prazos por forma de cobrança (Sponte)
+  if (normalizeTipo(forma).includes('credito')) {
+    // eslint-disable-next-line no-console
+    console.debug('[PaymentDelay]', {
+      origem: entry.origem,
+      tipo_pagamento: forma,
+      data_vencimento: entry.data,
+      prazo_aplicado: prazo,
+      data_prevista: dataFinal,
+      regra: rule?.formaCobranca ?? '(nenhuma)',
+    });
+  }
+  return dataFinal;
 }
 
 export interface ProjectEntriesOptions {
