@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Calculator, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { filterActiveEntries, getEffectiveClassification } from '@/lib/classificationUtils';
+import { getEffectiveClassification } from '@/lib/classificationUtils';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 interface SimulationProps { schoolId: string; }
@@ -210,9 +210,8 @@ export function Simulation({ schoolId }: SimulationProps) {
 
   // Receita projetada (sistema)
   const sistemaProjetadoPorMes = useMemo(() => {
-    const active = filterActiveEntries(entries, classifications);
     const map: Record<string, number> = {};
-    for (const e of active) {
+    for (const e of entries) {
       if (e.origem === 'fluxo') continue;
       if (e.tipoRegistro !== 'projetado') continue;
       const cls = getEffectiveClassification(e, classifications);
@@ -224,9 +223,8 @@ export function Simulation({ schoolId }: SimulationProps) {
 
   // Contas a pagar projetadas (sistema) — despesas
   const contasPagarPorMes = useMemo(() => {
-    const active = filterActiveEntries(entries, classifications);
     const map: Record<string, number> = {};
-    for (const e of active) {
+    for (const e of entries) {
       if (e.origem === 'fluxo') continue;
       if (e.tipoRegistro !== 'projetado') continue;
       const cls = getEffectiveClassification(e, classifications);

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
 import {
-  filterActiveEntries,
+  
   calculateTotals,
   getEffectiveClassification,
 } from '@/lib/classificationUtils';
@@ -31,9 +31,9 @@ export function ProjectedVsReal({ schoolId }: ProjectedVsRealProps) {
   const { hasModel, isInModel } = useSchoolModel(schoolId);
 
   const activeEntries = useMemo(() => {
-    const noIgnored = filterActiveEntries(entries, classifications);
-    if (!hasModel) return noIgnored;
-    return noIgnored.filter(e => {
+    if (!hasModel) return entries;
+    return entries.filter(e => {
+      if (e.origem === 'contas_pagar') return true;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'operacao') return true;
       return isInModel(e.tipoOriginal || e.categoria || e.tipo);

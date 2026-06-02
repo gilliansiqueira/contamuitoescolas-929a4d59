@@ -1,28 +1,37 @@
 ---
 name: Single Source of Truth Financeira
-description: SSOT - classificationUtils + tipoMeta + useSchoolModel. Sem cálculos paralelos
+description: SSOT - Contexto da regra "ignorar" e gate do modelo. Sem cálculos paralelos
 type: feature
 ---
 
 Toda lógica financeira (Dashboard, CashFlow, DailyFlow, ProjectedVsReal, snapshotUtils) usa a mesma cadeia:
 
-1. **Filtro de Ignorar** — `filterActiveEntries(entries, classifications)` remove
-   entradas com classificação 'ignorar'. Nenhuma tela pode duplicar essa lógica.
+1. **Filtro de "Ignorar" — APENAS em Realizado/Histórico** —
+   `filterActiveEntries(entries, classifications)` só é aplicado em:
+   - Fluxo de Caixa Realizado (RelatorioRealizado e seus snapshots)
+   - Histórico Financeiro (snapshotUtils)
+   Projeção, Dashboard, Fluxo Diário, Fluxo, Recebíveis, Calendário,
+   Simulação e ProjetadoVsReal **NÃO** removem categorias "ignorar".
+   Origem `contas_pagar` nunca é filtrada por categoria/modelo em nenhum contexto.
 
-2. **Gate do Modelo Financeiro** — `useSchoolModel(schoolId)` retorna `isInModel(label)`.
-   Quando a escola tem template ativo, tipos fora do modelo são descartados
-   ANTES de qualquer cálculo. Aplicado em: Dashboard, CashFlow, DailyFlow,
-   ProjectedVsReal e snapshotUtils.
+2. **Importação NÃO descarta registros** — `applyRules` em FileUpload.tsx
+   nunca retorna `null` para ação `'ignorar'`. Todos os registros das
+   origens (sponte, cheque, cartao, contas_pagar) são salvos integralmente.
 
-3. **Resolução de metadados** — `resolveTipoMeta(tipoKey, classifications)` em
-   `@/lib/tipoMeta.ts` é a ÚNICA função que mapeia rótulo → classificação/sinal.
-   Sem heurística por nome. Sem fallback diferente entre telas. Sem regex.
+3. **Gate do Modelo Financeiro** — `useSchoolModel(schoolId)` retorna
+   `isInModel(label)`. Quando a escola tem template ativo, tipos fora do
+   modelo são descartados ANTES de cálculo — exceto `origem='contas_pagar'`,
+   que sempre passa.
 
-4. **Cálculo de impacto** — `getSaldoImpact(entry, classifications)` e
+4. **Resolução de metadados** — `resolveTipoMeta(tipoKey, classifications)`
+   em `@/lib/tipoMeta.ts` é a ÚNICA função que mapeia rótulo →
+   classificação/sinal. Sem heurística por nome.
+
+5. **Cálculo de impacto** — `getSaldoImpact(entry, classifications)` e
    `calculateTotals(entries, classifications)` em `classificationUtils.ts`.
-   Categorias 'ignorar' retornam impacto 0. Sinal vem da config do usuário.
+   Categorias 'ignorar' retornam impacto 0 quando consumidas.
 
-5. **ProjectedVsReal** usa `tipoRegistro` ('projetado' vs 'realizado') e
+6. **ProjectedVsReal** usa `tipoRegistro` ('projetado' vs 'realizado') e
    `calculateTotals`, jamais `entry.tipo` direto.
 
 ## Garantias
