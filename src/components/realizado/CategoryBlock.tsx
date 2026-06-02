@@ -108,6 +108,16 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
     return Array.from(years).sort();
   }, [entries]);
 
+  // Acumulado do ano (todas as entradas)
+  const yearlyAccumulated = useMemo(() => {
+    const totalByYear: Record<string, number> = {};
+    entries.forEach(e => {
+      const y = e.data?.slice(0, 4);
+      if (y) totalByYear[y] = (totalByYear[y] || 0) + e.valor;
+    });
+    return totalByYear;
+  }, [entries]);
+
   const insights = useMemo(() => {
     const result: { text: string; type: 'up' | 'down' | 'neutral' }[] = [];
     if (bySubcat.length > 0) {
@@ -251,16 +261,41 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
 
                   {/* Monthly evolution line chart */}
                   {monthlyData.length > 1 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium mb-3">Evolução Mensal</p>
-                      <ResponsiveContainer key={JSON.stringify(monthlyData)} width="100%" height={180}>
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium">Evolução Mensal</p>
+                          <p className="text-xs text-muted-foreground/70 mt-0.5">Tendência por mês e ano acumulado</p>
+                        </div>
+                        <div className="bg-muted rounded-lg p-2">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Acumulado do Ano</p>
+                          {Object.entries(yearlyAccumulated).map(([year, acc]) => (
+                            <p key={year} className="text-xs font-semibold text-foreground">
+                              {year}: {formatCurrency(acc)}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                      <ResponsiveContainer key={JSON.stringify(monthlyData)} width="100%" height={200}>
                         <LineChart data={monthlyData} margin={{ left: 10, right: 10, top: 5, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis dataKey="mes" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                           <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v: number) => formatCurrencyShort(v)} width={60} />
-                          <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                          <Tooltip 
+                            formatter={(v: number) => formatCurrency(v)} 
+                            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} 
+                          />
                           {yearKeys.map((y, i) => (
-                            <Line key={y} type="monotone" dataKey={y} name={y} stroke={YEAR_COLORS[i % YEAR_COLORS.length]} strokeWidth={2.5} dot={{ r: 4, fill: YEAR_COLORS[i % YEAR_COLORS.length] }}>
+                            <Line 
+                              key={y} 
+                              type="monotone" 
+                              dataKey={y} 
+                              name={y} 
+                              stroke={YEAR_COLORS[i % YEAR_COLORS.length]} 
+                              strokeWidth={2.5} 
+                              dot={{ r: 4, fill: YEAR_COLORS[i % YEAR_COLORS.length] }}
+                              activeDot={{ r: 6 }}
+                            >
                               <LabelList dataKey={y} position="top" formatter={(v: number) => v > 0 ? formatCurrencyShort(v) : ''} style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} />
                             </Line>
                           ))}
