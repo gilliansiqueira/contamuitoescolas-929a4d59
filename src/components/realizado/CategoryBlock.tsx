@@ -108,15 +108,40 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
     return Array.from(years).sort();
   }, [entries]);
 
-  // Acumulado do ano (todas as entradas)
+  // Acumulado APENAS do ano selecionado (Jan→activeMonth do mesmo ano)
   const yearlyAccumulated = useMemo(() => {
     const totalByYear: Record<string, number> = {};
+    if (!activeMonth) {
+      // fallback: agrupar por ano integralmente
+      entries.forEach(e => {
+        const y = e.data?.slice(0, 4);
+        if (y) totalByYear[y] = (totalByYear[y] || 0) + e.valor;
+      });
+      return totalByYear;
+    }
+    const year = activeMonth.slice(0, 4);
+    const yearStart = `${year}-01`;
+    let acc = 0;
     entries.forEach(e => {
-      const y = e.data?.slice(0, 4);
-      if (y) totalByYear[y] = (totalByYear[y] || 0) + e.valor;
+      const ym = e.data?.slice(0, 7);
+      if (!ym) return;
+      if (ym >= yearStart && ym <= activeMonth) acc += e.valor;
     });
+    totalByYear[year] = acc;
     return totalByYear;
-  }, [entries]);
+  }, [entries, activeMonth]);
+
+  // YoY do mês ativo (mesma categoria, mesmo mês do ano anterior)
+  const yoyMonth = useMemo(() => {
+    if (!activeMonth) return null;
+    const [y, m] = activeMonth.split('-');
+    const prevYM = `${parseInt(y) - 1}-${m}`;
+    const curr = entries.filter(e => e.data?.startsWith(activeMonth)).reduce((s, e) => s + e.valor, 0);
+    const hasPrev = entries.some(e => e.data?.startsWith(prevYM));
+    if (!hasPrev) return null;
+    const prev = entries.filter(e => e.data?.startsWith(prevYM)).reduce((s, e) => s + e.valor, 0);
+    return { curr, prev, prevYM };
+  }, [entries, activeMonth]);
 
   const insights = useMemo(() => {
     const result: { text: string; type: 'up' | 'down' | 'neutral' }[] = [];
@@ -321,6 +346,29 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* YoY do mês ativo */}
+                      {yoyMonth && activeMonth && (
+                        <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+                          <span className="text-muted-foreground">
+                            YoY {formatMonth(activeMonth)} vs {formatMonth(yoyMonth.prevYM)}:
+                          </span>
+                          <span className="text-muted-foreground tabular-nums">
+                            {formatCurrency(yoyMonth.prev)} → {formatCurrency(yoyMonth.curr)}
+                          </span>
+                          {yoyMonth.prev > 0 && (() => {
+                            const diff = yoyMonth.curr - yoyMonth.prev;
+                            const pct = (diff / yoyMonth.prev) * 100;
+                            const isUp = diff > 0;
+                            return (
+                              <span className={`inline-flex items-center gap-0.5 font-semibold ${isUp ? 'text-destructive' : 'text-emerald-600'}`}>
+                                {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                {isUp ? '+' : ''}{formatCurrency(diff)} ({isUp ? '+' : ''}{pct.toFixed(1)}%)
+                              </span>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>

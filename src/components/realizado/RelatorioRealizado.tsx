@@ -17,6 +17,7 @@ import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { useClosedMonths } from '@/hooks/usePeriodClosures';
 import { useMonthSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
+import { ComparativeMetrics } from './ComparativeMetrics';
 
 interface Props {
   schoolId: string;
@@ -389,11 +390,18 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
   const barChartData = useMemo(() => {
-    return [...categoryBlocks].map(b => ({
-      name: b.name,
-      value: b.total,
-      pctFat: currentRevenue > 0 ? (b.total / currentRevenue) * 100 : 0,
-    }));
+    return [...categoryBlocks].map(b => {
+      const pctFat = currentRevenue > 0 ? (b.total / currentRevenue) * 100 : 0;
+      const label = currentRevenue > 0
+        ? `${formatCurrency(b.total)} (${pctFat.toFixed(1)}%)`
+        : formatCurrency(b.total);
+      return {
+        name: b.name,
+        value: b.total,
+        pctFat,
+        label,
+      };
+    });
   }, [categoryBlocks, currentRevenue]);
 
   const revenueCompData = useMemo(() => {
@@ -643,24 +651,47 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Despesas por Categoria (com valores e percentuais) */}
+      {/* Comparativos MoM / YoY / Acumulado anual */}
+      {!isMulti && activeMes && (
+        <ComparativeMetrics
+          activeMonth={activeMes}
+          entries={entries.map((e: any) => ({ data: e.data, valor: Number(e.valor || 0) }))}
+          revenues={revenues}
+        />
+      )}
+
+      {/* Despesas por Categoria (valor + % no mesmo rótulo) */}
       {barChartData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           <Card className="rounded-2xl">
             <CardContent className="p-5">
               <h3 className="text-sm font-semibold text-foreground mb-1">Despesas por Categoria</h3>
-              {currentRevenue > 0 && (
-                <p className="text-xs text-muted-foreground mb-4">Valores totais e percentual do faturamento ({formatCurrency(currentRevenue)})</p>
+              {currentRevenue > 0 ? (
+                <p className="text-xs text-muted-foreground mb-4">
+                  Valor absoluto e % do faturamento ({formatCurrency(currentRevenue)}) · barras em vermelho ultrapassam 30%
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mb-4">Informe o faturamento para ver o percentual por categoria.</p>
               )}
-              <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 44, 120)}>
-                <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 100, top: 0, bottom: 0 }}>
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
+              <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 48, 140)}>
+                <BarChart data={barChartData} layout="vertical" margin={{ left: 8, right: 200, top: 4, bottom: 4 }}>
+                  <XAxis type="number" hide domain={[0, (dataMax: number) => dataMax * 1.05]} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                    width={150}
+                    interval={0}
+                  />
                   <Tooltip
-                    formatter={(v: number, name: string) => {
-                      if (name === 'value') return formatCurrency(v);
-                      if (name === 'pctFat') return `${v.toFixed(1)}%`;
-                      return v;
+                    formatter={(v: number, name: string, props: any) => {
+                      if (name === 'value') {
+                        const pct = props?.payload?.pctFat ?? 0;
+                        return currentRevenue > 0
+                          ? [`${formatCurrency(v)} (${pct.toFixed(1)}%)`, 'Total']
+                          : [formatCurrency(v), 'Total'];
+                      }
+                      return [v, name];
                     }}
                     labelFormatter={(label) => `${label}`}
                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
@@ -669,40 +700,14 @@ export function RelatorioRealizado({ schoolId }: Props) {
                     {barChartData.map((d, i) => (
                       <Cell key={i} fill={currentRevenue > 0 && d.pctFat > 30 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} />
                     ))}
-                    <LabelList 
-                      dataKey="value" 
-                      position="right" 
-                      formatter={(v: number) => formatCurrency(v)} 
-                      style={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} 
+                    <LabelList
+                      dataKey="label"
+                      position="right"
+                      style={{ fontSize: 11, fill: 'hsl(var(--foreground))', fontWeight: 600 }}
                     />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              
-              {/* Legend with percentages */}
-              {currentRevenue > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-xs text-muted-foreground font-medium mb-2">Percentual do faturamento:</p>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {barChartData.map((d, i) => (
-                      <div key={d.name} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <span 
-                            className="w-3 h-3 rounded shrink-0" 
-                            style={{ 
-                              background: d.pctFat > 30 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))' 
-                            }} 
-                          />
-                          <span className="text-muted-foreground">{d.name}</span>
-                        </div>
-                        <span className={`font-medium ${d.pctFat > 30 ? 'text-destructive' : 'text-foreground'}`}>
-                          {d.pctFat.toFixed(1)}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </motion.div>
