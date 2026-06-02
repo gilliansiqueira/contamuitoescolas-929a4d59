@@ -365,8 +365,8 @@ function BankAdminControls({
                   <Input
                     type="text"
                     inputMode="decimal"
-                    value={String((draft as any)[f.key] ?? '')}
-                    onChange={e => setDraft(d => ({ ...d, [f.key]: parseBR(e.target.value) } as InvestmentRow))}
+                    value={texts[f.key as string] ?? ''}
+                    onChange={e => setTexts(t => ({ ...t, [f.key]: e.target.value }))}
                     className="h-8 text-sm"
                   />
                 </div>
