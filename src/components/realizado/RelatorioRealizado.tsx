@@ -643,56 +643,58 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Despesas por Categoria Mãe */}
+      {/* Despesas por Categoria com Percentual */}
       {barChartData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           <Card className="rounded-2xl">
             <CardContent className="p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Despesas por Categoria</h3>
+              <div className="text-xs text-muted-foreground mb-4">
+                {currentRevenue > 0 ? `Total de cada categoria e % em relação ao faturamento (${formatCurrency(currentRevenue)})` : 'Total de cada categoria'}
+              </div>
               <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 44, 120)}>
-                <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
+                <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 120, top: 0, bottom: 0 }}>
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
                   <Tooltip
-                    formatter={(v: number) => formatCurrency(v)}
+                    formatter={(v: any, name: string) => {
+                      if (name === 'value') {
+                        return [formatCurrency(v), 'Valor'];
+                      } else if (name === 'pctFat') {
+                        return [`${(v as number).toFixed(1)}%`, '% do faturamento'];
+                      }
+                      return [v, name];
+                    }}
                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                   />
                   <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={28}>
-                    {barChartData.map((_, i) => (
-                      <Cell key={i} fill="hsl(var(--primary))" />
+                    {barChartData.map((d, i) => (
+                      <Cell key={i} fill={currentRevenue > 0 && d.pctFat > 30 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} />
                     ))}
-                    <LabelList dataKey="value" position="right" formatter={(v: number) => formatCurrency(v)} style={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                    <LabelList 
+                      dataKey="value" 
+                      position="right" 
+                      formatter={(v: number) => formatCurrency(v)} 
+                      style={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} 
+                    />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Despesa x Faturamento */}
-      {currentRevenue > 0 && revenueCompData.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="rounded-2xl">
-            <CardContent className="p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-1">Despesa × Faturamento</h3>
-              <p className="text-xs text-muted-foreground mb-4">% de cada categoria sobre o faturamento ({formatCurrency(currentRevenue)})</p>
-              <ResponsiveContainer key={JSON.stringify(revenueCompData)} width="100%" height={Math.max(revenueCompData.length * 44, 120)}>
-                <BarChart data={revenueCompData} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} width={140} />
-                  <Tooltip
-                    formatter={(v: number) => `${v.toFixed(1)}%`}
-                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                  />
-                  <Bar dataKey="pct" radius={[0, 8, 8, 0]} barSize={28}>
-                    {revenueCompData.map((d, i) => (
-                      <Cell key={i} fill={d.overLimit ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} />
-                    ))}
-                    <LabelList dataKey="pct" position="right" formatter={(v: number) => `${v.toFixed(1)}%`} style={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {currentRevenue > 0 && (
+                <div className="mt-4 grid grid-cols-1 gap-2">
+                  {barChartData.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg hover:bg-muted/50">
+                      <span className="font-medium">{item.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground">{formatCurrency(item.value)}</span>
+                        <span className={`font-semibold ${item.pctFat > 30 ? 'text-destructive' : 'text-foreground'}`}>
+                          {item.pctFat.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
