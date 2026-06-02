@@ -17,7 +17,7 @@ import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { useClosedMonths } from '@/hooks/usePeriodClosures';
 import { useMonthSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
-import { ComparativeMetrics } from './ComparativeMetrics';
+import { YoYLineChart } from './YoYLineChart';
 
 interface Props {
   schoolId: string;
@@ -387,6 +387,23 @@ export function RelatorioRealizado({ schoolId }: Props) {
       .sort((a, b) => a.total - b.total);
   }, [filtered, contaGrupoMap]);
 
+  // Entradas de TODOS os meses/anos agrupadas por categoria-mãe (para gráficos YoY)
+  const allEntriesByGroup = useMemo(() => {
+    const map: Record<string, { data: string; valor: number }[]> = {};
+    entries.forEach((e: any) => {
+      const catName = e.conta_nome || '';
+      const grupo = contaGrupoMap[normalizeStr(catName)] || 'Outros';
+      if (!map[grupo]) map[grupo] = [];
+      map[grupo].push({ data: e.data || '', valor: Number(e.valor || 0) });
+    });
+    return map;
+  }, [entries, contaGrupoMap]);
+
+  const allEntriesForYoY = useMemo(
+    () => entries.map((e: any) => ({ data: e.data || '', valor: Number(e.valor || 0) })),
+    [entries]
+  );
+
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
   const barChartData = useMemo(() => {
@@ -651,14 +668,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
-      {/* Comparativos MoM / YoY / Acumulado anual */}
-      {!isMulti && activeMes && (
-        <ComparativeMetrics
-          activeMonth={activeMes}
-          entries={entries.map((e: any) => ({ data: e.data, valor: Number(e.valor || 0) }))}
-          revenues={revenues}
-        />
-      )}
+      {/* (Cards de Faturamento / Despesas / Acumulado removidos — substituídos por linhas YoY abaixo de cada gráfico) */}
 
       {/* Despesas por Categoria (valor + % no mesmo rótulo) */}
       {barChartData.length > 0 && (
@@ -708,6 +718,18 @@ export function RelatorioRealizado({ schoolId }: Props) {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+
+              {/* YoY: total despesas mensais — ano atual vs ano anterior */}
+              {!isMulti && activeMes && (
+                <div className="mt-6 pt-5 border-t border-border/60">
+                  <YoYLineChart
+                    title="Despesas totais — comparativo anual"
+                    activeMonth={activeMes}
+                    entries={allEntriesForYoY}
+                    invertColors={true}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -720,6 +742,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
             key={block.name}
             name={block.name}
             entries={block.entries}
+            allYearEntries={allEntriesByGroup[block.name] || []}
             totalGeral={totalDespesas}
             faturamento={currentRevenue}
             allMonths={mesesDisponiveis}

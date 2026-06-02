@@ -3,10 +3,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid, LabelList, PieChart, Pie, Cell,
+  LabelList, PieChart, Pie, Cell,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { YoYLineChart } from './YoYLineChart';
 
 interface Entry {
   id?: string;
@@ -19,6 +20,8 @@ interface Entry {
 interface Props {
   name: string;
   entries: Entry[];
+  /** Entradas dessa categoria-mãe em TODOS os anos/meses (para YoY). Opcional. */
+  allYearEntries?: { data: string; valor: number }[];
   totalGeral: number;
   faturamento: number;
   allMonths: string[];
@@ -54,7 +57,7 @@ function formatMonth(m: string) {
   return `${months[parseInt(mo) - 1]}/${y?.slice(2) || ''}`;
 }
 
-export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonths, index, onEditEntry, onDeleteEntries, activeMonth }: Props) {
+export function CategoryBlock({ name, entries, allYearEntries, totalGeral, faturamento, allMonths, index, onEditEntry, onDeleteEntries, activeMonth }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showEntries, setShowEntries] = useState(false);
   const [filterCat, setFilterCat] = useState<string>('all');
@@ -284,93 +287,20 @@ export function CategoryBlock({ name, entries, totalGeral, faturamento, allMonth
                     </div>
                   )}
 
-                  {/* Monthly evolution line chart */}
-                  {monthlyData.length > 1 && (
+                  {/* YoY: comparativo ano atual vs ano anterior (12 meses) */}
+                  {activeMonth && (allYearEntries?.length || entries.length) > 0 && (
                     <div className="border-t pt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground font-medium">Evolução Mensal</p>
-                          <p className="text-xs text-muted-foreground/70 mt-0.5">Tendência por mês e ano acumulado</p>
-                        </div>
-                        <div className="bg-muted rounded-lg p-2">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Acumulado do Ano</p>
-                          {Object.entries(yearlyAccumulated).map(([year, acc]) => (
-                            <p key={year} className="text-xs font-semibold text-foreground">
-                              {year}: {formatCurrency(acc)}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                      <ResponsiveContainer key={JSON.stringify(monthlyData)} width="100%" height={200}>
-                        <LineChart data={monthlyData} margin={{ left: 10, right: 10, top: 5, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="mes" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                          <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v: number) => formatCurrencyShort(v)} width={60} />
-                          <Tooltip 
-                            formatter={(v: number) => formatCurrency(v)} 
-                            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} 
-                          />
-                          {yearKeys.map((y, i) => (
-                            <Line 
-                              key={y} 
-                              type="monotone" 
-                              dataKey={y} 
-                              name={y} 
-                              stroke={YEAR_COLORS[i % YEAR_COLORS.length]} 
-                              strokeWidth={2.5} 
-                              dot={{ r: 4, fill: YEAR_COLORS[i % YEAR_COLORS.length] }}
-                              activeDot={{ r: 6 }}
-                            >
-                              <LabelList dataKey={y} position="top" formatter={(v: number) => v > 0 ? formatCurrencyShort(v) : ''} style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} />
-                            </Line>
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
-
-                      {/* MoM variation indicators */}
-                      {allMonths.length >= 2 && (
-                        <div className="flex gap-3 mt-2 flex-wrap">
-                          {allMonths.slice(1).map((m, i) => {
-                            const prev = entries.filter(e => e.data?.startsWith(allMonths[i])).reduce((s, e) => s + e.valor, 0);
-                            const curr = entries.filter(e => e.data?.startsWith(m)).reduce((s, e) => s + e.valor, 0);
-                            if (prev === 0 || curr === 0) return null;
-                            const variation = ((curr - prev) / prev) * 100;
-                            const isUp = variation > 0;
-                            return (
-                              <div key={m} className="flex items-center gap-1 text-xs">
-                                <span className="text-muted-foreground">{formatMonth(m)}:</span>
-                                {isUp ? <TrendingUp className="w-3 h-3 text-destructive" /> : <TrendingDown className="w-3 h-3 text-green-600" />}
-                                <span className={isUp ? 'text-destructive font-medium' : 'text-emerald-600 font-medium'}>
-                                  {isUp ? '+' : ''}{variation.toFixed(1)}%
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* YoY do mês ativo */}
-                      {yoyMonth && activeMonth && (
-                        <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
-                          <span className="text-muted-foreground">
-                            YoY {formatMonth(activeMonth)} vs {formatMonth(yoyMonth.prevYM)}:
-                          </span>
-                          <span className="text-muted-foreground tabular-nums">
-                            {formatCurrency(yoyMonth.prev)} → {formatCurrency(yoyMonth.curr)}
-                          </span>
-                          {yoyMonth.prev > 0 && (() => {
-                            const diff = yoyMonth.curr - yoyMonth.prev;
-                            const pct = (diff / yoyMonth.prev) * 100;
-                            const isUp = diff > 0;
-                            return (
-                              <span className={`inline-flex items-center gap-0.5 font-semibold ${isUp ? 'text-destructive' : 'text-emerald-600'}`}>
-                                {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                {isUp ? '+' : ''}{formatCurrency(diff)} ({isUp ? '+' : ''}{pct.toFixed(1)}%)
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      )}
+                      <YoYLineChart
+                        title="Evolução mensal · comparativo anual"
+                        activeMonth={activeMonth}
+                        entries={(allYearEntries && allYearEntries.length > 0 ? allYearEntries : entries).map(e => ({
+                          data: e.data,
+                          valor: e.valor,
+                        }))}
+                        invertColors={true}
+                        height={200}
+                        compact
+                      />
                     </div>
                   )}
 
