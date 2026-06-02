@@ -20,6 +20,8 @@ interface Entry {
 interface Props {
   name: string;
   entries: Entry[];
+  /** Entradas dessa categoria-mãe em TODOS os anos/meses (para YoY). Opcional. */
+  allYearEntries?: Entry[];
   totalGeral: number;
   faturamento: number;
   allMonths: string[];
