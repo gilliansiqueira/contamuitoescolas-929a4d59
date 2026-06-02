@@ -390,11 +390,18 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
   const barChartData = useMemo(() => {
-    return [...categoryBlocks].map(b => ({
-      name: b.name,
-      value: b.total,
-      pctFat: currentRevenue > 0 ? (b.total / currentRevenue) * 100 : 0,
-    }));
+    return [...categoryBlocks].map(b => {
+      const pctFat = currentRevenue > 0 ? (b.total / currentRevenue) * 100 : 0;
+      const label = currentRevenue > 0
+        ? `${formatCurrency(b.total)} (${pctFat.toFixed(1)}%)`
+        : formatCurrency(b.total);
+      return {
+        name: b.name,
+        value: b.total,
+        pctFat,
+        label,
+      };
+    });
   }, [categoryBlocks, currentRevenue]);
 
   const revenueCompData = useMemo(() => {
