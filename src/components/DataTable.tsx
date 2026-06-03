@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FinancialEntry } from '@/types/financial';
 import { useEntries, useSchool, useUpdateEntry, useDeleteEntry, useAddAuditLog, useTypeClassifications } from '@/hooks/useFinancialData';
+import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { motion } from 'framer-motion';
 import { Pencil, Trash2, Check, X, Search, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
