@@ -315,6 +315,18 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   });
 
 
+  const persistCellValue = async (month: string, tipoKey: string, valor: number) => {
+    try {
+      if (valor === 0) {
+        await deleteMonthTypeMut.mutateAsync({ month, tipo_valor: tipoKey });
+      } else {
+        await upsertMut.mutateAsync({ month, tipo_valor: tipoKey, valor });
+      }
+    } catch (e: any) {
+      toast.error('Erro ao salvar: ' + e.message);
+    }
+  };
+
   const handleCellBlur = async (year: number, monthIdx: number, tipoKey: string, raw: string) => {
     const month = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
     if (closedMonths.has(month) && !isAdmin) {
@@ -325,15 +337,17 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     const key = `${month}|${tipoKey}`;
     const prev = valueMap.get(key) ?? 0;
     if (valor === prev) return;
-    try {
-      if (valor === 0) {
-        await deleteMonthTypeMut.mutateAsync({ month, tipo_valor: tipoKey });
-      } else {
-        await upsertMut.mutateAsync({ month, tipo_valor: tipoKey, valor });
+
+    // Detecta duplicata: outro tipo no mesmo mês já tem este valor exato
+    if (valor > 0) {
+      const conflictLabels = getConflictLabels(month, tipoKey, valor);
+      if (conflictLabels.length > 0) {
+        setDuplicateConfirm({ year, monthIdx, tipoKey, raw, valor, conflictLabels });
+        return;
       }
-    } catch (e: any) {
-      toast.error('Erro ao salvar: ' + e.message);
     }
+
+    await persistCellValue(month, tipoKey, valor);
   };
 
   // (handleAddTipo / handleRemoveTipo removidos — modelo financeiro é a base)
