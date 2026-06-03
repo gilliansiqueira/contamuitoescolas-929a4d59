@@ -1088,12 +1088,12 @@ function CellInput({
         placeholder={disabled ? '🔒' : '—'}
       />
       {hasConflict && (
-        <AlertTriangle
-          className="absolute left-0.5 w-3 h-3 text-warning pointer-events-none"
-          aria-label={`Mesmo valor existe em: ${conflictLabels.join(', ')}`}
+        <span
+          className="absolute left-0.5 inline-flex pointer-events-none"
+          title={`Mesmo valor existe em: ${conflictLabels.join(', ')}`}
         >
-          <title>Mesmo valor existe em: {conflictLabels.join(', ')}</title>
-        </AlertTriangle>
+          <AlertTriangle className="w-3 h-3 text-warning" />
+        </span>
       )}
     </div>
   );
