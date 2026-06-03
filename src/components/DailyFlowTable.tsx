@@ -70,7 +70,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       if (impact === 0) return;
       const isRealizado = e.tipoRegistro === 'realizado';
       // Operação (entraNoResultado=false) impacta caixa mas NÃO entra em receita/despesa
-      if (!e.entraNoResultado) {
+      if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
         byDate[data].operacaoLiquida += impact;
         return;
       }
