@@ -91,6 +91,10 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   const [confirmClose, setConfirmClose] = useState<string | null>(null);
   const [reopenTarget, setReopenTarget] = useState<PeriodClosure | null>(null);
   const [reopenReason, setReopenReason] = useState('');
+  const [duplicateConfirm, setDuplicateConfirm] = useState<
+    | { year: number; monthIdx: number; tipoKey: string; raw: string; valor: number; conflictLabels: string[] }
+    | null
+  >(null);
 
   const handleCloseMonth = async (month: string) => {
     try {
