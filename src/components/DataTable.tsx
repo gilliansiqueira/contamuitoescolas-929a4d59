@@ -70,13 +70,15 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
 
   const entries = useMemo(() => {
     let result = [...allEntries];
+    // Filtros usam dataProjetada para que Dados = Dashboard = Fluxo Diário = Fluxo.
+    const dataFor = (e: any) => e.dataProjetada || e.data;
     if (selectedMonth !== 'all') {
       const months = selectedMonth.split(',');
-      result = result.filter(e => months.includes(e.data.slice(0, 7)));
+      result = result.filter(e => months.includes(dataFor(e).slice(0, 7)));
     }
-    if (dateFrom) result = result.filter(e => e.data >= dateFrom);
-    if (dateTo) result = result.filter(e => e.data <= dateTo);
-    return result.sort((a, b) => a.data.localeCompare(b.data));
+    if (dateFrom) result = result.filter(e => dataFor(e) >= dateFrom);
+    if (dateTo) result = result.filter(e => dataFor(e) <= dateTo);
+    return result.sort((a, b) => dataFor(a).localeCompare(dataFor(b)));
   }, [allEntries, selectedMonth, dateFrom, dateTo]);
 
   const filtered = useMemo(() => {
