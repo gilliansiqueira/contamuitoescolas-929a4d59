@@ -740,7 +740,8 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         removedCount = deleted?.length ?? 0;
       }
 
-      await addEntriesMut.mutateAsync(entriesWithUploadId);
+      // Cria o registro de upload ANTES das entradas para satisfazer a FK
+      // financial_entries.origem_upload_id → upload_records.id
       await addUploadMut.mutateAsync({
         id: uploadId,
         school_id: schoolId,
@@ -749,6 +750,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         uploadedAt: new Date().toISOString(),
         recordCount: preview.length,
       });
+      await addEntriesMut.mutateAsync(entriesWithUploadId);
 
       // CONSOLIDAÇÃO AUTOMÁTICA para Fluxo (realizado)
       let consolidatedMonths = 0;
