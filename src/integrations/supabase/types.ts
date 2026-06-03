@@ -366,13 +366,17 @@ export type Database = {
         Row: {
           categoria: string
           created_at: string
+          created_by: string | null
           data: string
           descricao: string
           editado_manualmente: boolean
           id: string
+          imported_at: string | null
           origem: string
           origem_upload_id: string | null
           school_id: string
+          source_file: string | null
+          source_kind: string
           tipo: string
           tipo_original: string | null
           tipo_registro: string
@@ -381,13 +385,17 @@ export type Database = {
         Insert: {
           categoria?: string
           created_at?: string
+          created_by?: string | null
           data: string
           descricao?: string
           editado_manualmente?: boolean
           id?: string
+          imported_at?: string | null
           origem: string
           origem_upload_id?: string | null
           school_id: string
+          source_file?: string | null
+          source_kind?: string
           tipo: string
           tipo_original?: string | null
           tipo_registro?: string
@@ -396,19 +404,30 @@ export type Database = {
         Update: {
           categoria?: string
           created_at?: string
+          created_by?: string | null
           data?: string
           descricao?: string
           editado_manualmente?: boolean
           id?: string
+          imported_at?: string | null
           origem?: string
           origem_upload_id?: string | null
           school_id?: string
+          source_file?: string | null
+          source_kind?: string
           tipo?: string
           tipo_original?: string | null
           tipo_registro?: string
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "financial_entries_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "upload_records"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "financial_entries_school_id_fkey"
             columns: ["school_id"]
