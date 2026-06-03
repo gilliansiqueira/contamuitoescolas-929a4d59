@@ -91,6 +91,10 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   const [confirmClose, setConfirmClose] = useState<string | null>(null);
   const [reopenTarget, setReopenTarget] = useState<PeriodClosure | null>(null);
   const [reopenReason, setReopenReason] = useState('');
+  const [duplicateConfirm, setDuplicateConfirm] = useState<
+    | { year: number; monthIdx: number; tipoKey: string; raw: string; valor: number; conflictLabels: string[] }
+    | null
+  >(null);
 
   const handleCloseMonth = async (month: string) => {
     try {
@@ -195,6 +199,34 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     return m;
   }, [rows]);
 
+  // Mapa: month → (valor arredondado a 2 casas → lista de tipoKeys)
+  // Usado para detectar duplicatas (mesmo valor digitado em tipos diferentes).
+  const valueIndex = useMemo(() => {
+    const m = new Map<string, Map<string, string[]>>();
+    for (const r of rows) {
+      const v = Number(r.valor);
+      if (!v) continue;
+      const valKey = v.toFixed(2);
+      const tipoKey = normalizeTipo(r.tipo_valor);
+      if (!m.has(r.month)) m.set(r.month, new Map());
+      const inner = m.get(r.month)!;
+      if (!inner.has(valKey)) inner.set(valKey, []);
+      const list = inner.get(valKey)!;
+      if (!list.includes(tipoKey)) list.push(tipoKey);
+    }
+    return m;
+  }, [rows]);
+
+  // Retorna os outros tipos (rótulos) que têm o mesmo valor no mesmo mês.
+  const getConflictLabels = (month: string, tipoKey: string, valor: number): string[] => {
+    if (!valor) return [];
+    const inner = valueIndex.get(month);
+    if (!inner) return [];
+    const list = inner.get(valor.toFixed(2));
+    if (!list) return [];
+    return list.filter(k => k !== tipoKey).map(k => labelFor(k));
+  };
+
   // (removido auto-add de tipos extras — agora o modelo é a única fonte)
 
   // Apaga TODAS as linhas do mês cujo tipo_valor normalizado bate com tipoKey.
@@ -283,6 +315,18 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   });
 
 
+  const persistCellValue = async (month: string, tipoKey: string, valor: number) => {
+    try {
+      if (valor === 0) {
+        await deleteMonthTypeMut.mutateAsync({ month, tipo_valor: tipoKey });
+      } else {
+        await upsertMut.mutateAsync({ month, tipo_valor: tipoKey, valor });
+      }
+    } catch (e: any) {
+      toast.error('Erro ao salvar: ' + e.message);
+    }
+  };
+
   const handleCellBlur = async (year: number, monthIdx: number, tipoKey: string, raw: string) => {
     const month = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
     if (closedMonths.has(month) && !isAdmin) {
@@ -293,15 +337,17 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     const key = `${month}|${tipoKey}`;
     const prev = valueMap.get(key) ?? 0;
     if (valor === prev) return;
-    try {
-      if (valor === 0) {
-        await deleteMonthTypeMut.mutateAsync({ month, tipo_valor: tipoKey });
-      } else {
-        await upsertMut.mutateAsync({ month, tipo_valor: tipoKey, valor });
+
+    // Detecta duplicata: outro tipo no mesmo mês já tem este valor exato
+    if (valor > 0) {
+      const conflictLabels = getConflictLabels(month, tipoKey, valor);
+      if (conflictLabels.length > 0) {
+        setDuplicateConfirm({ year, monthIdx, tipoKey, raw, valor, conflictLabels });
+        return;
       }
-    } catch (e: any) {
-      toast.error('Erro ao salvar: ' + e.message);
     }
+
+    await persistCellValue(month, tipoKey, valor);
   };
 
   // (handleAddTipo / handleRemoveTipo removidos — modelo financeiro é a base)
@@ -764,11 +810,13 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                           const v = valueMap.get(`${month}|${tipoKey}`) ?? 0;
                           totalRow += v;
                           const isClosed = closedMonths.has(month) && !isAdmin;
+                          const conflicts = v > 0 ? getConflictLabels(month, tipoKey, v) : [];
                           return (
                             <td key={idx} className={`px-0.5 py-0.5 ${closedMonths.has(month) ? 'bg-muted/30' : ''}`}>
                               <CellInput
                                 initial={v}
                                 disabled={isClosed}
+                                conflictLabels={conflicts}
                                 onCommit={raw => handleCellBlur(year, idx, tipoKey, raw)}
                               />
                             </td>
@@ -808,6 +856,59 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
               disabled={closeMut.isPending}
             >
               Fechar período
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmar duplicata (mesmo valor já existe em outro tipo no mesmo mês) */}
+      <AlertDialog open={!!duplicateConfirm} onOpenChange={o => !o && setDuplicateConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-warning" />
+              Possível duplicata
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Já existe lançamento de <strong>R$ {duplicateConfirm ? formatBR(duplicateConfirm.valor) : ''}</strong>{' '}
+                  em{' '}
+                  <strong>
+                    {duplicateConfirm
+                      ? `${MONTH_LABELS[duplicateConfirm.monthIdx]}/${duplicateConfirm.year}`
+                      : ''}
+                  </strong>{' '}
+                  no(s) tipo(s):
+                </p>
+                <ul className="list-disc list-inside text-foreground">
+                  {duplicateConfirm?.conflictLabels.map(l => (
+                    <li key={l} className="font-medium">{l}</li>
+                  ))}
+                </ul>
+                <p>
+                  Você quer mesmo cadastrar também como{' '}
+                  <strong>{duplicateConfirm ? labelFor(duplicateConfirm.tipoKey) : ''}</strong>?
+                  Isso pode ser duplicata do mesmo lançamento.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl" onClick={() => setDuplicateConfirm(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl"
+              onClick={async () => {
+                if (!duplicateConfirm) return;
+                const { year, monthIdx, tipoKey, valor } = duplicateConfirm;
+                const month = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+                setDuplicateConfirm(null);
+                await persistCellValue(month, tipoKey, valor);
+              }}
+            >
+              Salvar mesmo assim
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1002,28 +1103,51 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   );
 }
 
-function CellInput({ initial, onCommit, disabled = false }: { initial: number; onCommit: (raw: string) => void; disabled?: boolean }) {
+function CellInput({
+  initial,
+  onCommit,
+  disabled = false,
+  conflictLabels = [],
+}: {
+  initial: number;
+  onCommit: (raw: string) => void;
+  disabled?: boolean;
+  conflictLabels?: string[];
+}) {
   const [val, setVal] = useState(initial ? formatBR(initial) : '');
   useEffect(() => {
     setVal(initial ? formatBR(initial) : '');
   }, [initial]);
+  const hasConflict = conflictLabels.length > 0;
   return (
-    <input
-      type="text"
-      inputMode="decimal"
-      value={val}
-      disabled={disabled}
-      onChange={e => setVal(e.target.value)}
-      onBlur={() => !disabled && onCommit(val)}
-      onKeyDown={e => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-      }}
-      className={`w-full h-7 text-xs text-right tabular-nums border border-transparent rounded px-1 bg-transparent outline-none ${
-        disabled
-          ? 'cursor-not-allowed text-muted-foreground'
-          : 'hover:border-border focus:border-primary focus:bg-background'
-      }`}
-      placeholder={disabled ? '🔒' : '—'}
-    />
+    <div className="relative flex items-center">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={val}
+        disabled={disabled}
+        onChange={e => setVal(e.target.value)}
+        onBlur={() => !disabled && onCommit(val)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+        className={`w-full h-7 text-xs text-right tabular-nums border rounded px-1 bg-transparent outline-none ${
+          disabled
+            ? 'cursor-not-allowed text-muted-foreground border-transparent'
+            : hasConflict
+              ? 'border-warning/60 bg-warning/5 hover:border-warning focus:border-warning focus:bg-background'
+              : 'border-transparent hover:border-border focus:border-primary focus:bg-background'
+        }`}
+        placeholder={disabled ? '🔒' : '—'}
+      />
+      {hasConflict && (
+        <span
+          className="absolute left-0.5 inline-flex pointer-events-none"
+          title={`Mesmo valor existe em: ${conflictLabels.join(', ')}`}
+        >
+          <AlertTriangle className="w-3 h-3 text-warning" />
+        </span>
+      )}
+    </div>
   );
 }
