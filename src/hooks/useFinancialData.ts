@@ -224,6 +224,20 @@ export function useAddUpload() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (upload: UploadRecord) => {
+      // Proteção contra re-upload: se já existir upload do mesmo (escola, arquivo, tipo),
+      // remove o anterior PRIMEIRO. A FK ON DELETE CASCADE apaga todas as entries
+      // vinculadas — não dá pra dobrar dados subindo o mesmo arquivo duas vezes.
+      const { data: existing } = await supabase
+        .from('upload_records')
+        .select('id')
+        .eq('school_id', upload.school_id)
+        .eq('file_name', upload.fileName)
+        .eq('tipo', upload.tipo);
+      if (existing && existing.length > 0) {
+        const ids = existing.map((r: any) => r.id);
+        const { error: eDel } = await supabase.from('upload_records').delete().in('id', ids);
+        if (eDel) throw eDel;
+      }
       const { error } = await supabase.from('upload_records').insert({
         id: upload.id,
         school_id: upload.school_id,
@@ -234,7 +248,10 @@ export function useAddUpload() {
       });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['uploads'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['uploads'] });
+      qc.invalidateQueries({ queryKey: ['entries'] });
+    },
   });
 }
 
