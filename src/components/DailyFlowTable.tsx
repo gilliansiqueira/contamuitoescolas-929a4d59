@@ -27,18 +27,17 @@ interface DayRow {
 }
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
-  // SSOT — entries vêm com dataProjetada (prazo aplicado) e impacto
+  // SSOT — entries vêm com dataProjetada (prazo aplicado) e impacto.
+  // Regra do produto:
+  //  - Tudo que impacta caixa entra no Fluxo Diário (Receitas, Despesas, Operações).
+  //  - Itens "Ignorar" têm impacto = 0 (rule.impactaCaixa=false) e são
+  //    naturalmente excluídos.
   const { entries: rawEntries, saldoInicial } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
-  // Regra de projeção: Fluxo Diário considera APENAS Receitas e Despesas.
-  // Operações e Ignorar ficam fora do cálculo (saldo, totais e linhas).
   const adjustedEntries = useMemo(
-    () => rawEntries.filter(e => {
-      const cls = getEffectiveClassification(e, classifications);
-      return cls === 'receita' || cls === 'despesa';
-    }),
-    [rawEntries, classifications]
+    () => rawEntries.filter(e => e.impacto !== 0),
+    [rawEntries]
   );
 
   const months = useMemo(() => {
