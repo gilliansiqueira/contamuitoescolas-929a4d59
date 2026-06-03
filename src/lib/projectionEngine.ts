@@ -110,10 +110,13 @@ export function projectEntries(
 ): ProjectedEntry[] {
   let active = entries;
 
-  // 1) gate do modelo — contas_pagar SEMPRE passa
+  // 1) gate do modelo — origens de upload nativo (sponte/cheque/cartao/contas_pagar)
+  // SEMPRE passam: elas são classificadas pelo `tipo` nativo, não pelo nome da
+  // categoria, então não devem ser barradas pelo modelo financeiro.
+  const ORIGENS_BYPASS_MODELO = new Set(['contas_pagar', 'sponte', 'cheque', 'cartao']);
   if (options.hasModel) {
     active = active.filter(e => {
-      if (e.origem === 'contas_pagar') return true;
+      if (ORIGENS_BYPASS_MODELO.has(e.origem)) return true;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'operacao') return true;
       if (cls === 'despesa' || cls === 'receita') {
