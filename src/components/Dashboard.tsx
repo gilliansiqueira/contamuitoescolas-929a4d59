@@ -12,6 +12,7 @@ import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
 import { calculateTotals, getSaldoImpact, getEffectiveClassification, getCanonicalKey, normalizeTipo } from '@/lib/classificationUtils';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
+import { resolveEntryTipoKey } from '@/lib/ledgerEngine';
 import { applyPaymentDelay } from '@/lib/projectionEngine';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, BarChart, Bar, Legend, LineChart, Line } from 'recharts';
 import { Receivables } from '@/components/Receivables';
