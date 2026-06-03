@@ -1,10 +1,8 @@
 import { useMemo } from 'react';
-import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
-import { useSchoolModel } from '@/hooks/useSchoolModel';
+import { useTypeClassifications } from '@/hooks/useFinancialData';
+import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import {
-  
   calculateTotals,
-  getEffectiveClassification,
 } from '@/lib/classificationUtils';
 import { motion } from 'framer-motion';
 
@@ -17,28 +15,12 @@ interface ProjectedVsRealProps { schoolId: string; }
 /**
  * Previsto x Realizado — SSOT financeira.
  *
- * Regras (alinhadas com Dashboard/CashFlow):
- *  - filterActiveEntries  → remove categorias marcadas como Ignorar.
- *  - useSchoolModel       → gate estrito: tipos fora do modelo não entram.
- *  - tipoRegistro         → separa Projetado (futuro) de Realizado (≤ hoje).
- *  - calculateTotals      → usa classificationUtils para somar receitas/despesas
- *                           respeitando classificação e sinal definidos pelo
- *                           usuário em type_classifications.
+ * Consome useProjectedEntries (mesmo conjunto que Dashboard/Fluxo/Fluxo Diário/Dados).
+ * Operações não entram em receita/despesa (calculateTotals já isola por classificação).
  */
 export function ProjectedVsReal({ schoolId }: ProjectedVsRealProps) {
-  const { data: entries = [] } = useEntries(schoolId);
+  const { entries: activeEntries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
-
-  const activeEntries = useMemo(() => {
-    if (!hasModel) return entries;
-    return entries.filter(e => {
-      if (e.origem === 'contas_pagar') return true;
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls === 'operacao') return true;
-      return isInModel(e.tipoOriginal || e.categoria || e.tipo);
-    });
-  }, [entries, classifications, hasModel, isInModel]);
 
   const byMonth = useMemo(() => {
     const months = new Set<string>();
