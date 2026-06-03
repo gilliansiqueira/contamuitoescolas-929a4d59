@@ -1050,28 +1050,51 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
   );
 }
 
-function CellInput({ initial, onCommit, disabled = false }: { initial: number; onCommit: (raw: string) => void; disabled?: boolean }) {
+function CellInput({
+  initial,
+  onCommit,
+  disabled = false,
+  conflictLabels = [],
+}: {
+  initial: number;
+  onCommit: (raw: string) => void;
+  disabled?: boolean;
+  conflictLabels?: string[];
+}) {
   const [val, setVal] = useState(initial ? formatBR(initial) : '');
   useEffect(() => {
     setVal(initial ? formatBR(initial) : '');
   }, [initial]);
+  const hasConflict = conflictLabels.length > 0;
   return (
-    <input
-      type="text"
-      inputMode="decimal"
-      value={val}
-      disabled={disabled}
-      onChange={e => setVal(e.target.value)}
-      onBlur={() => !disabled && onCommit(val)}
-      onKeyDown={e => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-      }}
-      className={`w-full h-7 text-xs text-right tabular-nums border border-transparent rounded px-1 bg-transparent outline-none ${
-        disabled
-          ? 'cursor-not-allowed text-muted-foreground'
-          : 'hover:border-border focus:border-primary focus:bg-background'
-      }`}
-      placeholder={disabled ? '🔒' : '—'}
-    />
+    <div className="relative flex items-center">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={val}
+        disabled={disabled}
+        onChange={e => setVal(e.target.value)}
+        onBlur={() => !disabled && onCommit(val)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+        className={`w-full h-7 text-xs text-right tabular-nums border rounded px-1 bg-transparent outline-none ${
+          disabled
+            ? 'cursor-not-allowed text-muted-foreground border-transparent'
+            : hasConflict
+              ? 'border-warning/60 bg-warning/5 hover:border-warning focus:border-warning focus:bg-background'
+              : 'border-transparent hover:border-border focus:border-primary focus:bg-background'
+        }`}
+        placeholder={disabled ? '🔒' : '—'}
+      />
+      {hasConflict && (
+        <AlertTriangle
+          className="absolute left-0.5 w-3 h-3 text-warning pointer-events-none"
+          aria-label={`Mesmo valor existe em: ${conflictLabels.join(', ')}`}
+        >
+          <title>Mesmo valor existe em: {conflictLabels.join(', ')}</title>
+        </AlertTriangle>
+      )}
+    </div>
   );
 }
