@@ -132,20 +132,30 @@ export function useAddEntries() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (entries: FinancialEntry[]) => {
-      const rows = entries.map(e => ({
-        id: e.id,
-        school_id: e.school_id,
-        data: e.data,
-        descricao: e.descricao,
-        valor: e.valor,
-        tipo: e.tipo,
-        categoria: e.categoria,
-        origem: e.origem,
-        origem_upload_id: e.origem_upload_id || null,
-        tipo_original: e.tipoOriginal || null,
-        tipo_registro: e.tipoRegistro || 'realizado',
-        editado_manualmente: e.editadoManualmente || false,
-      }));
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth?.user?.id ?? null;
+      const rows = entries.map(e => {
+        const isImport = !!e.origem_upload_id && e.origem !== 'manual';
+        return {
+          id: e.id,
+          school_id: e.school_id,
+          data: e.data,
+          descricao: e.descricao,
+          valor: e.valor,
+          tipo: e.tipo,
+          categoria: e.categoria,
+          origem: e.origem,
+          origem_upload_id: e.origem_upload_id || null,
+          tipo_original: e.tipoOriginal || null,
+          tipo_registro: e.tipoRegistro || 'realizado',
+          editado_manualmente: e.editadoManualmente || false,
+          // Rastreabilidade (SSOT): toda gravação carrega origem explícita
+          source_kind: isImport ? 'import' : (e.editadoManualmente ? 'manual_edit' : 'manual'),
+          source_file: (e as any).sourceFile ?? null,
+          imported_at: isImport ? new Date().toISOString() : null,
+          created_by: userId,
+        };
+      });
       for (let i = 0; i < rows.length; i += 500) {
         const batch = rows.slice(i, i + 500);
         const { error } = await supabase.from('financial_entries').insert(batch);
@@ -214,6 +224,20 @@ export function useAddUpload() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (upload: UploadRecord) => {
+      // Proteção contra re-upload: se já existir upload do mesmo (escola, arquivo, tipo),
+      // remove o anterior PRIMEIRO. A FK ON DELETE CASCADE apaga todas as entries
+      // vinculadas — não dá pra dobrar dados subindo o mesmo arquivo duas vezes.
+      const { data: existing } = await supabase
+        .from('upload_records')
+        .select('id')
+        .eq('school_id', upload.school_id)
+        .eq('file_name', upload.fileName)
+        .eq('tipo', upload.tipo);
+      if (existing && existing.length > 0) {
+        const ids = existing.map((r: any) => r.id);
+        const { error: eDel } = await supabase.from('upload_records').delete().in('id', ids);
+        if (eDel) throw eDel;
+      }
       const { error } = await supabase.from('upload_records').insert({
         id: upload.id,
         school_id: upload.school_id,
@@ -224,7 +248,10 @@ export function useAddUpload() {
       });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['uploads'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['uploads'] });
+      qc.invalidateQueries({ queryKey: ['entries'] });
+    },
   });
 }
 
