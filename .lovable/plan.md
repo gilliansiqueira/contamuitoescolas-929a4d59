@@ -1,52 +1,49 @@
 ## Objetivo
 
-Consolidar toda a lógica financeira em uma única SSOT, garantir que prazos de cobrança sejam aplicados em TODAS as telas, padronizar fontes de valor por tipo de importação, criar categoria independente "Sponte Pay", proibir lançamentos fantasmas e transformar a aba Dados em centro de auditoria com rastreabilidade completa.
+Garantir integridade absoluta dos dados financeiros: **Dados = SSOT única**. Toda tela (Dashboard, Fluxo Diário, Fluxo, Previsto x Realizado) deve consumir exatamente o mesmo conjunto que aparece em Dados — sem cálculos paralelos, sem registros fantasmas, sem duplicações, sem perdas, com rastreabilidade completa por upload.
 
-## Fase 0 — Mapeamento (sem código)
+## Fase 0 — Diagnóstico (sem código)
 
-Antes de qualquer alteração, gerar um relatório curto identificando:
+Antes de qualquer alteração, executar leituras no banco e mapeamento de código para entregar relatório com:
 
-1. Pontos de cálculo financeiro hoje:
-   - `src/lib/classificationUtils.ts` (`calculateTotals`, `getSaldoImpact`)
-   - `src/lib/tipoMeta.ts` + `src/lib/ledgerEngine.ts`
-   - `src/lib/snapshotUtils.ts`
-   - `src/components/Dashboard.tsx`, `CashFlow.tsx`, `DailyFlowTable.tsx`, `DataTable.tsx`, `FinancialCalendar.tsx`, `Receivables.tsx`, `ProjectedVsReal.tsx`, `ScenarioView.tsx`
-2. Aplicação de prazos (`applyPaymentDelays`): hoje só em `DailyFlowTable.tsx` e `Dashboard.tsx`.
-3. Categorização de recebíveis: hoje hardcoded em `Receivables.tsx::categorizeReceivable`.
-4. Mapeamento de colunas na importação: `FileUpload.tsx` (alias prioritizado para `valor_com_desconto`).
+1. **Duplicações** — query agrupando `financial_entries` por `(school_id, data, descricao, valor, origem)` com `count > 1`, para cada escola. Identificar se há `origem_upload_id` diferente (re-upload) ou igual (bug na importação).
+2. **Órfãos** — entries com `origem_upload_id` apontando para upload inexistente, ou entries sem `origem_upload_id` que deveriam ter (origem ≠ 'manual').
+3. **Meses inválidos** — varredura em `historical_monthly`, `kpi_values`, `monthly_revenue`, `conversion_data`, `receivable_category_values`, `investment_entries`, `period_closures` para qualquer `month !~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`.
+4. **Mapa de queries por tela** — confirmar que Dashboard / DailyFlowTable / CashFlow / ProjectedVsReal / DataTable consomem todos `useProjectedEntries(schoolId)` (SSOT). Listar qualquer ponto que ainda use `useEntriesFromBaseDate`, `entry.tipo === 'entrada'` para somar, ou heurística "positivo=receita".
+5. **Aba Dados (DataTable)** — verificar se aplica os mesmos filtros (modelo + prazo) que as demais. Se aplicar filtros diferentes, é a causa da divergência.
 
-Entregar o mapa antes de prosseguir.
+Entregar o relatório antes de prosseguir para a Fase 1.
 
-## Fase 1 — SSOT central de projeção
+## Fase 1 — Causa raiz das duplicações e da exclusão de upload
 
-Criar `src/lib/projectionEngine.ts` com:
+1. **Importação idempotente** (`FileUpload.tsx` + parsers):
+   - Antes de inserir, deduplica em memória por `(data, descricao, valor, tipo_original)` dentro do mesmo lote.
+   - Insere com `origem_upload_id` sempre preenchido.
+2. **Constraint de banco** — migration adicionando índice único parcial:
+   ```sql
+   CREATE UNIQUE INDEX uq_fe_dedupe
+     ON public.financial_entries (school_id, data, descricao, valor, origem, COALESCE(tipo_original,''))
+     WHERE origem <> 'manual';
+   ```
+   Importadores passam a usar `upsert` com `onConflict` para tolerar re-importação sem duplicar.
+3. **Exclusão de upload com cascata real** — `uploads` (ou tabela equivalente) hoje não força remoção dos entries. Corrigir o handler de exclusão em `UploadHistory.tsx` / `HistoricoUploads.tsx` para executar:
+   ```ts
+   await supabase.from('financial_entries').delete().eq('origem_upload_id', uploadId);
+   await supabase.from('uploads').delete().eq('id', uploadId);
+   ```
+   em transação lógica (delete entries primeiro). Adicionar verificação de órfãos via query de manutenção.
+4. **Limpeza one-shot** — migration de dados para:
+   - Apagar duplicatas atuais mantendo o registro mais antigo por `(school_id, data, descricao, valor, origem, tipo_original)`.
+   - Apagar entries com `origem_upload_id` órfão.
 
-- `applyPaymentDelay(entry, rules)` — função pura, única, recebe entry + regras e devolve a data ajustada (ISO).
-- `projectEntries(entries, rules, classifications, model)` — pipeline canônico:
-  1. filtra `isEntryIgnored`
-  2. aplica gate do Modelo Financeiro (`useSchoolModel`)
-  3. aplica `applyPaymentDelay` SOMENTE para `tipo_registro = 'projetado'` (realizado nunca desloca)
-  4. retorna entries com `dataProjetada` e `impacto` (via `getSaldoImpact`)
-- Hook `useProjectedEntries(schoolId)` que carrega entries + rules + classifications + model e devolve a lista canônica.
+## Fase 2 — SSOT única em todas as telas
 
-Substituir os usos atuais de `applyPaymentDelays` em `DailyFlowTable.tsx` e `Dashboard.tsx` pelo hook. Aplicar o mesmo hook em `Receivables.tsx`, `FinancialCalendar.tsx`, `CashFlow.tsx`, `DataTable.tsx`, `ScenarioView.tsx`, `ProjectedVsReal.tsx`.
+1. Substituir qualquer uso direto de `useEntriesFromBaseDate` em Dashboard / CashFlow / DailyFlowTable / ProjectedVsReal / DataTable / FinancialCalendar / Receivables por `useProjectedEntries(schoolId)`.
+2. **DataTable** passa a listar exatamente `entries` retornados pela SSOT, exibindo `dataProjetada`, `impacto`, `origem_upload_id` e arquivo de origem. Sem filtros próprios além de período/origem.
+3. Banir literais `entry.tipo === 'entrada' ? +valor : -valor` em todo o código. Tudo passa por `getSaldoImpact` / `calculateTotals` (já SSOT em `classificationUtils`).
+4. Adicionar teste em `src/test/ssot.test.ts`: dado um conjunto de entries, soma do Dashboard === soma do DataTable === soma do CashFlow para o mesmo período.
 
-## Fase 2 — Categoria independente "Sponte Pay"
-
-- Em `src/lib/receivableCategorization.ts` (novo, extraído de `Receivables.tsx`): adicionar categoria `sponte_pay` antes de `boleto_cobranca`. Regra: `origem` contém `sponte pay` OU `categoria` contém `sponte pay`.
-- Atualizar Dashboard, Fluxo, Recebíveis, Calendário, Dados, Relatórios para exibir a categoria como linha/coluna separada.
-- Migration: inserir `receivable_categories` `Sponte Pay` para escolas existentes (sort_order entre PIX e Boleto).
-
-## Fase 3 — Fonte de valor por importação
-
-Em `src/components/FileUpload.tsx` (e parsers correlatos):
-
-- **Cartões (Maquininha)**: usar EXCLUSIVAMENTE coluna `Valor Líquido` / `valor_liquido`. Remover fallbacks para `valor_com_desconto`, `valor`, `total`, `valor_bruto`.
-- **Cheques**: EXCLUSIVAMENTE `ValorComDesconto`.
-- **Sponte (Recebimentos)**: EXCLUSIVAMENTE `ValorComDesconto`.
-- Se a coluna obrigatória não existir → falhar a importação com mensagem explícita (sem fallback silencioso).
-
-## Fase 4 — Proibição de lançamentos fantasmas + rastreabilidade
+## Fase 3 — Rastreabilidade completa
 
 Migration em `financial_entries`:
 
@@ -55,55 +52,56 @@ ALTER TABLE public.financial_entries
   ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'manual'
     CHECK (source_kind IN ('import','manual','manual_edit')),
   ADD COLUMN IF NOT EXISTS source_file text,
-  ADD COLUMN IF NOT EXISTS import_batch_id uuid,
+  ADD COLUMN IF NOT EXISTS imported_at timestamptz,
   ADD COLUMN IF NOT EXISTS created_by uuid;
-
-CREATE INDEX IF NOT EXISTS idx_fe_import_batch ON public.financial_entries(import_batch_id);
-CREATE INDEX IF NOT EXISTS idx_fe_source_kind ON public.financial_entries(source_kind);
+CREATE INDEX IF NOT EXISTS idx_fe_origem_upload ON public.financial_entries(origem_upload_id);
 ```
 
-Criar tabela `import_batches` (id, school_id, source_kind, file_name, uploaded_at, uploaded_by, row_count, total_value) com GRANTs + RLS.
+- Importadores gravam `source_kind='import'`, `source_file`, `imported_at`, `origem_upload_id`, `created_by`.
+- Diálogos de inclusão/edição manual gravam `source_kind='manual'` / `'manual_edit'`.
+- DataTable mostra coluna "Origem do upload" (arquivo + data + usuário) e badge "Manual".
 
-Atualizar:
-- `FileUpload.tsx` e demais importadores → gravam `source_kind='import'`, `source_file`, `import_batch_id`, `created_by`.
-- Diálogos de inclusão/edição manual → gravam `source_kind='manual'` / `'manual_edit'`, `created_by`.
+## Fase 4 — Validação de formato de mês + cleanup Rio Verde
 
-Auditoria de coerência: criar `src/lib/auditConsistency.ts` com `assertSumMatches(displayed, entries)` usado em dev (console.warn em prod) para validar `soma === total exibido`.
+- Confirmar que CHECK `month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'` está ativo nas 7 tabelas (já existe segundo memória). Se faltar, adicionar.
+- Migration de dados para Rio Verde: localizar registros com mês inválido (`20251-01`, `20252-01`, `202510-01`) e:
+  - Tentar correção determinística (`20251-01` → `2025-01`) quando inequívoco.
+  - Apagar os ambíguos com log.
+- Validação no front (`HistoricoFinanceiroConfig`) já bloqueia; reforçar mensagem.
 
-Remover qualquer ponto que crie entries sintéticas (verificar `Simulation.tsx`, `ScenarioView.tsx`, snapshots) — projeções de cenário devem ser cálculo de exibição, nunca insert no banco.
+## Fase 5 — Conferência de importação
 
-## Fase 5 — Aba Dados como Centro de Auditoria
+Em cada importador:
+- Contar `linhas_planilha`, `linhas_gravadas`, `linhas_descartadas` (com motivo).
+- Gravar resumo em tabela `import_audits` (nova) ou no próprio registro de upload.
+- Exibir toast e linha em "Histórico de Uploads" com o totalizador. Falha se `gravadas + descartadas ≠ planilha`.
 
-Refatorar `src/components/DataTable.tsx`:
+## Fase 6 — Relatório final
 
-- Barra de filtros:
-  - Origem (`source_kind` + `origem`)
-  - Arquivo de origem (`source_file`, autocompletar a partir de `import_batches`)
-  - Tipo de inclusão (Importado / Manual / Todos)
-  - Lote (`import_batch_id`, dropdown)
-  - Período (existente)
-- Colunas visíveis: Origem, Arquivo, Lote, Data Upload, Usuário, Data Original, Data Projetada (via SSOT), Tipo (Importado/Manual badge), Valor Original (`valor` no momento da importação — adicionar `valor_original numeric`), Valor Atual, Status (`tipo_registro`).
-- Drawer "Lotes de Importação" listando registros de `import_batches` com totais; clique abre lista filtrada.
-- Badge visual "Manual" para `source_kind != 'import'`.
-
-## Fase 6 — Validação
-
-- Testes em `src/test/projectionEngine.test.ts` cobrindo: aplicação de prazo, ignorar, transferência, modelo, soma === exibição.
-- Smoke manual em Rio Verde e Campo Largo.
-- Auditoria: para 5 dias aleatórios, abrir Calendário e Dados filtrados pelo mesmo dia → totais idênticos.
+Após implementação, executar novamente as queries da Fase 0 e entregar:
+1. Onde estava a duplicação + correção.
+2. Onde estava a perda.
+3. Órfãos encontrados e removidos.
+4. Fantasmas removidos pela cascata.
+5. Pontos fora da SSOT corrigidos.
+6. Mapa tabela → tela.
+7. Causa raiz de cada problema.
+8. Lista de migrations / arquivos alterados.
 
 ## Detalhes técnicos
 
 - Não tocar em `src/integrations/supabase/{client,types}.ts`.
 - Toda alteração de schema via `supabase--migration` com GRANTs.
-- Manter `useSchoolModel` e `tipoMeta` atuais; o engine novo os consome.
-- Cenários e Simulação permanecem apenas em memória (sem inserts no banco).
+- Toda limpeza de dados via `supabase--insert` (DELETE/UPDATE).
+- Manter SSOT já existente (`projectionEngine`, `ledgerEngine`, `classificationUtils`, `tipoMeta`). O trabalho é ELIMINAR desvios, não criar nova camada.
+- Cenários e Simulação continuam apenas em memória — nunca inserem no banco.
 
 ## Ordem de execução
 
-1. Fase 0 (relatório) → pausa para confirmação
-2. Fases 1 + 2 (engine + Sponte Pay)
-3. Fase 3 (colunas)
-4. Fase 4 (migration + rastreabilidade)
-5. Fase 5 (UI Dados)
-6. Fase 6 (validação)
+1. Fase 0 (diagnóstico) → pausa para revisão dos achados
+2. Fase 1 (dedupe + cascata de upload)
+3. Fase 2 (SSOT em todas as telas)
+4. Fase 3 (rastreabilidade)
+5. Fase 4 (formato de mês + Rio Verde)
+6. Fase 5 (conferência de importação)
+7. Fase 6 (relatório final)
