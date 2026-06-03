@@ -195,7 +195,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
         for (const e of monthEntries) {
           if (!includeEntry(e, src)) continue;
-          const tipoKey = e.tipoOriginal || e.tipo;
+          const tipoKey = e.tipoOriginal || e.categoria || e.tipo;
           const agg = ensure(tipoKey);
           agg.valor += e.valor;
         }
