@@ -1,107 +1,115 @@
 ## Objetivo
 
-Garantir integridade absoluta dos dados financeiros: **Dados = SSOT única**. Toda tela (Dashboard, Fluxo Diário, Fluxo, Previsto x Realizado) deve consumir exatamente o mesmo conjunto que aparece em Dados — sem cálculos paralelos, sem registros fantasmas, sem duplicações, sem perdas, com rastreabilidade completa por upload.
+Tornar a aba **Dados** a única fonte da verdade. Antes de qualquer nova funcionalidade, encontrar e corrigir TODAS as violações das 10 regras, com relatório de causa raiz, registros afetados, telas afetadas e correção aplicada.
 
-## Fase 0 — Diagnóstico (sem código)
+## Fase A — Auditoria (somente leitura, sem código)
 
-Antes de qualquer alteração, executar leituras no banco e mapeamento de código para entregar relatório com:
+### A.1 Inventário de fontes por tela
+Mapear via leitura de código qual hook/query alimenta:
+- DataTable (Dados) · Dashboard · DailyFlowTable · CashFlow · ProjectedVsReal · Receivables
 
-1. **Duplicações** — query agrupando `financial_entries` por `(school_id, data, descricao, valor, origem)` com `count > 1`, para cada escola. Identificar se há `origem_upload_id` diferente (re-upload) ou igual (bug na importação).
-2. **Órfãos** — entries com `origem_upload_id` apontando para upload inexistente, ou entries sem `origem_upload_id` que deveriam ter (origem ≠ 'manual').
-3. **Meses inválidos** — varredura em `historical_monthly`, `kpi_values`, `monthly_revenue`, `conversion_data`, `receivable_category_values`, `investment_entries`, `period_closures` para qualquer `month !~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`.
-4. **Mapa de queries por tela** — confirmar que Dashboard / DailyFlowTable / CashFlow / ProjectedVsReal / DataTable consomem todos `useProjectedEntries(schoolId)` (SSOT). Listar qualquer ponto que ainda use `useEntriesFromBaseDate`, `entry.tipo === 'entrada'` para somar, ou heurística "positivo=receita".
-5. **Aba Dados (DataTable)** — verificar se aplica os mesmos filtros (modelo + prazo) que as demais. Se aplicar filtros diferentes, é a causa da divergência.
+Confirmar uso único de `useProjectedEntries(schoolId)` como base. Listar qualquer divergência.
 
-Entregar o relatório antes de prosseguir para a Fase 1.
+### A.2 Conciliação numérica — CRITÉRIO DE APROVAÇÃO
 
-## Fase 1 — Causa raiz das duplicações e da exclusão de upload
+**A Fase A só é concluída quando, para cada `school_id` e cada um dos últimos 6 meses, for apresentada uma matriz numérica real demonstrando Δ = 0** (ou, se Δ ≠ 0, causa raiz formal identificada).
 
-1. **Importação idempotente** (`FileUpload.tsx` + parsers):
-   - Antes de inserir, deduplica em memória por `(data, descricao, valor, tipo_original)` dentro do mesmo lote.
-   - Insere com `origem_upload_id` sempre preenchido.
-2. **Constraint de banco** — migration adicionando índice único parcial:
-   ```sql
-   CREATE UNIQUE INDEX uq_fe_dedupe
-     ON public.financial_entries (school_id, data, descricao, valor, origem, COALESCE(tipo_original,''))
-     WHERE origem <> 'manual';
-   ```
-   Importadores passam a usar `upsert` com `onConflict` para tolerar re-importação sem duplicar.
-3. **Exclusão de upload com cascata real** — `uploads` (ou tabela equivalente) hoje não força remoção dos entries. Corrigir o handler de exclusão em `UploadHistory.tsx` / `HistoricoUploads.tsx` para executar:
-   ```ts
-   await supabase.from('financial_entries').delete().eq('origem_upload_id', uploadId);
-   await supabase.from('uploads').delete().eq('id', uploadId);
-   ```
-   em transação lógica (delete entries primeiro). Adicionar verificação de órfãos via query de manutenção.
-4. **Limpeza one-shot** — migration de dados para:
-   - Apagar duplicatas atuais mantendo o registro mais antigo por `(school_id, data, descricao, valor, origem, tipo_original)`.
-   - Apagar entries com `origem_upload_id` órfão.
+Para CADA escola/mês, apresentar tabela com:
 
-## Fase 2 — SSOT única em todas as telas
+| Métrica | Valor encontrado | Valor esperado (Dados) | Δ | IDs que compõem | Query/função |
+|---|---|---|---|---|---|
+| Receita — Dados | ... | ... | 0 | array de ids | SQL |
+| Receita — Dashboard | ... | (Dados) | ... | ids consumidos | hook + filtro |
+| Receita — Fluxo Diário | ... | (Dados) | ... | ids | hook + filtro |
+| Receita — Fluxo de Caixa | ... | (Dados) | ... | ids | hook + filtro |
+| Receita — Previsto×Realizado | ... | (Dados) | ... | ids | hook + filtro |
+| Despesa — Dados | ... | ... | 0 | ids | SQL |
+| Despesa — Dashboard | ... | (Dados) | ... | ids | hook + filtro |
+| Despesa — Fluxo Diário | ... | (Dados) | ... | ids | hook + filtro |
+| Despesa — Fluxo de Caixa | ... | (Dados) | ... | ids | hook + filtro |
+| Despesa — Previsto×Realizado | ... | (Dados) | ... | ids | hook + filtro |
+| Saldo final do mês N | ... | — | — | — | função |
+| Saldo inicial do mês N+1 | ... | saldo final N | Δ | — | função |
 
-1. Substituir qualquer uso direto de `useEntriesFromBaseDate` em Dashboard / CashFlow / DailyFlowTable / ProjectedVsReal / DataTable / FinancialCalendar / Receivables por `useProjectedEntries(schoolId)`.
-2. **DataTable** passa a listar exatamente `entries` retornados pela SSOT, exibindo `dataProjetada`, `impacto`, `origem_upload_id` e arquivo de origem. Sem filtros próprios além de período/origem.
-3. Banir literais `entry.tipo === 'entrada' ? +valor : -valor` em todo o código. Tudo passa por `getSaldoImpact` / `calculateTotals` (já SSOT em `classificationUtils`).
-4. Adicionar teste em `src/test/ssot.test.ts`: dado um conjunto de entries, soma do Dashboard === soma do DataTable === soma do CashFlow para o mesmo período.
+**Regras de entrega**:
+- Toda linha deve trazer (valor encontrado, valor esperado, Δ, lista de ids, query/função usada).
+- Para telas, reproduzir EXATAMENTE a cadeia da tela: `useProjectedEntries` → filtros (período, modelo, prazo, classificação) → `calculateTotals` — replicar isso em SQL/script equivalente para obter o número.
+- Proibido entregar conclusões genéricas tipo "SSOT validada", "arquitetura correta", "todas as telas usam a mesma lógica". Só números do banco contam.
 
-## Fase 3 — Rastreabilidade completa
+**Quando Δ ≠ 0**:
+1. Listar os ids exatos que entram em uma soma e não na outra (`array_diff`).
+2. Apontar a tela afetada.
+3. Apontar a função/query responsável (linha do código).
+4. Explicar a causa raiz (filtro extra, heurística sinal, snapshot defasado, cache, etc.).
 
-Migration em `financial_entries`:
-
+### A.3 Registros fantasmas / órfãos
 ```sql
-ALTER TABLE public.financial_entries
-  ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'manual'
-    CHECK (source_kind IN ('import','manual','manual_edit')),
-  ADD COLUMN IF NOT EXISTS source_file text,
-  ADD COLUMN IF NOT EXISTS imported_at timestamptz,
-  ADD COLUMN IF NOT EXISTS created_by uuid;
-CREATE INDEX IF NOT EXISTS idx_fe_origem_upload ON public.financial_entries(origem_upload_id);
+-- entries com upload_id apontando para upload inexistente
+SELECT fe.* FROM financial_entries fe
+LEFT JOIN upload_records ur ON ur.id = fe.origem_upload_id
+WHERE fe.origem_upload_id IS NOT NULL AND ur.id IS NULL;
+
+-- entries de origens de upload sem upload_id
+SELECT * FROM financial_entries
+WHERE origem IN ('sponte','cheque','cartao','contas_pagar')
+  AND origem_upload_id IS NULL;
+
+-- realized_entries sem origem_arquivo
+SELECT * FROM realized_entries WHERE COALESCE(origem_arquivo,'') = '';
 ```
 
-- Importadores gravam `source_kind='import'`, `source_file`, `imported_at`, `origem_upload_id`, `created_by`.
-- Diálogos de inclusão/edição manual gravam `source_kind='manual'` / `'manual_edit'`.
-- DataTable mostra coluna "Origem do upload" (arquivo + data + usuário) e badge "Manual".
+### A.4 Duplicidades
+```sql
+SELECT school_id, data, descricao, valor, origem, COUNT(*), array_agg(id)
+FROM financial_entries
+GROUP BY 1,2,3,4,5 HAVING COUNT(*) > 1;
+```
 
-## Fase 4 — Validação de formato de mês + cleanup Rio Verde
+### A.5 Heurísticas proibidas no código
+- `rg "tipo === 'entrada'"` / `"tipo === 'saida'"` usadas para SOMAR
+- `rg "valor > 0 \\? 'receita'"` ou similares
+- `rg "Math.abs\\(.*valor"` em agregações
+- Qualquer mapeamento por nome de categoria fora de `tipoMeta` / `classificationUtils`
 
-- Confirmar que CHECK `month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'` está ativo nas 7 tabelas (já existe segundo memória). Se faltar, adicionar.
-- Migration de dados para Rio Verde: localizar registros com mês inválido (`20251-01`, `20252-01`, `202510-01`) e:
-  - Tentar correção determinística (`20251-01` → `2025-01`) quando inequívoco.
-  - Apagar os ambíguos com log.
-- Validação no front (`HistoricoFinanceiroConfig`) já bloqueia; reforçar mensagem.
+### A.6 Rastreabilidade
+% de entries não-manuais com `source_kind`, `source_file`, `imported_at`, `origem_upload_id` preenchidos. Listar lacunas por escola.
 
-## Fase 5 — Conferência de importação
+### A.7 Cascata de exclusão de upload
+- Projeção: validar FK `financial_entries.origem_upload_id → upload_records.id ON DELETE CASCADE`.
+- Realizado: `HistoricoUploads.tsx` hoje deleta por `origem_arquivo`. Verificar se sobram órfãos quando o mesmo arquivo é importado em datas diferentes.
 
-Em cada importador:
-- Contar `linhas_planilha`, `linhas_gravadas`, `linhas_descartadas` (com motivo).
-- Gravar resumo em tabela `import_audits` (nova) ou no próprio registro de upload.
-- Exibir toast e linha em "Histórico de Uploads" com o totalizador. Falha se `gravadas + descartadas ≠ planilha`.
+**PAUSA OBRIGATÓRIA** ao final da Fase A: entregar a matriz numérica completa. Sem ela, Fase B não inicia.
 
-## Fase 6 — Relatório final
+## Fase B — Correções estruturais (após Δ ≠ 0 ser identificado)
 
-Após implementação, executar novamente as queries da Fase 0 e entregar:
-1. Onde estava a duplicação + correção.
-2. Onde estava a perda.
-3. Órfãos encontrados e removidos.
-4. Fantasmas removidos pela cascata.
-5. Pontos fora da SSOT corrigidos.
-6. Mapa tabela → tela.
-7. Causa raiz de cada problema.
-8. Lista de migrations / arquivos alterados.
+Aplicadas APENAS para violações reais encontradas na Fase A:
+
+1. **SSOT única**: substituir qualquer fonte paralela por `useProjectedEntries`. DataTable lista exatamente o mesmo conjunto.
+2. **Banir sinal/entrada-saída** como autoridade: tudo via `getSaldoImpact` / `calculateTotals`. Teste que falha se encontrar `tipo === 'entrada' ? +v : -v` em código de soma.
+3. **Cascata de exclusão**: garantir FK CASCADE em projeção; para realizado, migrar de `origem_arquivo` para `origem_upload_id` com FK CASCADE (criar `realized_uploads` se necessário).
+4. **Rastreabilidade obrigatória**: CHECK que exige `origem_upload_id NOT NULL` quando `origem IN ('sponte','cheque','cartao','contas_pagar')`. Backfill antes.
+5. **Dedupe**: índice único parcial `(school_id, data, descricao, valor, origem, COALESCE(tipo_original,''))` WHERE origem ≠ 'manual'. Migration de limpeza mantendo o mais antigo.
+6. **Saldo encadeado**: teste automatizado `saldo_final(N) === saldo_inicial(N+1)` para todas as escolas e meses com dados.
+7. **Teste de conciliação** (`src/test/ssot.test.ts`): Σ por tela === Σ Dados, para mesmo período.
+
+## Fase C — Relatório final
+
+Re-executar a matriz da Fase A.2 demonstrando Δ = 0 em todas as escolas/meses, com:
+1. Causa raiz de cada divergência corrigida
+2. Registros afetados (ids + escola + mês)
+3. Telas afetadas
+4. Correção aplicada (migration / arquivo / linha)
+5. Matriz pós-correção
 
 ## Detalhes técnicos
 
-- Não tocar em `src/integrations/supabase/{client,types}.ts`.
-- Toda alteração de schema via `supabase--migration` com GRANTs.
-- Toda limpeza de dados via `supabase--insert` (DELETE/UPDATE).
-- Manter SSOT já existente (`projectionEngine`, `ledgerEngine`, `classificationUtils`, `tipoMeta`). O trabalho é ELIMINAR desvios, não criar nova camada.
-- Cenários e Simulação continuam apenas em memória — nunca inserem no banco.
+- Nenhuma funcionalidade nova enquanto existir Δ ≠ 0 sem causa raiz formal.
+- Schema via `supabase--migration`; dados via `supabase--insert`.
+- SSOT (`projectionEngine`, `ledgerEngine`, `classificationUtils`, `tipoMeta`) é mantida — o trabalho é eliminar desvios.
+- Cenários e Simulação seguem só em memória.
 
-## Ordem de execução
+## Ordem
 
-1. Fase 0 (diagnóstico) → pausa para revisão dos achados
-2. Fase 1 (dedupe + cascata de upload)
-3. Fase 2 (SSOT em todas as telas)
-4. Fase 3 (rastreabilidade)
-5. Fase 4 (formato de mês + Rio Verde)
-6. Fase 5 (conferência de importação)
-7. Fase 6 (relatório final)
+1. Fase A (auditoria com matriz numérica) → **PAUSA** até Δ = 0 ou causa raiz formal
+2. Fase B (correções) — só do que a Fase A apontar
+3. Fase C (relatório final com matriz pós-correção)
