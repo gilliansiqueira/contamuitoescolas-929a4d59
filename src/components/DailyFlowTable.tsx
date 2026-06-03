@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useTypeClassifications } from '@/hooks/useFinancialData';
 import { getEffectiveClassification } from '@/lib/classificationUtils';
+import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
