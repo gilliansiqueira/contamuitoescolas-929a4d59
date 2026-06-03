@@ -46,7 +46,9 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
   const { isPresentationMode } = usePresentation();
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
-  const { data: allEntries = [] } = useEntries(schoolId);
+  // SSOT: Dados consome exatamente o mesmo conjunto de Dashboard/Fluxo/Fluxo Diário/Previsto x Realizado.
+  // Aplica baseDate + gate do modelo financeiro + impacto canônico.
+  const { entries: allEntries = [] } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const updateEntryMut = useUpdateEntry();
   const deleteEntryMut = useDeleteEntry();
