@@ -199,6 +199,34 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
     return m;
   }, [rows]);
 
+  // Mapa: month → (valor arredondado a 2 casas → lista de tipoKeys)
+  // Usado para detectar duplicatas (mesmo valor digitado em tipos diferentes).
+  const valueIndex = useMemo(() => {
+    const m = new Map<string, Map<string, string[]>>();
+    for (const r of rows) {
+      const v = Number(r.valor);
+      if (!v) continue;
+      const valKey = v.toFixed(2);
+      const tipoKey = normalizeTipo(r.tipo_valor);
+      if (!m.has(r.month)) m.set(r.month, new Map());
+      const inner = m.get(r.month)!;
+      if (!inner.has(valKey)) inner.set(valKey, []);
+      const list = inner.get(valKey)!;
+      if (!list.includes(tipoKey)) list.push(tipoKey);
+    }
+    return m;
+  }, [rows]);
+
+  // Retorna os outros tipos (rótulos) que têm o mesmo valor no mesmo mês.
+  const getConflictLabels = (month: string, tipoKey: string, valor: number): string[] => {
+    if (!valor) return [];
+    const inner = valueIndex.get(month);
+    if (!inner) return [];
+    const list = inner.get(valor.toFixed(2));
+    if (!list) return [];
+    return list.filter(k => k !== tipoKey).map(k => labelFor(k));
+  };
+
   // (removido auto-add de tipos extras — agora o modelo é a única fonte)
 
   // Apaga TODAS as linhas do mês cujo tipo_valor normalizado bate com tipoKey.
