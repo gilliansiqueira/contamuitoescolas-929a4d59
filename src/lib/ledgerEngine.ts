@@ -134,10 +134,34 @@ export function resolveEntryTipoKey(
   return candidates[0] || entry.tipo;
 }
 
+/**
+ * Origens cuja classificação NUNCA pode ser sobrescrita pelas regras de
+ * `type_classifications`. Esses uploads (Sponte, Cheques, Cartões, Contas a
+ * Pagar) representam dados projetados/operacionais e SEMPRE entram como
+ * receita (entrada) ou despesa (saida) — as regras de "Ignorar" e demais
+ * classificações só se aplicam ao Fluxo de Caixa Realizado e ao Histórico
+ * Financeiro digitado.
+ */
+const ORIGENS_SEMPRE_CLASSIFICADAS = new Set([
+  'sponte',
+  'cheque',
+  'cartao',
+  'contas_pagar',
+]);
+
+function defaultRuleForTipo(tipo: 'entrada' | 'saida'): LedgerRule {
+  return tipo === 'entrada'
+    ? { impactaCaixa: true, entraNoResultado: true, operacaoSinal: 'somar' }
+    : { impactaCaixa: true, entraNoResultado: true, operacaoSinal: 'subtrair' };
+}
+
 export function resolveEntryLedgerRule(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): LedgerRule {
+  if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
+    return defaultRuleForTipo(entry.tipo);
+  }
   return resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
 }
 
@@ -153,10 +177,15 @@ export function getLedgerSaldoImpact(
     return sinal === 'somar' ? entry.valor : -entry.valor;
   }
 
+  if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
+    return entry.tipo === 'entrada' ? entry.valor : -entry.valor;
+  }
+
   const rule = resolveEntryLedgerRule(entry, classifications);
   if (!rule.impactaCaixa) return 0;
   return rule.operacaoSinal === 'somar' ? entry.valor : -entry.valor;
 }
+
 
 /**
  * MOTOR CENTRAL DE PROCESSAMENTO E CONSOLIDAÇÃO FINANCEIRA.
