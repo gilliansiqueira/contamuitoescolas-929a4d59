@@ -861,6 +861,59 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Confirmar duplicata (mesmo valor já existe em outro tipo no mesmo mês) */}
+      <AlertDialog open={!!duplicateConfirm} onOpenChange={o => !o && setDuplicateConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-warning" />
+              Possível duplicata
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Já existe lançamento de <strong>R$ {duplicateConfirm ? formatBR(duplicateConfirm.valor) : ''}</strong>{' '}
+                  em{' '}
+                  <strong>
+                    {duplicateConfirm
+                      ? `${MONTH_LABELS[duplicateConfirm.monthIdx]}/${duplicateConfirm.year}`
+                      : ''}
+                  </strong>{' '}
+                  no(s) tipo(s):
+                </p>
+                <ul className="list-disc list-inside text-foreground">
+                  {duplicateConfirm?.conflictLabels.map(l => (
+                    <li key={l} className="font-medium">{l}</li>
+                  ))}
+                </ul>
+                <p>
+                  Você quer mesmo cadastrar também como{' '}
+                  <strong>{duplicateConfirm ? labelFor(duplicateConfirm.tipoKey) : ''}</strong>?
+                  Isso pode ser duplicata do mesmo lançamento.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl" onClick={() => setDuplicateConfirm(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl"
+              onClick={async () => {
+                if (!duplicateConfirm) return;
+                const { year, monthIdx, tipoKey, valor } = duplicateConfirm;
+                const month = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+                setDuplicateConfirm(null);
+                await persistCellValue(month, tipoKey, valor);
+              }}
+            >
+              Salvar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Reabrir */}
       <AlertDialog open={!!reopenTarget} onOpenChange={o => { if (!o) { setReopenTarget(null); setReopenReason(''); } }}>
         <AlertDialogContent>
