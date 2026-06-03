@@ -24,10 +24,10 @@ export function ProjectedVsReal({ schoolId }: ProjectedVsRealProps) {
 
   const byMonth = useMemo(() => {
     const months = new Set<string>();
-    activeEntries.forEach(e => months.add(e.data.slice(0, 7)));
+    activeEntries.forEach(e => months.add(e.dataProjetada.slice(0, 7)));
 
     return Array.from(months).sort().map(mes => {
-      const monthEntries = activeEntries.filter(e => e.data.startsWith(mes));
+      const monthEntries = activeEntries.filter(e => e.dataProjetada.startsWith(mes));
       const projetado = monthEntries.filter(e => e.tipoRegistro === 'projetado');
       const realizado = monthEntries.filter(e => e.tipoRegistro === 'realizado');
 
