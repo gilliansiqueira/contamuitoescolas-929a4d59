@@ -118,20 +118,27 @@ export function resolveLedgerRule(
  * Garante que entries projetadas (tipoOriginal vazio) sejam classificadas
  * pelo nome da categoria configurada em type_classifications.
  */
-export function resolveEntryLedgerRule(
+export function resolveEntryTipoKey(
   entry: FinancialEntry,
   classifications: TypeClassification[]
-): LedgerRule {
+): string {
   const candidates = [entry.tipoOriginal, entry.categoria, entry.tipo].filter(
     (s): s is string => !!s && s.trim() !== ''
   );
   for (const key of candidates) {
     const norm = normalizeTipo(key);
     const cfg = classifications.find(c => normalizeTipo(c.tipoValor) === norm);
-    if (cfg) return resolveLedgerRule(key, classifications);
-    if (DEFAULT_MAPPINGS[norm]) return resolveLedgerRule(key, classifications);
+    if (cfg) return key;
+    if (DEFAULT_MAPPINGS[norm]) return key;
   }
-  return resolveLedgerRule(candidates[0] || entry.tipo, classifications);
+  return candidates[0] || entry.tipo;
+}
+
+export function resolveEntryLedgerRule(
+  entry: FinancialEntry,
+  classifications: TypeClassification[]
+): LedgerRule {
+  return resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
 }
 
 /**

@@ -12,6 +12,7 @@ import { matchesMonthFilter } from '@/components/MonthSelector';
 import { addDaysAndAdjust } from '@/lib/dateUtils';
 import { calculateTotals, getSaldoImpact, getEffectiveClassification, getCanonicalKey, normalizeTipo } from '@/lib/classificationUtils';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
+import { resolveEntryTipoKey } from '@/lib/ledgerEngine';
 import { applyPaymentDelay } from '@/lib/projectionEngine';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, BarChart, Bar, Legend, LineChart, Line } from 'recharts';
 import { Receivables } from '@/components/Receivables';
@@ -186,7 +187,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           if (!includeEntry(e, 'upload')) continue;
           const cls = getEffectiveClassification(e, classifications);
           if (cls === 'operacao') {
-            const tipoKey = e.tipoOriginal || e.categoria || e.tipo;
+            const tipoKey = resolveEntryTipoKey(e, classifications);
             const agg = ensure(tipoKey);
             agg.valor += e.valor;
           }
@@ -195,7 +196,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
         for (const e of monthEntries) {
           if (!includeEntry(e, src)) continue;
-          const tipoKey = e.tipoOriginal || e.categoria || e.tipo;
+          const tipoKey = resolveEntryTipoKey(e, classifications);
           const agg = ensure(tipoKey);
           agg.valor += e.valor;
         }
