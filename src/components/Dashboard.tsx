@@ -46,28 +46,22 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { isPresentationMode } = usePresentation();
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
-  const baseDate = school?.saldoInicialData;
-  const { data: rawEntries = [] } = useEntriesFromBaseDate(schoolId, baseDate);
+  // SSOT — mesmo conjunto consumido por Dados/Fluxo Diário/Fluxo/Previsto x Realizado.
+  // Já vem com dataProjetada (prazo Sponte) + impacto + gate do modelo aplicado.
+  const { entries: ssotEntries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
   // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
-  // Modelo financeiro ativo: gate estrito de categorias válidas.
+  // Modelo financeiro ativo: gate estrito de categorias válidas (mantido para Histórico).
   const { hasModel, isInModel } = useSchoolModel(schoolId);
   const [showInsights, setShowInsights] = useState(true);
 
-  const allEntries = useMemo(() => applyDelays(rawEntries, delayRules), [rawEntries, delayRules]);
-  // Projeção/Dashboard NÃO aplica filtro de "ignorar". Apenas gate do modelo
-  // financeiro (se houver). Origem 'contas_pagar' sempre passa.
-  const activeEntries = useMemo(() => {
-    if (!hasModel) return allEntries;
-    return allEntries.filter(e => {
-      if (e.origem === 'contas_pagar') return true;
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls === 'operacao') return true;
-      return isInModel(e.tipoOriginal || e.categoria || e.tipo);
-    });
-  }, [allEntries, classifications, hasModel, isInModel]);
+  // Padroniza `data` para a data projetada (paridade total com Fluxo/Fluxo Diário).
+  const activeEntries = useMemo(
+    () => ssotEntries.map(e => ({ ...e, data: e.dataProjetada })),
+    [ssotEntries]
+  );
 
   // ─── Histórico Financeiro (consolidado mensal) — aplica gate do modelo ───
   const { data: historicalRowsRaw = [] } = useQuery({
