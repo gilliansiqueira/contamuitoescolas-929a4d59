@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { DEFAULT_PAYMENT_DELAYS, PaymentDelayRule } from '@/types/financial';
-import { usePaymentDelayRules, useSavePaymentDelayRule, useAddAuditLog } from '@/hooks/useFinancialData';
+import { usePaymentDelayRules, useSavePaymentDelayRule, useAddAuditLog, useEntries } from '@/hooks/useFinancialData';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Clock, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { normalizeTipo } from '@/lib/ledgerEngine';
 
 interface PaymentDelayConfigProps {
   schoolId: string;
@@ -14,20 +15,41 @@ interface PaymentDelayConfigProps {
 
 export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigProps) {
   const { data: savedRules = [], isLoading } = usePaymentDelayRules(schoolId);
+  const { data: entries = [] } = useEntries(schoolId);
   const saveRule = useSavePaymentDelayRule();
   const addAuditLog = useAddAuditLog();
   const [edits, setEdits] = useState<Record<string, number>>({});
 
   const rules = useMemo(() => {
-    return DEFAULT_PAYMENT_DELAYS.map(d => {
-      const saved = savedRules.find(r => r.formaCobranca === d.forma);
-      return {
-        forma: d.forma,
-        prazo: saved?.prazo ?? d.prazo,
+    // Coleta formas de cobrança reais a partir dos uploads Sponte da escola.
+    const sponteFormasMap = new Map<string, string>(); // normalizada → label original
+    for (const e of entries) {
+      if (e.origem !== 'sponte') continue;
+      const forma = (e.categoria || '').trim();
+      if (!forma) continue;
+      const k = normalizeTipo(forma);
+      if (!sponteFormasMap.has(k)) sponteFormasMap.set(k, forma);
+    }
+
+    // Une defaults + formas vindas do Sponte + regras já salvas (sem duplicar).
+    const byKey = new Map<string, { forma: string; prazo: number; id: string }>();
+    const addForma = (forma: string, defaultPrazo: number) => {
+      const k = normalizeTipo(forma);
+      if (byKey.has(k)) return;
+      const saved = savedRules.find(r => normalizeTipo(r.formaCobranca) === k);
+      byKey.set(k, {
+        forma: saved?.formaCobranca || forma,
+        prazo: saved?.prazo ?? defaultPrazo,
         id: saved?.id || crypto.randomUUID(),
-      };
-    });
-  }, [savedRules]);
+      });
+    };
+
+    DEFAULT_PAYMENT_DELAYS.forEach(d => addForma(d.forma, d.prazo));
+    sponteFormasMap.forEach(label => addForma(label, 0));
+    savedRules.forEach(r => addForma(r.formaCobranca, r.prazo));
+
+    return Array.from(byKey.values()).sort((a, b) => a.forma.localeCompare(b.forma, 'pt-BR'));
+  }, [savedRules, entries]);
 
   const handleSave = async (forma: string, id: string) => {
     const prazo = edits[forma] ?? rules.find(r => r.forma === forma)?.prazo ?? 0;
