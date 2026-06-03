@@ -810,11 +810,13 @@ export function HistoricoFinanceiroConfig({ schoolId, onChanged }: Props) {
                           const v = valueMap.get(`${month}|${tipoKey}`) ?? 0;
                           totalRow += v;
                           const isClosed = closedMonths.has(month) && !isAdmin;
+                          const conflicts = v > 0 ? getConflictLabels(month, tipoKey, v) : [];
                           return (
                             <td key={idx} className={`px-0.5 py-0.5 ${closedMonths.has(month) ? 'bg-muted/30' : ''}`}>
                               <CellInput
                                 initial={v}
                                 disabled={isClosed}
+                                conflictLabels={conflicts}
                                 onCommit={raw => handleCellBlur(year, idx, tipoKey, raw)}
                               />
                             </td>
