@@ -186,7 +186,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           if (!includeEntry(e, 'upload')) continue;
           const cls = getEffectiveClassification(e, classifications);
           if (cls === 'operacao') {
-            const tipoKey = e.tipoOriginal || e.tipo;
+            const tipoKey = e.tipoOriginal || e.categoria || e.tipo;
             const agg = ensure(tipoKey);
             agg.valor += e.valor;
           }
