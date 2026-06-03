@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useTypeClassifications } from '@/hooks/useFinancialData';
 import { getEffectiveClassification } from '@/lib/classificationUtils';
+import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
@@ -60,14 +61,19 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       });
     }
 
-    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number }> = {};
+    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacaoLiquida: number }> = {};
     adjustedEntries.forEach(e => {
       const data = e.dataProjetada;
       if (!allDays.includes(data)) return;
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 };
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacaoLiquida: 0 };
       const impact = e.impacto;
       if (impact === 0) return;
       const isRealizado = e.tipoRegistro === 'realizado';
+      // Operação (entraNoResultado=false) impacta caixa mas NÃO entra em receita/despesa
+      if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
+        byDate[data].operacaoLiquida += impact;
+        return;
+      }
       if (impact > 0) {
         if (isRealizado) byDate[data].entradaRealizada += impact;
         else byDate[data].entradaPrevista += impact;
@@ -76,6 +82,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         else byDate[data].saidaPrevista += Math.abs(impact);
       }
     });
+
 
     let saldo = priorSaldo;
     return allDays.map(data => {
