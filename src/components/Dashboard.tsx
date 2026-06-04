@@ -194,8 +194,29 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         }
       } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
+        const ORIGENS_NATIVAS = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
         for (const e of monthEntries) {
           if (!includeEntry(e, src)) continue;
+          // Origens de upload nativo: classificação fixa pelo tipo (entrada=receita, saida=despesa),
+          // ignorando qualquer regra de categoria/ignorar.
+          if (ORIGENS_NATIVAS.has(e.origem)) {
+            const isEntrada = e.tipo === 'entrada';
+            const labelBase = e.categoria || e.tipoOriginal || e.tipo;
+            const k = getCanonicalKey(isEntrada ? `__receita_${e.origem}_${labelBase}` : `__despesa_${e.origem}_${labelBase}`);
+            if (!map[k]) {
+              map[k] = {
+                key: k,
+                label: labelBase,
+                valor: 0,
+                isEntrada,
+                entraNoResultado: true,
+                impactaCaixa: true,
+                classificacao: isEntrada ? 'receita' : 'despesa',
+              };
+            }
+            map[k].valor += e.valor;
+            continue;
+          }
           const tipoKey = resolveEntryTipoKey(e, classifications);
           const agg = ensure(tipoKey);
           agg.valor += e.valor;
