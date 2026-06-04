@@ -195,18 +195,23 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
         const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
         const ORIGENS_NATIVAS = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
+        const ORIGEM_LABEL: Record<string, string> = {
+          sponte: 'Receita (Sponte)',
+          cheque: 'Receita (Cheques)',
+          cartao: 'Receita (Cartões)',
+          contas_pagar: 'Despesa (Contas a Pagar)',
+        };
         for (const e of monthEntries) {
           if (!includeEntry(e, src)) continue;
           // Origens de upload nativo: classificação fixa pelo tipo (entrada=receita, saida=despesa),
-          // ignorando qualquer regra de categoria/ignorar.
+          // agrupadas em um único bucket por (origem, tipo) — ignora regras de categoria/ignorar.
           if (ORIGENS_NATIVAS.has(e.origem)) {
             const isEntrada = e.tipo === 'entrada';
-            const labelBase = e.categoria || e.tipoOriginal || e.tipo;
-            const k = getCanonicalKey(isEntrada ? `__receita_${e.origem}_${labelBase}` : `__despesa_${e.origem}_${labelBase}`);
+            const k = `__${e.origem}_${e.tipo}`;
             if (!map[k]) {
               map[k] = {
                 key: k,
-                label: labelBase,
+                label: ORIGEM_LABEL[e.origem] ?? e.origem,
                 valor: 0,
                 isEntrada,
                 entraNoResultado: true,
