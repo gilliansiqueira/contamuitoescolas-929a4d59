@@ -68,7 +68,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacaoLiquida: 0 };
       const impact = e.impacto;
       if (impact === 0) return;
-      const isRealizado = e.tipoRegistro === 'realizado';
+      // REALIZADO = somente upload de Fluxo de Caixa (origem='fluxo'), mesma
+      // fonte do Dashboard Realizado, exibida dia a dia.
+      // PREVISTO = qualquer outra origem (Sponte, Cheque, Cartão, Contas a Pagar, manual...).
+      const isRealizado = e.origem === 'fluxo';
       // Operação (entraNoResultado=false) impacta caixa mas NÃO entra em receita/despesa
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
         byDate[data].operacaoLiquida += impact;
