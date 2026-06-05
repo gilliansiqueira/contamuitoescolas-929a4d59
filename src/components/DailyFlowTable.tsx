@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
-import { useTypeClassifications } from '@/hooks/useFinancialData';
-import { getEffectiveClassification } from '@/lib/classificationUtils';
+import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
+import { getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
@@ -28,27 +28,35 @@ interface DayRow {
 }
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
-  // SSOT — entries vêm com dataProjetada (prazo aplicado) e impacto.
-  // Regra do produto:
-  //  - Tudo que impacta caixa entra no Fluxo Diário (Receitas, Despesas, Operações).
-  //  - Itens "Ignorar" têm impacto = 0 (rule.impactaCaixa=false) e são
-  //    naturalmente excluídos.
-  const { entries: rawEntries, saldoInicial } = useProjectedEntries(schoolId);
+  // Previsto segue a projeção (Sponte, Cheques, Cartões, Contas a Pagar etc.).
+  // Realizado NÃO usa projeção: vem diretamente do upload Fluxo de Caixa,
+  // com a data original do acontecido no dia a dia — mesma fonte do Dashboard Realizado.
+  const { entries: projectedEntries, saldoInicial } = useProjectedEntries(schoolId);
+  const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
-  const adjustedEntries = useMemo(
-    () => rawEntries.filter(e => e.impacto !== 0),
-    [rawEntries]
+  const adjustedProjectedEntries = useMemo(
+    () => projectedEntries.filter(e => e.origem !== 'fluxo' && e.impacto !== 0),
+    [projectedEntries]
+  );
+
+  const realizedEntries = useMemo(
+    () => rawEntries
+      .filter(e => e.origem === 'fluxo')
+      .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }))
+      .filter(e => e.impacto !== 0),
+    [rawEntries, classifications]
   );
 
   const months = useMemo(() => {
     if (selectedMonth === 'all') {
       const set = new Set<string>();
-      adjustedEntries.forEach(e => set.add(e.dataProjetada.slice(0, 7)));
+      adjustedProjectedEntries.forEach(e => set.add(e.dataProjetada.slice(0, 7)));
+      realizedEntries.forEach(e => set.add(e.data.slice(0, 7)));
       return Array.from(set).sort();
     }
     return selectedMonth.split(',').filter(Boolean).sort();
-  }, [selectedMonth, adjustedEntries]);
+  }, [selectedMonth, adjustedProjectedEntries, realizedEntries]);
 
   const allDays = useMemo(() => getAllDaysInMonths(months), [months]);
 
@@ -56,33 +64,44 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     const firstDay = allDays[0];
     let priorSaldo = saldoInicial;
     if (firstDay) {
-      adjustedEntries.filter(e => e.dataProjetada < firstDay).forEach(e => {
+      [...adjustedProjectedEntries, ...realizedEntries].filter(e => e.dataProjetada < firstDay).forEach(e => {
         priorSaldo += e.impacto;
       });
     }
 
     const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacaoLiquida: number }> = {};
-    adjustedEntries.forEach(e => {
+    adjustedProjectedEntries.forEach(e => {
       const data = e.dataProjetada;
       if (!allDays.includes(data)) return;
       if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacaoLiquida: 0 };
       const impact = e.impacto;
       if (impact === 0) return;
-      // REALIZADO = somente upload de Fluxo de Caixa (origem='fluxo'), mesma
-      // fonte do Dashboard Realizado, exibida dia a dia.
-      // PREVISTO = qualquer outra origem (Sponte, Cheque, Cartão, Contas a Pagar, manual...).
-      const isRealizado = e.origem === 'fluxo';
       // Operação (entraNoResultado=false) impacta caixa mas NÃO entra em receita/despesa
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
         byDate[data].operacaoLiquida += impact;
         return;
       }
       if (impact > 0) {
-        if (isRealizado) byDate[data].entradaRealizada += impact;
-        else byDate[data].entradaPrevista += impact;
+        byDate[data].entradaPrevista += impact;
       } else {
-        if (isRealizado) byDate[data].saidaRealizada += Math.abs(impact);
-        else byDate[data].saidaPrevista += Math.abs(impact);
+        byDate[data].saidaPrevista += Math.abs(impact);
+      }
+    });
+
+    realizedEntries.forEach(e => {
+      const data = e.data;
+      if (!allDays.includes(data)) return;
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacaoLiquida: 0 };
+      const impact = e.impacto;
+      if (impact === 0) return;
+      if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
+        byDate[data].operacaoLiquida += impact;
+        return;
+      }
+      if (impact > 0) {
+        byDate[data].entradaRealizada += impact;
+      } else {
+        byDate[data].saidaRealizada += Math.abs(impact);
       }
     });
 
@@ -99,7 +118,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         dayOfWeek: getDayOfWeek(data),
       } as DayRow;
     });
-  }, [allDays, adjustedEntries, saldoInicial]);
+  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicial, classifications]);
 
   const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicial;
 
