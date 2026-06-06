@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
+import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
@@ -32,7 +33,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   // Previsto segue a projeção (Sponte, Cheques, Cartões, Contas a Pagar etc.).
   // Realizado NÃO usa projeção: vem diretamente do upload Fluxo de Caixa,
   // com a data original do acontecido no dia a dia — mesma fonte do Dashboard Realizado.
-  const { entries: projectedEntries, saldoInicial } = useProjectedEntries(schoolId);
+  const { entries: projectedEntries } = useProjectedEntries(schoolId);
   const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
@@ -61,14 +62,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   const allDays = useMemo(() => getAllDaysInMonths(months), [months]);
 
+  // Saldo Inicial do período — mesma SSOT do Dashboard.
+  const saldoInicialPeriodo = useSaldoInicialPeriodo(schoolId, months);
+
   const dailyData = useMemo(() => {
-    const firstDay = allDays[0];
-    let priorSaldo = saldoInicial;
-    if (firstDay) {
-      [...adjustedProjectedEntries, ...realizedEntries].filter(e => e.dataProjetada < firstDay).forEach(e => {
-        priorSaldo += e.impacto;
-      });
-    }
+    const priorSaldo = saldoInicialPeriodo;
 
     const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoes: number }> = {};
     adjustedProjectedEntries.forEach(e => {
@@ -119,9 +117,9 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         dayOfWeek: getDayOfWeek(data),
       } as DayRow;
     });
-  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicial, classifications]);
+  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications]);
 
-  const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicial;
+  const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicialPeriodo;
 
   const totals = useMemo(() => dailyData.reduce((acc, d) => ({
     entradaPrevista: acc.entradaPrevista + d.entradaPrevista,
@@ -141,14 +139,25 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="glass-card rounded-xl p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Table2 className="w-5 h-5 text-primary" />
-          <span className="text-sm font-medium text-foreground">Saldo Final do Período</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Table2 className="w-5 h-5 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Saldo Inicial do Período</span>
+          </div>
+          <span className={`text-lg font-display font-bold ${saldoInicialPeriodo >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+            {formatCurrency(saldoInicialPeriodo)}
+          </span>
         </div>
-        <span className={`text-lg font-display font-bold ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>
-          {formatCurrency(saldoFinalPeriodo)}
-        </span>
+        <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Table2 className="w-5 h-5 text-primary" />
+            <span className="text-sm font-medium text-foreground">Saldo Final do Período</span>
+          </div>
+          <span className={`text-lg font-display font-bold ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>
+            {formatCurrency(saldoFinalPeriodo)}
+          </span>
+        </div>
       </div>
 
       <div className="glass-card rounded-xl overflow-hidden">

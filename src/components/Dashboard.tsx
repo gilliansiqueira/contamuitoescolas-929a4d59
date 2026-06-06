@@ -5,6 +5,7 @@ import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
+import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -254,57 +255,15 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return { receitas, despesas, resultado: receitas - despesas, operacoesIn, operacoesOut };
   }, [tipoAggregations]);
 
-  // ─── Saldo inicial: acumula tudo antes do primeiro mês selecionado ───
-  // Quando há snapshot do mês anterior, usa diretamente saldo_final do snapshot
-  // (mais barato e garante consistência com o que foi congelado).
+  // ─── Saldo inicial: SSOT em useSaldoInicialPeriodo ───
+  const saldoInicialFromHook = useSaldoInicialPeriodo(
+    schoolId,
+    selectedMonth === 'all' ? [] : selectedMonths
+  );
   const saldoInicialCalculado = useMemo(() => {
     if (selectedMonth === 'all' || selectedMonths.length === 0) return saldoInicial;
-    const firstMonth = selectedMonths[0];
-    const monthStart = `${firstMonth}-01`;
-
-    // Otimização: se o mês imediatamente anterior tem snapshot, usa saldo_final dele.
-    const [y, m] = firstMonth.split('-').map(Number);
-    const prevDate = new Date(y, m - 2, 1);
-    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-    if (snapshotMap.has(prevMonth)) {
-      return snapshotMap.get(prevMonth)!.saldo_final;
-    }
-
-    let saldo = saldoInicial;
-    const histMonths = new Set(historicalRows.map(r => r.month));
-    // Snapshots: substituem cálculo dos meses anteriores cobertos
-    const snapMonthsBefore = Array.from(snapshotMap.keys()).filter(mo => mo < firstMonth);
-    const snapMonthsSet = new Set(snapMonthsBefore);
-    for (const sm of snapMonthsBefore) {
-      saldo += snapshotMap.get(sm)!.saldo_movimento;
-    }
-    // Lançamentos anteriores (apenas meses sem histórico e sem snapshot)
-    for (const e of activeEntries) {
-      if (e.data >= monthStart) continue;
-      const m = e.data.slice(0, 7);
-      if (snapMonthsSet.has(m)) continue;
-      // Histórico Financeiro é a fonte de verdade — ignora qualquer entry (inclusive fluxo) do mês,
-      // EXCETO as operações (pois elas nunca são consolidadas em historical_monthly!).
-      if (histMonths.has(m)) {
-        const cls = getEffectiveClassification(e, classifications);
-        if (cls === 'operacao') {
-          saldo += getSaldoImpact(e, classifications);
-        }
-        continue;
-      }
-      saldo += getSaldoImpact(e, classifications);
-    }
-    // Histórico anterior (apenas meses sem snapshot)
-    for (const r of historicalRows) {
-      if (r.month >= firstMonth) continue;
-      if (snapMonthsSet.has(r.month)) continue;
-      const meta = resolveTipoMeta(r.tipo_valor, classifications);
-      if (!meta.impactaCaixa) continue;
-      const v = Number(r.valor) || 0;
-      saldo += meta.isEntrada ? v : -v;
-    }
-    return saldo;
-  }, [activeEntries, classifications, saldoInicial, selectedMonth, selectedMonths, historicalRows, snapshotMap]);
+    return saldoInicialFromHook;
+  }, [selectedMonth, selectedMonths, saldoInicial, saldoInicialFromHook]);
 
   const saldoFinal = useMemo(() => {
     let saldo = saldoInicialCalculado;
