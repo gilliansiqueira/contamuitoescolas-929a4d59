@@ -33,7 +33,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   // Previsto segue a projeção (Sponte, Cheques, Cartões, Contas a Pagar etc.).
   // Realizado NÃO usa projeção: vem diretamente do upload Fluxo de Caixa,
   // com a data original do acontecido no dia a dia — mesma fonte do Dashboard Realizado.
-  const { entries: projectedEntries, saldoInicial } = useProjectedEntries(schoolId);
+  const { entries: projectedEntries } = useProjectedEntries(schoolId);
   const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
