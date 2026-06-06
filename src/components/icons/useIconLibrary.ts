@@ -53,14 +53,25 @@ export function useUploadLibraryIcon() {
       const { error: upErr } = await supabase.storage.from('kpi-icons').upload(path, file, { upsert: false });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from('kpi-icons').getPublicUrl(path);
-      const { error: insErr } = await supabase.from('icons_library').insert({
-        name: name.trim() || file.name,
-        file_url: pub.publicUrl,
-        folder_id,
-      });
+      const { data, error: insErr } = await supabase
+        .from('icons_library')
+        .insert({
+          name: name.trim() || file.name,
+          file_url: pub.publicUrl,
+          folder_id,
+        })
+        .select('*')
+        .single();
       if (insErr) throw insErr;
+      return data as LibraryIcon;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['icons_library'] }),
+    onSuccess: (icon) => {
+      qc.setQueryData<LibraryIcon[]>(['icons_library'], (current = []) => {
+        if (current.some(i => i.id === icon.id)) return current;
+        return [...current, icon].sort((a, b) => a.name.localeCompare(b.name));
+      });
+      qc.invalidateQueries({ queryKey: ['icons_library'] });
+    },
   });
 }
 
