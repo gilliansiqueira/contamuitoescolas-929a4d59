@@ -77,21 +77,65 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
   // Ensures kpi_definitions.icon_id keeps its FK to kpi_icons valid.
   const resolveIconId = useCallback(async (url: string | null): Promise<string | null> => {
     if (!url) return null;
-    const lib = libIcons.find(i => i.file_url === url);
-    if (!lib) return null;
-    // ensure mirror in kpi_icons
-    const { data: legacy } = await supabase.from('kpi_icons').select('id').eq('id', lib.id).maybeSingle();
-    if (!legacy) {
-      await supabase.from('kpi_icons').insert({
-        id: lib.id,
-        name: lib.name,
-        file_url: lib.file_url,
-        is_global: true,
-        school_id: null,
-      } as any);
+
+    // 1) Try to find an existing kpi_icons row that already points to this URL.
+    const { data: existing } = await supabase
+      .from('kpi_icons')
+      .select('id')
+      .eq('file_url', url)
+      .limit(1)
+      .maybeSingle();
+    if (existing?.id) return existing.id;
+
+    // 2) Otherwise, locate the library entry (fetch fresh in case libIcons isn't loaded yet).
+    let lib = libIcons.find(i => i.file_url === url);
+    if (!lib) {
+      const { data } = await supabase
+        .from('icons_library')
+        .select('id,name,file_url')
+        .eq('file_url', url)
+        .limit(1)
+        .maybeSingle();
+      if (data) lib = data as any;
     }
-    return lib.id;
-  }, [libIcons]);
+    if (!lib) return null;
+
+    // 3) Mirror into kpi_icons. Try global first (admin); fall back to school-scoped.
+    const tryInsert = async (payload: any) => {
+      const { data, error } = await supabase
+        .from('kpi_icons')
+        .insert(payload)
+        .select('id')
+        .maybeSingle();
+      return { id: data?.id as string | undefined, error };
+    };
+
+    const globalAttempt = await tryInsert({
+      id: lib.id,
+      name: lib.name,
+      file_url: lib.file_url,
+      is_global: true,
+      school_id: null,
+    });
+    if (globalAttempt.id) return globalAttempt.id;
+
+    const scopedAttempt = await tryInsert({
+      name: lib.name,
+      file_url: lib.file_url,
+      is_global: false,
+      school_id: schoolId,
+    });
+    if (scopedAttempt.id) return scopedAttempt.id;
+
+    // Final fallback: re-check by URL (race with another insert).
+    const { data: again } = await supabase
+      .from('kpi_icons')
+      .select('id')
+      .eq('file_url', url)
+      .limit(1)
+      .maybeSingle();
+    return again?.id ?? null;
+  }, [libIcons, schoolId]);
 
   const startEdit = (def: KpiDefinitionWithThresholds) => {
     setEditing(def.id);
