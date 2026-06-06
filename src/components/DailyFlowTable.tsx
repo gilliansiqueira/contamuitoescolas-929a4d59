@@ -22,6 +22,7 @@ interface DayRow {
   entradaRealizada: number;
   saidaPrevista: number;
   saidaRealizada: number;
+  operacoes: number;
   saldoFinal: number;
   isWeekend: boolean;
   dayOfWeek: string;
