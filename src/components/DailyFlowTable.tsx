@@ -117,9 +117,9 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         dayOfWeek: getDayOfWeek(data),
       } as DayRow;
     });
-  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicial, classifications]);
+  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications]);
 
-  const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicial;
+  const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicialPeriodo;
 
   const totals = useMemo(() => dailyData.reduce((acc, d) => ({
     entradaPrevista: acc.entradaPrevista + d.entradaPrevista,
