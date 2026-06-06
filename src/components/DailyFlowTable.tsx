@@ -166,6 +166,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <th className="px-3 py-2.5 text-right font-medium text-primary">Entrada Realizada</th>
                 <th className="px-3 py-2.5 text-right font-medium text-orange-500">Saída Prevista</th>
                 <th className="px-3 py-2.5 text-right font-medium text-destructive">Saída Realizada</th>
+                <th className="px-3 py-2.5 text-right font-medium text-purple-600">Operações</th>
                 <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">Saldo Final</th>
               </tr>
             </thead>
