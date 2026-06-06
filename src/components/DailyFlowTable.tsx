@@ -22,6 +22,7 @@ interface DayRow {
   entradaRealizada: number;
   saidaPrevista: number;
   saidaRealizada: number;
+  operacoes: number;
   saldoFinal: number;
   isWeekend: boolean;
   dayOfWeek: string;
@@ -69,16 +70,16 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       });
     }
 
-    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacaoLiquida: number }> = {};
+    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoes: number }> = {};
     adjustedProjectedEntries.forEach(e => {
       const data = e.dataProjetada;
       if (!allDays.includes(data)) return;
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacaoLiquida: 0 };
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
       const impact = e.impacto;
       if (impact === 0) return;
-      // Operação (entraNoResultado=false) impacta caixa mas NÃO entra em receita/despesa
+      // Operação (entraNoResultado=false) impacta caixa mas vai para coluna Operações
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
-        byDate[data].operacaoLiquida += impact;
+        byDate[data].operacoes += impact;
         return;
       }
       if (impact > 0) {
@@ -91,11 +92,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     realizedEntries.forEach(e => {
       const data = e.data;
       if (!allDays.includes(data)) return;
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacaoLiquida: 0 };
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
       const impact = e.impacto;
       if (impact === 0) return;
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
-        byDate[data].operacaoLiquida += impact;
+        byDate[data].operacoes += impact;
         return;
       }
       if (impact > 0) {
@@ -108,8 +109,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
     let saldo = priorSaldo;
     return allDays.map(data => {
-      const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 };
-      saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada);
+      const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
+      saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + d.operacoes;
       return {
         data,
         ...d,
@@ -127,7 +128,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     entradaRealizada: acc.entradaRealizada + d.entradaRealizada,
     saidaPrevista: acc.saidaPrevista + d.saidaPrevista,
     saidaRealizada: acc.saidaRealizada + d.saidaRealizada,
-  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 }), [dailyData]);
+    operacoes: acc.operacoes + d.operacoes,
+  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 }), [dailyData]);
 
   if (allDays.length === 0) {
     return (
@@ -164,12 +166,13 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <th className="px-3 py-2.5 text-right font-medium text-primary">Entrada Realizada</th>
                 <th className="px-3 py-2.5 text-right font-medium text-orange-500">Saída Prevista</th>
                 <th className="px-3 py-2.5 text-right font-medium text-destructive">Saída Realizada</th>
+                <th className="px-3 py-2.5 text-right font-medium text-purple-600">Operações</th>
                 <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">Saldo Final</th>
               </tr>
             </thead>
             <tbody>
               {dailyData.map(day => {
-                const hasMovement = day.entradaPrevista > 0 || day.entradaRealizada > 0 || day.saidaPrevista > 0 || day.saidaRealizada > 0;
+                const hasMovement = day.entradaPrevista > 0 || day.entradaRealizada > 0 || day.saidaPrevista > 0 || day.saidaRealizada > 0 || day.operacoes !== 0;
                 return (
                   <tr
                     key={day.data}
@@ -195,6 +198,9 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                     <td className="px-3 py-2 text-right text-destructive">
                       {day.saidaRealizada > 0 ? formatCurrency(day.saidaRealizada) : '-'}
                     </td>
+                    <td className={`px-3 py-2 text-right ${day.operacoes >= 0 ? 'text-purple-600' : 'text-purple-700'}`}>
+                      {day.operacoes !== 0 ? formatCurrency(day.operacoes) : '-'}
+                    </td>
                     <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinal >= 0 ? 'text-primary' : 'text-destructive'}`}>
                       {formatCurrency(day.saldoFinal)}
                     </td>
@@ -209,6 +215,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className="px-3 py-2.5 text-right text-primary">{formatCurrency(totals.entradaRealizada)}</td>
                 <td className="px-3 py-2.5 text-right text-orange-500">{formatCurrency(totals.saidaPrevista)}</td>
                 <td className="px-3 py-2.5 text-right text-destructive">{formatCurrency(totals.saidaRealizada)}</td>
+                <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}</td>
                 <td className={`px-3 py-2.5 text-right ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoFinalPeriodo)}</td>
               </tr>
             </tfoot>
