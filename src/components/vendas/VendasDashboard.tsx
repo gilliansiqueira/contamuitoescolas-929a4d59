@@ -21,14 +21,24 @@ export function VendasDashboard({ schoolId }: Props) {
   const [showConfig, setShowConfig] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const now = new Date();
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
+  // Multi-month value: comma-separated 'YYYY-MM,YYYY-MM,...'.
+  const [pickerValue, setPickerValue] = useState<string>(
+    `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`
+  );
   const [hasManuallySelected, setHasManuallySelected] = useState(false);
 
-  const pushShared = useMonthSync(`${selectedYear}-${selectedMonth}`, (m) => {
-    const [y, mo] = m.split('-');
-    setSelectedYear(y); setSelectedMonth(mo); setHasManuallySelected(true);
-  });
+  const selectedList = useMemo(
+    () => pickerValue.split(',').map(s => s.trim()).filter(Boolean).sort(),
+    [pickerValue]
+  );
+  const latestMonth = selectedList[selectedList.length - 1] || `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  const [selectedYear, selectedMonth] = latestMonth.split('-');
+
+  // Sincronia com outras abas apenas em modo mês único.
+  const pushShared = useMonthSync(
+    selectedList.length === 1 ? selectedList[0] : null,
+    (m) => { setPickerValue(m); setHasManuallySelected(true); }
+  );
 
   const { data: salesData = [] } = useQuery({
     queryKey: ['sales_data', schoolId],
@@ -46,20 +56,14 @@ export function VendasDashboard({ schoolId }: Props) {
 
   useEffect(() => {
     if (salesData.length > 0 && !hasManuallySelected) {
-      // Filtrar linhas que contém preenchimentos acima de zero
       const activeRows = salesData.filter(s => s.value > 0);
       if (activeRows.length > 0) {
-        // Ordena para pegar a data mais recente
-        const sorted = activeRows.sort((a, b) => b.month.localeCompare(a.month));
+        const sorted = [...activeRows].sort((a, b) => b.month.localeCompare(a.month));
         const latest = sorted[0].month;
-        const [y, m] = latest.split('-');
-        if (y !== selectedYear || m !== selectedMonth) {
-          setSelectedYear(y);
-          setSelectedMonth(m);
-        }
+        if (latest !== pickerValue) setPickerValue(latest);
       }
     }
-  }, [salesData, hasManuallySelected, selectedYear, selectedMonth]);
+  }, [salesData, hasManuallySelected, pickerValue]);
 
   if (showConfig) {
     return <VendasConfig schoolId={schoolId} onBack={() => setShowConfig(false)} />;
@@ -76,17 +80,12 @@ export function VendasDashboard({ schoolId }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <SingleMonthPicker
             multi
-            value={`${selectedYear}-${selectedMonth}`}
+            value={pickerValue}
             onChange={(m) => {
-              if (!m) return;
-              // Use the LATEST selected month as the active one
-              const list = m.split(',').map(s => s.trim()).filter(Boolean).sort();
-              const latest = list[list.length - 1] || m;
-              const [y, mo] = latest.split('-');
               setHasManuallySelected(true);
-              setSelectedYear(y);
-              setSelectedMonth(mo);
-              if (list.length === 1) pushShared(`${y}-${mo}`);
+              setPickerValue(m);
+              const list = m.split(',').map(s => s.trim()).filter(Boolean);
+              if (list.length === 1) pushShared(list[0]);
             }}
             availableMonths={salesData.map(s => s.month)}
           />
@@ -103,7 +102,11 @@ export function VendasDashboard({ schoolId }: Props) {
         </div>
       </div>
 
-      <VendasCharts data={salesData} selectedMonthStr={`${selectedYear}-${selectedMonth}`} selectedYearStr={selectedYear} />
+      <VendasCharts
+        data={salesData}
+        selectedMonths={selectedList.length > 0 ? selectedList : [latestMonth]}
+        selectedYearStr={selectedYear}
+      />
       
       <div className="pt-4 border-t border-border">
         <VendasTable schoolId={schoolId} defaultYear={selectedYear} availableYears={availableYears} />
