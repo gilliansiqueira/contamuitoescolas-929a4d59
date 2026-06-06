@@ -80,6 +80,7 @@ export function IconLibraryManager() {
         folder_id: uploadFolderId === 'none' ? null : uploadFolderId,
       });
       setPendingIcons(prev => prev.some(icon => icon.id === uploadedIcon.id) ? prev : [...prev, uploadedIcon]);
+      setActiveFolder(uploadFolderId === 'none' ? 'none' : uploadFolderId);
       toast.success('Ícone adicionado à biblioteca!');
       setName('');
       if (fileRef.current) fileRef.current.value = '';
