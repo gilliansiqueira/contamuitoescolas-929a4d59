@@ -117,7 +117,11 @@ export function VendasCharts({ data, selectedMonths, selectedYearStr }: Props) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const monthLabel = MONTHS_LABELS[parseInt(selectedMonthStr.split('-')[1], 10) - 1];
+  const monthLabel = selectedMonths.length === 0
+    ? ''
+    : selectedMonths.length === 1
+      ? formatMonthShort(selectedMonths[0])
+      : `${formatMonthShort(selectedMonths[0])} – ${formatMonthShort(selectedMonths[selectedMonths.length - 1])} (${selectedMonths.length} meses)`;
 
   if (monthTotal === 0 && annualTrend.every(m => m.Total === 0)) {
     return (
