@@ -470,6 +470,8 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
 
   const [editing, setEditing] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
+  const [editingItemsOf, setEditingItemsOf] = useState<Template | null>(null);
+
 
   const applyTemplate = async (tpl: Template) => {
     try {
