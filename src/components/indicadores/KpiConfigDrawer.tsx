@@ -470,6 +470,8 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
 
   const [editing, setEditing] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
+  const [editingItemsOf, setEditingItemsOf] = useState<Template | null>(null);
+
 
   const applyTemplate = async (tpl: Template) => {
     try {
@@ -616,6 +618,24 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
     }
   };
 
+  // Keep editingItemsOf in sync with refreshed templates
+  useEffect(() => {
+    if (editingItemsOf) {
+      const fresh = templates.find(t => t.id === editingItemsOf.id);
+      if (fresh && fresh !== editingItemsOf) setEditingItemsOf(fresh);
+    }
+  }, [templates, editingItemsOf]);
+
+  if (editingItemsOf) {
+    return (
+      <TemplateItemsEditor
+        template={editingItemsOf}
+        onBack={() => setEditingItemsOf(null)}
+        onChanged={() => qc.invalidateQueries({ queryKey: ['kpi_templates'] })}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4 p-1">
       <div className="flex gap-2">
@@ -637,6 +657,9 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium cursor-pointer" onClick={() => { setEditing(tpl.id); setFormName(tpl.name); }}>{tpl.name}</p>
               <div className="flex gap-1">
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingItemsOf(tpl)}>
+                  Editar itens
+                </Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7" title="Aplicar à empresa" onClick={() => applyTemplate(tpl)}>
                   <FileDown className="w-3.5 h-3.5" />
                 </Button>
@@ -661,3 +684,192 @@ function ModelosTab({ schoolId, mutations, definitions, icons }: {
     </div>
   );
 }
+
+/* ─── Template Items Editor ─── */
+function TemplateItemsEditor({ template, onBack, onChanged }: {
+  template: Template;
+  onBack: () => void;
+  onChanged: () => void;
+}) {
+  const [editingItem, setEditingItem] = useState<TemplateItem | null>(null);
+  const [form, setForm] = useState<any>({});
+  const [thresholds, setThresholds] = useState<any[]>([]);
+
+  const startEdit = (item: TemplateItem | null) => {
+    if (item) {
+      setEditingItem(item);
+      setForm({
+        name: item.name,
+        icon_url: item.icon_url || '',
+        value_type: item.value_type,
+        direction: item.direction,
+      });
+      setThresholds(
+        (item.thresholds || []).map((t: any) => ({
+          min_value: t.min_value ?? '',
+          max_value: t.max_value ?? '',
+          color: t.color,
+          label: t.label,
+        }))
+      );
+    } else {
+      setEditingItem({ id: 'new' } as any);
+      setForm({ name: '', icon_url: '', value_type: 'percent', direction: 'higher_is_better' });
+      setThresholds([]);
+    }
+  };
+
+  const saveItem = async () => {
+    if (!form.name) { toast.error('Nome é obrigatório'); return; }
+    const payload: any = {
+      template_id: template.id,
+      name: form.name,
+      icon_url: form.icon_url || null,
+      value_type: form.value_type,
+      direction: form.direction,
+      sort_order: editingItem?.id === 'new' ? template.items.length : editingItem!.sort_order,
+      thresholds: thresholds.map((t, i) => ({
+        min_value: t.min_value === '' ? null : Number(t.min_value),
+        max_value: t.max_value === '' ? null : Number(t.max_value),
+        color: t.color,
+        label: t.label,
+        sort_order: i,
+      })),
+    };
+    try {
+      if (editingItem?.id === 'new') {
+        const { error } = await supabase.from('kpi_template_items').insert(payload as any);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('kpi_template_items').update(payload as any).eq('id', editingItem!.id);
+        if (error) throw error;
+      }
+      toast.success('Item salvo!');
+      setEditingItem(null);
+      onChanged();
+    } catch {
+      toast.error('Erro ao salvar item');
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    if (!confirm('Excluir este indicador do modelo?')) return;
+    const { error } = await supabase.from('kpi_template_items').delete().eq('id', id);
+    if (error) { toast.error('Erro ao excluir'); return; }
+    toast.success('Item excluído');
+    onChanged();
+  };
+
+  if (editingItem) {
+    return (
+      <div className="space-y-4 p-1">
+        <Button size="sm" variant="ghost" onClick={() => setEditingItem(null)}>← Voltar</Button>
+        <div>
+          <Label>Nome do Indicador</Label>
+          <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+        </div>
+        <div>
+          <Label>Ícone</Label>
+          <div className="flex items-center gap-2 mt-1">
+            <IconLibraryPicker
+              value={form.icon_url || null}
+              onChange={(url) => setForm({ ...form, icon_url: url })}
+              size="md"
+            />
+            <span className="text-xs text-muted-foreground">Escolha da biblioteca global</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Tipo de valor</Label>
+            <Select value={form.value_type} onValueChange={v => setForm({ ...form, value_type: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percent">Percentual (%)</SelectItem>
+                <SelectItem value="currency">Moeda (R$)</SelectItem>
+                <SelectItem value="number">Número</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Direção</Label>
+            <Select value={form.direction} onValueChange={v => setForm({ ...form, direction: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="higher_is_better">Maior = melhor</SelectItem>
+                <SelectItem value="lower_is_better">Menor = melhor</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label>Faixas de desempenho</Label>
+            <Button size="sm" variant="ghost" onClick={() => setThresholds([...thresholds, { min_value: '', max_value: '', color: '#22c55e', label: '' }])}>
+              <Plus className="w-3 h-3 mr-1" /> Faixa
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {thresholds.map((t, i) => (
+              <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                <Input placeholder="Mín" type="number" value={t.min_value}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, min_value: e.target.value }; setThresholds(n); }}
+                  className="w-16 h-7 text-xs" />
+                <span className="text-xs text-muted-foreground">a</span>
+                <Input placeholder="Máx" type="number" value={t.max_value}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, max_value: e.target.value }; setThresholds(n); }}
+                  className="w-16 h-7 text-xs" />
+                <input type="color" value={t.color?.startsWith('hsl') ? '#22c55e' : (t.color || '#22c55e')}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, color: e.target.value }; setThresholds(n); }}
+                  className="w-7 h-7 rounded border-0 cursor-pointer" />
+                <Input placeholder="Rótulo" value={t.label}
+                  onChange={e => { const n = [...thresholds]; n[i] = { ...t, label: e.target.value }; setThresholds(n); }}
+                  className="flex-1 h-7 text-xs" />
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setThresholds(thresholds.filter((_, j) => j !== i))}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <Button size="sm" onClick={saveItem}>
+            <Save className="w-3.5 h-3.5 mr-1" /> Salvar
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setEditingItem(null)}>Cancelar</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 p-1">
+      <div className="flex items-center justify-between">
+        <Button size="sm" variant="ghost" onClick={onBack}>← Voltar aos modelos</Button>
+        <Button size="sm" onClick={() => startEdit(null)}><Plus className="w-3.5 h-3.5 mr-1" /> Novo item</Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Editando itens do modelo: <strong>{template.name}</strong></p>
+      {template.items.map(item => (
+        <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
+          {item.icon_url && <img src={item.icon_url} alt={item.name} className="w-8 h-8 object-contain" />}
+          <div className="flex-1">
+            <p className="text-sm font-medium">{item.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {item.value_type === 'percent' ? '%' : item.value_type === 'currency' ? 'R$' : '#'} · {item.direction === 'higher_is_better' ? '↑ melhor' : '↓ melhor'} · {(item.thresholds || []).length} faixas
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => startEdit(item)}>Editar</Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteItem(item.id)}>
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ))}
+      {!template.items.length && (
+        <p className="text-sm text-muted-foreground text-center py-8">Nenhum item ainda. Adicione indicadores ao modelo.</p>
+      )}
+    </div>
+  );
+}
+
