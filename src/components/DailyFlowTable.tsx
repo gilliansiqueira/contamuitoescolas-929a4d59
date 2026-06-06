@@ -128,7 +128,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     entradaRealizada: acc.entradaRealizada + d.entradaRealizada,
     saidaPrevista: acc.saidaPrevista + d.saidaPrevista,
     saidaRealizada: acc.saidaRealizada + d.saidaRealizada,
-  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0 }), [dailyData]);
+    operacoes: acc.operacoes + d.operacoes,
+  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 }), [dailyData]);
 
   if (allDays.length === 0) {
     return (
