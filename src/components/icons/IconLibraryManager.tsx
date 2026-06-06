@@ -11,6 +11,7 @@ import {
   useIconLibrary, useIconFolders,
   useUploadLibraryIcon, useUpdateLibraryIcon, useDeleteLibraryIcon,
   useCreateIconFolder, useRenameIconFolder, useDeleteIconFolder,
+  type LibraryIcon,
 } from './useIconLibrary';
 
 export function IconLibraryManager() {
@@ -32,17 +33,24 @@ export function IconLibraryManager() {
   const [newFolder, setNewFolder] = useState('');
   const [editingFolder, setEditingFolder] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
+  const [pendingIcons, setPendingIcons] = useState<LibraryIcon[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const visibleIcons = useMemo(() => {
+    const byId = new Map<string, LibraryIcon>();
+    [...icons, ...pendingIcons].forEach(icon => byId.set(icon.id, icon));
+    return Array.from(byId.values());
+  }, [icons, pendingIcons]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return icons.filter(ic => {
+    return visibleIcons.filter(ic => {
       if (activeFolder === 'none' && ic.folder_id) return false;
       if (activeFolder !== 'all' && activeFolder !== 'none' && ic.folder_id !== activeFolder) return false;
       if (!q) return true;
       return ic.name.toLowerCase().includes(q);
     });
-  }, [icons, search, activeFolder]);
+  }, [visibleIcons, search, activeFolder]);
 
   if (!isAdmin) {
     return (
@@ -66,11 +74,13 @@ export function IconLibraryManager() {
       return;
     }
     try {
-      await upload.mutateAsync({
+      const uploadedIcon = await upload.mutateAsync({
         file: f,
         name,
         folder_id: uploadFolderId === 'none' ? null : uploadFolderId,
       });
+      setPendingIcons(prev => prev.some(icon => icon.id === uploadedIcon.id) ? prev : [...prev, uploadedIcon]);
+      setActiveFolder(uploadFolderId === 'none' ? 'none' : uploadFolderId);
       toast.success('Ícone adicionado à biblioteca!');
       setName('');
       if (fileRef.current) fileRef.current.value = '';
@@ -166,7 +176,7 @@ export function IconLibraryManager() {
                     <>
                       <span className="flex-1 text-sm font-medium">{f.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {icons.filter(ic => ic.folder_id === f.id).length} ícones
+                        {visibleIcons.filter(ic => ic.folder_id === f.id).length} ícones
                       </span>
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => {
                         setEditingFolder(f.id); setEditingFolderName(f.name);
@@ -206,10 +216,10 @@ export function IconLibraryManager() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             <FolderChip active={activeFolder === 'all'} onClick={() => setActiveFolder('all')}>
-              Todos ({icons.length})
+              Todos ({visibleIcons.length})
             </FolderChip>
             {folders.map(f => {
-              const c = icons.filter(ic => ic.folder_id === f.id).length;
+              const c = visibleIcons.filter(ic => ic.folder_id === f.id).length;
               return (
                 <FolderChip key={f.id} active={activeFolder === f.id} onClick={() => setActiveFolder(f.id)}>
                   {f.name} ({c})
@@ -217,7 +227,7 @@ export function IconLibraryManager() {
               );
             })}
             <FolderChip active={activeFolder === 'none'} onClick={() => setActiveFolder('none')}>
-              Sem pasta ({icons.filter(ic => !ic.folder_id).length})
+              Sem pasta ({visibleIcons.filter(ic => !ic.folder_id).length})
             </FolderChip>
           </div>
         </CardHeader>
