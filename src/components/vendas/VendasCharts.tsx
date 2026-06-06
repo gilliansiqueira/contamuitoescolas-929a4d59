@@ -8,7 +8,8 @@ import asaasLogo from '@/assets/asaas-logo.png';
 
 interface Props {
   data: SalesData[];
-  selectedMonthStr: string; // YYYY-MM format
+  /** Lista de meses YYYY-MM selecionados (1+ para acumulado). */
+  selectedMonths: string[];
   selectedYearStr: string;
 }
 
@@ -16,7 +17,12 @@ const COLORS = ['#ea384c', '#0EA5E9', '#F59E0B', '#10B981', '#8B5CF6', '#64748B'
 const MONTHS_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const METHODS_WITH_BRANDS = new Set(['credito', 'debito']);
 
-export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props) {
+function formatMonthShort(m: string) {
+  const [y, mo] = m.split('-');
+  return `${MONTHS_LABELS[parseInt(mo, 10) - 1]}/${y.slice(2)}`;
+}
+
+export function VendasCharts({ data, selectedMonths, selectedYearStr }: Props) {
   // Card brands (used to render brand-level summary)
   const { data: cardBrands = [] } = useQuery({
     queryKey: ['sales_card_brands'],
@@ -26,12 +32,12 @@ export function VendasCharts({ data, selectedMonthStr, selectedYearStr }: Props)
     },
   });
 
-  // Dados do mês específico para o PieChart e Cards
-  const monthData = useMemo(() => data.filter(s => s.month === selectedMonthStr), [data, selectedMonthStr]);
+  const selectedSet = useMemo(() => new Set(selectedMonths), [selectedMonths]);
+  // Dados agregados nos meses selecionados (suporta acumulado).
+  const monthData = useMemo(() => data.filter(s => selectedSet.has(s.month)), [data, selectedSet]);
   const monthTotal = monthData.reduce((acc, curr) => acc + curr.value, 0);
 
-  // Agrupamento por forma de pagamento no mês selecionado
-  // Mapeia method_key (credito, debito, pix...). Trata 'brand-<id>' (legado) como crédito.
+  // Agrupamento por forma de pagamento nos meses selecionados
   const byMethod = useMemo(() => {
     const acc: Record<string, number> = {};
     monthData.forEach(item => {
