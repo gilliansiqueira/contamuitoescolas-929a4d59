@@ -62,14 +62,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   const allDays = useMemo(() => getAllDaysInMonths(months), [months]);
 
+  // Saldo Inicial do período — mesma SSOT do Dashboard.
+  const saldoInicialPeriodo = useSaldoInicialPeriodo(schoolId, months);
+
   const dailyData = useMemo(() => {
-    const firstDay = allDays[0];
-    let priorSaldo = saldoInicial;
-    if (firstDay) {
-      [...adjustedProjectedEntries, ...realizedEntries].filter(e => e.dataProjetada < firstDay).forEach(e => {
-        priorSaldo += e.impacto;
-      });
-    }
+    const priorSaldo = saldoInicialPeriodo;
 
     const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoes: number }> = {};
     adjustedProjectedEntries.forEach(e => {
