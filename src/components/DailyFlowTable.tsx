@@ -139,14 +139,25 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      <div className="glass-card rounded-xl p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Table2 className="w-5 h-5 text-primary" />
-          <span className="text-sm font-medium text-foreground">Saldo Final do Período</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Table2 className="w-5 h-5 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Saldo Inicial do Período</span>
+          </div>
+          <span className={`text-lg font-display font-bold ${saldoInicialPeriodo >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+            {formatCurrency(saldoInicialPeriodo)}
+          </span>
         </div>
-        <span className={`text-lg font-display font-bold ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>
-          {formatCurrency(saldoFinalPeriodo)}
-        </span>
+        <div className="glass-card rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Table2 className="w-5 h-5 text-primary" />
+            <span className="text-sm font-medium text-foreground">Saldo Final do Período</span>
+          </div>
+          <span className={`text-lg font-display font-bold ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>
+            {formatCurrency(saldoFinalPeriodo)}
+          </span>
+        </div>
       </div>
 
       <div className="glass-card rounded-xl overflow-hidden">
