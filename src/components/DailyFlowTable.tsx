@@ -172,7 +172,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             </thead>
             <tbody>
               {dailyData.map(day => {
-                const hasMovement = day.entradaPrevista > 0 || day.entradaRealizada > 0 || day.saidaPrevista > 0 || day.saidaRealizada > 0;
+                const hasMovement = day.entradaPrevista > 0 || day.entradaRealizada > 0 || day.saidaPrevista > 0 || day.saidaRealizada > 0 || day.operacoes !== 0;
                 return (
                   <tr
                     key={day.data}
