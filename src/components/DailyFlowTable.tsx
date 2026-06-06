@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
+import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
