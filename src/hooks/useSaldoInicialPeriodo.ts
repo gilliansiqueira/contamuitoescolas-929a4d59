@@ -92,7 +92,7 @@ export function useSaldoInicialPeriodo(
     for (const r of historicalRows) {
       if (r.month >= firstMonth) continue;
       if (snapMonthsSet.has(r.month)) continue;
-      const meta = resolveTipoMeta(r.tipo_valor, classifications);
+      const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
       saldo += meta.isEntrada ? v : -v;
