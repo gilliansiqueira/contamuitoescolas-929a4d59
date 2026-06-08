@@ -355,8 +355,8 @@ export function ConversaoDashboard({ schoolId }: Props) {
         <AbsoluteCharts title="Receptivo" data={receptivoEnriched} years={years} yearFilter={yearFilter} />
       )}
 
-      {/* History Tables */}
-      {shouldShow('ativo') && (
+      {/* History Tables — admin only */}
+      {isAdmin && shouldShow('ativo') && (
         <HistoryTable
           title="Histórico — Ativo"
           tipo="ativo"
@@ -369,7 +369,7 @@ export function ConversaoDashboard({ schoolId }: Props) {
           thresholds={ativoThresholds}
         />
       )}
-      {shouldShow('receptivo') && (
+      {isAdmin && shouldShow('receptivo') && (
         <HistoryTable
           title="Histórico — Receptivo"
           tipo="receptivo"
