@@ -32,7 +32,7 @@ export function useSaldoInicialPeriodo(
   const { entries: ssotEntries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
+  const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
 
   const { data: historicalRowsRaw = [] } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
