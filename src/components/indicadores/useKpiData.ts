@@ -5,13 +5,13 @@ import { useMemo } from 'react';
 
 export function useKpiIcons(schoolId: string) {
   return useQuery({
-    queryKey: ['kpi_icons', schoolId],
+    queryKey: ['kpi_icons'],
     queryFn: async () => {
-      // Busca ícones da escola E ícones globais (school_id IS NULL OR is_global = true)
+      // Biblioteca de ícones é compartilhada entre todas as escolas.
+      // Qualquer icon_id válido deve ser resolvível independentemente da escola.
       const { data, error } = await supabase
         .from('kpi_icons')
         .select('*')
-        .or(`school_id.eq.${schoolId},is_global.eq.true`)
         .order('name');
       if (error) throw error;
       return (data ?? []) as KpiIcon[];
@@ -92,7 +92,7 @@ export function useKpiMutations(schoolId: string) {
     qc.invalidateQueries({ queryKey: ['kpi_definitions', schoolId] });
     qc.invalidateQueries({ queryKey: ['kpi_thresholds', schoolId] });
     qc.invalidateQueries({ queryKey: ['kpi_values', schoolId] });
-    qc.invalidateQueries({ queryKey: ['kpi_icons', schoolId] });
+    qc.invalidateQueries({ queryKey: ['kpi_icons'] });
   };
 
   const saveDefinition = useMutation({
