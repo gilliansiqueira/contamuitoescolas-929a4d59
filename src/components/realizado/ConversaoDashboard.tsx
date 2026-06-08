@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePresentation } from '@/components/presentation-provider';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
   schoolId: string;
