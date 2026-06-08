@@ -394,7 +394,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .filter(([, v]) => v.entradas > 0 || v.saidas > 0)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, v]) => ({ mes: mes.split('-').reverse().join('/'), entradas: v.entradas, saidas: v.saidas }));
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap, modelItems]);
 
   // ─── Gráfico de linhas ANUAL: Entradas/Saídas por mês, com acúmulo de anos ───
   // Independe do filtro de período — usa TODOS os dados disponíveis (uploads + histórico).
