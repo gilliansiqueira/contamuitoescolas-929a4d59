@@ -134,7 +134,8 @@ export async function computeMonthSnapshot(
 
   if (source === 'historico') {
     for (const r of monthHist) {
-      const meta = resolveHistTipo(r.tipo_valor, classifications);
+      const meta = resolveHistTipo(r.tipo_valor, classifications, modelItems);
+
       const key = getCanonicalKey(r.tipo_valor);
       if (!aggMap[key]) aggMap[key] = { tipo: key, label: meta.label, classificacao: meta.classificacao, sinal: meta.sinal, valor: 0 };
       aggMap[key].valor += Number(r.valor) || 0;
