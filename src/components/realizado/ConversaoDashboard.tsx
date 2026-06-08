@@ -505,11 +505,27 @@ function ChartSection({ title, data, thresholds, years, yearFilter }: {
     });
   }, [filtered, isMultiYear, uniqueYears]);
 
+  // Acumulado do ano: conversão ponderada = soma(matrículas) / soma(contatos) * 100
+  const totalContatos = filtered.reduce((s, d) => s + (d.contatos || 0), 0);
+  const totalMatriculas = filtered.reduce((s, d) => s + (d.matriculas || 0), 0);
+  const accConv = totalContatos > 0 ? (totalMatriculas / totalContatos) * 100 : null;
+  const accLabel = yearFilter !== 'todos' ? `Acumulado ${yearFilter}` : 'Acumulado do Ano';
+
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
       <Card className="rounded-2xl">
         <CardContent className="p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">{title}</h3>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            {accConv !== null && (
+              <div className="text-right shrink-0">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{accLabel}</p>
+                <p className="text-base font-bold" style={{ color: getThresholdColor(thresholds, accConv) }}>
+                  {accConv.toFixed(1)}%
+                </p>
+              </div>
+            )}
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             {isMultiYear ? (
               <LineChart data={chartData} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
