@@ -98,5 +98,5 @@ export function useSaldoInicialPeriodo(
       saldo += meta.isEntrada ? v : -v;
     }
     return saldo;
-  }, [activeEntries, classifications, saldoInicialBase, selectedMonths, historicalRows, snapshotMap]);
+  }, [activeEntries, classifications, saldoInicialBase, selectedMonths, historicalRows, snapshotMap, modelItems]);
 }
