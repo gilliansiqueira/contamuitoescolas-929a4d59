@@ -55,10 +55,15 @@ function mapEntryRow(r: any): FinancialEntry {
 
 /**
  * Resolve metadados de um tipo do histórico mensal — delega para a SSOT
- * `resolveTipoMeta`. Sem heurística por nome.
+ * `resolveTipoMeta`. Recebe os itens do Modelo Financeiro da escola como
+ * fallback de classificação para tipos sem entrada em `type_classifications`.
  */
-function resolveHistTipo(tipoValor: string, classifications: TypeClassification[]) {
-  const meta = resolveTipoMeta(tipoValor, classifications);
+function resolveHistTipo(
+  tipoValor: string,
+  classifications: TypeClassification[],
+  modelItems: any[] = []
+) {
+  const meta = resolveTipoMeta(tipoValor, classifications, modelItems);
   return {
     classificacao: meta.classificacao as SnapshotPorTipo['classificacao'],
     sinal: meta.sinal,
@@ -66,6 +71,7 @@ function resolveHistTipo(tipoValor: string, classifications: TypeClassification[
     impactaCaixa: meta.impactaCaixa,
   };
 }
+
 
 /**
  * Calcula o snapshot completo do mês informado.
