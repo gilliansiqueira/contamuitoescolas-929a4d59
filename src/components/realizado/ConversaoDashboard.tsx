@@ -505,14 +505,13 @@ function ChartSection({ title, data, thresholds, years, yearFilter }: {
     });
   }, [filtered, isMultiYear, uniqueYears]);
 
-  const targetYear = yearFilter !== 'todos'
-    ? yearFilter
-    : [...new Set(filtered.map(d => d.month.split('-')[0]))].sort().pop() || null;
-  const yearFiltered = targetYear ? filtered.filter(d => d.month.startsWith(targetYear)) : filtered;
-  const totalContatos = yearFiltered.reduce((s, d) => s + (d.contatos || 0), 0);
-  const totalMatriculas = yearFiltered.reduce((s, d) => s + (d.matriculas || 0), 0);
-  const accConv = totalContatos > 0 ? (totalMatriculas / totalContatos) * 100 : null;
-  const accLabel = targetYear ? `Acumulado ${targetYear}` : 'Acumulado do Ano';
+  const yearsAcc = yearFilter !== 'todos' ? [yearFilter] : uniqueYears;
+  const accPerYear = yearsAcc.map(yr => {
+    const rows = filtered.filter(d => d.month.startsWith(yr));
+    const tc = rows.reduce((s, d) => s + (d.contatos || 0), 0);
+    const tm = rows.reduce((s, d) => s + (d.matriculas || 0), 0);
+    return { year: yr, value: tc > 0 ? (tm / tc) * 100 : null };
+  }).filter(x => x.value !== null) as { year: string; value: number }[];
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -520,12 +519,16 @@ function ChartSection({ title, data, thresholds, years, yearFilter }: {
         <CardContent className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            {accConv !== null && (
-              <div className="text-right shrink-0">
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{accLabel}</p>
-                <p className="text-base font-bold" style={{ color: getThresholdColor(thresholds, accConv) }}>
-                  {accConv.toFixed(1)}%
-                </p>
+            {accPerYear.length > 0 && (
+              <div className="flex gap-3 shrink-0 flex-wrap justify-end">
+                {accPerYear.map(({ year, value }) => (
+                  <div key={year} className="text-right">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Acumulado {year}</p>
+                    <p className="text-base font-bold" style={{ color: getThresholdColor(thresholds, value) }}>
+                      {value.toFixed(1)}%
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -602,10 +605,10 @@ function AbsoluteChart({ title, data, dataKey }: {
     });
   }, [data, isMultiYear, uniqueYears, dataKey]);
 
-  const targetYear = [...new Set(data.map(d => d.month.split('-')[0]))].sort().pop();
-  const yearFiltered = targetYear ? data.filter(d => d.month.startsWith(targetYear)) : data;
-  const total = yearFiltered.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0);
-  const accLabel = targetYear ? `Acumulado ${targetYear}` : 'Acumulado do Ano';
+  const accPerYear = uniqueYears.map(yr => {
+    const rows = data.filter(d => d.month.startsWith(yr));
+    return { year: yr, value: rows.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0) };
+  });
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -613,9 +616,13 @@ function AbsoluteChart({ title, data, dataKey }: {
         <CardContent className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <div className="text-right shrink-0">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{accLabel}</p>
-              <p className="text-base font-bold text-foreground">{total.toLocaleString('pt-BR')}</p>
+            <div className="flex gap-3 shrink-0 flex-wrap justify-end">
+              {accPerYear.map(({ year, value }) => (
+                <div key={year} className="text-right">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Acumulado {year}</p>
+                  <p className="text-base font-bold text-foreground">{value.toLocaleString('pt-BR')}</p>
+                </div>
+              ))}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
