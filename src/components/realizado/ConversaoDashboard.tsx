@@ -599,11 +599,19 @@ function AbsoluteChart({ title, data, dataKey }: {
     });
   }, [data, isMultiYear, uniqueYears, dataKey]);
 
+  const total = data.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0);
+
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
       <Card className="rounded-2xl">
         <CardContent className="p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">{title}</h3>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            <div className="text-right shrink-0">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Acumulado do Ano</p>
+              <p className="text-base font-bold text-foreground">{total.toLocaleString('pt-BR')}</p>
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             {isMultiYear ? (
               <LineChart data={chartData} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
