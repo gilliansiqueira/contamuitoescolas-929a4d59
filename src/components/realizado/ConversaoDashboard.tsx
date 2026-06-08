@@ -505,11 +505,14 @@ function ChartSection({ title, data, thresholds, years, yearFilter }: {
     });
   }, [filtered, isMultiYear, uniqueYears]);
 
-  // Acumulado do ano: conversão ponderada = soma(matrículas) / soma(contatos) * 100
-  const totalContatos = filtered.reduce((s, d) => s + (d.contatos || 0), 0);
-  const totalMatriculas = filtered.reduce((s, d) => s + (d.matriculas || 0), 0);
+  const targetYear = yearFilter !== 'todos'
+    ? yearFilter
+    : [...new Set(filtered.map(d => d.month.split('-')[0]))].sort().pop() || null;
+  const yearFiltered = targetYear ? filtered.filter(d => d.month.startsWith(targetYear)) : filtered;
+  const totalContatos = yearFiltered.reduce((s, d) => s + (d.contatos || 0), 0);
+  const totalMatriculas = yearFiltered.reduce((s, d) => s + (d.matriculas || 0), 0);
   const accConv = totalContatos > 0 ? (totalMatriculas / totalContatos) * 100 : null;
-  const accLabel = yearFilter !== 'todos' ? `Acumulado ${yearFilter}` : 'Acumulado do Ano';
+  const accLabel = targetYear ? `Acumulado ${targetYear}` : 'Acumulado do Ano';
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -599,7 +602,10 @@ function AbsoluteChart({ title, data, dataKey }: {
     });
   }, [data, isMultiYear, uniqueYears, dataKey]);
 
-  const total = data.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0);
+  const targetYear = [...new Set(data.map(d => d.month.split('-')[0]))].sort().pop();
+  const yearFiltered = targetYear ? data.filter(d => d.month.startsWith(targetYear)) : data;
+  const total = yearFiltered.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0);
+  const accLabel = targetYear ? `Acumulado ${targetYear}` : 'Acumulado do Ano';
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -608,7 +614,7 @@ function AbsoluteChart({ title, data, dataKey }: {
           <div className="flex items-start justify-between gap-3 mb-4">
             <h3 className="text-sm font-semibold text-foreground">{title}</h3>
             <div className="text-right shrink-0">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Acumulado do Ano</p>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{accLabel}</p>
               <p className="text-base font-bold text-foreground">{total.toLocaleString('pt-BR')}</p>
             </div>
           </div>
