@@ -1,4 +1,4 @@
-import { resolveLedgerRule, normalizeTipo } from './ledgerEngine';
+import { resolveLedgerRule, normalizeTipo, type ModelItemRule } from './ledgerEngine';
 import type { TypeClassification } from '@/types/financial';
 
 export type Classificacao = 'receita' | 'despesa' | 'operacao' | 'ignorar';
@@ -16,15 +16,17 @@ export interface TipoMeta {
 
 /**
  * Roteador de metadados do Dashboard e fluxo diário.
- * 
- * Constrói e padroniza a resposta baseando-se estritamente nas propriedades genéricas
- * retornadas pelo Ledger Engine central.
+ *
+ * Constrói e padroniza a resposta baseando-se estritamente nas propriedades
+ * genéricas retornadas pelo Ledger Engine central. Aceita opcionalmente os
+ * itens do Modelo Financeiro da escola como fallback de classificação.
  */
 export function resolveTipoMeta(
   tipoKey: string,
-  classifications: TypeClassification[]
+  classifications: TypeClassification[],
+  modelItems: ModelItemRule[] = []
 ): TipoMeta {
-  const rule = resolveLedgerRule(tipoKey, classifications);
+  const rule = resolveLedgerRule(tipoKey, classifications, modelItems);
 
   // Deriva o Classificacao textual compatível com a UI a partir da regra do Ledger
   let classificacao: Classificacao = 'ignorar';
@@ -44,3 +46,4 @@ export function resolveTipoMeta(
     canonicalKey: normalizeTipo(tipoKey)
   };
 }
+
