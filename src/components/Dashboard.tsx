@@ -373,7 +373,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         map[m].saidas = snap.despesas;
       } else if (src === 'historico') {
         for (const r of historicalRows.filter(x => x.month === m)) {
-          const meta = resolveTipoMeta(r.tipo_valor, classifications);
+          const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
+
           if (!meta.entraNoResultado) continue;
           const v = Number(r.valor) || 0;
           if (meta.classificacao === 'receita') map[m].entradas += v;
