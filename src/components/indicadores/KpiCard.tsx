@@ -302,7 +302,7 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
             <span className="text-muted-foreground">vs {yoy.prevYear}</span>
           </div>
           <div className="text-[10px] text-muted-foreground">
-            {yoy.isPercent ? 'Média' : 'Acum.'} Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
+            Média Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
           </div>
         </div>
       )}
