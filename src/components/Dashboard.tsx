@@ -236,7 +236,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         const order = { receita: 0, despesa: 1, operacao: 2, ignorar: 3 } as Record<string, number>;
         return (order[a.classificacao] ?? 9) - (order[b.classificacao] ?? 9) || b.valor - a.valor;
       });
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap, modelItems]);
+
 
   // ─── Totais agregados (Receitas, Despesas, Resultado) usando KPIs dinâmicos ───
   const totals = useMemo(() => {
