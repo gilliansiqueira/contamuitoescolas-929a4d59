@@ -435,7 +435,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     // Histórico (apenas meses sem snapshot) — sempre prevalece sobre upload
     for (const r of historicalRows) {
       if (snapMonthsSet.has(r.month)) continue;
-      const meta = resolveTipoMeta(r.tipo_valor, classifications);
+      const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.entraNoResultado) continue;
       const v = Number(r.valor) || 0;
       if (meta.classificacao === 'receita') ensure(r.month).entradas += v;
