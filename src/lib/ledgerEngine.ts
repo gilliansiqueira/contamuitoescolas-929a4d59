@@ -63,9 +63,37 @@ export const DEFAULT_MAPPINGS: Record<string, LedgerRule> = {
  * Se não existir uma configuração explícita no banco de dados e nem no mapeamento estático,
  * retorna a regra padrão: impactaCaixa = false, entraNoResultado = false, operacaoSinal = "somar".
  */
+/**
+ * Item mínimo do Modelo Financeiro usado como fallback de classificação.
+ * Quando a escola tem um modelo atribuído e o tipo aparece nele, suas
+ * propriedades (tipo/impacta_caixa/entra_no_resultado) são usadas como
+ * regra antes do fallback absoluto. Isso garante que linhas presentes no
+ * Modelo (ex.: "Reembolso Outras Unidades") sejam contabilizadas mesmo
+ * sem uma entrada explícita em `type_classifications`.
+ */
+export interface ModelItemRule {
+  name: string;
+  tipo: 'entrada' | 'saida' | 'ignorar';
+  impacta_caixa: boolean;
+  entra_no_resultado: boolean;
+}
+
+function modelItemToRule(item: ModelItemRule, originalKey: string): LedgerRule {
+  if (item.tipo === 'ignorar') {
+    return { impactaCaixa: false, entraNoResultado: false, operacaoSinal: 'somar', label: item.name || originalKey };
+  }
+  return {
+    impactaCaixa: !!item.impacta_caixa,
+    entraNoResultado: !!item.entra_no_resultado,
+    operacaoSinal: item.tipo === 'saida' ? 'subtrair' : 'somar',
+    label: item.name || originalKey,
+  };
+}
+
 export function resolveLedgerRule(
   tipoKey: string,
-  classifications: TypeClassification[]
+  classifications: TypeClassification[],
+  modelItems: ModelItemRule[] = []
 ): LedgerRule {
   const normalizedKey = normalizeTipo(tipoKey);
 
@@ -103,7 +131,16 @@ export function resolveLedgerRule(
     };
   }
 
-  // 3. REGRA ABSOLUTA DE FALLBACK: se não existir configuração nem padrão
+  // 3. Procura no Modelo Financeiro da escola (quando fornecido).
+  //    Itens do modelo carregam a regra de impacto/resultado configurada
+  //    no template, evitando que tipos válidos do modelo sejam ignorados
+  //    apenas por não terem linha em `type_classifications`.
+  if (modelItems.length > 0) {
+    const item = modelItems.find(i => normalizeTipo(i.name) === normalizedKey);
+    if (item) return modelItemToRule(item, tipoKey);
+  }
+
+  // 4. REGRA ABSOLUTA DE FALLBACK: se não existir configuração nem padrão
   return {
     impactaCaixa: false,
     entraNoResultado: false,
@@ -111,6 +148,7 @@ export function resolveLedgerRule(
     label: tipoKey
   };
 }
+
 
 /**
  * Resolve a regra do ledger para uma entry tentando, em ordem:

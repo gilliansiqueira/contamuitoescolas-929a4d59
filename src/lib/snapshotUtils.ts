@@ -55,10 +55,15 @@ function mapEntryRow(r: any): FinancialEntry {
 
 /**
  * Resolve metadados de um tipo do histórico mensal — delega para a SSOT
- * `resolveTipoMeta`. Sem heurística por nome.
+ * `resolveTipoMeta`. Recebe os itens do Modelo Financeiro da escola como
+ * fallback de classificação para tipos sem entrada em `type_classifications`.
  */
-function resolveHistTipo(tipoValor: string, classifications: TypeClassification[]) {
-  const meta = resolveTipoMeta(tipoValor, classifications);
+function resolveHistTipo(
+  tipoValor: string,
+  classifications: TypeClassification[],
+  modelItems: any[] = []
+) {
+  const meta = resolveTipoMeta(tipoValor, classifications, modelItems);
   return {
     classificacao: meta.classificacao as SnapshotPorTipo['classificacao'],
     sinal: meta.sinal,
@@ -66,6 +71,7 @@ function resolveHistTipo(tipoValor: string, classifications: TypeClassification[
     impactaCaixa: meta.impactaCaixa,
   };
 }
+
 
 /**
  * Calcula o snapshot completo do mês informado.
@@ -128,7 +134,8 @@ export async function computeMonthSnapshot(
 
   if (source === 'historico') {
     for (const r of monthHist) {
-      const meta = resolveHistTipo(r.tipo_valor, classifications);
+      const meta = resolveHistTipo(r.tipo_valor, classifications, modelItems);
+
       const key = getCanonicalKey(r.tipo_valor);
       if (!aggMap[key]) aggMap[key] = { tipo: key, label: meta.label, classificacao: meta.classificacao, sinal: meta.sinal, valor: 0 };
       aggMap[key].valor += Number(r.valor) || 0;
@@ -195,7 +202,7 @@ export async function computeMonthSnapshot(
       if (r.month >= month) continue;
       const monthHasUpload = activeEntries.some(x => x.data.startsWith(r.month) && x.origem === 'fluxo');
       if (monthHasUpload) continue;
-      const meta = resolveHistTipo(r.tipo_valor, classifications);
+      const meta = resolveHistTipo(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
       saldoInicial += meta.sinal === 'somar' ? v : -v;

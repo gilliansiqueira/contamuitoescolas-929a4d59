@@ -32,7 +32,7 @@ export function useSaldoInicialPeriodo(
   const { entries: ssotEntries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
+  const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
 
   const { data: historicalRowsRaw = [] } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
@@ -92,11 +92,11 @@ export function useSaldoInicialPeriodo(
     for (const r of historicalRows) {
       if (r.month >= firstMonth) continue;
       if (snapMonthsSet.has(r.month)) continue;
-      const meta = resolveTipoMeta(r.tipo_valor, classifications);
+      const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
       saldo += meta.isEntrada ? v : -v;
     }
     return saldo;
-  }, [activeEntries, classifications, saldoInicialBase, selectedMonths, historicalRows, snapshotMap]);
+  }, [activeEntries, classifications, saldoInicialBase, selectedMonths, historicalRows, snapshotMap, modelItems]);
 }

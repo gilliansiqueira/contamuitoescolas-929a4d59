@@ -56,7 +56,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
   // Modelo financeiro ativo: gate estrito de categorias válidas (mantido para Histórico).
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
+  const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
   const [showInsights, setShowInsights] = useState(true);
 
   // Padroniza `data` para a data projetada (paridade total com Fluxo/Fluxo Diário).
@@ -148,7 +148,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       // Use canonical key so synonyms (despesa/despesas/saida) merge into one bucket
       const k = getCanonicalKey(key);
       if (!map[k]) {
-        const meta = resolveTipoMeta(key, classifications);
+        const meta = resolveTipoMeta(key, classifications, modelItems);
         map[k] = { key: k, label: meta.label, valor: 0, isEntrada: meta.isEntrada, entraNoResultado: meta.entraNoResultado, impactaCaixa: meta.impactaCaixa, classificacao: meta.classificacao };
       }
       return map[k];
@@ -236,7 +236,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         const order = { receita: 0, despesa: 1, operacao: 2, ignorar: 3 } as Record<string, number>;
         return (order[a.classificacao] ?? 9) - (order[b.classificacao] ?? 9) || b.valor - a.valor;
       });
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap, modelItems]);
+
 
   // ─── Totais agregados (Receitas, Despesas, Resultado) usando KPIs dinâmicos ───
   const totals = useMemo(() => {
@@ -373,7 +374,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         map[m].saidas = snap.despesas;
       } else if (src === 'historico') {
         for (const r of historicalRows.filter(x => x.month === m)) {
-          const meta = resolveTipoMeta(r.tipo_valor, classifications);
+          const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
+
           if (!meta.entraNoResultado) continue;
           const v = Number(r.valor) || 0;
           if (meta.classificacao === 'receita') map[m].entradas += v;
@@ -392,7 +394,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .filter(([, v]) => v.entradas > 0 || v.saidas > 0)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([mes, v]) => ({ mes: mes.split('-').reverse().join('/'), entradas: v.entradas, saidas: v.saidas }));
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap]);
+  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap, modelItems]);
 
   // ─── Gráfico de linhas ANUAL: Entradas/Saídas por mês, com acúmulo de anos ───
   // Independe do filtro de período — usa TODOS os dados disponíveis (uploads + histórico).
@@ -434,7 +436,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     // Histórico (apenas meses sem snapshot) — sempre prevalece sobre upload
     for (const r of historicalRows) {
       if (snapMonthsSet.has(r.month)) continue;
-      const meta = resolveTipoMeta(r.tipo_valor, classifications);
+      const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.entraNoResultado) continue;
       const v = Number(r.valor) || 0;
       if (meta.classificacao === 'receita') ensure(r.month).entradas += v;
@@ -477,7 +479,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .map(mm => ({ mes: monthBuckets[mm].__label as any, ...monthBuckets[mm] }))
       .map(({ __label, ...rest }: any) => rest);
     return { data, years };
-  }, [activeEntries, historicalRows, classifications, snapshotMap, todayStr]);
+  }, [activeEntries, historicalRows, classifications, snapshotMap, todayStr, modelItems]);
 
   const negativeDays = useMemo(() => projectionData.filter(d => d.saldo < 0), [projectionData]);
   const firstNegativeDay = negativeDays.length > 0 ? negativeDays[0] : null;
