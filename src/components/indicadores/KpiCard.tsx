@@ -146,9 +146,8 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
   const color = getThresholdColor(def, currentVal);
   const label = getThresholdLabel(def, currentVal);
 
-  // ─── YoY acumulado Jan→mês selecionado vs mesmo período do ano anterior ───
-  // Para percent: média do período (p.p. é a unidade comparativa correta).
-  // Para currency/number: soma do período.
+  // ─── YoY média Jan→mês selecionado vs mesmo período do ano anterior ───
+  // Todos os indicadores usam média (nunca soma acumulada).
   const yoy = useMemo(() => {
     if (!currentMonth) return null;
     const [yStr, moStr] = currentMonth.split('-');
@@ -167,8 +166,8 @@ export function KpiCard({ definition: def, values, months, insights = [], refere
       if (prev !== undefined && prev !== null) { sumPrev += prev; cntPrev++; }
     }
     if (cntCur === 0 || cntPrev === 0) return null;
-    const aggCur = isPercent ? sumCur / cntCur : sumCur;
-    const aggPrev = isPercent ? sumPrev / cntPrev : sumPrev;
+    const aggCur = sumCur / cntCur;
+    const aggPrev = sumPrev / cntPrev;
     const delta = aggCur - aggPrev;
     const relPct = aggPrev !== 0 ? (delta / Math.abs(aggPrev)) * 100 : null;
     const improvement = def.direction === 'higher_is_better' ? delta > 0 : delta < 0;
