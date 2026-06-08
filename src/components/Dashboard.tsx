@@ -56,7 +56,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
   // Modelo financeiro ativo: gate estrito de categorias válidas (mantido para Histórico).
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
+  const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
   const [showInsights, setShowInsights] = useState(true);
 
   // Padroniza `data` para a data projetada (paridade total com Fluxo/Fluxo Diário).
