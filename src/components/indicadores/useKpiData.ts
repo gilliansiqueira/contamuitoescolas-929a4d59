@@ -92,7 +92,7 @@ export function useKpiMutations(schoolId: string) {
     qc.invalidateQueries({ queryKey: ['kpi_definitions', schoolId] });
     qc.invalidateQueries({ queryKey: ['kpi_thresholds', schoolId] });
     qc.invalidateQueries({ queryKey: ['kpi_values', schoolId] });
-    qc.invalidateQueries({ queryKey: ['kpi_icons', schoolId] });
+    qc.invalidateQueries({ queryKey: ['kpi_icons'] });
   };
 
   const saveDefinition = useMutation({
