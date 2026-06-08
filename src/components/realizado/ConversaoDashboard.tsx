@@ -104,6 +104,7 @@ function ThresholdDot(props: any & { thresholds: Threshold[] }) {
 // ── Main Component ──
 export function ConversaoDashboard({ schoolId }: Props) {
   const { isPresentationMode } = usePresentation();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [configOpen, setConfigOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState<string>('todos');
