@@ -605,10 +605,10 @@ function AbsoluteChart({ title, data, dataKey }: {
     });
   }, [data, isMultiYear, uniqueYears, dataKey]);
 
-  const targetYear = [...new Set(data.map(d => d.month.split('-')[0]))].sort().pop();
-  const yearFiltered = targetYear ? data.filter(d => d.month.startsWith(targetYear)) : data;
-  const total = yearFiltered.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0);
-  const accLabel = targetYear ? `Acumulado ${targetYear}` : 'Acumulado do Ano';
+  const accPerYear = uniqueYears.map(yr => {
+    const rows = data.filter(d => d.month.startsWith(yr));
+    return { year: yr, value: rows.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0) };
+  });
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -616,9 +616,13 @@ function AbsoluteChart({ title, data, dataKey }: {
         <CardContent className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <div className="text-right shrink-0">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{accLabel}</p>
-              <p className="text-base font-bold text-foreground">{total.toLocaleString('pt-BR')}</p>
+            <div className="flex gap-3 shrink-0 flex-wrap justify-end">
+              {accPerYear.map(({ year, value }) => (
+                <div key={year} className="text-right">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Acumulado {year}</p>
+                  <p className="text-base font-bold text-foreground">{value.toLocaleString('pt-BR')}</p>
+                </div>
+              ))}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>
