@@ -149,6 +149,14 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     return set;
   }, [contas, modelItems]);
 
+  // Lista oficial de nomes (preservados com acentuação) para a cascata de matching.
+  const knownCategoryNames = useMemo(() => {
+    const set = new Set<string>();
+    contas.forEach(c => { if (c.nivel > 1) set.add(c.nome); });
+    modelItems.forEach(it => set.add(it.name));
+    return Array.from(set);
+  }, [contas, modelItems]);
+
   const insertMutation = useMutation({
     mutationFn: async (rows: any[]) => {
       // First create any new categories
