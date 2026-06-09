@@ -535,6 +535,31 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                       {unmapped.map(u => {
                         const norm = normalizeStr(u.categoria);
                         const isNew = !!newCatMappings[norm];
+                        const sug = suggestions[norm];
+                        const loadingAi = !!aiLoading[norm];
+                        const applySuggestion = (target: string) => {
+                          setNewCatMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
+                          setCategoryMappings(prev => ({ ...prev, [norm]: target }));
+                        };
+                        const askAi = async () => {
+                          setAiLoading(prev => ({ ...prev, [norm]: true }));
+                          try {
+                            const { data, error } = await supabase.functions.invoke('categorize-expense', {
+                              body: { raw: u.categoria, candidates: knownCategoryNames },
+                            });
+                            if (error) throw error;
+                            if (data?.target) {
+                              setSuggestions(prev => ({ ...prev, [norm]: { target: data.target, score: data.score ?? 0.78, method: 'ai', matchMethod: 'ai' } }));
+                              toast.success(`IA sugeriu: ${data.target}`);
+                            } else {
+                              toast.info('IA não encontrou correspondência');
+                            }
+                          } catch (err: any) {
+                            toast.error(`IA indisponível: ${err?.message ?? 'erro'}`);
+                          } finally {
+                            setAiLoading(prev => ({ ...prev, [norm]: false }));
+                          }
+                        };
                         return (
                           <div key={u.categoria} className="p-2 rounded-lg bg-background border border-border space-y-1.5">
                             <div className="flex items-center gap-2">
@@ -567,7 +592,34 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                                   {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
                                 </SelectContent>
                               </Select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 shrink-0"
+                                title="Sugerir com IA"
+                                onClick={askAi}
+                                disabled={loadingAi}
+                              >
+                                {loadingAi ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                              </Button>
                             </div>
+                            {sug?.target && !categoryMappings[norm] && !isNew && (
+                              <div className="flex items-center gap-2 pl-2">
+                                <span className="text-[11px] text-muted-foreground shrink-0">
+                                  Sugestão ({sug.method}, {Math.round(sug.score * 100)}%):
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[11px] px-2 rounded-md"
+                                  onClick={() => applySuggestion(sug.target!)}
+                                >
+                                  <Check className="w-3 h-3 mr-1" /> {sug.target}
+                                </Button>
+                              </div>
+                            )}
                             {isNew && (
                               <div className="flex items-center gap-2 pl-2">
                                 <span className="text-xs text-muted-foreground shrink-0">Mãe:</span>
