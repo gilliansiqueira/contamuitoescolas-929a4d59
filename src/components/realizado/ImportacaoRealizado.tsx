@@ -220,6 +220,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     setStep('idle'); setRawRows([]); setFileColumns([]); setFileName('');
     setColumnMapping({}); setPreview([]); setInvalidCount(0);
     setUnmapped([]); setCategoryMappings({}); setNewCatMappings({});
+    setSuggestions({}); setAiLoading({});
   }
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
