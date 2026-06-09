@@ -271,16 +271,39 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       return { data, descricao, valor: Math.abs(valor), categoria: catRaw, origem_arquivo: fileName };
     }).filter(Boolean) as any[];
 
-    // Aplica regras salvas automaticamente
+    // Aplica regras salvas automaticamente (camada MEMORY do sistema atual)
     const parsedWithRules = parsed.map(r => {
       const norm = normalizeStr(r.categoria);
       const ruleTarget = rulesByNorm.get(norm);
-      return ruleTarget ? { ...r, categoria: ruleTarget, _autoMapped: true, _originalCategoria: r.categoria } : r;
+      return ruleTarget ? { ...r, categoria: ruleTarget, _autoMapped: true, _matchMethod: 'memory', _originalCategoria: r.categoria } : r;
+    });
+
+    // ===== NOVA CAMADA DE INTELIGÊNCIA =====
+    // Para o que NÃO bateu em memory nem em known-exact, rodar a cascata
+    // (exact normalizado robusto → alias → keyword → fuzzy) usando a função
+    // unificada matchCategory. Auto-aplica se score >= AUTO_APPLY_THRESHOLD.
+    const newSuggestions: Record<string, MatchResult> = {};
+    const autoFromCascade: Record<string, string> = {};
+    const finalRows = parsedWithRules.map(r => {
+      if ((r as any)._autoMapped) return r;
+      const norm = normalizeStr(r.categoria);
+      if (knownNorm.has(norm)) return r; // já é categoria oficial
+      // dedupe por norm
+      if (autoFromCascade[norm]) {
+        return { ...r, categoria: autoFromCascade[norm], _autoMapped: true, _matchMethod: 'cascade', _originalCategoria: r.categoria };
+      }
+      const result = matchCategory({ raw: r.categoria, memory: rulesByNorm, knownCategories: knownCategoryNames });
+      if (result.target && result.score >= AUTO_APPLY_THRESHOLD) {
+        autoFromCascade[norm] = result.target;
+        return { ...r, categoria: result.target, _autoMapped: true, _matchMethod: result.method, _originalCategoria: r.categoria };
+      }
+      if (result.target) newSuggestions[norm] = result; // fuzzy/keyword baixo → vira sugestão
+      return r;
     });
 
     const unmappedCats: { categoria: string }[] = [];
     const seen = new Set<string>();
-    parsedWithRules.forEach(r => {
+    finalRows.forEach(r => {
       if ((r as any)._autoMapped) return;
       const norm = normalizeStr(r.categoria);
       if (!knownNorm.has(norm) && !seen.has(norm)) {
@@ -289,15 +312,22 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       }
     });
 
-    setPreview(parsedWithRules); setInvalidCount(invalid);
+    setPreview(finalRows); setInvalidCount(invalid);
     setUnmapped(unmappedCats); setCategoryMappings({}); setNewCatMappings({});
+    setSuggestions(newSuggestions);
     setStep('preview');
-    if (parsedWithRules.length === 0) toast.error('Nenhum registro válido');
+    if (finalRows.length === 0) toast.error('Nenhum registro válido');
     else {
-      const auto = parsedWithRules.filter((r: any) => r._autoMapped).length;
-      toast.success(`${parsedWithRules.length} lançamentos válidos${auto > 0 ? ` · ${auto} categorizados automaticamente por regras` : ''}`);
+      const auto = finalRows.filter((r: any) => r._autoMapped).length;
+      const cascadeCount = Object.keys(autoFromCascade).length;
+      const suggCount = Object.keys(newSuggestions).length;
+      const extras: string[] = [];
+      if (auto > 0) extras.push(`${auto} auto-categorizados`);
+      if (cascadeCount > 0) extras.push(`${cascadeCount} via inteligência`);
+      if (suggCount > 0) extras.push(`${suggCount} sugestões`);
+      toast.success(`${finalRows.length} lançamentos válidos${extras.length ? ' · ' + extras.join(' · ') : ''}`);
     }
-  }, [columnMapping, rawRows, knownCategoriaNorms, fileName, rulesByNorm]);
+  }, [columnMapping, rawRows, knownCategoriaNorms, fileName, rulesByNorm, knownCategoryNames]);
 
   const handleConfirmImport = () => {
     // Check all unmapped are resolved
