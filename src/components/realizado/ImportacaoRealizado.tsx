@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, Plus, Check, X, AlertTriangle, ArrowRight, ArrowLeft, Columns, Eye, CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import { Upload, Plus, Check, X, AlertTriangle, ArrowRight, ArrowLeft, Columns, Eye, CheckCircle2, FileSpreadsheet, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
 import { loadSchoolModelItems } from '@/lib/modelValidation';
+import { matchCategory, normalizeCategory, AUTO_APPLY_THRESHOLD, type MatchResult } from '@/lib/categoryMatcher';
 
 interface Props { schoolId: string; }
 type Step = 'idle' | 'mapping' | 'preview';
