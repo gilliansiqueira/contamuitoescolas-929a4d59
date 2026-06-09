@@ -104,6 +104,9 @@ export function ImportacaoRealizado({ schoolId }: Props) {
   const [unmapped, setUnmapped] = useState<{ categoria: string }[]>([]);
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({});
   const [newCatMappings, setNewCatMappings] = useState<Record<string, { nome: string; grupo: string }>>({});
+  /** Sugestões por categoria não reconhecida (memory/exact/alias/keyword/fuzzy/ai). */
+  const [suggestions, setSuggestions] = useState<Record<string, MatchResult>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
