@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, Plus, Check, X, AlertTriangle, ArrowRight, ArrowLeft, Columns, Eye, CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import { Upload, Plus, Check, X, AlertTriangle, ArrowRight, ArrowLeft, Columns, Eye, CheckCircle2, FileSpreadsheet, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
 import { loadSchoolModelItems } from '@/lib/modelValidation';
+import { matchCategory, normalizeCategory, AUTO_APPLY_THRESHOLD, type MatchResult } from '@/lib/categoryMatcher';
 
 interface Props { schoolId: string; }
 type Step = 'idle' | 'mapping' | 'preview';
@@ -103,6 +104,9 @@ export function ImportacaoRealizado({ schoolId }: Props) {
   const [unmapped, setUnmapped] = useState<{ categoria: string }[]>([]);
   const [categoryMappings, setCategoryMappings] = useState<Record<string, string>>({});
   const [newCatMappings, setNewCatMappings] = useState<Record<string, { nome: string; grupo: string }>>({});
+  /** Sugestões por categoria não reconhecida (memory/exact/alias/keyword/fuzzy/ai). */
+  const [suggestions, setSuggestions] = useState<Record<string, MatchResult>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
@@ -143,6 +147,14 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     contas.forEach(c => set.add(normalizeStr(c.nome)));
     modelItems.forEach(it => set.add(normalizeStr(it.name)));
     return set;
+  }, [contas, modelItems]);
+
+  // Lista oficial de nomes (preservados com acentuação) para a cascata de matching.
+  const knownCategoryNames = useMemo(() => {
+    const set = new Set<string>();
+    contas.forEach(c => { if (c.nivel > 1) set.add(c.nome); });
+    modelItems.forEach(it => set.add(it.name));
+    return Array.from(set);
   }, [contas, modelItems]);
 
   const insertMutation = useMutation({
@@ -208,6 +220,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     setStep('idle'); setRawRows([]); setFileColumns([]); setFileName('');
     setColumnMapping({}); setPreview([]); setInvalidCount(0);
     setUnmapped([]); setCategoryMappings({}); setNewCatMappings({});
+    setSuggestions({}); setAiLoading({});
   }
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,16 +272,39 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       return { data, descricao, valor: Math.abs(valor), categoria: catRaw, origem_arquivo: fileName };
     }).filter(Boolean) as any[];
 
-    // Aplica regras salvas automaticamente
+    // Aplica regras salvas automaticamente (camada MEMORY do sistema atual)
     const parsedWithRules = parsed.map(r => {
       const norm = normalizeStr(r.categoria);
       const ruleTarget = rulesByNorm.get(norm);
-      return ruleTarget ? { ...r, categoria: ruleTarget, _autoMapped: true, _originalCategoria: r.categoria } : r;
+      return ruleTarget ? { ...r, categoria: ruleTarget, _autoMapped: true, _matchMethod: 'memory', _originalCategoria: r.categoria } : r;
+    });
+
+    // ===== NOVA CAMADA DE INTELIGÊNCIA =====
+    // Para o que NÃO bateu em memory nem em known-exact, rodar a cascata
+    // (exact normalizado robusto → alias → keyword → fuzzy) usando a função
+    // unificada matchCategory. Auto-aplica se score >= AUTO_APPLY_THRESHOLD.
+    const newSuggestions: Record<string, MatchResult> = {};
+    const autoFromCascade: Record<string, string> = {};
+    const finalRows = parsedWithRules.map(r => {
+      if ((r as any)._autoMapped) return r;
+      const norm = normalizeStr(r.categoria);
+      if (knownNorm.has(norm)) return r; // já é categoria oficial
+      // dedupe por norm
+      if (autoFromCascade[norm]) {
+        return { ...r, categoria: autoFromCascade[norm], _autoMapped: true, _matchMethod: 'cascade', _originalCategoria: r.categoria };
+      }
+      const result = matchCategory({ raw: r.categoria, memory: rulesByNorm, knownCategories: knownCategoryNames });
+      if (result.target && result.score >= AUTO_APPLY_THRESHOLD) {
+        autoFromCascade[norm] = result.target;
+        return { ...r, categoria: result.target, _autoMapped: true, _matchMethod: result.method, _originalCategoria: r.categoria };
+      }
+      if (result.target) newSuggestions[norm] = result; // fuzzy/keyword baixo → vira sugestão
+      return r;
     });
 
     const unmappedCats: { categoria: string }[] = [];
     const seen = new Set<string>();
-    parsedWithRules.forEach(r => {
+    finalRows.forEach(r => {
       if ((r as any)._autoMapped) return;
       const norm = normalizeStr(r.categoria);
       if (!knownNorm.has(norm) && !seen.has(norm)) {
@@ -277,15 +313,22 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       }
     });
 
-    setPreview(parsedWithRules); setInvalidCount(invalid);
+    setPreview(finalRows); setInvalidCount(invalid);
     setUnmapped(unmappedCats); setCategoryMappings({}); setNewCatMappings({});
+    setSuggestions(newSuggestions);
     setStep('preview');
-    if (parsedWithRules.length === 0) toast.error('Nenhum registro válido');
+    if (finalRows.length === 0) toast.error('Nenhum registro válido');
     else {
-      const auto = parsedWithRules.filter((r: any) => r._autoMapped).length;
-      toast.success(`${parsedWithRules.length} lançamentos válidos${auto > 0 ? ` · ${auto} categorizados automaticamente por regras` : ''}`);
+      const auto = finalRows.filter((r: any) => r._autoMapped).length;
+      const cascadeCount = Object.keys(autoFromCascade).length;
+      const suggCount = Object.keys(newSuggestions).length;
+      const extras: string[] = [];
+      if (auto > 0) extras.push(`${auto} auto-categorizados`);
+      if (cascadeCount > 0) extras.push(`${cascadeCount} via inteligência`);
+      if (suggCount > 0) extras.push(`${suggCount} sugestões`);
+      toast.success(`${finalRows.length} lançamentos válidos${extras.length ? ' · ' + extras.join(' · ') : ''}`);
     }
-  }, [columnMapping, rawRows, knownCategoriaNorms, fileName, rulesByNorm]);
+  }, [columnMapping, rawRows, knownCategoriaNorms, fileName, rulesByNorm, knownCategoryNames]);
 
   const handleConfirmImport = () => {
     // Check all unmapped are resolved
@@ -493,6 +536,31 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                       {unmapped.map(u => {
                         const norm = normalizeStr(u.categoria);
                         const isNew = !!newCatMappings[norm];
+                        const sug = suggestions[norm];
+                        const loadingAi = !!aiLoading[norm];
+                        const applySuggestion = (target: string) => {
+                          setNewCatMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
+                          setCategoryMappings(prev => ({ ...prev, [norm]: target }));
+                        };
+                        const askAi = async () => {
+                          setAiLoading(prev => ({ ...prev, [norm]: true }));
+                          try {
+                            const { data, error } = await supabase.functions.invoke('categorize-expense', {
+                              body: { raw: u.categoria, candidates: knownCategoryNames },
+                            });
+                            if (error) throw error;
+                            if (data?.target) {
+                              setSuggestions(prev => ({ ...prev, [norm]: { target: data.target, score: data.score ?? 0.78, method: 'ai', matchMethod: 'ai' } }));
+                              toast.success(`IA sugeriu: ${data.target}`);
+                            } else {
+                              toast.info('IA não encontrou correspondência');
+                            }
+                          } catch (err: any) {
+                            toast.error(`IA indisponível: ${err?.message ?? 'erro'}`);
+                          } finally {
+                            setAiLoading(prev => ({ ...prev, [norm]: false }));
+                          }
+                        };
                         return (
                           <div key={u.categoria} className="p-2 rounded-lg bg-background border border-border space-y-1.5">
                             <div className="flex items-center gap-2">
@@ -525,7 +593,34 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                                   {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
                                 </SelectContent>
                               </Select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 shrink-0"
+                                title="Sugerir com IA"
+                                onClick={askAi}
+                                disabled={loadingAi}
+                              >
+                                {loadingAi ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                              </Button>
                             </div>
+                            {sug?.target && !categoryMappings[norm] && !isNew && (
+                              <div className="flex items-center gap-2 pl-2">
+                                <span className="text-[11px] text-muted-foreground shrink-0">
+                                  Sugestão ({sug.method}, {Math.round(sug.score * 100)}%):
+                                </span>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[11px] px-2 rounded-md"
+                                  onClick={() => applySuggestion(sug.target!)}
+                                >
+                                  <Check className="w-3 h-3 mr-1" /> {sug.target}
+                                </Button>
+                              </div>
+                            )}
                             {isNew && (
                               <div className="flex items-center gap-2 pl-2">
                                 <span className="text-xs text-muted-foreground shrink-0">Mãe:</span>
