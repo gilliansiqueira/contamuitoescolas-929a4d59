@@ -505,9 +505,13 @@ function ChartSection({ title, data, thresholds, years, yearFilter }: {
     });
   }, [filtered, isMultiYear, uniqueYears]);
 
+  // Cutoff month = último mês com dado do ano mais recente (sobre todos os dados, não filtrado por ano)
+  const latestMonth = data.length > 0 ? data[data.length - 1].month : null;
+  const cutoffMo = latestMonth ? latestMonth.split('-')[1] : null;
+
   const yearsAcc = yearFilter !== 'todos' ? [yearFilter] : uniqueYears;
   const accPerYear = yearsAcc.map(yr => {
-    const rows = filtered.filter(d => d.month.startsWith(yr));
+    const rows = filtered.filter(d => d.month.startsWith(yr) && (!cutoffMo || d.month.split('-')[1] <= cutoffMo));
     const tc = rows.reduce((s, d) => s + (d.contatos || 0), 0);
     const tm = rows.reduce((s, d) => s + (d.matriculas || 0), 0);
     return { year: yr, value: tc > 0 ? (tm / tc) * 100 : null };
@@ -575,19 +579,22 @@ function AbsoluteCharts({ title, data, years, yearFilter }: {
   yearFilter: string;
 }) {
   const filtered = yearFilter !== 'todos' ? data.filter(d => d.month.startsWith(yearFilter)) : data;
+  const latestMonth = data.length > 0 ? data[data.length - 1].month : null;
+  const cutoffMo = latestMonth ? latestMonth.split('-')[1] : null;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <AbsoluteChart title={`Contatos — ${title}`} data={filtered} dataKey="contatos" />
-      <AbsoluteChart title={`Matrículas — ${title}`} data={filtered} dataKey="matriculas" />
+      <AbsoluteChart title={`Contatos — ${title}`} data={filtered} dataKey="contatos" cutoffMo={cutoffMo} />
+      <AbsoluteChart title={`Matrículas — ${title}`} data={filtered} dataKey="matriculas" cutoffMo={cutoffMo} />
     </div>
   );
 }
 
-function AbsoluteChart({ title, data, dataKey }: {
+function AbsoluteChart({ title, data, dataKey, cutoffMo }: {
   title: string;
   data: ConversionRow[];
   dataKey: 'contatos' | 'matriculas';
+  cutoffMo?: string | null;
 }) {
   const uniqueYears = [...new Set(data.map(d => d.month.split('-')[0]))].sort();
   const isMultiYear = uniqueYears.length > 1;
@@ -606,7 +613,7 @@ function AbsoluteChart({ title, data, dataKey }: {
   }, [data, isMultiYear, uniqueYears, dataKey]);
 
   const accPerYear = uniqueYears.map(yr => {
-    const rows = data.filter(d => d.month.startsWith(yr));
+    const rows = data.filter(d => d.month.startsWith(yr) && (!cutoffMo || d.month.split('-')[1] <= cutoffMo));
     return { year: yr, value: rows.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0) };
   });
 
