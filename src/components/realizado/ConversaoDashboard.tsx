@@ -505,9 +505,13 @@ function ChartSection({ title, data, thresholds, years, yearFilter }: {
     });
   }, [filtered, isMultiYear, uniqueYears]);
 
+  // Cutoff month = último mês com dado do ano mais recente (sobre todos os dados, não filtrado por ano)
+  const latestMonth = data.length > 0 ? data[data.length - 1].month : null;
+  const cutoffMo = latestMonth ? latestMonth.split('-')[1] : null;
+
   const yearsAcc = yearFilter !== 'todos' ? [yearFilter] : uniqueYears;
   const accPerYear = yearsAcc.map(yr => {
-    const rows = filtered.filter(d => d.month.startsWith(yr));
+    const rows = filtered.filter(d => d.month.startsWith(yr) && (!cutoffMo || d.month.split('-')[1] <= cutoffMo));
     const tc = rows.reduce((s, d) => s + (d.contatos || 0), 0);
     const tm = rows.reduce((s, d) => s + (d.matriculas || 0), 0);
     return { year: yr, value: tc > 0 ? (tm / tc) * 100 : null };
