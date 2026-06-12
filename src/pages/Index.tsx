@@ -51,7 +51,6 @@ type AppModule = 'projecao' | 'realizado';
 const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'daily_flow', label: 'Fluxo Diário', icon: Table2 },
-  { key: 'cashflow', label: 'Fluxo', icon: BarChart3 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
   { key: 'calendar', label: 'Calendário', icon: CalendarDays },
   { key: 'datatable', label: 'Dados', icon: TableProperties },
@@ -128,7 +127,7 @@ const Index = () => {
     );
   }
 
-  const showMonthSelector = ['dashboard', 'cashflow', 'receivables', 'calendar', 'datatable', 'scenarios', 'daily_flow', 'export'].includes(activeTab);
+  const showMonthSelector = ['dashboard', 'receivables', 'calendar', 'datatable', 'scenarios', 'daily_flow', 'export'].includes(activeTab);
   const showScenarioSelector = activeTab === 'scenarios';
 
   return (
