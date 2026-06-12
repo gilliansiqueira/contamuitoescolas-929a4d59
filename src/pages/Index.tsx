@@ -127,7 +127,7 @@ const Index = () => {
     );
   }
 
-  const showMonthSelector = ['dashboard', 'cashflow', 'receivables', 'calendar', 'datatable', 'scenarios', 'daily_flow', 'export'].includes(activeTab);
+  const showMonthSelector = ['dashboard', 'receivables', 'calendar', 'datatable', 'scenarios', 'daily_flow', 'export'].includes(activeTab);
   const showScenarioSelector = activeTab === 'scenarios';
 
   return (
