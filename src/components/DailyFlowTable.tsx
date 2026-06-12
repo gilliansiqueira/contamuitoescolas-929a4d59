@@ -19,6 +19,8 @@ function formatCurrency(v: number) {
 
 interface DayRow {
   data: string;
+  saldoFinalPrevisto: number;
+  saldoFinalRealizado: number;
   entradaPrevista: number;
   entradaRealizada: number;
   saidaPrevista: number;
