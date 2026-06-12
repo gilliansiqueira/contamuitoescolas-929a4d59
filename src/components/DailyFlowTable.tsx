@@ -226,9 +226,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                     <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalRealizado >= 0 ? 'text-primary' : 'text-destructive'}`}>
                       {formatCurrency(day.saldoFinalRealizado)}
                     </td>
-                    <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinal >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {formatCurrency(day.saldoFinal)}
-                    </td>
+
                   </tr>
                 );
               })}
