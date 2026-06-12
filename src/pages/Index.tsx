@@ -51,7 +51,6 @@ type AppModule = 'projecao' | 'realizado';
 const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'daily_flow', label: 'Fluxo Diário', icon: Table2 },
-  { key: 'cashflow', label: 'Fluxo', icon: BarChart3 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
   { key: 'calendar', label: 'Calendário', icon: CalendarDays },
   { key: 'datatable', label: 'Dados', icon: TableProperties },
