@@ -114,7 +114,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
       saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + d.operacoes;
       saldoPrev += d.entradaPrevista - d.saidaPrevista;
-      saldoReal += d.entradaRealizada - d.saidaRealizada - d.operacoes;
+      saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoes;
       return {
         data,
         ...d,
