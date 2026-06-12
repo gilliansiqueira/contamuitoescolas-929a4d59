@@ -114,7 +114,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
       saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + d.operacoes;
       saldoPrev += d.entradaPrevista - d.saidaPrevista;
-      saldoReal += d.entradaRealizada - d.saidaRealizada - d.operacoes;
+      saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoes;
       return {
         data,
         ...d,
@@ -186,7 +186,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <th className="px-3 py-2.5 text-right font-medium text-purple-600">Operações</th>
                 <th className="px-3 py-2.5 text-right font-medium text-blue-700">Saldo Final Previsto</th>
                 <th className="px-3 py-2.5 text-right font-medium text-primary">Saldo Final Realizado</th>
-                <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">Saldo Final</th>
+
               </tr>
             </thead>
             <tbody>
@@ -226,9 +226,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                     <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalRealizado >= 0 ? 'text-primary' : 'text-destructive'}`}>
                       {formatCurrency(day.saldoFinalRealizado)}
                     </td>
-                    <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinal >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {formatCurrency(day.saldoFinal)}
-                    </td>
+
                   </tr>
                 );
               })}
@@ -242,8 +240,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className="px-3 py-2.5 text-right text-destructive">{formatCurrency(totals.saidaRealizada)}</td>
                 <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}</td>
                 <td className={`px-3 py-2.5 text-right ${(saldoInicialPeriodo + totals.entradaPrevista - totals.saidaPrevista) >= 0 ? 'text-blue-700' : 'text-destructive'}`}>{formatCurrency(saldoInicialPeriodo + totals.entradaPrevista - totals.saidaPrevista)}</td>
-                <td className={`px-3 py-2.5 text-right ${(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada - totals.operacoes) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada - totals.operacoes)}</td>
-                <td className={`px-3 py-2.5 text-right ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoFinalPeriodo)}</td>
+                <td className={`px-3 py-2.5 text-right ${(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada + totals.operacoes) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada + totals.operacoes)}</td>
+
               </tr>
             </tfoot>
           </table>
