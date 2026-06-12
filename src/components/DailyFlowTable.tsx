@@ -240,8 +240,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className="px-3 py-2.5 text-right text-destructive">{formatCurrency(totals.saidaRealizada)}</td>
                 <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}</td>
                 <td className={`px-3 py-2.5 text-right ${(saldoInicialPeriodo + totals.entradaPrevista - totals.saidaPrevista) >= 0 ? 'text-blue-700' : 'text-destructive'}`}>{formatCurrency(saldoInicialPeriodo + totals.entradaPrevista - totals.saidaPrevista)}</td>
-                <td className={`px-3 py-2.5 text-right ${(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada - totals.operacoes) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada - totals.operacoes)}</td>
-                <td className={`px-3 py-2.5 text-right ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoFinalPeriodo)}</td>
+                <td className={`px-3 py-2.5 text-right ${(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada + totals.operacoes) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(saldoInicialPeriodo + totals.entradaRealizada - totals.saidaRealizada + totals.operacoes)}</td>
+
               </tr>
             </tfoot>
           </table>
