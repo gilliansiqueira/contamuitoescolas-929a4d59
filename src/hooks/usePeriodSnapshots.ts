@@ -13,7 +13,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { ClosureModule } from '@/hooks/usePeriodClosures';
+import { usePeriodClosures, type ClosureModule } from '@/hooks/usePeriodClosures';
 
 export interface SnapshotPorTipo {
   tipo: string;          // chave canônica
