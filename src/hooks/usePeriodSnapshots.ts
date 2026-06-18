@@ -13,7 +13,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { ClosureModule } from '@/hooks/usePeriodClosures';
+import { usePeriodClosures, type ClosureModule } from '@/hooks/usePeriodClosures';
 
 export interface SnapshotPorTipo {
   tipo: string;          // chave canônica
@@ -67,8 +67,13 @@ export function useSnapshotMap(
   module: ClosureModule = 'projecao'
 ): Map<string, PeriodClosureSnapshot> {
   const { data = [] } = usePeriodSnapshots(schoolId, module);
+  const { data: closures = [] } = usePeriodClosures(schoolId, module);
+  // Apenas meses ATUALMENTE fechados devem usar o snapshot congelado.
+  // Meses reabertos voltam a ser calculados dinamicamente.
+  const closedMonths = new Set(closures.filter(c => c.status === 'closed').map(c => c.month));
   const m = new Map<string, PeriodClosureSnapshot>();
   for (const s of data) {
+    if (!closedMonths.has(s.month)) continue;
     const existing = m.get(s.month);
     if (!existing || s.created_at > existing.created_at) m.set(s.month, s);
   }
