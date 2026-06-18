@@ -172,15 +172,27 @@ export async function computeMonthSnapshot(
   const [yy, mm0] = month.split('-').map(Number);
   const prevDate = new Date(yy, mm0 - 2, 1);
   const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-  const { data: prevSnap } = await supabase
-    .from('period_closure_snapshots' as any)
-    .select('saldo_final, created_at')
+  // Considera apenas snapshots cujo fechamento ainda está com status 'closed'
+  // (meses reabertos NÃO devem reaproveitar o snapshot congelado).
+  const { data: prevClosure } = await supabase
+    .from('period_closures')
+    .select('id')
     .eq('school_id', schoolId)
     .eq('module', 'projecao')
     .eq('month', prevMonthStr)
-    .order('created_at', { ascending: false })
-    .limit(1)
+    .eq('status', 'closed')
     .maybeSingle();
+  const { data: prevSnap } = prevClosure
+    ? await supabase
+        .from('period_closure_snapshots' as any)
+        .select('saldo_final, created_at')
+        .eq('school_id', schoolId)
+        .eq('module', 'projecao')
+        .eq('month', prevMonthStr)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
 
   let saldoInicial: number;
   const monthStart = `${month}-01`;
