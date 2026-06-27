@@ -209,7 +209,7 @@ export function Simulation({ schoolId }: SimulationProps) {
     return map;
   }, [products, cells, months]);
 
-  // Receita projetada (sistema)
+  // Receita projetada (sistema) — usa dataProjetada (mesma base de Recebíveis)
   const sistemaProjetadoPorMes = useMemo(() => {
     const map: Record<string, number> = {};
     for (const e of entries) {
@@ -217,12 +217,13 @@ export function Simulation({ schoolId }: SimulationProps) {
       if (e.tipoRegistro !== 'projetado') continue;
       const cls = getEffectiveClassification(e, classifications);
       if (cls !== 'receita') continue;
-      map[e.data.slice(0, 7)] = (map[e.data.slice(0, 7)] || 0) + e.valor;
+      const mes = (e.dataProjetada || e.data).slice(0, 7);
+      map[mes] = (map[mes] || 0) + e.valor;
     }
     return map;
   }, [entries, classifications]);
 
-  // Contas a pagar projetadas (sistema) — despesas
+  // Contas a pagar projetadas (sistema) — despesas, também por dataProjetada
   const contasPagarPorMes = useMemo(() => {
     const map: Record<string, number> = {};
     for (const e of entries) {
@@ -230,7 +231,8 @@ export function Simulation({ schoolId }: SimulationProps) {
       if (e.tipoRegistro !== 'projetado') continue;
       const cls = getEffectiveClassification(e, classifications);
       if (cls !== 'despesa') continue;
-      map[e.data.slice(0, 7)] = (map[e.data.slice(0, 7)] || 0) + e.valor;
+      const mes = (e.dataProjetada || e.data).slice(0, 7);
+      map[mes] = (map[mes] || 0) + e.valor;
     }
     return map;
   }, [entries, classifications]);
