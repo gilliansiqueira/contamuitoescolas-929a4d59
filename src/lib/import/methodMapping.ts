@@ -2,8 +2,18 @@
  * Strict normalization of payment method labels coming from Sponte (and
  * variations) into canonical keys used by the audit engine.
  *
- * Cartão de Crédito ≠ Cartão de Débito. The mapping is intentionally strict:
- * the wizard refuses to proceed if a row carries an unknown method.
+ * RULES (immutáveis):
+ *  - Dinheiro permanece Dinheiro. Nunca vira Cobrança/Boleto/Sponte Pay.
+ *  - Cartão de Crédito permanece Cartão de Crédito.
+ *  - Cartão de Débito permanece Cartão de Débito (nunca tratado como crédito,
+ *    nunca usa o delay de crédito).
+ *  - PIX permanece PIX.
+ *  - Cheque permanece Cheque.
+ *  - Cheque Pré-Datado permanece Cheque Pré-Datado (chave própria).
+ *  - Sponte Pay permanece Sponte Pay.
+ *  - Boleto Sponte Pay permanece Boleto Sponte Pay (chave própria, distinta de Sponte Pay).
+ *
+ * O wizard recusa prosseguir se uma linha trouxer método desconhecido.
  */
 
 export type PaymentMethodKey =
@@ -12,8 +22,10 @@ export type PaymentMethodKey =
   | 'pix'
   | 'boleto'
   | 'cheque'
+  | 'cheque_pre_datado'
   | 'dinheiro'
-  | 'sponte_pay';
+  | 'sponte_pay'
+  | 'boleto_sponte_pay';
 
 export interface PaymentMethodMeta {
   key: PaymentMethodKey;
@@ -28,12 +40,22 @@ export const PAYMENT_METHODS: Record<PaymentMethodKey, PaymentMethodMeta> = {
   pix: { key: 'pix', label: 'PIX', delayApplicable: true },
   boleto: { key: 'boleto', label: 'Boleto', delayApplicable: true },
   cheque: { key: 'cheque', label: 'Cheque', delayApplicable: true },
+  cheque_pre_datado: { key: 'cheque_pre_datado', label: 'Cheque Pré-Datado', delayApplicable: true },
   dinheiro: { key: 'dinheiro', label: 'Dinheiro', delayApplicable: false },
   sponte_pay: { key: 'sponte_pay', label: 'Sponte Pay', delayApplicable: true },
+  boleto_sponte_pay: { key: 'boleto_sponte_pay', label: 'Boleto Sponte Pay', delayApplicable: true },
 };
 
 export const PAYMENT_METHOD_ORDER: PaymentMethodKey[] = [
-  'credito', 'debito', 'pix', 'boleto', 'cheque', 'dinheiro', 'sponte_pay',
+  'credito',
+  'debito',
+  'pix',
+  'boleto',
+  'cheque',
+  'cheque_pre_datado',
+  'dinheiro',
+  'sponte_pay',
+  'boleto_sponte_pay',
 ];
 
 function norm(s: string): string {
@@ -50,19 +72,25 @@ function norm(s: string): string {
  * Resolve a raw method string to a canonical key. Returns `null` when no rule
  * matches — caller MUST treat this as a blocking error.
  *
- * Order matters: more specific labels (Sponte Pay) before broad ones.
+ * Order matters: more specific labels (Boleto Sponte Pay, Sponte Pay,
+ * Cheque Pré-Datado) ANTES de variantes mais amplas (Boleto, Cheque).
  */
 export function resolveMethodKey(raw: string): PaymentMethodKey | null {
   const n = norm(raw);
   if (!n) return null;
 
-  // Sponte Pay first — contains "boleto" sometimes and would otherwise match boleto.
-  if (n.includes('sponte pay') || n === 'spontepay' || n.includes('boleto sponte')) {
-    return 'sponte_pay';
+  // Mais específicos primeiro.
+  if (n.includes('boleto sponte') || n.includes('boleto-sponte')) return 'boleto_sponte_pay';
+  if (n.includes('sponte pay') || n === 'spontepay' || n === 'sponte') return 'sponte_pay';
+
+  if (n.includes('pre datado') || n.includes('pre-datado') || n.includes('predatado')) {
+    return 'cheque_pre_datado';
   }
-  // Credit vs debit — never collapse.
+
+  // Crédito vs débito — nunca colapsar.
   if (n.includes('credito') || n.includes('credit')) return 'credito';
   if (n.includes('debito') || n.includes('debit')) return 'debito';
+
   if (n.includes('pix')) return 'pix';
   if (n.includes('boleto') || n.includes('cobranca') || n.includes('cobrança')) return 'boleto';
   if (n.includes('cheque')) return 'cheque';
