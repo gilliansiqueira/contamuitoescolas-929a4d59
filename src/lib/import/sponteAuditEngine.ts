@@ -128,10 +128,25 @@ function findDelayDays(method: PaymentMethodKey, rules: PaymentDelayRule[]): num
   const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const rule = rules.find(r => {
     const k = norm(r.formaCobranca);
-    if (method === 'credito') return k.includes('credito');
+    // Matchers estritos — cada método busca SUA própria regra. Nunca
+    // reaproveita o delay de outro método (especialmente débito ≠ crédito).
+    if (method === 'credito') return k.includes('credito') && !k.includes('debito');
     if (method === 'debito') return k.includes('debito');
-    if (method === 'sponte_pay') return k.includes('sponte');
-    return k.includes(method); // pix, boleto, cheque, dinheiro
+    if (method === 'boleto_sponte_pay') return k.includes('boleto sponte') || k.includes('boleto-sponte');
+    if (method === 'sponte_pay') {
+      return (k.includes('sponte pay') || k === 'sponte' || k === 'spontepay')
+        && !k.includes('boleto');
+    }
+    if (method === 'cheque_pre_datado') {
+      return k.includes('pre datado') || k.includes('pre-datado') || k.includes('predatado');
+    }
+    if (method === 'cheque') return k.includes('cheque') && !k.includes('pre');
+    if (method === 'boleto') {
+      return (k.includes('boleto') || k.includes('cobranca')) && !k.includes('sponte');
+    }
+    if (method === 'pix') return k.includes('pix');
+    if (method === 'dinheiro') return k.includes('dinheiro') || k.includes('especie');
+    return false;
   });
   return rule?.prazo ?? 0;
 }
