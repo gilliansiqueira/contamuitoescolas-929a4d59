@@ -355,12 +355,13 @@ export function buildInsertableEntries(
       ? addDaysAndAdjust(row.dataVencimento, prazo)
       : toNextBusinessDay(row.dataVencimento);
     const weekendAdjusted = dataFinal !== (prazo > 0 ? addDaysToISO(row.dataVencimento, prazo) : row.dataVencimento);
+    const isEstorno = row.valor < 0;
     out.push({
       id: crypto.randomUUID(),
       data: dataFinal,
-      descricao: `Recebimento - ${row.nomeAluno || ''}`.trim(),
+      descricao: `${isEstorno ? 'Estorno' : 'Recebimento'} - ${row.nomeAluno || ''}`.trim(),
       valor: Math.abs(row.valor),
-      tipo: 'entrada',
+      tipo: isEstorno ? 'saida' : 'entrada',
       categoria: methodLabel(row.metodoKey),
       origem: 'sponte',
       school_id: opts.schoolId,
@@ -373,6 +374,7 @@ export function buildInsertableEntries(
         weekend_adjustment: weekendAdjusted,
         source_method: row.metodoRaw,
       },
+
       payment_method_key: row.metodoKey,
       source_file: opts.fileName,
       imported_at: stamp,
