@@ -216,12 +216,19 @@ export function simulateDelays(
       continue;
     }
     const method = row.metodoKey;
-    const prazo = findDelayDays(method, rules);
+    const meta = PAYMENT_METHODS[method];
+    // Métodos sem delay (Dinheiro, Débito) ignoram qualquer prazo configurado.
+    const prazo = meta.delayApplicable ? findDelayDays(method, rules) : 0;
 
-    // Hard guard: debito must never carry a credit-style delay.
-    if (method === 'debito' && prazo >= 28) {
+    // Hard guards de integridade — preservam a identidade do método.
+    if (method === 'debito' && prazo > 0) {
       errors.push(
-        `Linha ${row.lineNumber}: Cartão de Débito não pode receber prazo de ${prazo} dias (regra de crédito aplicada por engano).`,
+        `Linha ${row.lineNumber}: Cartão de Débito não pode receber prazo (${prazo} dias) — débito nunca usa delay de crédito.`,
+      );
+    }
+    if (method === 'dinheiro' && prazo > 0) {
+      errors.push(
+        `Linha ${row.lineNumber}: Dinheiro não pode receber prazo (${prazo} dias) — recebimento é à vista.`,
       );
     }
 
