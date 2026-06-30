@@ -19,6 +19,7 @@ import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMa
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { fetchSchoolTemplateId, fetchTemplateItems, type FinancialModelTemplateItem } from '@/lib/financialModels';
+import { ImportacaoSponteAuditada } from '@/components/realizado/ImportacaoSponteAuditada';
 
 interface FileUploadProps {
   schoolId: string;
