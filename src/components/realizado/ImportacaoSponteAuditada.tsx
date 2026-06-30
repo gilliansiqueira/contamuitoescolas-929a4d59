@@ -108,10 +108,51 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
   const [aiLoading, setAiLoading] = useState(false);
   const [forceOverride, setForceOverride] = useState(false);
 
+  // Estado para mapeamento manual de colunas quando o auto-detect falha.
+  const [rawRows, setRawRows] = useState<Record<string, any>[]>([]);
+  const [rawCols, setRawCols] = useState<string[]>([]);
+  const [needsMapping, setNeedsMapping] = useState(false);
+  const [mapData, setMapData] = useState<string>('');
+  const [mapValor, setMapValor] = useState<string>('');
+  const [mapMetodo, setMapMetodo] = useState<string>('');
+  const [mapNome, setMapNome] = useState<string>('');
+
+  // Conversão das linhas brutas em ParsedRow[] usando os nomes de coluna escolhidos.
+  const parseRowsWithMapping = useCallback((
+    rows: Record<string, any>[],
+    colData: string,
+    colValor: string,
+    colMetodo: string,
+    colNome?: string,
+  ): { out: ParsedRow[]; errs: string[] } => {
+    const errs: string[] = [];
+    const out: ParsedRow[] = [];
+    rows.forEach((r, i) => {
+      const line = i + 2;
+      const data = parseDateCell(r[colData]);
+      const valor = parseValueCell(r[colValor]);
+      const metodoRaw = String(r[colMetodo] ?? '').trim();
+      if (!data) { errs.push(`Linha ${line}: data inválida`); return; }
+      if (valor == null) { errs.push(`Linha ${line}: valor inválido`); return; }
+      const key = resolveMethodKey(metodoRaw);
+      if (!key) { errs.push(`Linha ${line}: método "${metodoRaw}" não reconhecido`); return; }
+      out.push({
+        lineNumber: line,
+        dataVencimento: data,
+        valor: Math.abs(valor),
+        metodoRaw,
+        metodoKey: key,
+        nomeAluno: colNome ? String(r[colNome] ?? '').trim() : undefined,
+      });
+    });
+    return { out, errs };
+  }, []);
+
   // ── Step 1: file
   const handleFile = useCallback(async (file: File) => {
     setFileName(file.name);
     setParseErrors([]);
+    setNeedsMapping(false);
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellDates: true });
@@ -123,39 +164,43 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
       const colValor = pickColumn(cols, ['valor_com_desconto', 'valor', 'vlr', 'total']);
       const colMetodo = pickColumn(cols, ['forma_de_cobranca', 'forma_cobranca', 'tipo_pagamento', 'metodo']);
       const colNome = pickColumn(cols, ['sacado', 'nome_aluno', 'aluno', 'nome']);
+
+      // Auto-detect falhou em pelo menos uma coluna obrigatória — pedir mapeamento manual.
       if (!colData || !colValor || !colMetodo) {
-        toast.error('Colunas obrigatórias não encontradas (vencimento, valor, forma de cobrança).');
+        setRawRows(rows);
+        setRawCols(cols);
+        setMapData(colData ?? '');
+        setMapValor(colValor ?? '');
+        setMapMetodo(colMetodo ?? '');
+        setMapNome(colNome ?? '');
+        setNeedsMapping(true);
+        toast.info('Selecione manualmente as colunas de vencimento, valor e forma de cobrança.');
         return;
       }
-      const errs: string[] = [];
-      const out: ParsedRow[] = [];
-      rows.forEach((r, i) => {
-        const line = i + 2;
-        const data = parseDateCell(r[colData]);
-        const valor = parseValueCell(r[colValor]);
-        const metodoRaw = String(r[colMetodo] ?? '').trim();
-        if (!data) { errs.push(`Linha ${line}: data inválida`); return; }
-        if (valor == null) { errs.push(`Linha ${line}: valor inválido`); return; }
-        const key = resolveMethodKey(metodoRaw);
-        if (!key) { errs.push(`Linha ${line}: método "${metodoRaw}" não reconhecido`); return; }
-        out.push({
-          lineNumber: line,
-          dataVencimento: data,
-          valor: Math.abs(valor),
-          metodoRaw,
-          metodoKey: key,
-          nomeAluno: colNome ? String(r[colNome] ?? '').trim() : undefined,
-        });
-      });
+
+      const { out, errs } = parseRowsWithMapping(rows, colData, colValor, colMetodo, colNome);
       setParsed(out);
       setParseErrors(errs);
       if (out.length === 0) { toast.error('Nenhuma linha válida.'); return; }
-      // Move to conference
       goToConference(out);
     } catch (e: any) {
       toast.error(`Erro ao ler arquivo: ${e?.message}`);
     }
-  }, [allEntries]);
+  }, [allEntries, parseRowsWithMapping]);
+
+  // Confirma o mapeamento manual escolhido pelo usuário.
+  const confirmManualMapping = useCallback(() => {
+    if (!mapData || !mapValor || !mapMetodo) {
+      toast.error('Selecione vencimento, valor e forma de cobrança.');
+      return;
+    }
+    const { out, errs } = parseRowsWithMapping(rawRows, mapData, mapValor, mapMetodo, mapNome || undefined);
+    setParsed(out);
+    setParseErrors(errs);
+    if (out.length === 0) { toast.error('Nenhuma linha válida com as colunas escolhidas.'); return; }
+    setNeedsMapping(false);
+    goToConference(out);
+  }, [rawRows, mapData, mapValor, mapMetodo, mapNome, parseRowsWithMapping]);
 
   const goToConference = (rows: ParsedRow[]) => {
     const minDate = rows.reduce((m, r) => (r.dataVencimento < m ? r.dataVencimento : m), rows[0].dataVencimento);
