@@ -18,12 +18,12 @@
 import type { FinancialEntry, PaymentDelayRule } from '@/types/financial';
 import {
   PAYMENT_METHOD_ORDER,
-  PAYMENT_METHODS,
   methodLabel,
   resolveMethodKey,
   type PaymentMethodKey,
 } from './methodMapping';
 import { addDaysAndAdjust, toNextBusinessDay, isWeekend } from '@/lib/dateUtils';
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
