@@ -217,18 +217,19 @@ export function simulateDelays(
     }
     const method = row.metodoKey;
     const meta = PAYMENT_METHODS[method];
+    const prazoConfigurado = findDelayDays(method, rules);
     // Métodos sem delay (Dinheiro, Débito) ignoram qualquer prazo configurado.
-    const prazo = meta.delayApplicable ? findDelayDays(method, rules) : 0;
+    const prazo = meta.delayApplicable ? prazoConfigurado : 0;
 
     // Hard guards de integridade — preservam a identidade do método.
-    if (method === 'debito' && prazo > 0) {
+    if (method === 'debito' && prazoConfigurado > 0) {
       errors.push(
-        `Linha ${row.lineNumber}: Cartão de Débito não pode receber prazo (${prazo} dias) — débito nunca usa delay de crédito.`,
+        `Linha ${row.lineNumber}: Cartão de Débito não pode receber prazo (${prazoConfigurado} dias) — débito nunca usa delay de crédito.`,
       );
     }
-    if (method === 'dinheiro' && prazo > 0) {
+    if (method === 'dinheiro' && prazoConfigurado > 0) {
       errors.push(
-        `Linha ${row.lineNumber}: Dinheiro não pode receber prazo (${prazo} dias) — recebimento é à vista.`,
+        `Linha ${row.lineNumber}: Dinheiro não pode receber prazo (${prazoConfigurado} dias) — recebimento é à vista.`,
       );
     }
 
