@@ -17,21 +17,26 @@ import { useAddUpload, useAddAuditLog, usePaymentDelayRules, useEntriesFromBaseD
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sparkles, Shield, X } from 'lucide-react';
+import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sparkles, Shield, X, Wand2, ArrowRightCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveMethodKey, PAYMENT_METHOD_ORDER, methodLabel, type PaymentMethodKey } from '@/lib/import/methodMapping';
 import {
   buildConferenceReport,
+  buildFileSummary,
+  buildDelayVisualization,
   simulateDelays,
   simulateReplacement,
   buildInsertableEntries,
   type ParsedRow,
   type ConferenceReport,
+  type FileSummary,
   type DelaySimulationResult,
+  type DelayVisualization,
   type ReplacementSimulation,
 } from '@/lib/import/sponteAuditEngine';
 import type { FinancialEntry } from '@/types/financial';
+
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
