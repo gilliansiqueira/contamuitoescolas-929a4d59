@@ -175,12 +175,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       if (!data) return;
       const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) return;
+      if (!meta.entraNoResultado) return;
       const valor = Number(r.valor) || 0;
       if (valor === 0) return;
       const d = ensureDay(data);
-      if (!meta.entraNoResultado) {
-        d.operacoesReal += meta.sinal === 'somar' ? valor : -valor;
-      } else if (meta.sinal === 'somar') {
+      if (meta.sinal === 'somar') {
         d.entradaRealizada += valor;
       } else {
         d.saidaRealizada += valor;
