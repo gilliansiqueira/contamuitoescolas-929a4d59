@@ -939,6 +939,14 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             ))}
           </div>
         </div>
+      ) : selectedType.key === 'sponte' ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <ImportacaoSponteAuditada
+            schoolId={schoolId}
+            onClose={handleReset}
+            onImported={() => { onImported(); }}
+          />
+        </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           <div className="flex items-center justify-between">
