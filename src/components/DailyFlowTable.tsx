@@ -70,16 +70,16 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const dailyData = useMemo(() => {
     const priorSaldo = saldoInicialPeriodo;
 
-    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoes: number }> = {};
+    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoesPrev: number; operacoesReal: number }> = {};
     adjustedProjectedEntries.forEach(e => {
       const data = e.dataProjetada;
       if (!allDays.includes(data)) return;
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
       const impact = e.impacto;
       if (impact === 0) return;
       // Operação (entraNoResultado=false) impacta caixa mas vai para coluna Operações
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
-        byDate[data].operacoes += impact;
+        byDate[data].operacoesPrev += impact;
         return;
       }
       if (impact > 0) {
@@ -92,11 +92,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     realizedEntries.forEach(e => {
       const data = e.data;
       if (!allDays.includes(data)) return;
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
       const impact = e.impacto;
       if (impact === 0) return;
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
-        byDate[data].operacoes += impact;
+        byDate[data].operacoesReal += impact;
         return;
       }
       if (impact > 0) {
@@ -111,13 +111,18 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     let saldoPrev = priorSaldo;
     let saldoReal = priorSaldo;
     return allDays.map(data => {
-      const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 };
-      saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + d.operacoes;
-      saldoPrev += d.entradaPrevista - d.saidaPrevista;
-      saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoes;
+      const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
+      const operacoes = d.operacoesPrev + d.operacoesReal;
+      saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + operacoes;
+      saldoPrev += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
+      saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoesReal;
       return {
         data,
-        ...d,
+        entradaPrevista: d.entradaPrevista,
+        entradaRealizada: d.entradaRealizada,
+        saidaPrevista: d.saidaPrevista,
+        saidaRealizada: d.saidaRealizada,
+        operacoes,
         saldoFinal: saldo,
         saldoFinalPrevisto: saldoPrev,
         saldoFinalRealizado: saldoReal,
@@ -136,6 +141,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     saidaRealizada: acc.saidaRealizada + d.saidaRealizada,
     operacoes: acc.operacoes + d.operacoes,
   }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 }), [dailyData]);
+
 
   if (allDays.length === 0) {
     return (
