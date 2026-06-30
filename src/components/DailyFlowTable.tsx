@@ -170,7 +170,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
     historicalRows.forEach(r => {
       if (monthSources[r.month] !== 'historico') return;
-      const data = allDays.filter(d => d.startsWith(r.month)).at(-1);
+      const monthDays = allDays.filter(d => d.startsWith(r.month));
+      const data = monthDays[monthDays.length - 1];
       if (!data) return;
       const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) return;
