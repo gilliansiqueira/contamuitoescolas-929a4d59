@@ -73,13 +73,23 @@ describe('simulateDelays', () => {
     expect(r.errors).toHaveLength(0);
     expect(Object.keys(r.depois)).toContain('2026-08');
   });
-  it('flags debito if credit-style delay sneaks in', () => {
+  it('respects user-configured delay for any method (including débito)', () => {
     const r = simulateDelays(
       [row({ v: 100, data: '2026-07-10', metodo: 'Cartão de Débito' })],
-      [{ id: 'x', school_id: 's', formaCobranca: 'Cartão de Débito', prazo: 30 }],
+      [{ id: 'x', school_id: 's', formaCobranca: 'Cartão de Débito', prazo: 2 }],
     );
-    expect(r.errors.length).toBeGreaterThan(0);
+    expect(r.errors).toHaveLength(0);
+    expect(r.movimentos[0].prazoDias).toBe(2);
   });
+  it('respects user-configured delay for dinheiro when set', () => {
+    const r = simulateDelays(
+      [row({ v: 100, data: '2026-07-10', metodo: 'Dinheiro' })],
+      [{ id: 'x', school_id: 's', formaCobranca: 'Dinheiro', prazo: 1 }],
+    );
+    expect(r.errors).toHaveLength(0);
+    expect(r.movimentos[0].prazoDias).toBe(1);
+  });
+
   it('pushes weekend dates to monday', () => {
     // 2026-06-28 is a Sunday
     const r = simulateDelays([row({ v: 50, data: '2026-06-28', metodo: 'PIX' })], rules);

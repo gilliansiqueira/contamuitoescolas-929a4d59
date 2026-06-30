@@ -17,21 +17,26 @@ import { useAddUpload, useAddAuditLog, usePaymentDelayRules, useEntriesFromBaseD
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sparkles, Shield, X } from 'lucide-react';
+import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sparkles, Shield, X, Wand2, ArrowRightCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveMethodKey, PAYMENT_METHOD_ORDER, methodLabel, type PaymentMethodKey } from '@/lib/import/methodMapping';
 import {
   buildConferenceReport,
+  buildFileSummary,
+  buildDelayVisualization,
   simulateDelays,
   simulateReplacement,
   buildInsertableEntries,
   type ParsedRow,
   type ConferenceReport,
+  type FileSummary,
   type DelaySimulationResult,
+  type DelayVisualization,
   type ReplacementSimulation,
 } from '@/lib/import/sponteAuditEngine';
 import type { FinancialEntry } from '@/types/financial';
+
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -117,14 +122,23 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
   const [fileName, setFileName] = useState('');
   const [parsed, setParsed] = useState<ParsedRow[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [conference, setConference] = useState<ConferenceReport | null>(null);
+  const [fileSummary, setFileSummary] = useState<FileSummary | null>(null);
   const [delaySim, setDelaySim] = useState<DelaySimulationResult | null>(null);
+  const [delayViz, setDelayViz] = useState<DelayVisualization | null>(null);
   const [replaceSim, setReplaceSim] = useState<ReplacementSimulation | null>(null);
   const [importing, setImporting] = useState(false);
   const [postAudit, setPostAudit] = useState<ConferenceReport | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [forceOverride, setForceOverride] = useState(false);
+
+  // Classificação IA (etapa 2).
+  const [classifyLoading, setClassifyLoading] = useState(false);
+  const [classifySuggestions, setClassifySuggestions] = useState<Array<{
+    metodoRaw: string; atual: string | null; sugerida: string; qtd: number; motivo: string;
+  }> | null>(null);
+  const [classifyResumo, setClassifyResumo] = useState<string>('');
+
 
   // Estado para mapeamento manual de colunas quando o auto-detect falha.
   const [rawRows, setRawRows] = useState<Record<string, any>[]>([]);
@@ -220,22 +234,57 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
     goToConference(out);
   }, [rawRows, mapData, mapValor, mapMetodo, mapNome, parseRowsWithMapping]);
 
+  // Step 2: apenas leitura do arquivo (sem comparar com sistema).
   const goToConference = (rows: ParsedRow[]) => {
-    const minDate = rows.reduce((m, r) => (r.dataVencimento < m ? r.dataVencimento : m), rows[0].dataVencimento);
-    const maxDate = rows.reduce((m, r) => (r.dataVencimento > m ? r.dataVencimento : m), rows[0].dataVencimento);
-    const sistema = (allEntries as FinancialEntry[]).filter(e =>
-      e.origem === 'sponte' && e.tipoRegistro === 'projetado'
-      && (e as any).data >= minDate && (e as any).data <= maxDate,
-    );
-    setConference(buildConferenceReport(rows, sistema));
+    setFileSummary(buildFileSummary(rows));
+    setClassifySuggestions(null);
+    setClassifyResumo('');
     setStep(2);
+  };
+
+  // Verificação IA da classificação (chamado manualmente na etapa 2).
+  const verifyClassification = async () => {
+    setClassifyLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-sponte-classification', {
+        body: {
+          rows: parsed.map(p => ({
+            lineNumber: p.lineNumber,
+            metodoRaw: p.metodoRaw,
+            metodoKey: p.metodoKey,
+            valor: p.valor,
+            descricao: p.nomeAluno,
+          })),
+          allowedKeys: PAYMENT_METHOD_ORDER,
+        },
+      });
+      if (error) throw error;
+      setClassifySuggestions(Array.isArray(data?.sugestoes) ? data.sugestoes : []);
+      setClassifyResumo(typeof data?.resumo === 'string' ? data.resumo : '');
+    } catch (e: any) {
+      toast.error(`IA: ${e?.message ?? 'falha ao verificar'}`);
+    } finally {
+      setClassifyLoading(false);
+    }
+  };
+
+  // Aplica uma sugestão da IA reclassificando todas as linhas com aquele metodoRaw.
+  const applySuggestion = (metodoRaw: string, sugerida: PaymentMethodKey) => {
+    setParsed(prev => prev.map(p => p.metodoRaw === metodoRaw ? { ...p, metodoKey: sugerida } : p));
+    setClassifySuggestions(prev => (prev ?? []).filter(s => s.metodoRaw !== metodoRaw));
+    // Recalcular resumo após reclassificação.
+    setFileSummary(buildFileSummary(parsed.map(p => p.metodoRaw === metodoRaw ? { ...p, metodoKey: sugerida } : p)));
+    toast.success(`Reclassificado "${metodoRaw}" → ${methodLabel(sugerida)}`);
   };
 
   // ── Step 3: delay simulation
   const goToDelay = () => {
-    setDelaySim(simulateDelays(parsed, rules));
+    const sim = simulateDelays(parsed, rules);
+    setDelaySim(sim);
+    setDelayViz(buildDelayVisualization(sim));
     setStep(3);
   };
+
 
   // ── Step 4: replacement simulation
   const goToReplace = () => {
@@ -311,8 +360,9 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
         upload_id: uploadId,
         file_name: fileName,
         summary: {
-          conference, delaySim, replaceSim, post,
+          fileSummary, delaySim, delayViz, replaceSim, post,
         } as any,
+
         approved: true,
       });
 
@@ -434,89 +484,209 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
           </motion.div>
         )}
 
-        {step === 2 && conference && (
-          <motion.div key="s2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+        {step === 2 && fileSummary && (
+          <motion.div key="s2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
             <div className="text-xs text-muted-foreground">
-              Comparação dos totais do arquivo <strong>{fileName}</strong> contra o que já existe no sistema (apenas projeções Sponte do mesmo período).
+              Conferência do que foi <strong>lido do arquivo</strong> <span className="text-foreground">{fileName}</span>.
+              Esta etapa valida apenas a leitura — sem comparar com o sistema.
             </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="glass-card rounded-xl p-3">
+                <p className="text-[11px] text-muted-foreground">Total do arquivo</p>
+                <p className="text-lg font-semibold">{fmt(fileSummary.total)}</p>
+              </div>
+              <div className="glass-card rounded-xl p-3">
+                <p className="text-[11px] text-muted-foreground">Registros</p>
+                <p className="text-lg font-semibold">{fileSummary.totalRegistros}</p>
+              </div>
+              <div className="glass-card rounded-xl p-3">
+                <p className="text-[11px] text-muted-foreground">Primeiro vencimento</p>
+                <p className="text-sm font-semibold">{fileSummary.dataMin || '—'}</p>
+              </div>
+              <div className="glass-card rounded-xl p-3">
+                <p className="text-[11px] text-muted-foreground">Último vencimento</p>
+                <p className="text-sm font-semibold">{fileSummary.dataMax || '—'}</p>
+              </div>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Método</TableHead>
-                  <TableHead className="text-right">Arquivo</TableHead>
-                  <TableHead className="text-right">Sistema</TableHead>
-                  <TableHead className="text-right">Diferença</TableHead>
+                  <TableHead className="text-right">Qtd</TableHead>
+                  <TableHead className="text-right">Valor lido</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {conference.perMethod.map(l => (
+                {fileSummary.perMethod.map(l => (
                   <TableRow key={l.method}>
                     <TableCell>{l.label}</TableCell>
-                    <TableCell className="text-right">{fmt(l.arquivoValor)} <span className="text-muted-foreground">({l.arquivoQtd})</span></TableCell>
-                    <TableCell className="text-right">{fmt(l.sistemaValor)} <span className="text-muted-foreground">({l.sistemaQtd})</span></TableCell>
-                    <TableCell className={`text-right font-semibold ${Math.abs(l.diferencaValor) < 0.01 ? 'text-success' : 'text-amber-600'}`}>{fmt(l.diferencaValor)}</TableCell>
+                    <TableCell className="text-right">{l.qtd}</TableCell>
+                    <TableCell className="text-right font-medium">{fmt(l.valor)}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow className="border-t-2">
                   <TableCell className="font-bold">Total</TableCell>
-                  <TableCell className="text-right font-bold">{fmt(conference.totalArquivo)}</TableCell>
-                  <TableCell className="text-right font-bold">{fmt(conference.totalSistema)}</TableCell>
-                  <TableCell className={`text-right font-bold ${Math.abs(conference.diferencaTotal) < 0.01 ? 'text-success' : 'text-amber-600'}`}>{fmt(conference.diferencaTotal)}</TableCell>
+                  <TableCell className="text-right font-bold">{fileSummary.totalRegistros}</TableCell>
+                  <TableCell className="text-right font-bold">{fmt(fileSummary.total)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
+
+            {/* Verificação IA de classificação */}
+            <div className="glass-card rounded-xl p-3 space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <strong className="text-sm">Verificação de classificação por IA</strong>
+                </div>
+                <Button size="sm" variant="outline" onClick={verifyClassification} disabled={classifyLoading}>
+                  {classifyLoading
+                    ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Analisando…</>
+                    : <><Wand2 className="w-3 h-3 mr-1" />{classifySuggestions ? 'Reanalisar' : 'Analisar classificação'}</>}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                A IA identifica erros como "Dinheiro lido como Boleto", "Débito como Crédito" ou "PIX como Sponte Pay" e sugere a correção.
+              </p>
+
+              {classifySuggestions && classifySuggestions.length === 0 && (
+                <div className="flex items-center gap-2 text-success text-xs">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{classifyResumo || 'Nenhuma classificação suspeita encontrada.'}</span>
+                </div>
+              )}
+
+              {classifySuggestions && classifySuggestions.length > 0 && (
+                <div className="space-y-2">
+                  {classifyResumo && <p className="text-xs italic text-muted-foreground">{classifyResumo}</p>}
+                  {classifySuggestions.map((s, i) => {
+                    const valid = (PAYMENT_METHOD_ORDER as readonly string[]).includes(s.sugerida);
+                    return (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded bg-amber-500/5 border border-amber-500/30">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex-1 text-xs">
+                          <p className="font-medium">"{s.metodoRaw}" ({s.qtd} {s.qtd === 1 ? 'linha' : 'linhas'})</p>
+                          <p className="text-muted-foreground">
+                            Atual: <Badge variant="outline" className="ml-1">{s.atual ? methodLabel(s.atual as PaymentMethodKey) : 'não reconhecido'}</Badge>
+                            <ArrowRight className="w-3 h-3 inline mx-1" />
+                            Sugerido: <Badge className="ml-1">{valid ? methodLabel(s.sugerida as PaymentMethodKey) : s.sugerida}</Badge>
+                          </p>
+                          <p className="text-muted-foreground italic mt-0.5">{s.motivo}</p>
+                        </div>
+                        {valid && (
+                          <Button size="sm" variant="outline" onClick={() => applySuggestion(s.metodoRaw, s.sugerida as PaymentMethodKey)}>
+                            Aplicar
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-between">
               <Button variant="outline" size="sm" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-1" />Voltar</Button>
-              <Button size="sm" onClick={goToDelay}>Aprovar conferência <ArrowRight className="w-4 h-4 ml-1" /></Button>
+              <Button size="sm" onClick={goToDelay}>Aprovar leitura <ArrowRight className="w-4 h-4 ml-1" /></Button>
             </div>
           </motion.div>
         )}
 
-        {step === 3 && delaySim && (
-          <motion.div key="s3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+        {step === 3 && delaySim && delayViz && (
+          <motion.div key="s3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
             <div className="text-xs text-muted-foreground">
-              Distribuição dos valores por mês <strong>antes</strong> e <strong>depois</strong> da aplicação dos prazos de cobrança (e ajuste de fim-de-semana).
+              Aplicação dos prazos configurados (e ajuste de finais de semana para o próximo dia útil).
+              Veja para qual mês cada valor foi movido.
             </div>
+
             {delaySim.errors.length > 0 && (
               <div className="rounded-lg p-3 bg-destructive/5 border border-destructive/30">
-                <div className="flex items-center gap-2 text-destructive mb-2"><AlertTriangle className="w-4 h-4" /><strong className="text-xs">Erros de validação</strong></div>
+                <div className="flex items-center gap-2 text-destructive mb-2"><AlertTriangle className="w-4 h-4" /><strong className="text-xs">Erros</strong></div>
                 <ul className="text-xs space-y-0.5 text-destructive/80">{delaySim.errors.slice(0, 8).map((e, i) => <li key={i}>{e}</li>)}</ul>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              {(['antes', 'depois'] as const).map(side => {
-                const bucket = delaySim[side];
-                const months = Object.keys(bucket).sort();
-                return (
-                  <div key={side} className="glass-card rounded-xl p-3">
-                    <h4 className="font-semibold text-sm mb-2 capitalize">{side === 'antes' ? 'Antes do delay' : 'Depois do delay'}</h4>
-                    <div className="space-y-2 text-xs">
-                      {months.map(m => {
-                        const total = Object.values(bucket[m]).reduce((s, v) => s + (v ?? 0), 0);
-                        return (
-                          <div key={m}>
-                            <div className="flex justify-between font-medium">
-                              <span>{m}</span><span>{fmt(total)}</span>
-                            </div>
-                            <div className="text-muted-foreground pl-2 space-y-0.5">
-                              {PAYMENT_METHOD_ORDER.filter(k => bucket[m][k]).map(k => (
-                                <div key={k} className="flex justify-between"><span>{methodLabel(k)}</span><span>{fmt(bucket[m][k] ?? 0)}</span></div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
+
+            {/* Resumo de fluxo entre meses */}
+            <div className="glass-card rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowRightCircle className="w-4 h-4 text-primary" />
+                  <strong className="text-sm">Valores deslocados entre meses</strong>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {delayViz.totalRegistrosMovidos} {delayViz.totalRegistrosMovidos === 1 ? 'registro' : 'registros'} · {fmt(delayViz.totalMovido)}
+                </span>
+              </div>
+              {delayViz.flows.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhum valor mudou de mês após o delay.</p>
+              ) : (
+                <div className="space-y-1">
+                  {delayViz.flows.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs py-1 border-b last:border-0 border-border/40">
+                      <Badge variant="outline" className="font-mono">{f.fromMonth}</Badge>
+                      <ArrowRight className="w-3 h-3 text-primary" />
+                      <Badge className="font-mono">{f.toMonth}</Badge>
+                      <span className="flex-1 text-muted-foreground">{f.label}</span>
+                      <span className="text-muted-foreground">{f.qtd}×</span>
+                      <span className="font-semibold tabular-nums">{fmt(f.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Comparação por mês — antes × depois */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold">Totais por mês — antes × depois</h4>
+              {delayViz.months.map(mb => (
+                <div key={mb.month} className="glass-card rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 bg-muted/30 border-b">
+                    <span className="font-mono text-sm font-semibold">{mb.month}</span>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-muted-foreground">Antes: <span className="font-semibold text-foreground tabular-nums">{fmt(mb.antesTotal)}</span></span>
+                      <ArrowRight className="w-3 h-3" />
+                      <span className="text-muted-foreground">Depois: <span className="font-semibold text-foreground tabular-nums">{fmt(mb.depoisTotal)}</span></span>
+                      <Badge variant={Math.abs(mb.delta) < 0.01 ? 'outline' : mb.delta > 0 ? 'default' : 'secondary'} className="tabular-nums">
+                        {mb.delta > 0 ? '+' : ''}{fmt(mb.delta)}
+                      </Badge>
                     </div>
                   </div>
-                );
-              })}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Método</TableHead>
+                        <TableHead className="text-right">Antes</TableHead>
+                        <TableHead className="text-right">Depois</TableHead>
+                        <TableHead className="text-right">Variação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {mb.perMethod.map(m => (
+                        <TableRow key={m.method}>
+                          <TableCell>{m.label}</TableCell>
+                          <TableCell className="text-right tabular-nums">{fmt(m.antes)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{fmt(m.depois)}</TableCell>
+                          <TableCell className={`text-right tabular-nums ${Math.abs(m.delta) < 0.01 ? 'text-muted-foreground' : m.delta > 0 ? 'text-success' : 'text-amber-600'}`}>
+                            {m.delta > 0 ? '+' : ''}{fmt(m.delta)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
             </div>
+
             <div className="flex justify-between">
               <Button variant="outline" size="sm" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4 mr-1" />Voltar</Button>
-              <Button size="sm" onClick={goToReplace} disabled={delaySim.errors.length > 0}>Aprovar simulação <ArrowRight className="w-4 h-4 ml-1" /></Button>
+              <Button size="sm" onClick={goToReplace} disabled={delaySim.errors.length > 0}>Aprovar delay <ArrowRight className="w-4 h-4 ml-1" /></Button>
             </div>
           </motion.div>
         )}
+
+
 
         {step === 4 && replaceSim && (
           <motion.div key="s4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
