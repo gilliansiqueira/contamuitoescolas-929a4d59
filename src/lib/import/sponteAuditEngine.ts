@@ -380,3 +380,150 @@ export function buildInsertableEntries(
   }
   return out;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// File-only summary (no system comparison)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FileSummaryLine {
+  method: PaymentMethodKey;
+  label: string;
+  valor: number;
+  qtd: number;
+}
+
+export interface FileSummary {
+  perMethod: FileSummaryLine[];
+  total: number;
+  totalRegistros: number;
+  dataMin: string;
+  dataMax: string;
+  unrecognized: { lineNumber: number; metodoRaw: string }[];
+}
+
+export function buildFileSummary(parsed: ParsedRow[]): FileSummary {
+  const perMethod: FileSummaryLine[] = PAYMENT_METHOD_ORDER.map(method => {
+    const rs = parsed.filter(p => p.metodoKey === method);
+    return {
+      method,
+      label: methodLabel(method),
+      valor: sumBy(rs, r => r.valor),
+      qtd: rs.length,
+    };
+  }).filter(l => l.qtd > 0);
+
+  const datas = parsed.map(p => p.dataVencimento).sort();
+  return {
+    perMethod,
+    total: sumBy(perMethod, l => l.valor),
+    totalRegistros: parsed.length,
+    dataMin: datas[0] ?? '',
+    dataMax: datas[datas.length - 1] ?? '',
+    unrecognized: parsed
+      .filter(p => p.metodoKey == null)
+      .map(p => ({ lineNumber: p.lineNumber, metodoRaw: p.metodoRaw })),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Month movements (visualização "antes × depois" do delay)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MonthMethodTotal {
+  method: PaymentMethodKey;
+  label: string;
+  antes: number;
+  depois: number;
+  delta: number;
+}
+
+export interface MonthBreakdown {
+  month: string;            // YYYY-MM
+  antesTotal: number;
+  depoisTotal: number;
+  delta: number;            // depois - antes
+  perMethod: MonthMethodTotal[];
+}
+
+export interface FlowBetweenMonths {
+  fromMonth: string;
+  toMonth: string;
+  method: PaymentMethodKey;
+  label: string;
+  valor: number;
+  qtd: number;
+}
+
+export interface DelayVisualization {
+  months: MonthBreakdown[];
+  flows: FlowBetweenMonths[];
+  totalMovido: number;
+  totalRegistrosMovidos: number;
+}
+
+export function buildDelayVisualization(sim: DelaySimulationResult): DelayVisualization {
+  const monthSet = new Set<string>();
+  Object.keys(sim.antes).forEach(m => monthSet.add(m));
+  Object.keys(sim.depois).forEach(m => monthSet.add(m));
+  const months = [...monthSet].sort();
+
+  const breakdown: MonthBreakdown[] = months.map(m => {
+    const antes = sim.antes[m] || {};
+    const depois = sim.depois[m] || {};
+    const methodKeys = new Set<PaymentMethodKey>([
+      ...(Object.keys(antes) as PaymentMethodKey[]),
+      ...(Object.keys(depois) as PaymentMethodKey[]),
+    ]);
+    const perMethod: MonthMethodTotal[] = PAYMENT_METHOD_ORDER
+      .filter(k => methodKeys.has(k))
+      .map(k => {
+        const a = round2(antes[k] ?? 0);
+        const d = round2(depois[k] ?? 0);
+        return { method: k, label: methodLabel(k), antes: a, depois: d, delta: round2(d - a) };
+      });
+    const antesTotal = sumBy(perMethod, x => x.antes);
+    const depoisTotal = sumBy(perMethod, x => x.depois);
+    return { month: m, antesTotal, depoisTotal, delta: round2(depoisTotal - antesTotal), perMethod };
+  });
+
+  // Fluxos detalhados entre meses (origem → destino, por método).
+  const flowMap = new Map<string, FlowBetweenMonths>();
+  let totalMovido = 0;
+  let totalRegistrosMovidos = 0;
+  for (const mov of sim.movimentos) {
+    const from = mov.dataOriginal.slice(0, 7);
+    const to = mov.dataAjustada.slice(0, 7);
+    if (from === to) continue;
+    const key = `${from}→${to}|${mov.metodo}`;
+    const cur = flowMap.get(key);
+    if (cur) {
+      cur.valor = round2(cur.valor + mov.valor);
+      cur.qtd += 1;
+    } else {
+      flowMap.set(key, {
+        fromMonth: from,
+        toMonth: to,
+        method: mov.metodo,
+        label: methodLabel(mov.metodo),
+        valor: round2(mov.valor),
+        qtd: 1,
+      });
+    }
+    totalMovido += mov.valor;
+    totalRegistrosMovidos += 1;
+  }
+
+  const flows = [...flowMap.values()].sort((a, b) =>
+    a.fromMonth.localeCompare(b.fromMonth)
+    || a.toMonth.localeCompare(b.toMonth)
+    || b.valor - a.valor,
+  );
+
+  return {
+    months: breakdown,
+    flows,
+    totalMovido: round2(totalMovido),
+    totalRegistrosMovidos,
+  };
+}
+
