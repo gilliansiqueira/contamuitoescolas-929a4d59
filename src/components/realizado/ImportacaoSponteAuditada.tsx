@@ -45,6 +45,24 @@ function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function ManualColPicker({
+  label, value, onChange, cols, allowEmpty,
+}: { label: string; value: string; onChange: (v: string) => void; cols: string[]; allowEmpty?: boolean }) {
+  return (
+    <label className="text-xs space-y-1 block">
+      <span className="font-medium text-foreground/80">{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+      >
+        <option value="">{allowEmpty ? '— nenhuma —' : '— selecione —'}</option>
+        {cols.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+    </label>
+  );
+}
+
 function parseDateCell(raw: any): string | null {
   if (raw == null || raw === '') return null;
   if (raw instanceof Date) {
@@ -108,10 +126,51 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
   const [aiLoading, setAiLoading] = useState(false);
   const [forceOverride, setForceOverride] = useState(false);
 
+  // Estado para mapeamento manual de colunas quando o auto-detect falha.
+  const [rawRows, setRawRows] = useState<Record<string, any>[]>([]);
+  const [rawCols, setRawCols] = useState<string[]>([]);
+  const [needsMapping, setNeedsMapping] = useState(false);
+  const [mapData, setMapData] = useState<string>('');
+  const [mapValor, setMapValor] = useState<string>('');
+  const [mapMetodo, setMapMetodo] = useState<string>('');
+  const [mapNome, setMapNome] = useState<string>('');
+
+  // Conversão das linhas brutas em ParsedRow[] usando os nomes de coluna escolhidos.
+  const parseRowsWithMapping = useCallback((
+    rows: Record<string, any>[],
+    colData: string,
+    colValor: string,
+    colMetodo: string,
+    colNome?: string,
+  ): { out: ParsedRow[]; errs: string[] } => {
+    const errs: string[] = [];
+    const out: ParsedRow[] = [];
+    rows.forEach((r, i) => {
+      const line = i + 2;
+      const data = parseDateCell(r[colData]);
+      const valor = parseValueCell(r[colValor]);
+      const metodoRaw = String(r[colMetodo] ?? '').trim();
+      if (!data) { errs.push(`Linha ${line}: data inválida`); return; }
+      if (valor == null) { errs.push(`Linha ${line}: valor inválido`); return; }
+      const key = resolveMethodKey(metodoRaw);
+      if (!key) { errs.push(`Linha ${line}: método "${metodoRaw}" não reconhecido`); return; }
+      out.push({
+        lineNumber: line,
+        dataVencimento: data,
+        valor: Math.abs(valor),
+        metodoRaw,
+        metodoKey: key,
+        nomeAluno: colNome ? String(r[colNome] ?? '').trim() : undefined,
+      });
+    });
+    return { out, errs };
+  }, []);
+
   // ── Step 1: file
   const handleFile = useCallback(async (file: File) => {
     setFileName(file.name);
     setParseErrors([]);
+    setNeedsMapping(false);
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellDates: true });
@@ -123,39 +182,43 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
       const colValor = pickColumn(cols, ['valor_com_desconto', 'valor', 'vlr', 'total']);
       const colMetodo = pickColumn(cols, ['forma_de_cobranca', 'forma_cobranca', 'tipo_pagamento', 'metodo']);
       const colNome = pickColumn(cols, ['sacado', 'nome_aluno', 'aluno', 'nome']);
+
+      // Auto-detect falhou em pelo menos uma coluna obrigatória — pedir mapeamento manual.
       if (!colData || !colValor || !colMetodo) {
-        toast.error('Colunas obrigatórias não encontradas (vencimento, valor, forma de cobrança).');
+        setRawRows(rows);
+        setRawCols(cols);
+        setMapData(colData ?? '');
+        setMapValor(colValor ?? '');
+        setMapMetodo(colMetodo ?? '');
+        setMapNome(colNome ?? '');
+        setNeedsMapping(true);
+        toast.info('Selecione manualmente as colunas de vencimento, valor e forma de cobrança.');
         return;
       }
-      const errs: string[] = [];
-      const out: ParsedRow[] = [];
-      rows.forEach((r, i) => {
-        const line = i + 2;
-        const data = parseDateCell(r[colData]);
-        const valor = parseValueCell(r[colValor]);
-        const metodoRaw = String(r[colMetodo] ?? '').trim();
-        if (!data) { errs.push(`Linha ${line}: data inválida`); return; }
-        if (valor == null) { errs.push(`Linha ${line}: valor inválido`); return; }
-        const key = resolveMethodKey(metodoRaw);
-        if (!key) { errs.push(`Linha ${line}: método "${metodoRaw}" não reconhecido`); return; }
-        out.push({
-          lineNumber: line,
-          dataVencimento: data,
-          valor: Math.abs(valor),
-          metodoRaw,
-          metodoKey: key,
-          nomeAluno: colNome ? String(r[colNome] ?? '').trim() : undefined,
-        });
-      });
+
+      const { out, errs } = parseRowsWithMapping(rows, colData, colValor, colMetodo, colNome);
       setParsed(out);
       setParseErrors(errs);
       if (out.length === 0) { toast.error('Nenhuma linha válida.'); return; }
-      // Move to conference
       goToConference(out);
     } catch (e: any) {
       toast.error(`Erro ao ler arquivo: ${e?.message}`);
     }
-  }, [allEntries]);
+  }, [allEntries, parseRowsWithMapping]);
+
+  // Confirma o mapeamento manual escolhido pelo usuário.
+  const confirmManualMapping = useCallback(() => {
+    if (!mapData || !mapValor || !mapMetodo) {
+      toast.error('Selecione vencimento, valor e forma de cobrança.');
+      return;
+    }
+    const { out, errs } = parseRowsWithMapping(rawRows, mapData, mapValor, mapMetodo, mapNome || undefined);
+    setParsed(out);
+    setParseErrors(errs);
+    if (out.length === 0) { toast.error('Nenhuma linha válida com as colunas escolhidas.'); return; }
+    setNeedsMapping(false);
+    goToConference(out);
+  }, [rawRows, mapData, mapValor, mapMetodo, mapNome, parseRowsWithMapping]);
 
   const goToConference = (rows: ParsedRow[]) => {
     const minDate = rows.reduce((m, r) => (r.dataVencimento < m ? r.dataVencimento : m), rows[0].dataVencimento);
@@ -337,6 +400,29 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
               <span className="text-xs text-muted-foreground">XLSX / CSV</span>
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </label>
+            {needsMapping && (
+              <div className="mt-3 glass-card rounded-xl p-4 border-amber-500/40 bg-amber-500/5 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium text-amber-700">Direcionamento manual de colunas</p>
+                    <p className="text-amber-700/80">Não foi possível detectar automaticamente todas as colunas. Escolha qual coluna do arquivo corresponde a cada campo.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <ManualColPicker label="Vencimento *" value={mapData} onChange={setMapData} cols={rawCols} />
+                  <ManualColPicker label="Valor *" value={mapValor} onChange={setMapValor} cols={rawCols} />
+                  <ManualColPicker label="Forma de cobrança *" value={mapMetodo} onChange={setMapMetodo} cols={rawCols} />
+                  <ManualColPicker label="Nome do aluno (opcional)" value={mapNome} onChange={setMapNome} cols={rawCols} allowEmpty />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setNeedsMapping(false); setFileName(''); }}>Cancelar</Button>
+                  <Button size="sm" onClick={confirmManualMapping} disabled={!mapData || !mapValor || !mapMetodo}>
+                    Confirmar mapeamento <ArrowRight className="w-3 h-3 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
             {parseErrors.length > 0 && (
               <div className="mt-3 glass-card rounded-xl p-3 bg-destructive/5 border-destructive/30">
                 <p className="text-xs font-medium text-destructive mb-1">{parseErrors.length} linhas com erro:</p>
