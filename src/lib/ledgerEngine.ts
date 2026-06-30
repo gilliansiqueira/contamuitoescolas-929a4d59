@@ -173,14 +173,12 @@ export function resolveEntryTipoKey(
 }
 
 /**
- * Origens de upload nativo (Sponte, Cheques, Cartões, Contas a Pagar).
- *
- * Política (atualizada): essas origens NÃO usam regras de DEFAULT_MAPPINGS
- * (saida/entrada). Mas SE o usuário tiver criado uma linha explícita em
- * "Classificação de Tipos" para a `categoria` ou `tipoOriginal` da entry,
- * essa classificação é respeitada — inclusive 'Operação' e 'Ignorar'.
- * Sem classificação explícita, voltam ao default por tipo (entrada=receita
- * somar, saida=despesa subtrair).
+ * Origens cuja classificação NUNCA pode ser sobrescrita pelas regras de
+ * `type_classifications`. Esses uploads (Sponte, Cheques, Cartões, Contas a
+ * Pagar) representam dados projetados/operacionais e SEMPRE entram como
+ * receita (entrada) ou despesa (saida) — as regras de "Ignorar" e demais
+ * classificações só se aplicam ao Fluxo de Caixa Realizado e ao Histórico
+ * Financeiro digitado.
  */
 const ORIGENS_SEMPRE_CLASSIFICADAS = new Set([
   'sponte',
@@ -195,41 +193,11 @@ function defaultRuleForTipo(tipo: 'entrada' | 'saida'): LedgerRule {
     : { impactaCaixa: true, entraNoResultado: true, operacaoSinal: 'subtrair' };
 }
 
-/**
- * Procura uma classificação EXPLÍCITA (linha presente em type_classifications)
- * para os campos categoria / tipoOriginal da entry. Retorna null se nada
- * encontrado — não consulta DEFAULT_MAPPINGS aqui de propósito.
- */
-function findExplicitClassification(
-  entry: FinancialEntry,
-  classifications: TypeClassification[]
-): LedgerRule | null {
-  const candidates = [entry.tipoOriginal, entry.categoria].filter(
-    (s): s is string => !!s && s.trim() !== ''
-  );
-  for (const key of candidates) {
-    const norm = normalizeTipo(key);
-    const cfg = classifications.find(c => normalizeTipo(c.tipoValor) === norm);
-    if (!cfg) continue;
-    const isIgnorar = cfg.classificacao === 'ignorar';
-    const impactaCaixa = isIgnorar ? false : (cfg.impactaCaixa ?? false);
-    const entraNoResultado = isIgnorar ? false : (cfg.entraNoResultado ?? false);
-    let operacaoSinal: 'somar' | 'subtrair' = 'somar';
-    if (cfg.operacaoSinal === 'subtrair') operacaoSinal = 'subtrair';
-    else if (cfg.operacaoSinal === 'somar') operacaoSinal = 'somar';
-    else operacaoSinal = cfg.classificacao === 'despesa' ? 'subtrair' : 'somar';
-    return { impactaCaixa, entraNoResultado, operacaoSinal, label: cfg.label || key };
-  }
-  return null;
-}
-
 export function resolveEntryLedgerRule(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): LedgerRule {
   if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
-    const explicit = findExplicitClassification(entry, classifications);
-    if (explicit) return explicit;
     return defaultRuleForTipo(entry.tipo);
   }
   return resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
@@ -247,10 +215,15 @@ export function getLedgerSaldoImpact(
     return sinal === 'somar' ? entry.valor : -entry.valor;
   }
 
+  if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
+    return entry.tipo === 'entrada' ? entry.valor : -entry.valor;
+  }
+
   const rule = resolveEntryLedgerRule(entry, classifications);
   if (!rule.impactaCaixa) return 0;
   return rule.operacaoSinal === 'somar' ? entry.valor : -entry.valor;
 }
+
 
 
 
