@@ -107,15 +107,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   }, [months, snapshotMap, historicalRows, activeEntries, todayStr]);
 
   const includeEntry = useCallback((e: FinancialEntry, src: MonthSource | undefined) => {
-    if (src === 'upload' || src === 'misto') {
+    if (src === 'upload' || src === 'misto' || src === 'historico') {
       if (e.origem === 'fluxo') return true;
       if (e.origem === 'manual') return true;
       if (e.tipoRegistro === 'projetado' && e.data >= todayStr) return true;
-      return false;
-    }
-    if (src === 'historico') {
-      if (e.origem === 'fluxo') return true;
-      if (e.origem === 'manual') return true;
       return false;
     }
     if (src === 'projecao') return e.origem !== 'fluxo';
