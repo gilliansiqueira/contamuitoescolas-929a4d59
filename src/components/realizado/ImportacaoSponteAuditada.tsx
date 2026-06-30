@@ -360,8 +360,9 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
         upload_id: uploadId,
         file_name: fileName,
         summary: {
-          conference, delaySim, replaceSim, post,
+          fileSummary, delaySim, delayViz, replaceSim, post,
         } as any,
+
         approved: true,
       });
 
