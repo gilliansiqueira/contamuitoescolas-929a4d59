@@ -34,9 +34,13 @@ describe('resolveMethodKey', () => {
     expect(resolveMethodKey('Cartão de Débito')).toBe('debito');
     expect(resolveMethodKey('cartao credito')).toBe('credito');
   });
-  it('routes Sponte Pay before boleto', () => {
-    expect(resolveMethodKey('Boleto Sponte Pay')).toBe('sponte_pay');
+  it('preserva identidade de Sponte Pay vs Boleto Sponte Pay', () => {
+    expect(resolveMethodKey('Boleto Sponte Pay')).toBe('boleto_sponte_pay');
     expect(resolveMethodKey('Sponte Pay')).toBe('sponte_pay');
+  });
+  it('preserva Cheque Pré-Datado separado de Cheque', () => {
+    expect(resolveMethodKey('Cheque Pré-Datado')).toBe('cheque_pre_datado');
+    expect(resolveMethodKey('Cheque')).toBe('cheque');
   });
   it('returns null for unknown', () => {
     expect(resolveMethodKey('Xyz')).toBeNull();
