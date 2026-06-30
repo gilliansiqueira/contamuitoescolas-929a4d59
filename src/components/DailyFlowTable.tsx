@@ -1,12 +1,17 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
+import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
+import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
+import type { FinancialEntry } from '@/types/financial';
 
 interface DailyFlowTableProps {
   schoolId: string;
@@ -31,6 +36,8 @@ interface DayRow {
   dayOfWeek: string;
 }
 
+type MonthSource = 'snapshot' | 'upload' | 'misto' | 'historico' | 'projecao' | 'vazio';
+
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
   // Previsto segue a projeção (Sponte, Cheques, Cartões, Contas a Pagar etc.).
   // Realizado NÃO usa projeção: vem diretamente do upload Fluxo de Caixa,
@@ -38,34 +45,112 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const { entries: projectedEntries } = useProjectedEntries(schoolId);
   const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const snapshotMap = useSnapshotMap(schoolId, 'projecao');
+  const { hasModel, isInModel } = useSchoolModel(schoolId);
+
+  const { data: historicalRowsRaw = [] } = useQuery({
+    queryKey: ['historicalMonthly', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('historical_monthly' as any)
+        .select('month, tipo_valor, valor')
+        .eq('school_id', schoolId);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{ month: string; tipo_valor: string; valor: number }>;
+    },
+    enabled: !!schoolId,
+  });
+
+  const historicalRows = useMemo(
+    () => hasModel ? historicalRowsRaw.filter(r => isInModel(r.tipo_valor)) : historicalRowsRaw,
+    [historicalRowsRaw, hasModel, isInModel]
+  );
+
+  const activeEntries = useMemo(
+    () => projectedEntries.map(e => ({ ...e, data: e.dataProjetada })),
+    [projectedEntries]
+  );
+
+  const months = useMemo(() => {
+    if (selectedMonth === 'all') {
+      const set = new Set<string>();
+      activeEntries.forEach(e => set.add(e.data.slice(0, 7)));
+      rawEntries.forEach(e => set.add(e.data.slice(0, 7)));
+      historicalRows.forEach(r => set.add(r.month));
+      snapshotMap.forEach((_, month) => set.add(month));
+      return Array.from(set).sort();
+    }
+    return selectedMonth.split(',').filter(Boolean).sort();
+  }, [selectedMonth, activeEntries, rawEntries, historicalRows, snapshotMap]);
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const monthSources = useMemo<Record<string, MonthSource>>(() => {
+    const result: Record<string, MonthSource> = {};
+    for (const m of months) {
+      if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
+      const hasHist = historicalRows.some(r => r.month === m);
+      if (hasHist) { result[m] = 'historico'; continue; }
+      const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
+      const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
+      const hasFutureProj = monthEntries.some(e =>
+        e.tipoRegistro === 'projetado' && e.origem !== 'fluxo' && e.data >= todayStr
+      );
+      const hasManual = monthEntries.some(e => e.origem === 'manual');
+      const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
+      if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
+      else if (hasUpload) result[m] = 'upload';
+      else if (hasOther) result[m] = 'projecao';
+      else result[m] = 'vazio';
+    }
+    return result;
+  }, [months, snapshotMap, historicalRows, activeEntries, todayStr]);
+
+  const includeEntry = useCallback((e: FinancialEntry, src: MonthSource | undefined) => {
+    if (src === 'upload' || src === 'misto') {
+      if (e.origem === 'fluxo') return true;
+      if (e.origem === 'manual') return true;
+      if (e.tipoRegistro === 'projetado' && e.data >= todayStr) return true;
+      return false;
+    }
+    if (src === 'historico') {
+      if (e.origem === 'fluxo') return true;
+      if (e.origem === 'manual') return true;
+      return false;
+    }
+    if (src === 'projecao') return e.origem !== 'fluxo';
+    return false;
+  }, [todayStr]);
 
   const adjustedProjectedEntries = useMemo(
-    () => projectedEntries.filter(e => e.origem !== 'fluxo' && e.impacto !== 0),
-    [projectedEntries]
+    () => projectedEntries.filter(e => {
+      if (e.origem === 'fluxo' || e.impacto === 0) return false;
+      const data = e.dataProjetada;
+      const src = monthSources[data.slice(0, 7)];
+      const entryForSource = { ...e, data };
+      if (src === 'historico') {
+        return includeEntry(entryForSource, src) && !resolveEntryLedgerRule(e, classifications).entraNoResultado;
+      }
+      return includeEntry(entryForSource, src);
+    }),
+    [projectedEntries, monthSources, includeEntry, classifications]
   );
 
   const realizedEntries = useMemo(
     () => rawEntries
       .filter(e => e.origem === 'fluxo')
       .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }))
-      .filter(e => e.impacto !== 0),
-    [rawEntries, classifications]
+      .filter(e => e.impacto !== 0 && includeEntry(e, monthSources[e.data.slice(0, 7)])),
+    [rawEntries, classifications, includeEntry, monthSources]
   );
-
-  const months = useMemo(() => {
-    if (selectedMonth === 'all') {
-      const set = new Set<string>();
-      adjustedProjectedEntries.forEach(e => set.add(e.dataProjetada.slice(0, 7)));
-      realizedEntries.forEach(e => set.add(e.data.slice(0, 7)));
-      return Array.from(set).sort();
-    }
-    return selectedMonth.split(',').filter(Boolean).sort();
-  }, [selectedMonth, adjustedProjectedEntries, realizedEntries]);
 
   const allDays = useMemo(() => getAllDaysInMonths(months), [months]);
 
   // Saldo Inicial do período — mesma SSOT do Dashboard.
-  const saldoInicialPeriodo = useSaldoInicialPeriodo(schoolId, months);
+  const saldoInicialPeriodo = useSaldoInicialPeriodo(
+    schoolId,
+    selectedMonth === 'all' ? [] : months
+  );
 
   const dailyData = useMemo(() => {
     const priorSaldo = saldoInicialPeriodo;
