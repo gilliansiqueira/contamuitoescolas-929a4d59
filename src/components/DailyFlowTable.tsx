@@ -144,7 +144,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         // valores consolidados de receita/despesa e soma do upload diário só
         // as Operações. Assim evitamos duplicidade e mantemos o saldo igual.
         if (src === 'historico') {
-          return !resolveEntryLedgerRule(e, classifications).entraNoResultado;
+          return getEffectiveClassification(e, classifications) === 'operacao';
         }
         return true;
       }),
