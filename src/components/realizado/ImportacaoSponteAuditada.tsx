@@ -234,22 +234,57 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
     goToConference(out);
   }, [rawRows, mapData, mapValor, mapMetodo, mapNome, parseRowsWithMapping]);
 
+  // Step 2: apenas leitura do arquivo (sem comparar com sistema).
   const goToConference = (rows: ParsedRow[]) => {
-    const minDate = rows.reduce((m, r) => (r.dataVencimento < m ? r.dataVencimento : m), rows[0].dataVencimento);
-    const maxDate = rows.reduce((m, r) => (r.dataVencimento > m ? r.dataVencimento : m), rows[0].dataVencimento);
-    const sistema = (allEntries as FinancialEntry[]).filter(e =>
-      e.origem === 'sponte' && e.tipoRegistro === 'projetado'
-      && (e as any).data >= minDate && (e as any).data <= maxDate,
-    );
-    setConference(buildConferenceReport(rows, sistema));
+    setFileSummary(buildFileSummary(rows));
+    setClassifySuggestions(null);
+    setClassifyResumo('');
     setStep(2);
+  };
+
+  // Verificação IA da classificação (chamado manualmente na etapa 2).
+  const verifyClassification = async () => {
+    setClassifyLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-sponte-classification', {
+        body: {
+          rows: parsed.map(p => ({
+            lineNumber: p.lineNumber,
+            metodoRaw: p.metodoRaw,
+            metodoKey: p.metodoKey,
+            valor: p.valor,
+            descricao: p.nomeAluno,
+          })),
+          allowedKeys: PAYMENT_METHOD_ORDER,
+        },
+      });
+      if (error) throw error;
+      setClassifySuggestions(Array.isArray(data?.sugestoes) ? data.sugestoes : []);
+      setClassifyResumo(typeof data?.resumo === 'string' ? data.resumo : '');
+    } catch (e: any) {
+      toast.error(`IA: ${e?.message ?? 'falha ao verificar'}`);
+    } finally {
+      setClassifyLoading(false);
+    }
+  };
+
+  // Aplica uma sugestão da IA reclassificando todas as linhas com aquele metodoRaw.
+  const applySuggestion = (metodoRaw: string, sugerida: PaymentMethodKey) => {
+    setParsed(prev => prev.map(p => p.metodoRaw === metodoRaw ? { ...p, metodoKey: sugerida } : p));
+    setClassifySuggestions(prev => (prev ?? []).filter(s => s.metodoRaw !== metodoRaw));
+    // Recalcular resumo após reclassificação.
+    setFileSummary(buildFileSummary(parsed.map(p => p.metodoRaw === metodoRaw ? { ...p, metodoKey: sugerida } : p)));
+    toast.success(`Reclassificado "${metodoRaw}" → ${methodLabel(sugerida)}`);
   };
 
   // ── Step 3: delay simulation
   const goToDelay = () => {
-    setDelaySim(simulateDelays(parsed, rules));
+    const sim = simulateDelays(parsed, rules);
+    setDelaySim(sim);
+    setDelayViz(buildDelayVisualization(sim));
     setStep(3);
   };
+
 
   // ── Step 4: replacement simulation
   const goToReplace = () => {
