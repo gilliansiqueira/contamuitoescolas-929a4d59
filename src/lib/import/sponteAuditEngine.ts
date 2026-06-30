@@ -216,30 +216,18 @@ export function simulateDelays(
       continue;
     }
     const method = row.metodoKey;
-    const meta = PAYMENT_METHODS[method];
-    const prazoConfigurado = findDelayDays(method, rules);
-    // Métodos sem delay (Dinheiro, Débito) ignoram qualquer prazo configurado.
-    const prazo = meta.delayApplicable ? prazoConfigurado : 0;
+    // Política nova: respeitar EXCLUSIVAMENTE o prazo configurado pelo usuário
+    // para o método. Sem regras fixas tipo "Dinheiro à vista" ou "Débito sem
+    // prazo" — se o usuário configurou N dias, aplicamos N dias.
+    const prazo = findDelayDays(method, rules);
 
-    // Hard guards de integridade — preservam a identidade do método.
-    if (method === 'debito' && prazoConfigurado > 0) {
-      errors.push(
-        `Linha ${row.lineNumber}: Cartão de Débito não pode receber prazo (${prazoConfigurado} dias) — débito nunca usa delay de crédito.`,
-      );
-    }
-    if (method === 'dinheiro' && prazoConfigurado > 0) {
-      errors.push(
-        `Linha ${row.lineNumber}: Dinheiro não pode receber prazo (${prazoConfigurado} dias) — recebimento é à vista.`,
-      );
-    }
-
-    const dataAjustadaSemFds = prazo > 0
+    const dataAjustada = prazo > 0
       ? addDaysAndAdjust(row.dataVencimento, prazo)
       : toNextBusinessDay(row.dataVencimento);
-    const dataAjustada = dataAjustadaSemFds;
     const weekendAdjusted = isWeekend(prazo > 0
       ? addDaysToISO(row.dataVencimento, prazo)
       : row.dataVencimento);
+
 
     const mesAntes = row.dataVencimento.slice(0, 7);
     const mesDepois = dataAjustada.slice(0, 7);
