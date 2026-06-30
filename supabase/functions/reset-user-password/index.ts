@@ -53,14 +53,25 @@ Deno.serve(async (req) => {
     }
 
     const { error: uErr } = await adminClient.auth.admin.updateUserById(user_id, { password });
-    if (uErr) throw uErr;
+    if (uErr) {
+      let msg = uErr.message || "erro ao alterar senha";
+      const code = (uErr as any).code || "";
+      if (code === "weak_password" || /pwned|leaked|compromised|weak/i.test(msg)) {
+        msg = "Senha rejeitada: foi encontrada em vazamentos públicos ou é muito fraca. Use uma senha diferente (combine letras, números e símbolos).";
+      } else if (/same.*password|should be different/i.test(msg)) {
+        msg = "A nova senha deve ser diferente da senha atual.";
+      }
+      return new Response(JSON.stringify({ error: msg, code }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
