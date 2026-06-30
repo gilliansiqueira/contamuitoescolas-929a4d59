@@ -19,6 +19,7 @@ import { TipoMappingStep, type TipoMappingRow } from '@/components/upload/TipoMa
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { fetchSchoolTemplateId, fetchTemplateItems, type FinancialModelTemplateItem } from '@/lib/financialModels';
+import { ImportacaoSponteAuditada } from '@/components/realizado/ImportacaoSponteAuditada';
 
 interface FileUploadProps {
   schoolId: string;
@@ -938,6 +939,14 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             ))}
           </div>
         </div>
+      ) : selectedType.key === 'sponte' ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <ImportacaoSponteAuditada
+            schoolId={schoolId}
+            onClose={handleReset}
+            onImported={() => { onImported(); }}
+          />
+        </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           <div className="flex items-center justify-between">

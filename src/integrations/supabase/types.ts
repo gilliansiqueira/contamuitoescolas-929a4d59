@@ -368,12 +368,15 @@ export type Database = {
           created_at: string
           created_by: string | null
           data: string
+          data_original: string | null
+          delay_rule_applied: Json | null
           descricao: string
           editado_manualmente: boolean
           id: string
           imported_at: string | null
           origem: string
           origem_upload_id: string | null
+          payment_method_key: string | null
           school_id: string
           source_file: string | null
           source_kind: string
@@ -387,12 +390,15 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           data: string
+          data_original?: string | null
+          delay_rule_applied?: Json | null
           descricao?: string
           editado_manualmente?: boolean
           id?: string
           imported_at?: string | null
           origem: string
           origem_upload_id?: string | null
+          payment_method_key?: string | null
           school_id: string
           source_file?: string | null
           source_kind?: string
@@ -406,12 +412,15 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           data?: string
+          data_original?: string | null
+          delay_rule_applied?: Json | null
           descricao?: string
           editado_manualmente?: boolean
           id?: string
           imported_at?: string | null
           origem?: string
           origem_upload_id?: string | null
+          payment_method_key?: string | null
           school_id?: string
           source_file?: string | null
           source_kind?: string
@@ -592,6 +601,57 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "icon_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_audits: {
+        Row: {
+          approved: boolean
+          created_at: string
+          created_by: string | null
+          file_name: string | null
+          id: string
+          school_id: string
+          summary: Json
+          updated_at: string
+          upload_id: string | null
+        }
+        Insert: {
+          approved?: boolean
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          id?: string
+          school_id: string
+          summary?: Json
+          updated_at?: string
+          upload_id?: string | null
+        }
+        Update: {
+          approved?: boolean
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          id?: string
+          school_id?: string
+          summary?: Json
+          updated_at?: string
+          upload_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_audits_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_audits_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "upload_records"
             referencedColumns: ["id"]
           },
         ]
