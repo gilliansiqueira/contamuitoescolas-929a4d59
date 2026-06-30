@@ -122,14 +122,23 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
   const [fileName, setFileName] = useState('');
   const [parsed, setParsed] = useState<ParsedRow[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [conference, setConference] = useState<ConferenceReport | null>(null);
+  const [fileSummary, setFileSummary] = useState<FileSummary | null>(null);
   const [delaySim, setDelaySim] = useState<DelaySimulationResult | null>(null);
+  const [delayViz, setDelayViz] = useState<DelayVisualization | null>(null);
   const [replaceSim, setReplaceSim] = useState<ReplacementSimulation | null>(null);
   const [importing, setImporting] = useState(false);
   const [postAudit, setPostAudit] = useState<ConferenceReport | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [forceOverride, setForceOverride] = useState(false);
+
+  // Classificação IA (etapa 2).
+  const [classifyLoading, setClassifyLoading] = useState(false);
+  const [classifySuggestions, setClassifySuggestions] = useState<Array<{
+    metodoRaw: string; atual: string | null; sugerida: string; qtd: number; motivo: string;
+  }> | null>(null);
+  const [classifyResumo, setClassifyResumo] = useState<string>('');
+
 
   // Estado para mapeamento manual de colunas quando o auto-detect falha.
   const [rawRows, setRawRows] = useState<Record<string, any>[]>([]);
