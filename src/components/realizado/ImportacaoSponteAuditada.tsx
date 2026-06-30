@@ -171,7 +171,7 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
       out.push({
         lineNumber: line,
         dataVencimento: data,
-        valor: Math.abs(valor),
+        valor: valor,
         metodoRaw,
         metodoKey: key,
         nomeAluno: colNome ? String(r[colNome] ?? '').trim() : undefined,
