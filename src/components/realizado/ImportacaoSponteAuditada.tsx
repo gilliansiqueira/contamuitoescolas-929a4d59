@@ -45,6 +45,24 @@ function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function ManualColPicker({
+  label, value, onChange, cols, allowEmpty,
+}: { label: string; value: string; onChange: (v: string) => void; cols: string[]; allowEmpty?: boolean }) {
+  return (
+    <label className="text-xs space-y-1 block">
+      <span className="font-medium text-foreground/80">{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+      >
+        <option value="">{allowEmpty ? '— nenhuma —' : '— selecione —'}</option>
+        {cols.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+    </label>
+  );
+}
+
 function parseDateCell(raw: any): string | null {
   if (raw == null || raw === '') return null;
   if (raw instanceof Date) {
