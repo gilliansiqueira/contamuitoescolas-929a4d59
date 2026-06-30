@@ -83,24 +83,7 @@ export function UsersConfig() {
           admin_scope: role === 'admin' ? adminScope : 'all',
         },
       });
-      if (error) {
-        // Tenta extrair mensagem real do corpo da resposta da edge function
-        let serverMsg: string | null = null;
-        try {
-          const ctx: any = (error as any).context;
-          if (ctx && typeof ctx.json === 'function') {
-            const body = await ctx.json();
-            serverMsg = body?.error ?? null;
-          } else if (ctx && typeof ctx.text === 'function') {
-            const txt = await ctx.text();
-            try { serverMsg = JSON.parse(txt)?.error ?? txt; } catch { serverMsg = txt; }
-          }
-        } catch { /* ignore */ }
-        if (serverMsg && /already been registered|email.*exists|already exists/i.test(serverMsg)) {
-          throw new Error('Já existe um usuário cadastrado com este email.');
-        }
-        throw new Error(serverMsg ?? error.message ?? 'Erro ao criar usuário');
-      }
+      if (error) throw new Error(error.message ?? 'Erro ao criar usuário');
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {

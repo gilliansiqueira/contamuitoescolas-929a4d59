@@ -76,15 +76,7 @@ Deno.serve(async (req) => {
       email, password, email_confirm: true,
       user_metadata: { school_id: role === "cliente" ? school_id : null },
     });
-    if (cErr) {
-      const msg = (cErr as Error).message || "";
-      if (/already been registered|email.*exists|already exists/i.test(msg)) {
-        return new Response(JSON.stringify({ error: "Já existe um usuário cadastrado com este email." }), {
-          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw cErr;
-    }
+    if (cErr) throw cErr;
     const userId = created.user!.id;
 
     // 2. Garante profile (trigger handle_new_user pode já ter criado)
