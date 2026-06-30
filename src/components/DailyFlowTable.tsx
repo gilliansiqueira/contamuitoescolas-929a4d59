@@ -6,6 +6,7 @@ import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
+import { resolveTipoMeta } from '@/lib/tipoMeta';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
@@ -46,7 +47,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
-  const { hasModel, isInModel } = useSchoolModel(schoolId);
+  const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
 
   const { data: historicalRowsRaw = [] } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
@@ -135,7 +136,18 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     () => rawEntries
       .filter(e => e.origem === 'fluxo')
       .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }))
-      .filter(e => e.impacto !== 0 && includeEntry(e, monthSources[e.data.slice(0, 7)])),
+      .filter(e => {
+        if (e.impacto === 0) return false;
+        const src = monthSources[e.data.slice(0, 7)];
+        if (!includeEntry(e, src)) return false;
+        // Quando o mês está em Histórico Financeiro, o Dashboard usa os
+        // valores consolidados de receita/despesa e soma do upload diário só
+        // as Operações. Assim evitamos duplicidade e mantemos o saldo igual.
+        if (src === 'historico') {
+          return !resolveEntryLedgerRule(e, classifications).entraNoResultado;
+        }
+        return true;
+      }),
     [rawEntries, classifications, includeEntry, monthSources]
   );
 
@@ -151,10 +163,33 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     const priorSaldo = saldoInicialPeriodo;
 
     const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoesPrev: number; operacoesReal: number }> = {};
+    const ensureDay = (data: string) => {
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
+      return byDate[data];
+    };
+
+    historicalRows.forEach(r => {
+      if (monthSources[r.month] !== 'historico') return;
+      const data = allDays.filter(d => d.startsWith(r.month)).at(-1);
+      if (!data) return;
+      const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
+      if (!meta.impactaCaixa) return;
+      const valor = Number(r.valor) || 0;
+      if (valor === 0) return;
+      const d = ensureDay(data);
+      if (!meta.entraNoResultado) {
+        d.operacoesReal += meta.sinal === 'somar' ? valor : -valor;
+      } else if (meta.sinal === 'somar') {
+        d.entradaRealizada += valor;
+      } else {
+        d.saidaRealizada += valor;
+      }
+    });
+
     adjustedProjectedEntries.forEach(e => {
       const data = e.dataProjetada;
       if (!allDays.includes(data)) return;
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
+      ensureDay(data);
       const impact = e.impacto;
       if (impact === 0) return;
       // Operação (entraNoResultado=false) impacta caixa mas vai para coluna Operações
@@ -172,7 +207,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     realizedEntries.forEach(e => {
       const data = e.data;
       if (!allDays.includes(data)) return;
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
+      ensureDay(data);
       const impact = e.impacto;
       if (impact === 0) return;
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
@@ -210,7 +245,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         dayOfWeek: getDayOfWeek(data),
       } as DayRow;
     });
-  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications]);
+  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications, historicalRows, monthSources, modelItems]);
 
   const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicialPeriodo;
 
