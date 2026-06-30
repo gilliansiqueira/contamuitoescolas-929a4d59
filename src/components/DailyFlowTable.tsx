@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
-import { getSaldoImpact } from '@/lib/classificationUtils';
+import { getEffectiveClassification, getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
@@ -125,7 +125,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       const src = monthSources[data.slice(0, 7)];
       const entryForSource = { ...e, data };
       if (src === 'historico') {
-        return includeEntry(entryForSource, src) && !resolveEntryLedgerRule(e, classifications).entraNoResultado;
+        return includeEntry(entryForSource, src) && getEffectiveClassification(e, classifications) === 'operacao';
       }
       return includeEntry(entryForSource, src);
     }),
@@ -175,11 +175,12 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       if (!data) return;
       const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) return;
-      if (!meta.entraNoResultado) return;
       const valor = Number(r.valor) || 0;
       if (valor === 0) return;
       const d = ensureDay(data);
-      if (meta.sinal === 'somar') {
+      if (!meta.entraNoResultado) {
+        d.operacoesReal += meta.sinal === 'somar' ? valor : -valor;
+      } else if (meta.sinal === 'somar') {
         d.entradaRealizada += valor;
       } else {
         d.saidaRealizada += valor;
