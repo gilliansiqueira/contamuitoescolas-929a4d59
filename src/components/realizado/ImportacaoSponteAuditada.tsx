@@ -382,6 +382,29 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
               <span className="text-xs text-muted-foreground">XLSX / CSV</span>
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             </label>
+            {needsMapping && (
+              <div className="mt-3 glass-card rounded-xl p-4 border-amber-500/40 bg-amber-500/5 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium text-amber-700">Direcionamento manual de colunas</p>
+                    <p className="text-amber-700/80">Não foi possível detectar automaticamente todas as colunas. Escolha qual coluna do arquivo corresponde a cada campo.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <ManualColPicker label="Vencimento *" value={mapData} onChange={setMapData} cols={rawCols} />
+                  <ManualColPicker label="Valor *" value={mapValor} onChange={setMapValor} cols={rawCols} />
+                  <ManualColPicker label="Forma de cobrança *" value={mapMetodo} onChange={setMapMetodo} cols={rawCols} />
+                  <ManualColPicker label="Nome do aluno (opcional)" value={mapNome} onChange={setMapNome} cols={rawCols} allowEmpty />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setNeedsMapping(false); setFileName(''); }}>Cancelar</Button>
+                  <Button size="sm" onClick={confirmManualMapping} disabled={!mapData || !mapValor || !mapMetodo}>
+                    Confirmar mapeamento <ArrowRight className="w-3 h-3 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
             {parseErrors.length > 0 && (
               <div className="mt-3 glass-card rounded-xl p-3 bg-destructive/5 border-destructive/30">
                 <p className="text-xs font-medium text-destructive mb-1">{parseErrors.length} linhas com erro:</p>
