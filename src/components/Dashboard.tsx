@@ -204,9 +204,18 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         };
         for (const e of monthEntries) {
           if (!includeEntry(e, src)) continue;
-          // Origens de upload nativo: classificação fixa pelo tipo (entrada=receita, saida=despesa),
-          // agrupadas em um único bucket por (origem, tipo) — ignora regras de categoria/ignorar.
+          // Origens de upload nativo: se houver classificação EXPLÍCITA em
+          // type_classifications para a categoria/tipoOriginal da entry,
+          // respeitamos (inclusive Operação/Ignorar). Sem classificação
+          // explícita, vai para o bucket fixo por (origem, tipo).
           if (ORIGENS_NATIVAS.has(e.origem)) {
+            const cand = [e.tipoOriginal, e.categoria].filter((s): s is string => !!s && s.trim() !== '');
+            const explicitKey = cand.find(k => classifications.some(c => getCanonicalKey(c.tipoValor) === getCanonicalKey(k)));
+            if (explicitKey) {
+              const agg = ensure(explicitKey);
+              agg.valor += e.valor;
+              continue;
+            }
             const isEntrada = e.tipo === 'entrada';
             const k = `__${e.origem}_${e.tipo}`;
             if (!map[k]) {
@@ -227,6 +236,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           const agg = ensure(tipoKey);
           agg.valor += e.valor;
         }
+
       }
     }
 
