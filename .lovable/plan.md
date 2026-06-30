@@ -1,115 +1,114 @@
 ## Objetivo
 
-Tornar a aba **Dados** a única fonte da verdade. Antes de qualquer nova funcionalidade, encontrar e corrigir TODAS as violações das 10 regras, com relatório de causa raiz, registros afetados, telas afetadas e correção aplicada.
+Refatorar o fluxo de importação de recebimentos (Sponte) para impedir gravações silenciosas. Toda importação passa por **conferência → simulação de delay → simulação de substituição → auditoria** antes de gravar. Cada lançamento fica rastreável até a linha do arquivo original.
 
-## Fase A — Auditoria (somente leitura, sem código)
+---
 
-### A.1 Inventário de fontes por tela
-Mapear via leitura de código qual hook/query alimenta:
-- DataTable (Dados) · Dashboard · DailyFlowTable · CashFlow · ProjectedVsReal · Receivables
+## 1. Banco de dados (migration)
 
-Confirmar uso único de `useProjectedEntries(schoolId)` como base. Listar qualquer divergência.
+**Novos campos em `financial_entries`** (rastreabilidade — Regra de Ouro):
+- `upload_id uuid` — FK para `upload_records`
+- `source_file text` — nome do arquivo
+- `imported_at timestamptz`
+- `data_original date` — vencimento antes do delay
+- `delay_rule_applied jsonb` — `{ days, weekend_adjustment, source_method }`
+- `payment_method_key text` — normalizado (boleto, pix, credito, debito, cheque, dinheiro, sponte_pay)
 
-### A.2 Conciliação numérica — CRITÉRIO DE APROVAÇÃO
+**Nova tabela `import_audits`** (histórico de cada conferência):
+- `school_id`, `upload_id`, `created_by`, `summary jsonb` (totais arquivo × sistema por método, diferenças, ações tomadas), `approved boolean`
 
-**A Fase A só é concluída quando, para cada `school_id` e cada um dos últimos 6 meses, for apresentada uma matriz numérica real demonstrando Δ = 0** (ou, se Δ ≠ 0, causa raiz formal identificada).
+Migration cria GRANT/RLS padrão (authenticated CRUD na própria escola, service_role total).
 
-Para CADA escola/mês, apresentar tabela com:
+---
 
-| Métrica | Valor encontrado | Valor esperado (Dados) | Δ | IDs que compõem | Query/função |
-|---|---|---|---|---|---|
-| Receita — Dados | ... | ... | 0 | array de ids | SQL |
-| Receita — Dashboard | ... | (Dados) | ... | ids consumidos | hook + filtro |
-| Receita — Fluxo Diário | ... | (Dados) | ... | ids | hook + filtro |
-| Receita — Fluxo de Caixa | ... | (Dados) | ... | ids | hook + filtro |
-| Receita — Previsto×Realizado | ... | (Dados) | ... | ids | hook + filtro |
-| Despesa — Dados | ... | ... | 0 | ids | SQL |
-| Despesa — Dashboard | ... | (Dados) | ... | ids | hook + filtro |
-| Despesa — Fluxo Diário | ... | (Dados) | ... | ids | hook + filtro |
-| Despesa — Fluxo de Caixa | ... | (Dados) | ... | ids | hook + filtro |
-| Despesa — Previsto×Realizado | ... | (Dados) | ... | ids | hook + filtro |
-| Saldo final do mês N | ... | — | — | — | função |
-| Saldo inicial do mês N+1 | ... | saldo final N | Δ | — | função |
+## 2. Engine de importação (TypeScript puro, testável)
 
-**Regras de entrega**:
-- Toda linha deve trazer (valor encontrado, valor esperado, Δ, lista de ids, query/função usada).
-- Para telas, reproduzir EXATAMENTE a cadeia da tela: `useProjectedEntries` → filtros (período, modelo, prazo, classificação) → `calculateTotals` — replicar isso em SQL/script equivalente para obter o número.
-- Proibido entregar conclusões genéricas tipo "SSOT validada", "arquitetura correta", "todas as telas usam a mesma lógica". Só números do banco contam.
+Arquivo novo `src/lib/import/sponteAuditEngine.ts`:
 
-**Quando Δ ≠ 0**:
-1. Listar os ids exatos que entram em uma soma e não na outra (`array_diff`).
-2. Apontar a tela afetada.
-3. Apontar a função/query responsável (linha do código).
-4. Explicar a causa raiz (filtro extra, heurística sinal, snapshot defasado, cache, etc.).
+- `parseSponteFile(file) → ParsedEntry[]` — extrai linhas + método normalizado
+- `buildConferenceReport(parsed, existingEntries, schoolId)` → tabela por método:
+  ```
+  { method, arquivo, sistema, diferenca, registros_arquivo, registros_sistema }
+  ```
+- `simulateDelays(parsed, rules)` → `{ antes: ByMonth, depois: ByMonth, movimentacoes: Movement[] }`
+  - Regra fim-de-semana: sáb/dom → próxima segunda (reusa `addDaysAndAdjust`)
+  - Cartão de Débito **nunca** usa regra de Crédito (validação dura: bloqueia se mapeamento estiver errado)
+- `simulateReplacement(parsed, existing, filter: {origem, categoria, periodo})` → `{ remover: {count, valor}, inserir: {count, valor}, saldo_esperado }`
+- `runPostImportAudit(arquivo, sistema)` → diferenças por método, total geral, qtd registros
+- `explainDifferences(diffs, contexto)` → IA (Lovable AI Gateway, `google/gemini-3-flash-preview`) recebe diffs + amostra de registros e devolve causas possíveis (duplicação, delay duplo, fim-de-semana, upload anterior ativo, categoria errada, etc.)
 
-### A.3 Registros fantasmas / órfãos
-```sql
--- entries com upload_id apontando para upload inexistente
-SELECT fe.* FROM financial_entries fe
-LEFT JOIN upload_records ur ON ur.id = fe.origem_upload_id
-WHERE fe.origem_upload_id IS NOT NULL AND ur.id IS NULL;
+Testes unitários em `src/test/sponteAuditEngine.test.ts` cobrindo: fim-de-semana, crédito vs débito, substituição determinística, delay duplicado.
 
--- entries de origens de upload sem upload_id
-SELECT * FROM financial_entries
-WHERE origem IN ('sponte','cheque','cartao','contas_pagar')
-  AND origem_upload_id IS NULL;
+---
 
--- realized_entries sem origem_arquivo
-SELECT * FROM realized_entries WHERE COALESCE(origem_arquivo,'') = '';
-```
+## 3. Edge Function `audit-import-differences`
 
-### A.4 Duplicidades
-```sql
-SELECT school_id, data, descricao, valor, origem, COUNT(*), array_agg(id)
-FROM financial_entries
-GROUP BY 1,2,3,4,5 HAVING COUNT(*) > 1;
-```
+Recebe `{ schoolId, diffs, sample }`, monta prompt e chama Lovable AI Gateway. Retorna lista estruturada de causas possíveis com valores. Mantém `LOVABLE_API_KEY` server-side.
 
-### A.5 Heurísticas proibidas no código
-- `rg "tipo === 'entrada'"` / `"tipo === 'saida'"` usadas para SOMAR
-- `rg "valor > 0 \\? 'receita'"` ou similares
-- `rg "Math.abs\\(.*valor"` em agregações
-- Qualquer mapeamento por nome de categoria fora de `tipoMeta` / `classificationUtils`
+---
 
-### A.6 Rastreabilidade
-% de entries não-manuais com `source_kind`, `source_file`, `imported_at`, `origem_upload_id` preenchidos. Listar lacunas por escola.
+## 4. UI — Wizard de 4 etapas
 
-### A.7 Cascata de exclusão de upload
-- Projeção: validar FK `financial_entries.origem_upload_id → upload_records.id ON DELETE CASCADE`.
-- Realizado: `HistoricoUploads.tsx` hoje deleta por `origem_arquivo`. Verificar se sobram órfãos quando o mesmo arquivo é importado em datas diferentes.
+Novo componente `src/components/realizado/ImportacaoSponteAuditada.tsx` substitui o fluxo atual do upload Sponte (mantém o componente antigo como fallback para outros tipos).
 
-**PAUSA OBRIGATÓRIA** ao final da Fase A: entregar a matriz numérica completa. Sem ela, Fase B não inicia.
+**Etapas:**
 
-## Fase B — Correções estruturais (após Δ ≠ 0 ser identificado)
+1. **Upload** — arquivo + opções (substituir a partir de data, escopo: origem/categoria/período)
+2. **Conferência por método** — tabela arquivo × sistema × diferença (com badge verde/vermelho). Botão **Aprovar conferência** habilitado só quando diferenças explicadas ou zero.
+3. **Simulação de delay** — duas colunas (antes/depois) por mês e método. Aprovar movimentação.
+4. **Simulação de substituição** — prévia de remoções e inserções com saldo esperado. Bloqueia se saldo ≠ 0 a menos que usuário confirme override (admin).
+5. **Auditoria final + IA** — após gravação, mostra relatório com diferenças residuais e análise da IA. Grava em `import_audits`.
 
-Aplicadas APENAS para violações reais encontradas na Fase A:
+Cada etapa permite voltar; nada é gravado até a etapa final.
 
-1. **SSOT única**: substituir qualquer fonte paralela por `useProjectedEntries`. DataTable lista exatamente o mesmo conjunto.
-2. **Banir sinal/entrada-saída** como autoridade: tudo via `getSaldoImpact` / `calculateTotals`. Teste que falha se encontrar `tipo === 'entrada' ? +v : -v` em código de soma.
-3. **Cascata de exclusão**: garantir FK CASCADE em projeção; para realizado, migrar de `origem_arquivo` para `origem_upload_id` com FK CASCADE (criar `realized_uploads` se necessário).
-4. **Rastreabilidade obrigatória**: CHECK que exige `origem_upload_id NOT NULL` quando `origem IN ('sponte','cheque','cartao','contas_pagar')`. Backfill antes.
-5. **Dedupe**: índice único parcial `(school_id, data, descricao, valor, origem, COALESCE(tipo_original,''))` WHERE origem ≠ 'manual'. Migration de limpeza mantendo o mais antigo.
-6. **Saldo encadeado**: teste automatizado `saldo_final(N) === saldo_inicial(N+1)` para todas as escolas e meses com dados.
-7. **Teste de conciliação** (`src/test/ssot.test.ts`): Σ por tela === Σ Dados, para mesmo período.
+---
 
-## Fase C — Relatório final
+## 5. Mapeamento estrito de métodos
 
-Re-executar a matriz da Fase A.2 demonstrando Δ = 0 em todas as escolas/meses, com:
-1. Causa raiz de cada divergência corrigida
-2. Registros afetados (ids + escola + mês)
-3. Telas afetadas
-4. Correção aplicada (migration / arquivo / linha)
-5. Matriz pós-correção
+`src/lib/import/methodMapping.ts`:
+- `CREDITO`: "Cartão de Crédito", "Cartão Crédito", "Cred", "Credito" → `credito` (delay aplicável)
+- `DEBITO`: "Cartão de Débito", "Debito", "Deb" → `debito` (**nunca** delay de crédito)
+- `SPONTE_PAY`: "Sponte Pay", "SpontePay", "Boleto Sponte Pay" → `sponte_pay`
+- `BOLETO`, `PIX`, `CHEQUE`, `DINHEIRO` — match exato/alias
+- Linha não mapeada → erro bloqueante na etapa 1
+
+---
+
+## 6. Rastreabilidade no Dashboard
+
+Adicionar drill-down em qualquer card de recebimento: clicar → modal com tabela de `financial_entries` filtrados, mostrando `source_file`, `upload_id`, `data_original`, `data` (após delay), `delay_rule_applied`. Reusa o componente DataTable.
+
+---
 
 ## Detalhes técnicos
 
-- Nenhuma funcionalidade nova enquanto existir Δ ≠ 0 sem causa raiz formal.
-- Schema via `supabase--migration`; dados via `supabase--insert`.
-- SSOT (`projectionEngine`, `ledgerEngine`, `classificationUtils`, `tipoMeta`) é mantida — o trabalho é eliminar desvios.
-- Cenários e Simulação seguem só em memória.
+- **Não altera** `projectionEngine.ts` nem `useProjectedEntries.ts` (SSOT mantida). Os novos campos viajam junto com o `ProjectedEntry`.
+- **Substituição determinística**: query `delete` com filtros exatos `school_id + origem + payment_method_key + data BETWEEN`. Conta antes/depois para validar saldo zero.
+- **Idempotência**: hash do arquivo gravado em `upload_records`. Re-upload do mesmo arquivo é detectado e exige confirmação.
+- **Fim-de-semana**: diferenças causadas por `addDaysAndAdjust` são marcadas como "esperadas" no relatório (não erro).
+- **Auditoria pós-importação**: grava em `import_audits` mesmo quando zero diferença, para histórico.
 
-## Ordem
+---
 
-1. Fase A (auditoria com matriz numérica) → **PAUSA** até Δ = 0 ou causa raiz formal
-2. Fase B (correções) — só do que a Fase A apontar
-3. Fase C (relatório final com matriz pós-correção)
+## Entregáveis
+
+```text
+migration                              → financial_entries (+6 cols), import_audits
+src/lib/import/methodMapping.ts        → mapeamento estrito
+src/lib/import/sponteAuditEngine.ts    → engine puro + tipos
+src/test/sponteAuditEngine.test.ts     → testes unitários
+supabase/functions/audit-import-differences/index.ts → IA conciliação
+src/components/realizado/ImportacaoSponteAuditada.tsx → wizard 4 etapas
+src/components/realizado/ImportAuditReport.tsx        → relatório final
+edits em ImportacaoRealizado.tsx       → roteia Sponte para o novo wizard
+edit em DataTable / Dashboard          → drill-down de rastreabilidade
+```
+
+---
+
+## Escopo / fora de escopo
+
+**Dentro:** importação Sponte de Recebimentos.
+**Fora (próxima iteração se quiser):** estender a outros tipos de upload (Realizado bancário, vendas), retroaplicar rastreabilidade em registros já gravados (será null nos antigos).
+
+Posso começar pela migration + engine + testes, e depois construir o wizard. Aprova?
