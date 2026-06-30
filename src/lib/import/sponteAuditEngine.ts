@@ -125,26 +125,13 @@ function sumBy<T>(arr: T[], get: (x: T) => number): number {
 }
 
 function findDelayDays(method: PaymentMethodKey, rules: PaymentDelayRule[]): number {
-  if (!PAYMENT_METHODS[method].delayApplicable) return 0;
-  const target = method === 'credito'
-    ? 'credito'
-    : method === 'debito'
-      ? 'debito'
-      : method === 'pix'
-        ? 'pix'
-        : method === 'boleto'
-          ? 'boleto'
-          : method === 'cheque'
-            ? 'cheque'
-            : method === 'sponte_pay'
-              ? 'sponte pay'
-              : '';
   const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const rule = rules.find(r => {
     const k = norm(r.formaCobranca);
     if (method === 'credito') return k.includes('credito');
     if (method === 'debito') return k.includes('debito');
-    return k.includes(target);
+    if (method === 'sponte_pay') return k.includes('sponte');
+    return k.includes(method); // pix, boleto, cheque, dinheiro
   });
   return rule?.prazo ?? 0;
 }
