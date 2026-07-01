@@ -109,7 +109,16 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   }, [months, snapshotMap, historicalRows, activeEntries, todayStr]);
 
   const includeEntry = useCallback((e: FinancialEntry, src: MonthSource | undefined) => {
-    if (src === 'upload' || src === 'misto' || src === 'historico') {
+    if (src === 'upload' || src === 'misto') {
+      if (e.origem === 'fluxo') return true;
+      if (e.origem === 'manual') return true;
+      // Projetados (Sponte, Cheque, Cartão, Contas a Pagar) aparecem como
+      // "prevista" em qualquer data do mês — inclusive dias já passados —
+      // para permitir comparar Previsto x Realizado no mesmo mês.
+      if (e.tipoRegistro === 'projetado') return true;
+      return false;
+    }
+    if (src === 'historico') {
       if (e.origem === 'fluxo') return true;
       if (e.origem === 'manual') return true;
       if (e.tipoRegistro === 'projetado' && e.data >= todayStr) return true;
