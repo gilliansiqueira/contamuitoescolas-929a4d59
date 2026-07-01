@@ -98,7 +98,10 @@ function parseValueCell(raw: any): number | null {
 }
 
 function pickColumn(cols: string[], aliases: string[]): string | undefined {
-  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '_');
+  // Normaliza removendo acentos, espaços E underscores para casar
+  // "FormaCobranca", "forma_cobranca", "Forma De Cobrança", etc.
+  const norm = (s: string) =>
+    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s_]+/g, '');
   for (const a of aliases) {
     const found = cols.find(c => norm(c) === norm(a));
     if (found) return found;
