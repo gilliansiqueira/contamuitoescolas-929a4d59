@@ -90,8 +90,6 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     const result: Record<string, MonthSource> = {};
     for (const m of months) {
       if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
-      const hasHist = historicalRows.some(r => r.month === m);
-      if (hasHist) { result[m] = 'historico'; continue; }
       const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
       const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
       const hasFutureProj = monthEntries.some(e =>
@@ -99,8 +97,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       );
       const hasManual = monthEntries.some(e => e.origem === 'manual');
       const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
+      const hasHist = historicalRows.some(r => r.month === m);
+      // SSOT: upload > historico > projecao (mesmo critério do Dashboard e snapshot).
       if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
       else if (hasUpload) result[m] = 'upload';
+      else if (hasHist) result[m] = 'historico';
       else if (hasOther) result[m] = 'projecao';
       else result[m] = 'vazio';
     }
