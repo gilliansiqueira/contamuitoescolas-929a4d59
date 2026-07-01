@@ -92,6 +92,15 @@ export function resolveMethodKey(raw: string): PaymentMethodKey | null {
   if (n.includes('debito') || n.includes('debit')) return 'debito';
 
   if (n.includes('pix')) return 'pix';
+  // Transferência bancária / TED / DOC / depósito → agrupados com PIX
+  // (mesma categoria de recebível, mesma regra de delay).
+  if (
+    n.includes('transferencia') ||
+    n.includes('transferência') ||
+    n === 'ted' || n.startsWith('ted ') ||
+    n === 'doc' || n.startsWith('doc ') ||
+    n.includes('deposito') || n.includes('depósito')
+  ) return 'pix';
   if (n.includes('boleto') || n.includes('cobranca') || n.includes('cobrança')) return 'boleto';
   if (n.includes('cheque')) return 'cheque';
   if (n.includes('dinheiro') || n.includes('especie') || n.includes('espécie') || n === 'cash') {
