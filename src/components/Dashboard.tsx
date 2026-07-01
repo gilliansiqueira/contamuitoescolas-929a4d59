@@ -106,10 +106,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const result: Record<string, 'snapshot' | 'upload' | 'misto' | 'historico' | 'projecao' | 'vazio'> = {};
     for (const m of selectedMonths) {
       if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
-      // Histórico Financeiro é a fonte de verdade quando existe — independe de upload/fluxo.
-      // Uploads/fluxo são apenas porta de entrada; o que conta é o que foi consolidado.
-      const hasHist = historicalRows.some(r => r.month === m);
-      if (hasHist) { result[m] = 'historico'; continue; }
       const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
       const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
       const hasFutureProj = monthEntries.some(e =>
@@ -117,13 +113,18 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       );
       const hasManual = monthEntries.some(e => e.origem === 'manual');
       const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
+      const hasHist = historicalRows.some(r => r.month === m);
+      // SSOT única: upload > histórico > projeção (igual a snapshotUtils e DailyFlowTable).
+      // Upload de Fluxo de Caixa manda; histórico só entra em meses sem upload.
       if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
       else if (hasUpload) result[m] = 'upload';
+      else if (hasHist) result[m] = 'historico';
       else if (hasOther) result[m] = 'projecao';
       else result[m] = 'vazio';
     }
     return result;
   }, [selectedMonths, activeEntries, historicalRows, snapshotMap, todayStr]);
+
 
   // Helper: inclui entry no agregador de um mês conforme a fonte.
   // Para meses com fluxo (upload/misto): pega fluxo + manuais + projeções futuras (>= hoje).
