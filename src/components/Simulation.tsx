@@ -381,6 +381,22 @@ export function Simulation({ schoolId }: SimulationProps) {
                   );
                 })}
               </tr>
+              <tr className="border-t-2 border-primary/40 bg-primary/5 font-bold">
+                <td className="px-2 py-2 text-foreground">
+                  Saldo final projetado <span className="text-[10px] font-normal text-muted-foreground">(com simulação)</span>
+                </td>
+                {(() => {
+                  let acc = saldoInicial || 0;
+                  return months.map(m => {
+                    const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0) - (contasPagarPorMes[m] || 0);
+                    acc += res;
+                    return (
+                      <td key={m} className={`px-2 py-2 text-right ${acc >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        {formatCurrency(acc)}
+                      </td>
+                    );
+                  });
+                })()}
             </tbody>
           </table>
         </div>
