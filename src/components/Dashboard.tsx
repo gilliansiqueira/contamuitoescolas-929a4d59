@@ -233,13 +233,34 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       }
     }
 
-    return Object.values(map)
+    // Unifica cards duplicados por variantes de rótulo (ex.: "Receita" + "Receita Real",
+    // "Despesa" + "Despesas") mantendo a mesma classificação.
+    const stemLabel = (s: string) => s
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\b(real|realizada|realizado|reais|projetada|projetado|prevista|previsto)\b/g, '')
+      .replace(/s\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const merged: Record<string, TipoAgg> = {};
+    for (const a of Object.values(map)) {
+      const mk = `${a.classificacao}|${a.entraNoResultado ? 1 : 0}|${a.impactaCaixa ? 1 : 0}|${a.isEntrada ? 1 : 0}|${stemLabel(a.label)}`;
+      if (!merged[mk]) {
+        merged[mk] = { ...a };
+      } else {
+        merged[mk].valor += a.valor;
+        // mantém o rótulo mais curto
+        if (a.label.length < merged[mk].label.length) merged[mk].label = a.label;
+      }
+    }
+    return Object.values(merged)
       .filter(a => a.valor > 0 && a.classificacao !== 'ignorar')
       .sort((a, b) => {
         const order = { receita: 0, despesa: 1, operacao: 2, ignorar: 3 } as Record<string, number>;
         return (order[a.classificacao] ?? 9) - (order[b.classificacao] ?? 9) || b.valor - a.valor;
       });
   }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap, modelItems]);
+
 
 
   // ─── Totais agregados (Receitas, Despesas, Resultado) usando KPIs dinâmicos ───
