@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro, TypeClassification } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { supabase } from '@/integrations/supabase/client';
+import { toPreviousBusinessDay } from '@/lib/dateUtils';
 
 // Tipos de upload que representam PROJEÇÃO de recebíveis/contas a pagar.
 // Para esses tipos, um novo upload SUBSTITUI a projeção futura existente
