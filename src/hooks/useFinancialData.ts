@@ -3,6 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import type { FinancialEntry, School, TypeClassification, PaymentDelayRule, ExclusionRule, UploadRecord, AuditLogEntry } from '@/types/financial';
 import { fetchAllRows } from '@/lib/fetchAll';
 
+// Bump when the canonical fetch strategy changes so React Query does not keep
+// totals computed from old, non-deterministic paginated responses in memory.
+const DATA_FETCH_VERSION = 'stable-pagination-v2';
+
 // ─── Schools ────────────────────────────────────────
 export function useSchools() {
   return useQuery({
@@ -100,7 +104,7 @@ function mapEntry(e: any): FinancialEntry {
 
 export function useEntries(schoolId: string) {
   return useQuery({
-    queryKey: ['entries', schoolId],
+    queryKey: ['entries', schoolId, DATA_FETCH_VERSION],
     queryFn: async (): Promise<FinancialEntry[]> => {
       const data = await fetchAllRows<any>('financial_entries', q =>
         q.eq('school_id', schoolId).order('data'),
@@ -113,7 +117,7 @@ export function useEntries(schoolId: string) {
 
 export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
   return useQuery({
-    queryKey: ['entries', schoolId, 'fromBase', baseDate],
+    queryKey: ['entries', schoolId, 'fromBase', baseDate, DATA_FETCH_VERSION],
     queryFn: async (): Promise<FinancialEntry[]> => {
       // If baseDate is set, filter strictly from it. Empty result = empty result
       // (no silent fallback to all-time data — avoids mixing periods).
@@ -471,7 +475,7 @@ export function useAddAuditLog() {
 // ─── Fluxo Tipos (derived from entries + histórico financeiro) ──────
 export function useFluxoTipos(schoolId: string) {
   return useQuery({
-    queryKey: ['fluxoTipos', schoolId],
+    queryKey: ['fluxoTipos', schoolId, DATA_FETCH_VERSION],
     queryFn: async (): Promise<string[]> => {
       const [entries, hist] = await Promise.all([
         fetchAllRows<any>('financial_entries', q =>
@@ -498,7 +502,7 @@ export function useFluxoTipos(schoolId: string) {
 // ─── Available months (derived from entries + histórico financeiro) ────────
 export function useAvailableMonths(schoolId: string) {
   return useQuery({
-    queryKey: ['availableMonths', schoolId],
+    queryKey: ['availableMonths', schoolId, DATA_FETCH_VERSION],
     queryFn: async (): Promise<string[]> => {
       const [entries, hist] = await Promise.all([
         fetchAllRows<any>('financial_entries', q => q.eq('school_id', schoolId), 1000, 'data'),
