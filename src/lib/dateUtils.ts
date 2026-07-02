@@ -7,6 +7,19 @@ export function toNextBusinessDay(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Move a date to previous business day (Mon-Fri) if it falls on weekend.
+ * Regra de Projeção: lançamento projetado (a pagar / a receber) nunca cai
+ * em sábado ou domingo — desloca para a sexta-feira anterior.
+ */
+export function toPreviousBusinessDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay();
+  if (day === 6) d.setDate(d.getDate() - 1); // Sat → Fri
+  if (day === 0) d.setDate(d.getDate() - 2); // Sun → Fri
+  return d.toISOString().slice(0, 10);
+}
+
 /** Add N calendar days to a date string and return business day */
 export function addDaysAndAdjust(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00');
