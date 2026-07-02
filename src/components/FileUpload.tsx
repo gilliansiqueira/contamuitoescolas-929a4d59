@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro, TypeClassification } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { supabase } from '@/integrations/supabase/client';
+import { toPreviousBusinessDay } from '@/lib/dateUtils';
 
 // Tipos de upload que representam PROJEÇÃO de recebíveis/contas a pagar.
 // Para esses tipos, um novo upload SUBSTITUI a projeção futura existente
@@ -201,10 +202,11 @@ function convertRows(
           break;
         }
         case 'cheque': {
-          const dt = parseDate(get(row, 'data_compensacao'));
+          const dtRaw = parseDate(get(row, 'data_compensacao'));
           const val = parseNumber(get(row, 'valor'));
-          if (!dt) { errors.push({ linha: lineNum, coluna: 'data_compensacao', mensagem: 'Data inválida' }); return; }
+          if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_compensacao', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
+          const dt = toPreviousBusinessDay(dtRaw);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cheque - ${get(row, 'nome_aluno') || ''}`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cheque',
@@ -215,10 +217,11 @@ function convertRows(
           break;
         }
         case 'cartao': {
-          const dt = parseDate(get(row, 'data_recebimento'));
+          const dtRaw = parseDate(get(row, 'data_recebimento'));
           const val = parseNumber(get(row, 'valor'));
-          if (!dt) { errors.push({ linha: lineNum, coluna: 'data_recebimento', mensagem: 'Data inválida' }); return; }
+          if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_recebimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
+          const dt = toPreviousBusinessDay(dtRaw);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cartão`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cartao',
@@ -229,10 +232,12 @@ function convertRows(
           break;
         }
         case 'contas_pagar': {
-          const dt = parseDate(get(row, 'data_vencimento'));
+          const dtRaw = parseDate(get(row, 'data_vencimento'));
           const val = parseNumber(get(row, 'valor'));
-          if (!dt) { errors.push({ linha: lineNum, coluna: 'data_vencimento', mensagem: 'Data inválida' }); return; }
+          if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_vencimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
+          // Projeção nunca cai em fim de semana — antecipa para sexta.
+          const dt = toPreviousBusinessDay(dtRaw);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Pagar - ${get(row, 'favorecido') || ''}`,
             valor: Math.abs(val), tipo: 'saida', categoria: get(row, 'categoria') || 'despesa',
