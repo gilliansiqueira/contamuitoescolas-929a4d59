@@ -397,6 +397,7 @@ export function Simulation({ schoolId }: SimulationProps) {
                     );
                   });
                 })()}
+              </tr>
             </tbody>
           </table>
         </div>
