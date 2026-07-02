@@ -15,7 +15,10 @@ export async function fetchAllRows<T = any>(
   let from = 0;
   while (true) {
     const base = (supabase as any).from(table).select(selectCols);
-    const query = builder(base);
+    // Offset pagination MUST have a deterministic order. Several callers sort
+    // only by date; rows sharing the same date can otherwise move between pages
+    // and be duplicated/omitted, which changes Dashboard totals on large imports.
+    const query = builder(base).order('id', { ascending: true });
     const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     all.push(...((data as T[]) ?? []));
