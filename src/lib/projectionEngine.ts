@@ -128,7 +128,12 @@ export function projectEntries(
 
   // 2 + 3) prazo + impacto
   return active.map(e => {
-    const dataProjetada = applyPaymentDelay(e, rules);
+    let dataProjetada = applyPaymentDelay(e, rules);
+    // Regra global: projeção nunca cai em sábado/domingo — antecipa para
+    // sexta-feira (safety-net para dados já persistidos antes da regra).
+    if (e.tipoRegistro === 'projetado') {
+      dataProjetada = toPreviousBusinessDay(dataProjetada);
+    }
     const impacto = getSaldoImpact(e, classifications);
     return { ...e, dataProjetada, impacto };
   });
