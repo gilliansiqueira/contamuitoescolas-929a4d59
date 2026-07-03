@@ -1,18 +1,22 @@
 import { useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
-import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
+import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
-import { getEffectiveClassification, getSaldoImpact } from '@/lib/classificationUtils';
+import { getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
-import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
-import { useSchoolModel } from '@/hooks/useSchoolModel';
+import {
+  resolveMonthSource,
+  includeEntryForMonth,
+  computeSaldoInicial,
+  computeSaldoFinal,
+  type MovementSource,
+} from '@/lib/periodMovement';
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
 import type { FinancialEntry } from '@/types/financial';
+import type { ProjectedEntry } from '@/lib/projectionEngine';
 
 interface DailyFlowTableProps {
   schoolId: string;
@@ -37,137 +41,79 @@ interface DayRow {
   dayOfWeek: string;
 }
 
-type MonthSource = 'snapshot' | 'upload' | 'misto' | 'historico' | 'projecao' | 'vazio';
-
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
-  // Previsto segue a projeção (Sponte, Cheques, Cartões, Contas a Pagar etc.).
-  // Realizado NÃO usa projeção: vem diretamente do upload Fluxo de Caixa,
-  // com a data original do acontecido no dia a dia — mesma fonte do Dashboard Realizado.
   const { entries: projectedEntries } = useProjectedEntries(schoolId);
   const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
-  const snapshotMap = useSnapshotMap(schoolId, 'projecao');
-  const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
+  const { ctx: movementCtx, isInModel } = usePeriodMovementCtx(schoolId);
 
-  const { data: historicalRowsRaw = [] } = useQuery({
-    queryKey: ['historicalMonthly', schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('historical_monthly' as any)
-        .select('month, tipo_valor, valor')
-        .eq('school_id', schoolId);
-      if (error) throw error;
-      return (data ?? []) as unknown as Array<{ month: string; tipo_valor: string; valor: number }>;
-    },
-    enabled: !!schoolId,
-  });
-
-  const historicalRows = useMemo(
-    () => hasModel ? historicalRowsRaw.filter(r => isInModel(r.tipo_valor)) : historicalRowsRaw,
-    [historicalRowsRaw, hasModel, isInModel]
-  );
-
-  const activeEntries = useMemo(
-    () => projectedEntries.map(e => ({ ...e, data: e.dataProjetada })),
-    [projectedEntries]
-  );
+  const historicalRows = movementCtx.historicalRows;
+  const snapshotMap = movementCtx.snapshotMap;
+  const modelItems = movementCtx.modelItems;
 
   const months = useMemo(() => {
     if (selectedMonth === 'all') {
       const set = new Set<string>();
-      activeEntries.forEach(e => set.add(e.data.slice(0, 7)));
+      projectedEntries.forEach(e => set.add(e.dataProjetada.slice(0, 7)));
       rawEntries.forEach(e => set.add(e.data.slice(0, 7)));
       historicalRows.forEach(r => set.add(r.month));
       snapshotMap.forEach((_, month) => set.add(month));
       return Array.from(set).sort();
     }
     return selectedMonth.split(',').filter(Boolean).sort();
-  }, [selectedMonth, activeEntries, rawEntries, historicalRows, snapshotMap]);
+  }, [selectedMonth, projectedEntries, rawEntries, historicalRows, snapshotMap]);
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const monthSources = useMemo<Record<string, MonthSource>>(() => {
-    const result: Record<string, MonthSource> = {};
-    for (const m of months) {
-      if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
-      const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
-      const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
-      const hasFutureProj = monthEntries.some(e =>
-        e.tipoRegistro === 'projetado' && e.origem !== 'fluxo' && e.data >= todayStr
-      );
-      const hasManual = monthEntries.some(e => e.origem === 'manual');
-      const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
-      const hasHist = historicalRows.some(r => r.month === m);
-      // SSOT: upload > historico > projecao (mesmo critério do Dashboard e snapshot).
-      if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
-      else if (hasUpload) result[m] = 'upload';
-      else if (hasHist) result[m] = 'historico';
-      else if (hasOther) result[m] = 'projecao';
-      else result[m] = 'vazio';
-    }
+  // SSOT: fonte por mês.
+  const monthSources = useMemo<Record<string, MovementSource>>(() => {
+    const result: Record<string, MovementSource> = {};
+    for (const m of months) result[m] = resolveMonthSource(m, movementCtx);
     return result;
-  }, [months, snapshotMap, historicalRows, activeEntries, todayStr]);
+  }, [months, movementCtx]);
 
-  const includeEntry = useCallback((e: FinancialEntry, src: MonthSource | undefined) => {
-    if (src === 'upload' || src === 'misto') {
-      if (e.origem === 'fluxo') return true;
-      if (e.origem === 'manual') return true;
-      // Projetados (Sponte, Cheque, Cartão, Contas a Pagar) aparecem como
-      // "prevista" em qualquer data do mês — inclusive dias já passados —
-      // para permitir comparar Previsto x Realizado no mesmo mês.
-      if (e.tipoRegistro === 'projetado') return true;
-      return false;
-    }
-    if (src === 'historico') {
-      if (e.origem === 'fluxo') return true;
-      if (e.origem === 'manual') return true;
-      if (e.tipoRegistro === 'projetado' && e.data >= todayStr) return true;
-      return false;
-    }
-    if (src === 'projecao') return e.origem !== 'fluxo';
-    return false;
-  }, [todayStr]);
+  // Filtro canônico: same rule as periodMovement.
+  const filterForMonth = useCallback(
+    (e: ProjectedEntry) => {
+      const src = monthSources[e.dataProjetada.slice(0, 7)];
+      if (!src) return false;
+      return includeEntryForMonth(e, src, todayStr, classifications);
+    },
+    [monthSources, todayStr, classifications]
+  );
 
   const adjustedProjectedEntries = useMemo(
     () => projectedEntries.filter(e => {
       if (e.origem === 'fluxo' || e.impacto === 0) return false;
-      const data = e.dataProjetada;
-      const src = monthSources[data.slice(0, 7)];
-      const entryForSource = { ...e, data };
-      if (src === 'historico') {
-        return includeEntry(entryForSource, src) && getEffectiveClassification(e, classifications) === 'operacao';
-      }
-      return includeEntry(entryForSource, src);
+      return filterForMonth(e);
     }),
-    [projectedEntries, monthSources, includeEntry, classifications]
+    [projectedEntries, filterForMonth]
   );
 
   const realizedEntries = useMemo(
     () => rawEntries
       .filter(e => e.origem === 'fluxo')
-      .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }))
+      .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }) as ProjectedEntry)
       .filter(e => {
         if (e.impacto === 0) return false;
-        const src = monthSources[e.data.slice(0, 7)];
-        if (!includeEntry(e, src)) return false;
-        // Quando o mês está em Histórico Financeiro, o Dashboard usa os
-        // valores consolidados de receita/despesa e soma do upload diário só
-        // as Operações. Assim evitamos duplicidade e mantemos o saldo igual.
-        if (src === 'historico') {
-          return getEffectiveClassification(e, classifications) === 'operacao';
-        }
-        return true;
+        return filterForMonth(e);
       }),
-    [rawEntries, classifications, includeEntry, monthSources]
+    [rawEntries, classifications, filterForMonth]
   );
 
   const allDays = useMemo(() => getAllDaysInMonths(months), [months]);
 
-  // Saldo Inicial do período — mesma SSOT do Dashboard.
-  const saldoInicialPeriodo = useSaldoInicialPeriodo(
-    schoolId,
-    selectedMonth === 'all' ? [] : months
-  );
+  // SSOT: saldo inicial e final vindos direto da mesma função canônica.
+  const saldoInicialPeriodo = useMemo(() => {
+    if (months.length === 0) return movementCtx.saldoInicialBase;
+    return computeSaldoInicial(months[0], movementCtx, { isInModel });
+  }, [months, movementCtx, isInModel]);
+
+  const saldoFinalPeriodoSSOT = useMemo(() => {
+    if (months.length === 0) return saldoInicialPeriodo;
+    return computeSaldoFinal(months[months.length - 1], movementCtx, { isInModel });
+  }, [months, movementCtx, isInModel, saldoInicialPeriodo]);
+
 
   const dailyData = useMemo(() => {
     const priorSaldo = saldoInicialPeriodo;
