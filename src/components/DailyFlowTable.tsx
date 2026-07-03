@@ -204,7 +204,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     });
   }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications, historicalRows, monthSources, modelItems]);
 
-  const saldoFinalPeriodo = dailyData.length > 0 ? dailyData[dailyData.length - 1].saldoFinal : saldoInicialPeriodo;
+  // Saldo final oficial vem da SSOT (invariante saldoInicial(M+1) = saldoFinal(M)).
+  const saldoFinalPeriodo = saldoFinalPeriodoSSOT;
 
   const totals = useMemo(() => dailyData.reduce((acc, d) => ({
     entradaPrevista: acc.entradaPrevista + d.entradaPrevista,
