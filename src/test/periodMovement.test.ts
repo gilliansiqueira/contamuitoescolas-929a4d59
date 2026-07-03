@@ -117,8 +117,13 @@ describe('periodMovement — SSOT única de movimentação', () => {
   });
 
   it('cenário Fazenda RG Maio → saldo_final = 3.264,91', () => {
-    // Classificações: pro-labore e antecipacao são operações via DEFAULT_MAPPINGS.
-    const classifications: TypeClassification[] = [];
+    // Classificações explícitas: pró-labore e antecipação como OPERAÇÃO (não entra no resultado).
+    const classifications: TypeClassification[] = [
+      { id: '1', school_id: schoolId, tipoValor: 'Receita', classificacao: 'receita', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar', label: 'Receita' } as any,
+      { id: '2', school_id: schoolId, tipoValor: 'Despesa', classificacao: 'despesa', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Despesa' } as any,
+      { id: '3', school_id: schoolId, tipoValor: 'pro-labore', classificacao: 'operacao', entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Pró-labore' } as any,
+      { id: '4', school_id: schoolId, tipoValor: 'Antecipação', classificacao: 'operacao', entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar', label: 'Antecipação' } as any,
+    ];
     const ctx = emptyCtx({
       saldoInicialBase: 3881.36,
       saldoInicialBaseDate: '2026-05-01',
