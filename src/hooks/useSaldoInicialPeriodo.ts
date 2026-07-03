@@ -76,10 +76,26 @@ export function useSaldoInicialPeriodo(
     for (const sm of snapMonthsBefore) {
       saldo += snapshotMap.get(sm)!.saldo_movimento;
     }
+    // Prioridade (mesma do Dashboard.monthSources): snapshot > upload(fluxo) > histórico > projeção.
+    // Se um mês anterior tem entries de origem 'fluxo', o upload sobrescreve o histórico consolidado
+    // (histórico foi congelado antes do upload e pode conter operações agregadas dentro de
+    // Receita/Despesa — usar as duas fontes gera dupla contagem).
+    const uploadMonths = new Set<string>();
+    for (const e of activeEntries) {
+      if (e.data >= monthStart) continue;
+      const mo = e.data.slice(0, 7);
+      if (e.origem === 'fluxo') uploadMonths.add(mo);
+    }
     for (const e of activeEntries) {
       if (e.data >= monthStart) continue;
       const mo = e.data.slice(0, 7);
       if (snapMonthsSet.has(mo)) continue;
+      // Mês com upload: soma TODAS as entries via getSaldoImpact (SSOT); histórico será ignorado abaixo.
+      if (uploadMonths.has(mo)) {
+        saldo += getSaldoImpact(e, classifications);
+        continue;
+      }
+      // Mês só com histórico: histórico dá receita/despesa; entries só contribuem com operações.
       if (histMonths.has(mo)) {
         const cls = getEffectiveClassification(e, classifications);
         if (cls === 'operacao') {
@@ -92,11 +108,13 @@ export function useSaldoInicialPeriodo(
     for (const r of historicalRows) {
       if (r.month >= firstMonth) continue;
       if (snapMonthsSet.has(r.month)) continue;
+      if (uploadMonths.has(r.month)) continue; // upload manda: ignora histórico deste mês
       const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) continue;
       const v = Number(r.valor) || 0;
       saldo += meta.isEntrada ? v : -v;
     }
+
     return saldo;
   }, [activeEntries, classifications, saldoInicialBase, selectedMonths, historicalRows, snapshotMap, modelItems]);
 }
