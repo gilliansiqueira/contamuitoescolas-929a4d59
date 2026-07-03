@@ -5,8 +5,17 @@ import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
-import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
+import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import {
+  buildMonthMovement,
+  computeSaldoInicial,
+  computeSaldoFinal,
+  includeEntryForMonth,
+  resolveMonthSource,
+  type MovementSource,
+  type PorTipoAgg,
+} from '@/lib/periodMovement';
 import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
@@ -48,24 +57,20 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { isPresentationMode } = usePresentation();
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
-  // SSOT — mesmo conjunto consumido por Dados/Fluxo Diário/Fluxo/Previsto x Realizado.
-  // Já vem com dataProjetada (prazo Sponte) + impacto + gate do modelo aplicado.
   const { entries: ssotEntries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
-  // Snapshots de meses fechados (Projeção): valores congelados, imunes a mudanças de classificação.
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
-  // Modelo financeiro ativo: gate estrito de categorias válidas (mantido para Histórico).
   const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
+  const { ctx: movementCtx } = usePeriodMovementCtx(schoolId);
   const [showInsights, setShowInsights] = useState(true);
 
-  // Padroniza `data` para a data projetada (paridade total com Fluxo/Fluxo Diário).
   const activeEntries = useMemo(
     () => ssotEntries.map(e => ({ ...e, data: e.dataProjetada })),
     [ssotEntries]
   );
 
-  // ─── Histórico Financeiro (consolidado mensal) — aplica gate do modelo ───
+  // Histórico Financeiro consolidado (para gráficos que ainda precisam iterar bruto).
   const { data: historicalRowsRaw = [] } = useQuery({
     queryKey: ['historicalMonthly', schoolId],
     queryFn: async () => {
@@ -83,158 +88,43 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     [historicalRowsRaw, hasModel, isInModel]
   );
 
-
-
-  // ─── Determina meses selecionados ───
   const selectedMonths = useMemo<string[]>(() => {
     if (selectedMonth === 'all') {
       const fromEntries = activeEntries.map(e => e.data.slice(0, 7));
       const fromHist = historicalRows.map(r => r.month);
       return Array.from(new Set([...fromEntries, ...fromHist])).sort();
     }
-    // Sempre ordenar para que selectedMonths[0] seja o mês mais antigo
     return selectedMonth.split(',').map(m => m.trim()).filter(Boolean).sort();
   }, [selectedMonth, activeEntries, historicalRows]);
 
-  // Data de "hoje" (YYYY-MM-DD) usada para distinguir realizado x projetado restante.
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  // ─── Classifica cada mês por fonte: snapshot > upload/misto > histórico > projeção ───
-  // 'upload' = mês tem fluxo realizado; podemos somar projeções FUTURAS (>= hoje) por cima.
-  // 'misto'  = upload + projeções futuras coexistem.
+  // ─── SSOT: fonte oficial por mês (snapshot | fluxo | historico | projecao | vazio) ───
   const monthSources = useMemo(() => {
-    const result: Record<string, 'snapshot' | 'upload' | 'misto' | 'historico' | 'projecao' | 'vazio'> = {};
+    const result: Record<string, MovementSource> = {};
     for (const m of selectedMonths) {
-      if (snapshotMap.has(m)) { result[m] = 'snapshot'; continue; }
-      const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
-      const hasUpload = monthEntries.some(e => e.origem === 'fluxo');
-      const hasFutureProj = monthEntries.some(e =>
-        e.tipoRegistro === 'projetado' && e.origem !== 'fluxo' && e.data >= todayStr
-      );
-      const hasManual = monthEntries.some(e => e.origem === 'manual');
-      const hasOther = monthEntries.some(e => e.origem !== 'fluxo');
-      const hasHist = historicalRows.some(r => r.month === m);
-      // SSOT única: upload > histórico > projeção (igual a snapshotUtils e DailyFlowTable).
-      // Upload de Fluxo de Caixa manda; histórico só entra em meses sem upload.
-      if (hasUpload && (hasFutureProj || hasManual)) result[m] = 'misto';
-      else if (hasUpload) result[m] = 'upload';
-      else if (hasHist) result[m] = 'historico';
-      else if (hasOther) result[m] = 'projecao';
-      else result[m] = 'vazio';
+      result[m] = resolveMonthSource(m, movementCtx);
     }
     return result;
-  }, [selectedMonths, activeEntries, historicalRows, snapshotMap, todayStr]);
+  }, [selectedMonths, movementCtx]);
 
+  // Helper legado exposto para caminhos auxiliares (gráficos, categorias top).
+  const includeEntry = useCallback((e: FinancialEntry, src: MovementSource) => {
+    // Aceita ProjectedEntry e FinancialEntry; garante dataProjetada.
+    const pe = { ...e, dataProjetada: (e as any).dataProjetada ?? e.data, impacto: (e as any).impacto ?? 0 } as any;
+    return includeEntryForMonth(pe, src, todayStr, classifications);
+  }, [todayStr, classifications]);
 
-  // Helper: inclui entry no agregador de um mês conforme a fonte.
-  // Para meses com fluxo (upload/misto): pega fluxo + manuais + projeções futuras (>= hoje).
-  // Para meses sem fluxo (projecao): pega tudo que não seja fluxo.
-  const includeEntry = useCallback((e: FinancialEntry, src: string) => {
-    if (src === 'upload' || src === 'misto') {
-      if (e.origem === 'fluxo') return true;
-      if (e.origem === 'manual') return true;
-      if (e.tipoRegistro === 'projetado' && e.data >= todayStr) return true;
-      return false;
-    }
-    if (src === 'projecao') return e.origem !== 'fluxo';
-    return false;
-  }, [todayStr]);
+  // ─── SSOT: movimentação canônica por mês selecionado ───
+  const monthMovements = useMemo(
+    () => selectedMonths.map(m => buildMonthMovement(m, movementCtx, { isInModel })),
+    [selectedMonths, movementCtx, isInModel]
+  );
 
-  // ─── KPIs DINÂMICOS por tipo (agregado de todas as fontes ativas no período) ───
+  // ─── KPIs DINÂMICOS por tipo — vem de porTipo agregado ───
   type TipoAgg = { key: string; label: string; valor: number; isEntrada: boolean; entraNoResultado: boolean; impactaCaixa: boolean; classificacao: string };
   const tipoAggregations = useMemo<TipoAgg[]>(() => {
-    const map: Record<string, TipoAgg> = {};
-
-    const ensure = (key: string): TipoAgg => {
-      // Use canonical key so synonyms (despesa/despesas/saida) merge into one bucket
-      const k = getCanonicalKey(key);
-      if (!map[k]) {
-        const meta = resolveTipoMeta(key, classifications, modelItems);
-        map[k] = { key: k, label: meta.label, valor: 0, isEntrada: meta.isEntrada, entraNoResultado: meta.entraNoResultado, impactaCaixa: meta.impactaCaixa, classificacao: meta.classificacao };
-      }
-      return map[k];
-    };
-
-    for (const m of selectedMonths) {
-      const src = monthSources[m];
-      if (src === 'snapshot') {
-        // Mês fechado — usa valores congelados.
-        // Aplica filtros estritos: ignora 'ignorar' e tipos fora do modelo financeiro.
-        const snap = snapshotMap.get(m)!;
-        for (const t of snap.por_tipo) {
-          if (t.classificacao === 'ignorar') continue;
-          if (!isInModel(t.label) && !isInModel(t.tipo)) continue;
-          const k = t.tipo;
-          if (!map[k]) {
-            map[k] = {
-              key: k,
-              label: t.label,
-              valor: 0,
-              isEntrada: t.sinal === 'somar',
-              entraNoResultado: t.classificacao === 'receita' || t.classificacao === 'despesa',
-              impactaCaixa: true,
-              classificacao: t.classificacao,
-            };
-          }
-          map[k].valor += t.valor;
-        }
-      } else if (src === 'historico') {
-        for (const r of historicalRows.filter(x => x.month === m)) {
-          const agg = ensure(r.tipo_valor);
-          agg.valor += Number(r.valor) || 0;
-        }
-        // Agrega as operações de activeEntries deste mês, pois operações nunca são consolidadas no histórico
-        const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
-        for (const e of monthEntries) {
-          if (!includeEntry(e, 'upload')) continue;
-          const cls = getEffectiveClassification(e, classifications);
-          if (cls === 'operacao') {
-            const tipoKey = resolveEntryTipoKey(e, classifications);
-            const agg = ensure(tipoKey);
-            agg.valor += e.valor;
-          }
-        }
-      } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
-        const monthEntries = activeEntries.filter(e => e.data.startsWith(m));
-        const ORIGENS_NATIVAS = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
-        const ORIGEM_LABEL: Record<string, string> = {
-          sponte: 'Receita (Sponte)',
-          cheque: 'Receita (Cheques)',
-          cartao: 'Receita (Cartões)',
-          contas_pagar: 'Despesa (Contas a Pagar)',
-        };
-        for (const e of monthEntries) {
-          if (!includeEntry(e, src)) continue;
-          // Origens de upload nativo: classificação fixa pelo tipo (entrada=receita, saida=despesa),
-          // agrupadas em um único bucket por (origem, tipo) — ignora regras de categoria/ignorar.
-          if (ORIGENS_NATIVAS.has(e.origem)) {
-            const isEntrada = e.tipo === 'entrada';
-            const k = `__${e.origem}_${e.tipo}`;
-            if (!map[k]) {
-              map[k] = {
-                key: k,
-                label: ORIGEM_LABEL[e.origem] ?? e.origem,
-                valor: 0,
-                isEntrada,
-                entraNoResultado: true,
-                impactaCaixa: true,
-                classificacao: isEntrada ? 'receita' : 'despesa',
-              };
-            }
-            map[k].valor += e.valor;
-            continue;
-          }
-          const tipoKey = resolveEntryTipoKey(e, classifications);
-          const agg = ensure(tipoKey);
-          agg.valor += e.valor;
-        }
-
-
-      }
-    }
-
-    // Unifica cards duplicados por variantes de rótulo (ex.: "Receita" + "Receita Real",
-    // "Despesa" + "Despesas") mantendo a mesma classificação.
+    // Mescla porTipo de todos os meses, unificando por rótulo/classificação.
     const stemLabel = (s: string) => s
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
@@ -243,14 +133,23 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .replace(/\s+/g, ' ')
       .trim();
     const merged: Record<string, TipoAgg> = {};
-    for (const a of Object.values(map)) {
-      const mk = `${a.classificacao}|${a.entraNoResultado ? 1 : 0}|${a.impactaCaixa ? 1 : 0}|${a.isEntrada ? 1 : 0}|${stemLabel(a.label)}`;
-      if (!merged[mk]) {
-        merged[mk] = { ...a };
-      } else {
-        merged[mk].valor += a.valor;
-        // mantém o rótulo mais curto
-        if (a.label.length < merged[mk].label.length) merged[mk].label = a.label;
+    for (const mv of monthMovements) {
+      for (const t of mv.porTipo) {
+        const mk = `${t.classificacao}|${t.entraNoResultado ? 1 : 0}|${t.impactaCaixa ? 1 : 0}|${t.isEntrada ? 1 : 0}|${stemLabel(t.label)}`;
+        if (!merged[mk]) {
+          merged[mk] = {
+            key: t.key,
+            label: t.label,
+            valor: t.valor,
+            isEntrada: t.isEntrada,
+            entraNoResultado: t.entraNoResultado,
+            impactaCaixa: t.impactaCaixa,
+            classificacao: t.classificacao,
+          };
+        } else {
+          merged[mk].valor += t.valor;
+          if (t.label.length < merged[mk].label.length) merged[mk].label = t.label;
+        }
       }
     }
     return Object.values(merged)
@@ -259,69 +158,43 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         const order = { receita: 0, despesa: 1, operacao: 2, ignorar: 3 } as Record<string, number>;
         return (order[a.classificacao] ?? 9) - (order[b.classificacao] ?? 9) || b.valor - a.valor;
       });
-  }, [selectedMonths, monthSources, historicalRows, activeEntries, classifications, snapshotMap, modelItems]);
+  }, [monthMovements]);
 
-
-
-  // ─── Totais agregados (Receitas, Despesas, Resultado) usando KPIs dinâmicos ───
+  // ─── Totais agregados — derivados diretamente dos movimentos (SSOT) ───
   const totals = useMemo(() => {
-    let receitas = 0;
-    let despesas = 0;
-    let operacoesIn = 0;
-    let operacoesOut = 0;
-    for (const a of tipoAggregations) {
-      if (a.classificacao === 'receita') receitas += a.valor;
-      else if (a.classificacao === 'despesa') despesas += a.valor;
-      else if (a.classificacao === 'operacao') {
-        if (a.isEntrada) operacoesIn += a.valor;
-        else operacoesOut += a.valor;
-      }
+    let receitas = 0, despesas = 0, operacoesIn = 0, operacoesOut = 0;
+    for (const mv of monthMovements) {
+      receitas += mv.receitas;
+      despesas += mv.despesas;
+      operacoesIn += mv.operacoesIn;
+      operacoesOut += mv.operacoesOut;
     }
     return { receitas, despesas, resultado: receitas - despesas, operacoesIn, operacoesOut };
-  }, [tipoAggregations]);
+  }, [monthMovements]);
 
-  // ─── Saldo inicial: SSOT em useSaldoInicialPeriodo ───
-  const saldoInicialFromHook = useSaldoInicialPeriodo(
-    schoolId,
-    selectedMonth === 'all' ? [] : selectedMonths
-  );
+  // ─── Saldo Inicial: saldo final do mês anterior ao primeiro selecionado (SSOT) ───
   const saldoInicialCalculado = useMemo(() => {
     if (selectedMonth === 'all' || selectedMonths.length === 0) return saldoInicial;
-    return saldoInicialFromHook;
-  }, [selectedMonth, selectedMonths, saldoInicial, saldoInicialFromHook]);
+    return computeSaldoInicial(selectedMonths[0], movementCtx, { isInModel });
+  }, [selectedMonth, selectedMonths, saldoInicial, movementCtx, isInModel]);
 
-  // ─── Saldo final: SSOT via useSaldoInicialPeriodo do mês SEGUINTE ao último
-  //     mês selecionado. Isso garante a invariante:
-  //       saldo_inicial(mês N) === saldo_final(mês N-1)
-  //     usando exatamente a mesma lógica de acúmulo de entries + histórico +
-  //     snapshots. Antes, `saldoFinal` era derivado de `tipoAggregations`
-  //     (agrupamentos por rótulo/filtragens), o que divergia da soma bruta
-  //     usada pelo saldo inicial e gerava saltos ao trocar de mês.
-  const nextMonthAfterSelected = useMemo<string[]>(() => {
-    if (selectedMonth === 'all' || selectedMonths.length === 0) return [];
-    const last = selectedMonths[selectedMonths.length - 1];
-    const [y, m] = last.split('-').map(Number);
-    const d = new Date(y, m, 1);
-    return [`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`];
-  }, [selectedMonth, selectedMonths]);
-  const saldoFinalFromHook = useSaldoInicialPeriodo(schoolId, nextMonthAfterSelected);
+  // ─── Saldo Final: saldo final do último mês selecionado (SSOT) ───
+  // Invariante garantida: saldoInicial(M) === saldoFinal(M-1).
   const saldoFinal = useMemo(() => {
     if (selectedMonth === 'all' || selectedMonths.length === 0) {
+      // Modo 'all' — acumula movimentos sobre o saldo base.
       let saldo = saldoInicialCalculado;
-      for (const a of tipoAggregations) {
-        if (!a.impactaCaixa) continue;
-        saldo += a.isEntrada ? a.valor : -a.valor;
-      }
+      for (const mv of monthMovements) saldo += mv.saldoMovimento;
       return saldo;
     }
-    return saldoFinalFromHook;
-  }, [selectedMonth, selectedMonths, saldoInicialCalculado, tipoAggregations, saldoFinalFromHook]);
+    return computeSaldoFinal(selectedMonths[selectedMonths.length - 1], movementCtx, { isInModel });
+  }, [selectedMonth, selectedMonths, saldoInicialCalculado, monthMovements, movementCtx, isInModel]);
 
   // ─── Bandeiras para condicionar UI ───
   const sourcesUsed = useMemo(() => {
     const set = new Set(Object.values(monthSources));
-    const hasUpload = set.has('upload') || set.has('misto');
-    const hasProjecao = set.has('projecao') || set.has('misto');
+    const hasUpload = set.has('fluxo');
+    const hasProjecao = set.has('projecao');
     return {
       hasUpload,
       hasHistorico: set.has('historico'),
@@ -423,7 +296,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           if (meta.classificacao === 'receita') map[m].entradas += v;
           else if (meta.classificacao === 'despesa') map[m].saidas += v;
         }
-      } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
+      } else if (src === 'fluxo' || src === 'projecao') {
         for (const e of activeEntries.filter(x => x.data.startsWith(m))) {
           if (!includeEntry(e, src)) continue;
           const cls = getEffectiveClassification(e, classifications);

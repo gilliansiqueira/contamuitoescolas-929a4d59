@@ -1,114 +1,126 @@
-## Objetivo
 
-Refatorar o fluxo de importação de recebimentos (Sponte) para impedir gravações silenciosas. Toda importação passa por **conferência → simulação de delay → simulação de substituição → auditoria** antes de gravar. Cada lançamento fica rastreável até a linha do arquivo original.
+# Auditoria do Saldo Final — antes de qualquer alteração
 
----
+## 1. Onde o Saldo Final é calculado hoje
 
-## 1. Banco de dados (migration)
+| # | Tela | Arquivo / função | Fórmula usada hoje |
+|---|------|------------------|--------------------|
+| 1 | Dashboard — Saldo Inicial do período | `src/hooks/useSaldoInicialPeriodo.ts` | `base + Σ snapshots < mês + Σ entries < mês (com regras de origem) + Σ historical_monthly < mês (só se mês sem upload)` |
+| 2 | Dashboard — Saldo Final do período | `src/components/Dashboard.tsx` `saldoFinal` (linhas 300-318) | Chama `useSaldoInicialPeriodo` para o **mês seguinte** ao último selecionado. |
+| 3 | Dashboard — Totais Receita/Despesa/Operações | `Dashboard.tsx` `tipoAggregations` + `totals` (linhas 145-281) | Agrega por `monthSources[m]`: snapshot | historico | upload | misto | projecao. Cada fonte tem branch próprio. |
+| 4 | Fluxo Diário — Saldo Inicial | `DailyFlowTable.tsx` linha 167 | `useSaldoInicialPeriodo(schoolId, months)`. |
+| 5 | Fluxo Diário — Saldo Final | `DailyFlowTable.tsx` `dailyData` (linhas 172-259) | Acumula dia-a-dia: `historical_monthly` (só se `src === 'historico'`) + `adjustedProjectedEntries` + `realizedEntries`. **Não** usa `useSaldoInicialPeriodo` do mês seguinte. |
+| 6 | Fluxo (CashFlow) — Saldo diário | `CashFlow.tsx` `cashFlow` (linhas 37-60) | `saldoInicial = school.saldoInicial` (base bruto) + acumula `impacto` dos entries. **Ignora** snapshots, histórico e a SSOT `useSaldoInicialPeriodo`. |
+| 7 | Fluxo — Consolidação mensal | `CashFlow.tsx` `monthly` (linhas 63-77) | `calculateTotals` sobre entries projetados. Ignora `historical_monthly` e `monthSources`. |
+| 8 | Previsto x Realizado | `ProjectedVsReal.tsx` | Só `calculateTotals` por mês. Não calcula saldo. OK. |
+| 9 | Fallback antigo do Dashboard (`selectedMonth === 'all'`) | `Dashboard.tsx` linhas 309-315 | `saldoInicialCalculado + Σ tipoAggregations com sinal`. Caminho paralelo ao hook. |
 
-**Novos campos em `financial_entries`** (rastreabilidade — Regra de Ouro):
-- `upload_id uuid` — FK para `upload_records`
-- `source_file text` — nome do arquivo
-- `imported_at timestamptz`
-- `data_original date` — vencimento antes do delay
-- `delay_rule_applied jsonb` — `{ days, weekend_adjustment, source_method }`
-- `payment_method_key text` — normalizado (boleto, pix, credito, debito, cheque, dinheiro, sponte_pay)
+## 2. Causa raiz da divergência
 
-**Nova tabela `import_audits`** (histórico de cada conferência):
-- `school_id`, `upload_id`, `created_by`, `summary jsonb` (totais arquivo × sistema por método, diferenças, ações tomadas), `approved boolean`
+Não existe **uma única função** que responda: "para o mês M da escola S, quais são as receitas, despesas e operações oficiais?". Em vez disso:
 
-Migration cria GRANT/RLS padrão (authenticated CRUD na própria escola, service_role total).
+- `useSaldoInicialPeriodo` tem sua própria lógica de prioridade (snapshot > upload > histórico > projeção) implementada em código imperativo.
+- `Dashboard.tipoAggregations` reimplementa a mesma prioridade em **outros** branches, com regras ligeiramente diferentes (ex.: `ORIGENS_NATIVAS` agrupadas por bucket sintético, `stemLabel` para mesclar rótulos).
+- `DailyFlowTable.dailyData` reimplementa **de novo**, dia-a-dia, com regras próprias sobre quando incluir `historical_monthly` e quando aceitar projeções em mês com upload.
+- `CashFlow` não conhece nada disso — parte do `saldoInicial` bruto da escola e soma todos os entries, o que diverge das outras três telas em qualquer escola que já tenha meses fechados ou histórico.
 
----
+Como cada tela reconstrói a mesma decisão em lugares diferentes, patches pontuais (o último foi "ignorar projeções passadas em mês com upload") só corrigem um caminho. Os outros continuam com aritmética paralela.
 
-## 2. Engine de importação (TypeScript puro, testável)
+Adicionalmente, a regra escrita no `useSaldoInicialPeriodo` **não** é "Saldo Inicial = Saldo Final do mês anterior" — ela acumula tudo desde o `saldoInicialBase` da escola percorrendo meses. Isso funciona por coincidência quando não há sobreposição, mas quebra quando `historical_monthly` e `financial_entries` cobrem o mesmo mês parcialmente.
 
-Arquivo novo `src/lib/import/sponteAuditEngine.ts`:
+## 3. Refatoração proposta (SSOT única de movimentação)
 
-- `parseSponteFile(file) → ParsedEntry[]` — extrai linhas + método normalizado
-- `buildConferenceReport(parsed, existingEntries, schoolId)` → tabela por método:
-  ```
-  { method, arquivo, sistema, diferenca, registros_arquivo, registros_sistema }
-  ```
-- `simulateDelays(parsed, rules)` → `{ antes: ByMonth, depois: ByMonth, movimentacoes: Movement[] }`
-  - Regra fim-de-semana: sáb/dom → próxima segunda (reusa `addDaysAndAdjust`)
-  - Cartão de Débito **nunca** usa regra de Crédito (validação dura: bloqueia se mapeamento estiver errado)
-- `simulateReplacement(parsed, existing, filter: {origem, categoria, periodo})` → `{ remover: {count, valor}, inserir: {count, valor}, saldo_esperado }`
-- `runPostImportAudit(arquivo, sistema)` → diferenças por método, total geral, qtd registros
-- `explainDifferences(diffs, contexto)` → IA (Lovable AI Gateway, `google/gemini-3-flash-preview`) recebe diffs + amostra de registros e devolve causas possíveis (duplicação, delay duplo, fim-de-semana, upload anterior ativo, categoria errada, etc.)
+### 3.1 Nova função canônica
 
-Testes unitários em `src/test/sponteAuditEngine.test.ts` cobrindo: fim-de-semana, crédito vs débito, substituição determinística, delay duplicado.
+Criar `src/lib/periodMovement.ts`:
 
----
+```ts
+export type MonthMovement = {
+  month: string;                 // 'YYYY-MM'
+  source: 'snapshot' | 'fluxo' | 'historico' | 'projecao' | 'vazio';
+  receitas: number;              // sempre >= 0
+  despesas: number;              // sempre >= 0
+  operacoesImpacto: number;      // com sinal (+ entrada, - saída)
+  saldoMovimento: number;        // receitas - despesas + operacoesImpacto
+  porTipo: { key: string; label: string; classificacao: Classificacao; sinal: Sinal; valor: number }[];
+};
 
-## 3. Edge Function `audit-import-differences`
-
-Recebe `{ schoolId, diffs, sample }`, monta prompt e chama Lovable AI Gateway. Retorna lista estruturada de causas possíveis com valores. Mantém `LOVABLE_API_KEY` server-side.
-
----
-
-## 4. UI — Wizard de 4 etapas
-
-Novo componente `src/components/realizado/ImportacaoSponteAuditada.tsx` substitui o fluxo atual do upload Sponte (mantém o componente antigo como fallback para outros tipos).
-
-**Etapas:**
-
-1. **Upload** — arquivo + opções (substituir a partir de data, escopo: origem/categoria/período)
-2. **Conferência por método** — tabela arquivo × sistema × diferença (com badge verde/vermelho). Botão **Aprovar conferência** habilitado só quando diferenças explicadas ou zero.
-3. **Simulação de delay** — duas colunas (antes/depois) por mês e método. Aprovar movimentação.
-4. **Simulação de substituição** — prévia de remoções e inserções com saldo esperado. Bloqueia se saldo ≠ 0 a menos que usuário confirme override (admin).
-5. **Auditoria final + IA** — após gravação, mostra relatório com diferenças residuais e análise da IA. Grava em `import_audits`.
-
-Cada etapa permite voltar; nada é gravado até a etapa final.
-
----
-
-## 5. Mapeamento estrito de métodos
-
-`src/lib/import/methodMapping.ts`:
-- `CREDITO`: "Cartão de Crédito", "Cartão Crédito", "Cred", "Credito" → `credito` (delay aplicável)
-- `DEBITO`: "Cartão de Débito", "Debito", "Deb" → `debito` (**nunca** delay de crédito)
-- `SPONTE_PAY`: "Sponte Pay", "SpontePay", "Boleto Sponte Pay" → `sponte_pay`
-- `BOLETO`, `PIX`, `CHEQUE`, `DINHEIRO` — match exato/alias
-- Linha não mapeada → erro bloqueante na etapa 1
-
----
-
-## 6. Rastreabilidade no Dashboard
-
-Adicionar drill-down em qualquer card de recebimento: clicar → modal com tabela de `financial_entries` filtrados, mostrando `source_file`, `upload_id`, `data_original`, `data` (após delay), `delay_rule_applied`. Reusa o componente DataTable.
-
----
-
-## Detalhes técnicos
-
-- **Não altera** `projectionEngine.ts` nem `useProjectedEntries.ts` (SSOT mantida). Os novos campos viajam junto com o `ProjectedEntry`.
-- **Substituição determinística**: query `delete` com filtros exatos `school_id + origem + payment_method_key + data BETWEEN`. Conta antes/depois para validar saldo zero.
-- **Idempotência**: hash do arquivo gravado em `upload_records`. Re-upload do mesmo arquivo é detectado e exige confirmação.
-- **Fim-de-semana**: diferenças causadas por `addDaysAndAdjust` são marcadas como "esperadas" no relatório (não erro).
-- **Auditoria pós-importação**: grava em `import_audits` mesmo quando zero diferença, para histórico.
-
----
-
-## Entregáveis
-
-```text
-migration                              → financial_entries (+6 cols), import_audits
-src/lib/import/methodMapping.ts        → mapeamento estrito
-src/lib/import/sponteAuditEngine.ts    → engine puro + tipos
-src/test/sponteAuditEngine.test.ts     → testes unitários
-supabase/functions/audit-import-differences/index.ts → IA conciliação
-src/components/realizado/ImportacaoSponteAuditada.tsx → wizard 4 etapas
-src/components/realizado/ImportAuditReport.tsx        → relatório final
-edits em ImportacaoRealizado.tsx       → roteia Sponte para o novo wizard
-edit em DataTable / Dashboard          → drill-down de rastreabilidade
+export function buildMonthMovement(
+  month: string,
+  ctx: {
+    entries: ProjectedEntry[];
+    historicalRows: HistoricalRow[];
+    snapshotMap: Map<string, PeriodSnapshot>;
+    classifications: TypeClassification[];
+    modelItems: ModelItemRule[];
+  }
+): MonthMovement;
 ```
 
----
+**Regra única de origem por mês** (não é mais duplicada em três lugares):
 
-## Escopo / fora de escopo
+1. Se há snapshot fechado → `source = 'snapshot'`, valores vêm de `snap.por_tipo`.
+2. Senão, se há entry com `origem === 'fluxo'` no mês → `source = 'fluxo'`. Movimentações vêm de `fluxo` + `manual` **do mês**. Histórico e projeções passadas são descartados para esse mês. Projeções futuras (`data >= hoje`) coexistem apenas na visão "Previsto".
+3. Senão, se há `historical_monthly` para o mês → `source = 'historico'`. Receitas/despesas vêm do histórico. Operações vêm de entries `operacao` do mês (histórico não consolida operação).
+4. Senão, se há entries projetadas → `source = 'projecao'`.
+5. Senão → `source = 'vazio'`.
 
-**Dentro:** importação Sponte de Recebimentos.
-**Fora (próxima iteração se quiser):** estender a outros tipos de upload (Realizado bancário, vendas), retroaplicar rastreabilidade em registros já gravados (será null nos antigos).
+Nenhum caminho mistura histórico + fluxo para o mesmo mês. Nenhum caminho conta duas vezes.
 
-Posso começar pela migration + engine + testes, e depois construir o wizard. Aprova?
+### 3.2 Função de saldo
+
+```ts
+export function computeSaldoFinal(
+  base: number,             // school.saldoInicial (âncora inicial)
+  baseDate: string,         // school.saldoInicialData ('YYYY-MM')
+  targetMonth: string,      // até e incluindo este mês
+  monthsCtx: ...
+): { saldoInicial: number; saldoFinal: number; movimento: MonthMovement };
+```
+
+Regra invariante:
+- `saldoInicial(M) = saldoFinal(M-1)`
+- `saldoFinal(M) = saldoInicial(M) + movimento(M).saldoMovimento`
+- Recursivo desde `baseDate` (com memoização); nunca soma "tudo desde o começo" com regras paralelas.
+
+### 3.3 Callers a migrar
+
+Todos passam a consumir **apenas** `buildMonthMovement` / `computeSaldoFinal`:
+
+- `Dashboard.tsx` — remove `tipoAggregations`, `totals`, `saldoInicialCalculado`, `saldoFinal`, `monthSources`, `includeEntry`. Passa a mapear cada mês selecionado → `MonthMovement` e agrega.
+- `useSaldoInicialPeriodo.ts` — vira um wrapper trivial sobre `computeSaldoFinal(prevMonth)`.
+- `DailyFlowTable.tsx` — usa `computeSaldoFinal(firstMonth - 1)` para o Saldo Inicial e a mesma decisão de `source` por mês. A distribuição diária (dia-a-dia) permanece local, mas usando o mesmo conjunto filtrado que `buildMonthMovement` retornou.
+- `CashFlow.tsx` — troca `saldoInicial = school.saldoInicial` por `computeSaldoFinal(firstMonth - 1)` e usa `MonthMovement` para a consolidação mensal em vez de `calculateTotals` sobre todos os entries.
+- `ProjectedVsReal.tsx` — segue usando `calculateTotals` (só compara projetado vs realizado, não calcula saldo), mas passa a receber o mesmo conjunto filtrado que `buildMonthMovement` já resolve.
+
+### 3.4 Garantias impostas pela SSOT
+
+- Receita entra apenas em `receitas` (uma vez).
+- Despesa entra apenas em `despesas` (uma vez).
+- Operação entra apenas em `operacoesImpacto` (nunca em receita/despesa).
+- `ignorar` filtrado em `buildMonthMovement`; nenhum caller reintroduz.
+- Em qualquer mês, exatamente **uma** fonte contribui para receitas/despesas. Operações do fluxo/manual são sempre somadas em mês `historico` (histórico não as tem).
+- `saldoInicial` de qualquer tela = `saldoFinal` do mês anterior calculado pela mesma função.
+
+## 4. Testes de regressão a adicionar
+
+`src/test/periodMovement.test.ts`:
+
+1. Mês só com projeção Sponte → receitas = soma Sponte, despesas = 0.
+2. Mês só com histórico → bate com `historical_monthly`.
+3. Mês com fluxo + histórico do mesmo mês → histórico é ignorado (sem dupla contagem).
+4. Mês com fluxo + projeções passadas de Sponte/contas_pagar → projeções passadas ignoradas.
+5. Cenário Fazenda RG Maio: `saldo_inicial=3881,36`, receitas=30615,77, despesas=53191,37, operações= +23109,15 −1150 → `saldo_final = 3264,91`.
+6. Cenário Dourados: dado o input do usuário → `saldo_final = 105 770,26`.
+7. Invariante `saldoInicial(M) === saldoFinal(M-1)` para 12 meses consecutivos, em cada combinação de fontes.
+
+## 5. Ordem de execução (após você aprovar)
+
+1. Criar `periodMovement.ts` + testes.
+2. Migrar `useSaldoInicialPeriodo` para wrapper.
+3. Migrar `Dashboard.tsx`.
+4. Migrar `DailyFlowTable.tsx`.
+5. Migrar `CashFlow.tsx`.
+6. Rodar `bunx vitest run` e comparar telas nas duas escolas de referência.
+
+Nenhum código será alterado até você confirmar este plano.
