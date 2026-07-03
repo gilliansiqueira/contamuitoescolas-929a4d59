@@ -72,10 +72,15 @@ describe('periodMovement — SSOT única de movimentação', () => {
   });
 
   it('mês com fluxo + histórico → histórico é ignorado (sem dupla contagem)', () => {
+    const classifications: TypeClassification[] = [
+      { id: '1', school_id: schoolId, tipoValor: 'Receita', classificacao: 'receita', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar', label: 'Receita' } as any,
+      { id: '2', school_id: schoolId, tipoValor: 'Despesa', classificacao: 'despesa', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Despesa' } as any,
+    ];
     const ctx = emptyCtx({
+      classifications,
       entries: [
-        e({ data: '2026-04-05', valor: 8000, tipo: 'entrada', origem: 'fluxo' }),
-        e({ data: '2026-04-10', valor: 3000, tipo: 'saida', origem: 'fluxo' }),
+        e({ data: '2026-04-05', valor: 8000, tipo: 'entrada', origem: 'fluxo', tipoOriginal: 'Receita' }),
+        e({ data: '2026-04-10', valor: 3000, tipo: 'saida', origem: 'fluxo', tipoOriginal: 'Despesa' }),
       ],
       historicalRows: [
         { month: '2026-04', tipo_valor: 'Receita', valor: 99999 },
@@ -90,11 +95,16 @@ describe('periodMovement — SSOT única de movimentação', () => {
   });
 
   it('mês com fluxo + projeções PASSADAS de contas_pagar → projeções passadas ignoradas', () => {
+    const classifications: TypeClassification[] = [
+      { id: '1', school_id: schoolId, tipoValor: 'Receita', classificacao: 'receita', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar', label: 'Receita' } as any,
+      { id: '2', school_id: schoolId, tipoValor: 'Despesa', classificacao: 'despesa', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Despesa' } as any,
+    ];
     const ctx = emptyCtx({
       todayStr: '2026-06-15',
+      classifications,
       entries: [
-        e({ data: '2026-06-01', valor: 5000, tipo: 'entrada', origem: 'fluxo' }),
-        e({ data: '2026-06-02', valor: 2000, tipo: 'saida', origem: 'fluxo' }),
+        e({ data: '2026-06-01', valor: 5000, tipo: 'entrada', origem: 'fluxo', tipoOriginal: 'Receita' }),
+        e({ data: '2026-06-02', valor: 2000, tipo: 'saida', origem: 'fluxo', tipoOriginal: 'Despesa' }),
         // Projeção passada — NÃO deve contar (fluxo já cobre o passado do mês)
         e({ data: '2026-06-10', valor: 9000, tipo: 'saida', origem: 'contas_pagar', tipoRegistro: 'projetado' }),
         // Projeção futura — deve contar (fluxo ainda não a cobriu)
