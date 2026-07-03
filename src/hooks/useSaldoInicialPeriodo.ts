@@ -86,12 +86,20 @@ export function useSaldoInicialPeriodo(
       const mo = e.data.slice(0, 7);
       if (e.origem === 'fluxo') uploadMonths.add(mo);
     }
+    // Data de "hoje" para separar projeções passadas de futuras (paridade com Dashboard.includeEntry).
+    const todayStr = new Date().toISOString().slice(0, 10);
     for (const e of activeEntries) {
       if (e.data >= monthStart) continue;
       const mo = e.data.slice(0, 7);
       if (snapMonthsSet.has(mo)) continue;
-      // Mês com upload: soma TODAS as entries via getSaldoImpact (SSOT); histórico será ignorado abaixo.
+      // Mês com upload: sobrescreve projeções passadas (contas_pagar, sponte, cheque, cartão).
+      // Só entra fluxo + manual + projeções futuras (data >= hoje). Isto evita dupla contagem
+      // de despesas/receitas quando o mês já tem realizado carregado.
       if (uploadMonths.has(mo)) {
+        const isFluxo = e.origem === 'fluxo';
+        const isManual = e.origem === 'manual';
+        const isFutureProj = e.tipoRegistro === 'projetado' && e.origem !== 'fluxo' && e.data >= todayStr;
+        if (!(isFluxo || isManual || isFutureProj)) continue;
         saldo += getSaldoImpact(e, classifications);
         continue;
       }
@@ -105,6 +113,7 @@ export function useSaldoInicialPeriodo(
       }
       saldo += getSaldoImpact(e, classifications);
     }
+
     for (const r of historicalRows) {
       if (r.month >= firstMonth) continue;
       if (snapMonthsSet.has(r.month)) continue;
