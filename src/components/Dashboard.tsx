@@ -5,8 +5,17 @@ import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
-import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
+import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import {
+  buildMonthMovement,
+  computeSaldoInicial,
+  computeSaldoFinal,
+  includeEntryForMonth,
+  resolveMonthSource,
+  type MovementSource,
+  type PorTipoAgg,
+} from '@/lib/periodMovement';
 import { Target, CalendarCheck, ArrowDown, ArrowUp, Wallet, AlertTriangle, Eye, EyeOff, Coins, Layers, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchesMonthFilter } from '@/components/MonthSelector';
