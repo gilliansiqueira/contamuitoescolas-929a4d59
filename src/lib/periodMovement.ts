@@ -183,7 +183,7 @@ function fromSnapshot(snap: PeriodClosureSnapshot, isInModel?: (l: string) => bo
       sinal: t.sinal,
       isEntrada: t.sinal === 'somar',
       entraNoResultado: t.classificacao === 'receita' || t.classificacao === 'despesa',
-      impactaCaixa: t.classificacao !== 'ignorar',
+      impactaCaixa: true,
       valor: v,
     });
   }
