@@ -276,7 +276,7 @@ export function buildMonthMovement(
 
     const rule = resolveEntryLedgerRule(e, ctx.classifications);
     if (!rule.impactaCaixa && !rule.entraNoResultado) continue; // ignorar
-    const cls: Classificacao =
+    const cls: Exclude<Classificacao, 'ignorar'> =
       rule.entraNoResultado
         ? (rule.operacaoSinal === 'somar' ? 'receita' : 'despesa')
         : 'operacao';
