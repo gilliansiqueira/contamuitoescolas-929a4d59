@@ -69,14 +69,16 @@ export function applyPaymentDelay(
   rules: PaymentDelayRule[]
 ): string {
   if (entry.tipoRegistro !== 'projetado') return entry.data;
-  if (entry.origem !== 'sponte') return entry.data;
-  const forma = entry.categoria || '';
+  if (entry.origem !== 'sponte' && entry.origem !== 'cheque') return entry.data;
+  // Para uploads de cheque, a forma de cobrança é sempre "Cheque",
+  // independente da categoria armazenada na entry.
+  const forma = entry.origem === 'cheque' ? 'Cheque' : (entry.categoria || '');
   if (!forma) return entry.data;
   const rule = findDelayRule(forma, rules);
   const prazo = rule?.prazo ?? 0;
   const dataFinal = prazo > 0 ? addDaysAndAdjust(entry.data, prazo) : entry.data;
-  // Debug para validação de prazos por forma de cobrança (Sponte)
-  if (normalizeTipo(forma).includes('credito')) {
+  // Debug para validação de prazos por forma de cobrança
+  if (normalizeTipo(forma).includes('credito') || entry.origem === 'cheque') {
     // eslint-disable-next-line no-console
     console.debug('[PaymentDelay]', {
       origem: entry.origem,
