@@ -290,14 +290,32 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return saldoInicialFromHook;
   }, [selectedMonth, selectedMonths, saldoInicial, saldoInicialFromHook]);
 
+  // ─── Saldo final: SSOT via useSaldoInicialPeriodo do mês SEGUINTE ao último
+  //     mês selecionado. Isso garante a invariante:
+  //       saldo_inicial(mês N) === saldo_final(mês N-1)
+  //     usando exatamente a mesma lógica de acúmulo de entries + histórico +
+  //     snapshots. Antes, `saldoFinal` era derivado de `tipoAggregations`
+  //     (agrupamentos por rótulo/filtragens), o que divergia da soma bruta
+  //     usada pelo saldo inicial e gerava saltos ao trocar de mês.
+  const nextMonthAfterSelected = useMemo<string[]>(() => {
+    if (selectedMonth === 'all' || selectedMonths.length === 0) return [];
+    const last = selectedMonths[selectedMonths.length - 1];
+    const [y, m] = last.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    return [`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`];
+  }, [selectedMonth, selectedMonths]);
+  const saldoFinalFromHook = useSaldoInicialPeriodo(schoolId, nextMonthAfterSelected);
   const saldoFinal = useMemo(() => {
-    let saldo = saldoInicialCalculado;
-    for (const a of tipoAggregations) {
-      if (!a.impactaCaixa) continue;
-      saldo += a.isEntrada ? a.valor : -a.valor;
+    if (selectedMonth === 'all' || selectedMonths.length === 0) {
+      let saldo = saldoInicialCalculado;
+      for (const a of tipoAggregations) {
+        if (!a.impactaCaixa) continue;
+        saldo += a.isEntrada ? a.valor : -a.valor;
+      }
+      return saldo;
     }
-    return saldo;
-  }, [saldoInicialCalculado, tipoAggregations]);
+    return saldoFinalFromHook;
+  }, [selectedMonth, selectedMonths, saldoInicialCalculado, tipoAggregations, saldoFinalFromHook]);
 
   // ─── Bandeiras para condicionar UI ───
   const sourcesUsed = useMemo(() => {
