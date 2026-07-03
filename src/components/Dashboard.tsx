@@ -296,7 +296,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           if (meta.classificacao === 'receita') map[m].entradas += v;
           else if (meta.classificacao === 'despesa') map[m].saidas += v;
         }
-      } else if (src === 'upload' || src === 'misto' || src === 'projecao') {
+      } else if (src === 'fluxo' || src === 'projecao') {
         for (const e of activeEntries.filter(x => x.data.startsWith(m))) {
           if (!includeEntry(e, src)) continue;
           const cls = getEffectiveClassification(e, classifications);
