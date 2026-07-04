@@ -305,13 +305,33 @@ export function buildMonthMovement(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Enumera os meses da âncora (`saldoInicialBaseDate`) até `until` inclusive.
+ * Mês âncora efetivo. Preferimos `saldoInicialBaseDate` explícito da escola.
+ * Se ausente, caímos para o mês mais antigo encontrado em qualquer fonte de
+ * dados (entries, histórico, snapshots), garantindo que o Saldo Final não
+ * fique "congelado" no Saldo Inicial quando a escola não tem data base
+ * cadastrada — nesse caso o Saldo Inicial da escola representa o saldo
+ * imediatamente anterior ao primeiro mês com dados.
+ */
+export function resolveAnchorMonth(ctx: PeriodMovementCtx): string | undefined {
+  const explicit = ctx.saldoInicialBaseDate?.slice(0, 7);
+  if (explicit) return explicit;
+  let earliest: string | undefined;
+  const consider = (m: string | undefined) => {
+    if (!m) return;
+    if (!earliest || m < earliest) earliest = m;
+  };
+  for (const e of ctx.entries) consider(monthOf(e.dataProjetada));
+  for (const r of ctx.historicalRows) consider(r.month);
+  for (const m of ctx.snapshotMap.keys()) consider(m);
+  return earliest;
+}
+
+/**
+ * Enumera os meses da âncora até `until` inclusive.
  * Aceita meses sem dados — o loop iterativo lida com "vazio" (movimento 0).
  */
-function monthsFromBaseTo(baseDate: string | undefined, until: string): string[] {
-  if (!baseDate || baseDate > `${until}-31`) return [];
-  const baseMonth = baseDate.slice(0, 7);
-  if (baseMonth > until) return [];
+function monthsFromBaseTo(baseMonth: string | undefined, until: string): string[] {
+  if (!baseMonth || baseMonth > until) return [];
   const out: string[] = [];
   let m = baseMonth;
   while (m <= until) {
@@ -339,8 +359,8 @@ export function computeSaldoFinal(
   ctx: PeriodMovementCtx,
   opts: { isInModel?: (label: string) => boolean } = {}
 ): number {
-  const baseDate = ctx.saldoInicialBaseDate;
-  const months = monthsFromBaseTo(baseDate, month);
+  const baseMonth = resolveAnchorMonth(ctx);
+  const months = monthsFromBaseTo(baseMonth, month);
   if (months.length === 0) return ctx.saldoInicialBase;
 
   let saldo = ctx.saldoInicialBase;
@@ -365,7 +385,7 @@ export function computeSaldoInicial(
   opts: { isInModel?: (label: string) => boolean } = {}
 ): number {
   const prev = prevMonth(month);
-  const baseMonth = ctx.saldoInicialBaseDate?.slice(0, 7);
+  const baseMonth = resolveAnchorMonth(ctx);
   // Se o mês anterior é anterior à âncora, saldo inicial === âncora.
   if (!baseMonth || prev < baseMonth) return ctx.saldoInicialBase;
   return computeSaldoFinal(prev, ctx, opts);
