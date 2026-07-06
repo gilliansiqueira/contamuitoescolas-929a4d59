@@ -216,8 +216,15 @@ export function buildMonthMovement(
   const todayStr = ctx.todayStr ?? new Date().toISOString().slice(0, 10);
   const mov = emptyMovement(month, source);
   const byKey = new Map<string, PorTipoAgg>();
+  let saldoDelta = 0; // acumula somente o que efetivamente impacta o caixa
 
-  const ensureKey = (key: string, label: string, cls: Classificacao, sinal: Sinal): PorTipoAgg => {
+  const ensureKey = (
+    key: string,
+    label: string,
+    cls: Classificacao,
+    sinal: Sinal,
+    impactaCaixa: boolean,
+  ): PorTipoAgg => {
     const k = normalizeTipo(key);
     let agg = byKey.get(k);
     if (!agg) {
@@ -226,7 +233,7 @@ export function buildMonthMovement(
         classificacao: cls, sinal,
         isEntrada: sinal === 'somar',
         entraNoResultado: cls === 'receita' || cls === 'despesa',
-        impactaCaixa: cls !== 'ignorar',
+        impactaCaixa,
         valor: 0,
       };
       byKey.set(k, agg);
@@ -248,7 +255,10 @@ export function buildMonthMovement(
         if (meta.sinal === 'somar') mov.operacoesIn += v;
         else mov.operacoesOut += v;
       }
-      const agg = ensureKey(r.tipo_valor, meta.label, meta.classificacao, meta.sinal);
+      if (meta.impactaCaixa) {
+        saldoDelta += meta.sinal === 'somar' ? v : -v;
+      }
+      const agg = ensureKey(r.tipo_valor, meta.label, meta.classificacao, meta.sinal, meta.impactaCaixa);
       agg.valor += v;
     }
   }
@@ -267,9 +277,10 @@ export function buildMonthMovement(
       const sinal: Sinal = isEntrada ? 'somar' : 'subtrair';
       const bucketKey = `__${e.origem}_${e.tipo}`;
       const label = ORIGEM_LABEL[e.origem] ?? e.origem;
-      const agg = ensureKey(bucketKey, label, cls, sinal);
+      const agg = ensureKey(bucketKey, label, cls, sinal, true);
       agg.valor += valor;
       if (isEntrada) mov.receitas += valor; else mov.despesas += valor;
+      saldoDelta += isEntrada ? valor : -valor;
       mov.entriesConsiderados.push(e);
       continue;
     }
@@ -282,7 +293,7 @@ export function buildMonthMovement(
         : 'operacao';
     const tipoKey = resolveEntryTipoKey(e, ctx.classifications);
     const label = rule.label || tipoKey;
-    const agg = ensureKey(tipoKey, label, cls, rule.operacaoSinal);
+    const agg = ensureKey(tipoKey, label, cls, rule.operacaoSinal, rule.impactaCaixa);
     agg.valor += valor;
 
     if (cls === 'receita') mov.receitas += valor;
@@ -291,14 +302,18 @@ export function buildMonthMovement(
       if (rule.operacaoSinal === 'somar') mov.operacoesIn += valor;
       else mov.operacoesOut += valor;
     }
+    if (rule.impactaCaixa) {
+      saldoDelta += rule.operacaoSinal === 'somar' ? valor : -valor;
+    }
     mov.entriesConsiderados.push(e);
   }
 
   mov.operacoesImpacto = mov.operacoesIn - mov.operacoesOut;
-  mov.saldoMovimento = mov.receitas - mov.despesas + mov.operacoesImpacto;
+  mov.saldoMovimento = saldoDelta;
   mov.porTipo = Array.from(byKey.values());
   return mov;
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Saldo Inicial / Saldo Final
