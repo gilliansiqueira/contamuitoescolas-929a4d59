@@ -178,9 +178,25 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                         </select>
                       )}
                     </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {isIgnorar ? (
+                        <span className="text-xs text-muted-foreground/60">—</span>
+                      ) : (
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer" title="Desmarque para lançamentos que entram no resultado mas NÃO alteram o saldo (ex.: cheques compensados posteriormente)">
+                          <input
+                            type="checkbox"
+                            checked={impactaCaixa}
+                            onChange={e => handleImpactaCaixaChange(tipo, e.target.checked)}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          <span className="text-xs text-muted-foreground">{impactaCaixa ? 'Sim' : 'Não'}</span>
+                        </label>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       {effectLabel}
                     </td>
+
                   </tr>
                 );
               })}
