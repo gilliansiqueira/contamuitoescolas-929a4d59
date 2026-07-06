@@ -144,6 +144,54 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
           </div>
         </motion.div>
       )}
+
+      {scenario !== 'real' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-destructive/20">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-display font-semibold text-sm text-foreground">Simulação de Despesas</h4>
+            {!isPresentationMode && (
+              <button onClick={addExpense} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium hover:bg-destructive/90"><Plus className="w-3 h-3" /> Adicionar</button>
+            )}
+          </div>
+          {expenses.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma despesa simulada.</p>}
+          <div className="space-y-2">
+            {expenses.map(e => (
+              <div key={e.id} className="flex items-center gap-2 bg-muted/30 rounded-lg p-2">
+                <div className="flex-1 grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Descrição</label>
+                    {!isPresentationMode ? (
+                      <Input type="text" value={e.descricao} onChange={ev => updateExpense(e.id, 'descricao', ev.target.value)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{e.descricao}</div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Valor (R$)</label>
+                    {!isPresentationMode ? (
+                      <Input type="number" min={0} value={e.valor} onChange={ev => updateExpense(e.id, 'valor', parseFloat(ev.target.value) || 0)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{formatCurrency(e.valor)}</div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Meses (Recorrência)</label>
+                    {!isPresentationMode ? (
+                      <Input type="number" min={1} value={e.meses} onChange={ev => updateExpense(e.id, 'meses', parseInt(ev.target.value) || 1)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{e.meses}x</div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right min-w-[80px]"><p className="text-xs font-bold text-destructive">-{formatCurrency(e.valor * e.meses)}</p></div>
+                {!isPresentationMode && (
+                  <button onClick={() => removeExpense(e.id)} className="p-1 rounded hover:bg-destructive/10"><X className="w-4 h-4 text-destructive" /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receitas</span><TrendingUp className="w-5 h-5 text-success" /></div><p className="text-2xl font-display font-bold text-success">{formatCurrency(totalEntradas)}</p></motion.div>
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card rounded-xl p-5"><div className="flex items-center justify-between mb-2"><span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesas</span><TrendingDown className="w-5 h-5 text-destructive" /></div><p className="text-2xl font-display font-bold text-destructive">{formatCurrency(totalSaidas)}</p></motion.div>
