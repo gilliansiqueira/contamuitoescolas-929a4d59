@@ -126,6 +126,7 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tipo</th>
                 <th className="px-3 py-2 text-center font-medium text-muted-foreground">Classificação</th>
                 <th className="px-3 py-2 text-center font-medium text-muted-foreground">Sinal no caixa</th>
+                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Impacta caixa</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Efeito</th>
               </tr>
             </thead>
@@ -134,13 +135,16 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                 const cls = getClassification(tipo);
                 const isIgnorar = cls.classificacao === 'ignorar';
                 const sinalLabel = cls.operacaoSinal === 'somar' ? 'Somar (+)' : 'Subtrair (−)';
+                const impactaCaixa = cls.impactaCaixa !== false;
 
-                const effectLabel = {
-                  receita: `📊 Entra no resultado como receita · saldo: ${sinalLabel}`,
-                  despesa: `📊 Entra no resultado como despesa · saldo: ${sinalLabel}`,
-                  operacao: `🔁 Não entra no resultado · saldo: ${sinalLabel}`,
-                  ignorar: '⚪ Ignorado completamente',
-                }[cls.classificacao];
+                const effectLabel = isIgnorar
+                  ? '⚪ Ignorado completamente'
+                  : cls.classificacao === 'receita'
+                    ? `📊 Entra no resultado como receita${impactaCaixa ? ` · saldo: ${sinalLabel}` : ' · NÃO afeta o saldo'}`
+                    : cls.classificacao === 'despesa'
+                      ? `📊 Entra no resultado como despesa${impactaCaixa ? ` · saldo: ${sinalLabel}` : ' · NÃO afeta o saldo'}`
+                      : `🔁 Não entra no resultado${impactaCaixa ? ` · saldo: ${sinalLabel}` : ' · NÃO afeta o saldo'}`;
+
 
                 return (
                   <tr key={tipo} className="border-t border-border/30">
