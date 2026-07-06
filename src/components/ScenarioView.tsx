@@ -23,9 +23,13 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
   );
   const [reductionPct, setReductionPct] = useState(20);
   const [sales, setSales] = useState<SaleSimulation[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseSimulation[]>([]);
   const addSale = () => setSales(s => [...s, { id: crypto.randomUUID(), quantidade: 1, valorUnitario: 1000, meses: 1 }]);
   const removeSale = (id: string) => setSales(s => s.filter(x => x.id !== id));
   const updateSale = (id: string, field: keyof Omit<SaleSimulation, 'id'>, value: number) => setSales(s => s.map(x => x.id === id ? { ...x, [field]: value } : x));
+  const addExpense = () => setExpenses(s => [...s, { id: crypto.randomUUID(), descricao: 'Nova despesa', valor: 1000, meses: 1 }]);
+  const removeExpense = (id: string) => setExpenses(s => s.filter(x => x.id !== id));
+  const updateExpense = (id: string, field: keyof Omit<ExpenseSimulation, 'id'>, value: number | string) => setExpenses(s => s.map(x => x.id === id ? { ...x, [field]: value } : x));
 
   const scenarioData = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
