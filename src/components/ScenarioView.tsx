@@ -11,6 +11,7 @@ import { usePresentation } from '@/components/presentation-provider';
 interface ScenarioViewProps { schoolId: string; scenario: ScenarioType; selectedMonth: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 interface SaleSimulation { id: string; quantidade: number; valorUnitario: number; meses: number; }
+interface ExpenseSimulation { id: string; descricao: string; valor: number; meses: number; }
 
 export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioViewProps) {
   const { isPresentationMode } = usePresentation();
