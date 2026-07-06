@@ -76,6 +76,20 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
     }
   };
 
+  const handleImpactaCaixaChange = async (tipo: string, impacta: boolean) => {
+    const current = getClassification(tipo);
+    if (current.classificacao === 'ignorar') return;
+    const updated: TypeClassification = { ...current, impactaCaixa: impacta };
+    try {
+      await saveMut.mutateAsync(updated);
+      onChanged();
+      toast.success(`"${tipo}" ${impacta ? 'passa a impactar' : 'não impacta mais'} o saldo`);
+    } catch {
+      toast.error('Erro ao salvar');
+    }
+  };
+
+
   if (allTipos.length === 0) {
     return (
       <div className="glass-card rounded-xl p-8 text-center text-muted-foreground text-sm">
