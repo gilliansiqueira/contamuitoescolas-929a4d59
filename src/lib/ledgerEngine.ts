@@ -197,10 +197,23 @@ export function resolveEntryLedgerRule(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): LedgerRule {
+  // Se existe classificação EXPLÍCITA configurada pelo usuário para o tipo,
+  // ela sempre prevalece — inclusive para origens projetadas (sponte, cheque,
+  // cartão, contas_pagar). Isso permite, por exemplo, marcar "cheques sicredi"
+  // como receita que NÃO impacta o saldo.
+  const key = resolveEntryTipoKey(entry, classifications);
+  const normalized = normalizeTipo(key);
+  const explicit = classifications.find(c => normalizeTipo(c.tipoValor) === normalized);
+  if (explicit) {
+    return resolveLedgerRule(key, classifications);
+  }
+
+  // Sem classificação explícita: origens projetadas caem no default por tipo
+  // (entrada = receita, saida = despesa) para não sumirem do fluxo.
   if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
     return defaultRuleForTipo(entry.tipo);
   }
-  return resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
+  return resolveLedgerRule(key, classifications);
 }
 
 /**
@@ -215,14 +228,11 @@ export function getLedgerSaldoImpact(
     return sinal === 'somar' ? entry.valor : -entry.valor;
   }
 
-  if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
-    return entry.tipo === 'entrada' ? entry.valor : -entry.valor;
-  }
-
   const rule = resolveEntryLedgerRule(entry, classifications);
   if (!rule.impactaCaixa) return 0;
   return rule.operacaoSinal === 'somar' ? entry.valor : -entry.valor;
 }
+
 
 
 
