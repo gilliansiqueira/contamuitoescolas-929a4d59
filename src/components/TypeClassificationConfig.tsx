@@ -76,6 +76,20 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
     }
   };
 
+  const handleImpactaCaixaChange = async (tipo: string, impacta: boolean) => {
+    const current = getClassification(tipo);
+    if (current.classificacao === 'ignorar') return;
+    const updated: TypeClassification = { ...current, impactaCaixa: impacta };
+    try {
+      await saveMut.mutateAsync(updated);
+      onChanged();
+      toast.success(`"${tipo}" ${impacta ? 'passa a impactar' : 'não impacta mais'} o saldo`);
+    } catch {
+      toast.error('Erro ao salvar');
+    }
+  };
+
+
   if (allTipos.length === 0) {
     return (
       <div className="glass-card rounded-xl p-8 text-center text-muted-foreground text-sm">
@@ -112,6 +126,7 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tipo</th>
                 <th className="px-3 py-2 text-center font-medium text-muted-foreground">Classificação</th>
                 <th className="px-3 py-2 text-center font-medium text-muted-foreground">Sinal no caixa</th>
+                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Impacta caixa</th>
                 <th className="px-3 py-2 text-left font-medium text-muted-foreground">Efeito</th>
               </tr>
             </thead>
@@ -120,13 +135,16 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                 const cls = getClassification(tipo);
                 const isIgnorar = cls.classificacao === 'ignorar';
                 const sinalLabel = cls.operacaoSinal === 'somar' ? 'Somar (+)' : 'Subtrair (−)';
+                const impactaCaixa = cls.impactaCaixa !== false;
 
-                const effectLabel = {
-                  receita: `📊 Entra no resultado como receita · saldo: ${sinalLabel}`,
-                  despesa: `📊 Entra no resultado como despesa · saldo: ${sinalLabel}`,
-                  operacao: `🔁 Não entra no resultado · saldo: ${sinalLabel}`,
-                  ignorar: '⚪ Ignorado completamente',
-                }[cls.classificacao];
+                const effectLabel = isIgnorar
+                  ? '⚪ Ignorado completamente'
+                  : cls.classificacao === 'receita'
+                    ? `📊 Entra no resultado como receita${impactaCaixa ? ` · saldo: ${sinalLabel}` : ' · NÃO afeta o saldo'}`
+                    : cls.classificacao === 'despesa'
+                      ? `📊 Entra no resultado como despesa${impactaCaixa ? ` · saldo: ${sinalLabel}` : ' · NÃO afeta o saldo'}`
+                      : `🔁 Não entra no resultado${impactaCaixa ? ` · saldo: ${sinalLabel}` : ' · NÃO afeta o saldo'}`;
+
 
                 return (
                   <tr key={tipo} className="border-t border-border/30">
@@ -160,9 +178,25 @@ export function TypeClassificationConfig({ schoolId, onChanged }: TypeClassifica
                         </select>
                       )}
                     </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {isIgnorar ? (
+                        <span className="text-xs text-muted-foreground/60">—</span>
+                      ) : (
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer" title="Desmarque para lançamentos que entram no resultado mas NÃO alteram o saldo (ex.: cheques compensados posteriormente)">
+                          <input
+                            type="checkbox"
+                            checked={impactaCaixa}
+                            onChange={e => handleImpactaCaixaChange(tipo, e.target.checked)}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          <span className="text-xs text-muted-foreground">{impactaCaixa ? 'Sim' : 'Não'}</span>
+                        </label>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">
                       {effectLabel}
                     </td>
+
                   </tr>
                 );
               })}
