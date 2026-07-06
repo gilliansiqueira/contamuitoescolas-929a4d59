@@ -11,6 +11,7 @@ import { usePresentation } from '@/components/presentation-provider';
 interface ScenarioViewProps { schoolId: string; scenario: ScenarioType; selectedMonth: string; }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 interface SaleSimulation { id: string; quantidade: number; valorUnitario: number; meses: number; }
+interface ExpenseSimulation { id: string; descricao: string; valor: number; meses: number; }
 
 export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioViewProps) {
   const { isPresentationMode } = usePresentation();
@@ -22,9 +23,13 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
   );
   const [reductionPct, setReductionPct] = useState(20);
   const [sales, setSales] = useState<SaleSimulation[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseSimulation[]>([]);
   const addSale = () => setSales(s => [...s, { id: crypto.randomUUID(), quantidade: 1, valorUnitario: 1000, meses: 1 }]);
   const removeSale = (id: string) => setSales(s => s.filter(x => x.id !== id));
   const updateSale = (id: string, field: keyof Omit<SaleSimulation, 'id'>, value: number) => setSales(s => s.map(x => x.id === id ? { ...x, [field]: value } : x));
+  const addExpense = () => setExpenses(s => [...s, { id: crypto.randomUUID(), descricao: 'Nova despesa', valor: 1000, meses: 1 }]);
+  const removeExpense = (id: string) => setExpenses(s => s.filter(x => x.id !== id));
+  const updateExpense = (id: string, field: keyof Omit<ExpenseSimulation, 'id'>, value: number | string) => setExpenses(s => s.map(x => x.id === id ? { ...x, [field]: value } : x));
 
   const scenarioData = useMemo(() => {
     const byDate: Record<string, { entradas: number; saidas: number }> = {};
@@ -39,6 +44,18 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
     if (scenario === 'pessimista') { const factor = 1 - reductionPct / 100; Object.keys(byDate).forEach(d => { byDate[d].entradas *= factor; }); }
     if (scenario === 'otimista') {
       sales.forEach(sale => { const total = sale.quantidade * sale.valorUnitario; const monthly = total / sale.meses; const sortedDates = Object.keys(byDate).sort(); if (sortedDates.length === 0) return; const months = [...new Set(sortedDates.map(d => d.slice(0, 7)))].sort(); for (let i = 0; i < sale.meses && i < months.length; i++) { const dayKey = `${months[i]}-01`; if (!byDate[dayKey]) byDate[dayKey] = { entradas: 0, saidas: 0 }; byDate[dayKey].entradas += monthly; } });
+    }
+    if (scenario !== 'real') {
+      expenses.forEach(exp => {
+        const sortedDates = Object.keys(byDate).sort();
+        if (sortedDates.length === 0) return;
+        const months = [...new Set(sortedDates.map(d => d.slice(0, 7)))].sort();
+        for (let i = 0; i < exp.meses && i < months.length; i++) {
+          const dayKey = `${months[i]}-01`;
+          if (!byDate[dayKey]) byDate[dayKey] = { entradas: 0, saidas: 0 };
+          byDate[dayKey].saidas += exp.valor;
+        }
+      });
     }
     const sorted = Object.keys(byDate).sort();
     const firstDay = sorted[0];
@@ -121,6 +138,54 @@ export function ScenarioView({ schoolId, scenario, selectedMonth }: ScenarioView
                 <div className="text-right min-w-[80px]"><p className="text-xs font-bold text-success">{formatCurrency(s.quantidade * s.valorUnitario)}</p></div>
                 {!isPresentationMode && (
                   <button onClick={() => removeSale(s.id)} className="p-1 rounded hover:bg-destructive/10"><X className="w-4 h-4 text-destructive" /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {scenario !== 'real' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 border-destructive/20">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-display font-semibold text-sm text-foreground">Simulação de Despesas</h4>
+            {!isPresentationMode && (
+              <button onClick={addExpense} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium hover:bg-destructive/90"><Plus className="w-3 h-3" /> Adicionar</button>
+            )}
+          </div>
+          {expenses.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma despesa simulada.</p>}
+          <div className="space-y-2">
+            {expenses.map(e => (
+              <div key={e.id} className="flex items-center gap-2 bg-muted/30 rounded-lg p-2">
+                <div className="flex-1 grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Descrição</label>
+                    {!isPresentationMode ? (
+                      <Input type="text" value={e.descricao} onChange={ev => updateExpense(e.id, 'descricao', ev.target.value)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{e.descricao}</div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Valor (R$)</label>
+                    {!isPresentationMode ? (
+                      <Input type="number" min={0} value={e.valor} onChange={ev => updateExpense(e.id, 'valor', parseFloat(ev.target.value) || 0)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{formatCurrency(e.valor)}</div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Meses (Recorrência)</label>
+                    {!isPresentationMode ? (
+                      <Input type="number" min={1} value={e.meses} onChange={ev => updateExpense(e.id, 'meses', parseInt(ev.target.value) || 1)} className="h-7 text-xs" />
+                    ) : (
+                      <div className="text-xs font-medium pt-1">{e.meses}x</div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right min-w-[80px]"><p className="text-xs font-bold text-destructive">-{formatCurrency(e.valor * e.meses)}</p></div>
+                {!isPresentationMode && (
+                  <button onClick={() => removeExpense(e.id)} className="p-1 rounded hover:bg-destructive/10"><X className="w-4 h-4 text-destructive" /></button>
                 )}
               </div>
             ))}

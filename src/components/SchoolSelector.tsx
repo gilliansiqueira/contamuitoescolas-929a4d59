@@ -19,7 +19,9 @@ interface SchoolSelectorProps {
 }
 
 export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps) {
-  const { isAdmin, isAdminAll, accessibleSchoolIds } = useAuth();
+  const { isAdmin, isAdminAll, accessibleSchoolIds, profile } = useAuth();
+  const canDeleteSchool = profile?.email === 'adm@contamuito';
+  const [deletePassword, setDeletePassword] = useState('');
   const { data: allSchools = [], isLoading } = useSchools();
   // Admin com escopo 'all' vê todas; demais (admins restritos e clientes) veem apenas as empresas vinculadas.
   const schools = useMemo(
@@ -57,9 +59,14 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
 
   const confirmDelete = async () => {
     if (!deleteId) return;
+    if (deletePassword !== '123@CM456') {
+      toast.error('Senha incorreta');
+      return;
+    }
     try {
       await deleteSchoolMut.mutateAsync(deleteId);
       setDeleteId(null);
+      setDeletePassword('');
       if (selectedSchool?.id === deleteId) onSelect(null as any);
       toast.success('Escola excluída com sucesso');
     } catch {
@@ -77,7 +84,7 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
           <Building2 className="w-4 h-4" />
           {selectedSchool.nome}
         </button>
-        {isAdmin && (
+        {canDeleteSchool && (
           <button
             onClick={() => setDeleteId(selectedSchool.id)}
             className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
@@ -86,14 +93,21 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
             <Trash2 className="w-4 h-4" />
           </button>
         )}
-        <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) { setDeleteId(null); setDeletePassword(''); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir empresa</AlertDialogTitle>
               <AlertDialogDescription>
-                Tem certeza? Todos os dados vinculados serão removidos permanentemente.
+                Tem certeza? Todos os dados vinculados serão removidos permanentemente. Digite a senha de confirmação para prosseguir.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <Input
+              type="password"
+              placeholder="Senha de confirmação"
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              autoFocus
+            />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
