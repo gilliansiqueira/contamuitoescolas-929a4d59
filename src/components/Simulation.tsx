@@ -237,6 +237,21 @@ export function Simulation({ schoolId }: SimulationProps) {
     return map;
   }, [entries, classifications]);
 
+  // Saldo acumulado até o mês anterior ao startMonth (para partir do saldo correto)
+  const saldoAntesDoInicio = useMemo(() => {
+    let acc = saldoInicial || 0;
+    for (const e of entries) {
+      if (e.origem === 'fluxo') continue;
+      if (e.tipoRegistro !== 'projetado') continue;
+      const mes = (e.dataProjetada || e.data).slice(0, 7);
+      if (mes >= startMonth) continue;
+      const cls = getEffectiveClassification(e, classifications);
+      if (cls === 'receita') acc += e.valor;
+      else if (cls === 'despesa') acc -= e.valor;
+    }
+    return acc;
+  }, [entries, classifications, saldoInicial, startMonth]);
+
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5 space-y-4">
