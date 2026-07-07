@@ -401,7 +401,7 @@ export function Simulation({ schoolId }: SimulationProps) {
                   Saldo final projetado <span className="text-[10px] font-normal text-muted-foreground">(com simulação)</span>
                 </td>
                 {(() => {
-                  let acc = saldoInicial || 0;
+                  let acc = saldoAntesDoInicio;
                   return months.map(m => {
                     const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0) - (contasPagarPorMes[m] || 0);
                     acc += res;
