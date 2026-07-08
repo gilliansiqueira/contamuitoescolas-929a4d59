@@ -261,7 +261,7 @@ export function TetoGastos({ schoolId }: Props) {
     });
 
     return [...groupRows, ...standaloneRows].sort((a, b) => b.realizado - a.realizado);
-  }, [entries, contaGrupoMap, ceilings, semester]);
+  }, [entries, contaGrupoMap, ceilings, semester, contas]);
 
   const totals = useMemo(() => {
     const tetoTotal = rows.reduce((s, r) => s + r.ceiling, 0);
