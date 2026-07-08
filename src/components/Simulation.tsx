@@ -44,7 +44,7 @@ function addMonths(ym: string, n: number): string {
 
 export function Simulation({ schoolId }: SimulationProps) {
   const qc = useQueryClient();
-  const { entries, saldoInicial } = useProjectedEntries(schoolId);
+  const { entries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
   // Mês inicial do filtro (default: mês atual)
