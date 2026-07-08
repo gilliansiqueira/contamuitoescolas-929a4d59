@@ -274,6 +274,33 @@ export function TetoGastos({ schoolId }: Props) {
   const visibleRows = useMemo(() => hideUnset ? rows.filter(r => r.ceiling > 0) : rows, [rows, hideUnset]);
   const hiddenCount = rows.length - visibleRows.length;
 
+  // Build list of available semesters (from entries + ceilings + current + adjacent).
+  const semesterOptions = useMemo<SemesterInfo[]>(() => {
+    const set = new Set<string>();
+    const cur = getCurrentSemester();
+    // Include current, previous 3, and next 1 semester by default.
+    for (let i = -3; i <= 1; i++) {
+      let y = cur.year;
+      let h = cur.half + i;
+      while (h < 1) { h += 2; y -= 1; }
+      while (h > 2) { h -= 2; y += 1; }
+      set.add(`${y}-S${h}`);
+    }
+    entries.forEach((e: any) => {
+      const d = e.data || '';
+      if (d.length < 7) return;
+      const y = parseInt(d.slice(0, 4), 10);
+      const m = parseInt(d.slice(5, 7), 10);
+      if (!y || !m) return;
+      set.add(`${y}-S${m <= 6 ? 1 : 2}`);
+    });
+    ceilings.forEach((c: any) => c.semester && set.add(c.semester));
+    set.add(semesterId);
+    return Array.from(set)
+      .map(parseSemesterId)
+      .sort((a, b) => b.id.localeCompare(a.id));
+  }, [entries, ceilings, semesterId]);
+
   if (loadingEntries || loadingCeilings) {
     return (
       <div className="space-y-4">
