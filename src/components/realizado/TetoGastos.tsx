@@ -196,8 +196,23 @@ export function TetoGastos({ schoolId }: Props) {
     const subCeilingMap = new Map<string, Ceiling>();
     subCeilings.forEach(c => subCeilingMap.set(`${c.parent_group || ''}|${normalizeStr(c.category_name)}`, c));
 
+    // Seed all categories from the chart of accounts so cards appear even without expenses.
+    contas.forEach((c: any) => {
+      if (c.nivel > 1 && c.nome) {
+        const grupo = c.grupo || 'Outros';
+        if (!subTotals[grupo]) subTotals[grupo] = {};
+        if (!(c.nome in subTotals[grupo])) subTotals[grupo][c.nome] = 0;
+      }
+    });
+
     // Ensure groups with ceilings appear even without expenses
     groupCeilings.forEach(c => { if (!subTotals[c.category_name]) subTotals[c.category_name] = {}; });
+    // Ensure detached subcategories with ceilings appear even without expenses
+    subCeilings.forEach(c => {
+      const grupo = c.parent_group || 'Outros';
+      if (!subTotals[grupo]) subTotals[grupo] = {};
+      if (!(c.category_name in subTotals[grupo])) subTotals[grupo][c.category_name] = 0;
+    });
 
     const groupCeilingMap = new Map(groupCeilings.map(c => [c.category_name, c]));
 
