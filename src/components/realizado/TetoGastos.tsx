@@ -315,13 +315,30 @@ export function TetoGastos({ schoolId }: Props) {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="rounded-2xl bg-gradient-to-br from-primary/5 via-card to-accent/5 border-primary/20">
           <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="p-2.5 rounded-xl bg-primary/10">
-                <Target className="w-5 h-5 text-primary" />
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10">
+                  <Target className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">Teto de Gastos</h3>
+                  <p className="text-xs text-muted-foreground">{semester.label}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-semibold text-foreground">Teto de Gastos</h3>
-                <p className="text-xs text-muted-foreground">{semester.label}</p>
+              <div className="shrink-0">
+                <Select value={semesterId} onValueChange={setSemesterId}>
+                  <SelectTrigger className="h-9 w-[220px] rounded-xl bg-card/60 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesterOptions.map(s => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -342,7 +359,7 @@ export function TetoGastos({ schoolId }: Props) {
         <Card className="rounded-2xl border-dashed">
           <CardContent className="py-16 text-center">
             <Target className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Nenhuma despesa registrada neste semestre.</p>
+            <p className="text-sm text-muted-foreground">Nenhuma categoria disponível. Cadastre categorias no Plano de Contas para definir tetos.</p>
           </CardContent>
         </Card>
       ) : (
