@@ -363,6 +363,17 @@ export function Simulation({ schoolId }: SimulationProps) {
               </tr>
             </thead>
             <tbody>
+              <tr className="border-t-2 border-border bg-muted/40 font-bold">
+                <td className="px-2 py-2 text-foreground">Saldo inicial</td>
+                {months.map(m => {
+                  const v = saldoInicialPorMes[m] || 0;
+                  return (
+                    <td key={m} className={`px-2 py-2 text-right ${v >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {formatCurrency(v)}
+                    </td>
+                  );
+                })}
+              </tr>
               <tr className="border-t border-border/30">
                 <td className="px-2 py-2 text-muted-foreground">Receita projetada (sistema)</td>
                 {months.map(m => (
@@ -403,18 +414,14 @@ export function Simulation({ schoolId }: SimulationProps) {
                 <td className="px-2 py-2 text-foreground">
                   Saldo final projetado <span className="text-[10px] font-normal text-muted-foreground">(com simulação)</span>
                 </td>
-                {(() => {
-                  let acc = saldoAntesDoInicio;
-                  return months.map(m => {
-                    const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0) - (contasPagarPorMes[m] || 0);
-                    acc += res;
-                    return (
-                      <td key={m} className={`px-2 py-2 text-right ${acc >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        {formatCurrency(acc)}
-                      </td>
-                    );
-                  });
-                })()}
+                {months.map(m => {
+                  const v = saldoFinalPorMes[m] || 0;
+                  return (
+                    <td key={m} className={`px-2 py-2 text-right ${v >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {formatCurrency(v)}
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
