@@ -26,15 +26,25 @@ function normalizeStr(s: string) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
-function getCurrentSemester(date = new Date()): { id: string; label: string; startMonth: string; endMonth: string; year: number; half: 1 | 2 } {
+interface SemesterInfo { id: string; label: string; startMonth: string; endMonth: string; year: number; half: 1 | 2 }
+
+function makeSemester(year: number, half: 1 | 2): SemesterInfo {
+  const id = `${year}-S${half}`;
+  const label = half === 1 ? `1º Semestre ${year} (Jan–Jun)` : `2º Semestre ${year} (Jul–Dez)`;
+  const startMonth = half === 1 ? `${year}-01` : `${year}-07`;
+  const endMonth = half === 1 ? `${year}-06` : `${year}-12`;
+  return { id, label, startMonth, endMonth, year, half };
+}
+
+function getCurrentSemester(date = new Date()): SemesterInfo {
   const y = date.getFullYear();
   const m = date.getMonth() + 1;
-  const half = (m <= 6 ? 1 : 2) as 1 | 2;
-  const id = `${y}-S${half}`;
-  const label = half === 1 ? `1º Semestre ${y} (Jan–Jun)` : `2º Semestre ${y} (Jul–Dez)`;
-  const startMonth = half === 1 ? `${y}-01` : `${y}-07`;
-  const endMonth = half === 1 ? `${y}-06` : `${y}-12`;
-  return { id, label, startMonth, endMonth, year: y, half };
+  return makeSemester(y, (m <= 6 ? 1 : 2) as 1 | 2);
+}
+
+function parseSemesterId(id: string): SemesterInfo {
+  const [ys, hs] = id.split('-S');
+  return makeSemester(parseInt(ys, 10), (hs === '1' ? 1 : 2) as 1 | 2);
 }
 
 function isInSemester(dateStr: string, year: number, half: 1 | 2): boolean {
