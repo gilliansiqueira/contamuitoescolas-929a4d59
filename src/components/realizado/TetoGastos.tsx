@@ -92,7 +92,8 @@ interface CategoryRow {
 
 export function TetoGastos({ schoolId }: Props) {
   const queryClient = useQueryClient();
-  const semester = useMemo(() => getCurrentSemester(), []);
+  const [semesterId, setSemesterId] = useState<string>(() => getCurrentSemester().id);
+  const semester = useMemo(() => parseSemesterId(semesterId), [semesterId]);
   const { isAdmin } = useAuth();
   const { isPresentationMode } = usePresentation();
   const canEdit = isAdmin && !isPresentationMode;
