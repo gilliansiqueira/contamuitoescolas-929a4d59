@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Check, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, Unlink, Link2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Target, Check, Pencil, AlertTriangle, X, ChevronDown, ChevronRight, Unlink, Link2, Trash2, Eye, EyeOff, Calendar } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { usePresentation } from '@/components/presentation-provider';
@@ -25,15 +26,25 @@ function normalizeStr(s: string) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
-function getCurrentSemester(date = new Date()): { id: string; label: string; startMonth: string; endMonth: string; year: number; half: 1 | 2 } {
+interface SemesterInfo { id: string; label: string; startMonth: string; endMonth: string; year: number; half: 1 | 2 }
+
+function makeSemester(year: number, half: 1 | 2): SemesterInfo {
+  const id = `${year}-S${half}`;
+  const label = half === 1 ? `1º Semestre ${year} (Jan–Jun)` : `2º Semestre ${year} (Jul–Dez)`;
+  const startMonth = half === 1 ? `${year}-01` : `${year}-07`;
+  const endMonth = half === 1 ? `${year}-06` : `${year}-12`;
+  return { id, label, startMonth, endMonth, year, half };
+}
+
+function getCurrentSemester(date = new Date()): SemesterInfo {
   const y = date.getFullYear();
   const m = date.getMonth() + 1;
-  const half = (m <= 6 ? 1 : 2) as 1 | 2;
-  const id = `${y}-S${half}`;
-  const label = half === 1 ? `1º Semestre ${y} (Jan–Jun)` : `2º Semestre ${y} (Jul–Dez)`;
-  const startMonth = half === 1 ? `${y}-01` : `${y}-07`;
-  const endMonth = half === 1 ? `${y}-06` : `${y}-12`;
-  return { id, label, startMonth, endMonth, year: y, half };
+  return makeSemester(y, (m <= 6 ? 1 : 2) as 1 | 2);
+}
+
+function parseSemesterId(id: string): SemesterInfo {
+  const [ys, hs] = id.split('-S');
+  return makeSemester(parseInt(ys, 10), (hs === '1' ? 1 : 2) as 1 | 2);
 }
 
 function isInSemester(dateStr: string, year: number, half: 1 | 2): boolean {
@@ -81,7 +92,8 @@ interface CategoryRow {
 
 export function TetoGastos({ schoolId }: Props) {
   const queryClient = useQueryClient();
-  const semester = useMemo(() => getCurrentSemester(), []);
+  const [semesterId, setSemesterId] = useState<string>(() => getCurrentSemester().id);
+  const semester = useMemo(() => parseSemesterId(semesterId), [semesterId]);
   const { isAdmin } = useAuth();
   const { isPresentationMode } = usePresentation();
   const canEdit = isAdmin && !isPresentationMode;
@@ -184,8 +196,23 @@ export function TetoGastos({ schoolId }: Props) {
     const subCeilingMap = new Map<string, Ceiling>();
     subCeilings.forEach(c => subCeilingMap.set(`${c.parent_group || ''}|${normalizeStr(c.category_name)}`, c));
 
+    // Seed all categories from the chart of accounts so cards appear even without expenses.
+    contas.forEach((c: any) => {
+      if (c.nivel > 1 && c.nome) {
+        const grupo = c.grupo || 'Outros';
+        if (!subTotals[grupo]) subTotals[grupo] = {};
+        if (!(c.nome in subTotals[grupo])) subTotals[grupo][c.nome] = 0;
+      }
+    });
+
     // Ensure groups with ceilings appear even without expenses
     groupCeilings.forEach(c => { if (!subTotals[c.category_name]) subTotals[c.category_name] = {}; });
+    // Ensure detached subcategories with ceilings appear even without expenses
+    subCeilings.forEach(c => {
+      const grupo = c.parent_group || 'Outros';
+      if (!subTotals[grupo]) subTotals[grupo] = {};
+      if (!(c.category_name in subTotals[grupo])) subTotals[grupo][c.category_name] = 0;
+    });
 
     const groupCeilingMap = new Map(groupCeilings.map(c => [c.category_name, c]));
 
@@ -234,7 +261,7 @@ export function TetoGastos({ schoolId }: Props) {
     });
 
     return [...groupRows, ...standaloneRows].sort((a, b) => b.realizado - a.realizado);
-  }, [entries, contaGrupoMap, ceilings, semester]);
+  }, [entries, contaGrupoMap, ceilings, semester, contas]);
 
   const totals = useMemo(() => {
     const tetoTotal = rows.reduce((s, r) => s + r.ceiling, 0);
@@ -246,6 +273,33 @@ export function TetoGastos({ schoolId }: Props) {
   const [hideUnset, setHideUnset] = useState(false);
   const visibleRows = useMemo(() => hideUnset ? rows.filter(r => r.ceiling > 0) : rows, [rows, hideUnset]);
   const hiddenCount = rows.length - visibleRows.length;
+
+  // Build list of available semesters (from entries + ceilings + current + adjacent).
+  const semesterOptions = useMemo<SemesterInfo[]>(() => {
+    const set = new Set<string>();
+    const cur = getCurrentSemester();
+    // Include current, previous 3, and next 1 semester by default.
+    for (let i = -3; i <= 1; i++) {
+      let y = cur.year;
+      let h = cur.half + i;
+      while (h < 1) { h += 2; y -= 1; }
+      while (h > 2) { h -= 2; y += 1; }
+      set.add(`${y}-S${h}`);
+    }
+    entries.forEach((e: any) => {
+      const d = e.data || '';
+      if (d.length < 7) return;
+      const y = parseInt(d.slice(0, 4), 10);
+      const m = parseInt(d.slice(5, 7), 10);
+      if (!y || !m) return;
+      set.add(`${y}-S${m <= 6 ? 1 : 2}`);
+    });
+    ceilings.forEach((c: any) => c.semester && set.add(c.semester));
+    set.add(semesterId);
+    return Array.from(set)
+      .map(parseSemesterId)
+      .sort((a, b) => b.id.localeCompare(a.id));
+  }, [entries, ceilings, semesterId]);
 
   if (loadingEntries || loadingCeilings) {
     return (
@@ -261,13 +315,30 @@ export function TetoGastos({ schoolId }: Props) {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="rounded-2xl bg-gradient-to-br from-primary/5 via-card to-accent/5 border-primary/20">
           <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="p-2.5 rounded-xl bg-primary/10">
-                <Target className="w-5 h-5 text-primary" />
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10">
+                  <Target className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">Teto de Gastos</h3>
+                  <p className="text-xs text-muted-foreground">{semester.label}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-semibold text-foreground">Teto de Gastos</h3>
-                <p className="text-xs text-muted-foreground">{semester.label}</p>
+              <div className="shrink-0">
+                <Select value={semesterId} onValueChange={setSemesterId}>
+                  <SelectTrigger className="h-9 w-[220px] rounded-xl bg-card/60 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesterOptions.map(s => (
+                      <SelectItem key={s.id} value={s.id} className="text-xs">{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -288,7 +359,7 @@ export function TetoGastos({ schoolId }: Props) {
         <Card className="rounded-2xl border-dashed">
           <CardContent className="py-16 text-center">
             <Target className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Nenhuma despesa registrada neste semestre.</p>
+            <p className="text-sm text-muted-foreground">Nenhuma categoria disponível. Cadastre categorias no Plano de Contas para definir tetos.</p>
           </CardContent>
         </Card>
       ) : (
