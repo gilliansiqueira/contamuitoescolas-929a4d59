@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useTypeClassifications } from '@/hooks/useFinancialData';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
+import { useSaldoInicialPeriodo } from '@/hooks/useSaldoInicialPeriodo';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Calculator, Plus, Trash2 } from 'lucide-react';
