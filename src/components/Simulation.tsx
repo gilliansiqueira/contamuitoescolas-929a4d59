@@ -238,20 +238,22 @@ export function Simulation({ schoolId }: SimulationProps) {
     return map;
   }, [entries, classifications]);
 
-  // Saldo acumulado até o mês anterior ao startMonth (para partir do saldo correto)
-  const saldoAntesDoInicio = useMemo(() => {
-    let acc = saldoInicial || 0;
-    for (const e of entries) {
-      if (e.origem === 'fluxo') continue;
-      if (e.tipoRegistro !== 'projetado') continue;
-      const mes = (e.dataProjetada || e.data).slice(0, 7);
-      if (mes >= startMonth) continue;
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls === 'receita') acc += e.valor;
-      else if (cls === 'despesa') acc -= e.valor;
+  // Saldo inicial do período — mesma SSOT usada no Dashboard
+  const saldoInicialCalculado = useSaldoInicialPeriodo(schoolId, months);
+
+  // Saldo inicial/final de cada mês (acumulador com receitas simuladas)
+  const { saldoInicialPorMes, saldoFinalPorMes } = useMemo(() => {
+    const inicial: Record<string, number> = {};
+    const final: Record<string, number> = {};
+    let acc = saldoInicialCalculado;
+    for (const m of months) {
+      inicial[m] = acc;
+      const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0) - (contasPagarPorMes[m] || 0);
+      acc += res;
+      final[m] = acc;
     }
-    return acc;
-  }, [entries, classifications, saldoInicial, startMonth]);
+    return { saldoInicialPorMes: inicial, saldoFinalPorMes: final };
+  }, [saldoInicialCalculado, months, sistemaProjetadoPorMes, simuladoPorMes, contasPagarPorMes]);
 
   return (
     <div className="space-y-6">
