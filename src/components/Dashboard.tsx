@@ -335,13 +335,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       const m = e.data.slice(0, 7);
       if (snapMonthsSet.has(m)) continue;
       if (histMonthsSet.has(m)) continue;
-      // Em meses com fluxo: aceita fluxo, manuais e projeções futuras
+      // Em meses com fluxo: o realizado substitui integralmente a projeção.
+      // Aceita apenas fluxo e manual — projeções (mesmo futuras) NÃO entram.
       if (uploadMonthsSet.has(m)) {
-        if (e.origem === 'fluxo' || e.origem === 'manual') {
-          // ok
-        } else if (e.tipoRegistro === 'projetado' && e.data >= todayStr) {
-          // ok
-        } else continue;
+        if (e.origem !== 'fluxo' && e.origem !== 'manual') continue;
       }
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'receita') ensure(m).entradas += e.valor;
