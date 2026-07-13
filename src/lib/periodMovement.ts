@@ -130,9 +130,11 @@ export function includeEntryForMonth(
   classifications: TypeClassification[]
 ): boolean {
   if (source === 'fluxo') {
+    // Quando há fluxo realizado no mês, ele substitui integralmente a projeção
+    // do próprio mês. Projeções futuras (contas a pagar, sponte, cheques, etc.)
+    // NÃO entram no resultado nem no saldo — apenas fluxo/manual.
     if (entry.origem === 'fluxo') return true;
     if (entry.origem === 'manual') return true;
-    if (entry.tipoRegistro === 'projetado' && entry.dataProjetada >= todayStr) return true;
     return false;
   }
   if (source === 'historico') {
