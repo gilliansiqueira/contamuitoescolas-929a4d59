@@ -7,7 +7,7 @@ import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
 import {
   resolveMonthSource,
-  includeEntryForMonth,
+  
   computeSaldoInicial,
   computeSaldoFinal,
   type MovementSource,
