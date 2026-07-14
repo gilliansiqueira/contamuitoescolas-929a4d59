@@ -72,33 +72,32 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     return result;
   }, [months, movementCtx]);
 
-  // Filtro canônico: same rule as periodMovement.
-  const filterForMonth = useCallback(
+  // No Fluxo Diário mostramos SEMPRE tudo que existir: projeções nas colunas
+  // "Prevista" e fluxo/manual nas colunas "Realizada", em qualquer mês. A
+  // regra SSOT de "fluxo substitui projeção" vale para os cards de Saldo
+  // Final do período (que continuam usando periodMovement).
+  const monthHasData = useCallback(
     (e: ProjectedEntry) => {
       const src = monthSources[e.dataProjetada.slice(0, 7)];
-      if (!src) return false;
-      return includeEntryForMonth(e, src, todayStr, classifications);
+      return !!src && src !== 'vazio';
     },
-    [monthSources, todayStr, classifications]
+    [monthSources]
   );
 
   const adjustedProjectedEntries = useMemo(
     () => projectedEntries.filter(e => {
       if (e.origem === 'fluxo' || e.impacto === 0) return false;
-      return filterForMonth(e);
+      return monthHasData(e);
     }),
-    [projectedEntries, filterForMonth]
+    [projectedEntries, monthHasData]
   );
 
   const realizedEntries = useMemo(
     () => rawEntries
       .filter(e => e.origem === 'fluxo')
       .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }) as ProjectedEntry)
-      .filter(e => {
-        if (e.impacto === 0) return false;
-        return filterForMonth(e);
-      }),
-    [rawEntries, classifications, filterForMonth]
+      .filter(e => e.impacto !== 0),
+    [rawEntries, classifications]
   );
 
   const allDays = useMemo(() => getAllDaysInMonths(months), [months]);
