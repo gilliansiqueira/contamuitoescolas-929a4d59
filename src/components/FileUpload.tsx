@@ -570,7 +570,12 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       }
     } else {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      // IMPORTANT: cellDates:false. Com cellDates:true a lib xlsx interpreta
+      // datas de CSV no formato americano (MM/DD/YYYY), então "01/07/2026"
+      // vira 07/jan em vez de 01/jul. Deixando como string, parseDate cuida
+      // do formato brasileiro (DD/MM/YYYY) e de seriais Excel corretamente.
+      const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+
       const ws = wb.Sheets[wb.SheetNames[0]];
       raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
     }
