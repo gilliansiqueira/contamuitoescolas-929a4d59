@@ -270,8 +270,16 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
 
       // 2) delete the candidate set
       if (replaceSim.remover.ids.length > 0) {
-        const { error: delErr } = await supabase.from('financial_entries').delete().in('id', replaceSim.remover.ids);
-        if (delErr) throw delErr;
+        // PostgREST envia filtros `.in(...)` pela URL. Em imports Sponte grandes,
+        // milhares de UUIDs em uma única chamada estouram o tamanho da requisição
+        // e retornam 400 Bad Request. Deletar em lotes mantém a substituição
+        // determinística sem depender de uma URL gigante.
+        const DELETE_CHUNK = 100;
+        for (let i = 0; i < replaceSim.remover.ids.length; i += DELETE_CHUNK) {
+          const ids = replaceSim.remover.ids.slice(i, i + DELETE_CHUNK);
+          const { error: delErr } = await supabase.from('financial_entries').delete().in('id', ids);
+          if (delErr) throw delErr;
+        }
       }
 
       // 3) insert new entries with full traceability
