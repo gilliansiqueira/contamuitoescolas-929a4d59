@@ -74,7 +74,7 @@ ${JSON.stringify(distinct)}`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Lovable-API-Key': key },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: 'Responda APENAS com JSON válido.' },
           { role: 'user', content: prompt },
