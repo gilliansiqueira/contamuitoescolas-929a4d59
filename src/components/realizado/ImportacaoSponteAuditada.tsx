@@ -6,7 +6,7 @@
  *   2. Conferência por método (arquivo × sistema)
  *   3. Simulação de delay (antes × depois)
  *   4. Simulação de substituição (remover × inserir, saldo esperado)
- *   5. Gravação + auditoria pós-importação + análise IA
+ *   5. Gravação + auditoria pós-importação
  */
 
 import { useState, useMemo, useCallback } from 'react';
@@ -17,7 +17,7 @@ import { useAddUpload, useAddAuditLog, usePaymentDelayRules, useEntriesFromBaseD
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sparkles, Shield, X, Wand2, ArrowRightCircle } from 'lucide-react';
+import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Shield, X, ArrowRightCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveMethodKey, PAYMENT_METHOD_ORDER, methodLabel, type PaymentMethodKey } from '@/lib/import/methodMapping';
@@ -113,39 +113,6 @@ function pickColumn(cols: string[], aliases: string[]): string | undefined {
   return undefined;
 }
 
-function buildClassificationPayloadRows(rows: ParsedRow[]) {
-  const groups = new Map<string, {
-    lineNumber: number;
-    metodoRaw: string;
-    metodoKey: PaymentMethodKey | null;
-    valor: number;
-    descricao?: string;
-    qtd: number;
-  }>();
-
-  for (const row of rows) {
-    const key = `${row.metodoRaw}||${row.metodoKey ?? '∅'}`;
-    const current = groups.get(key);
-    if (current) {
-      current.qtd += 1;
-      current.valor += row.valor;
-      continue;
-    }
-    groups.set(key, {
-      lineNumber: row.lineNumber,
-      metodoRaw: row.metodoRaw.slice(0, 120),
-      metodoKey: row.metodoKey,
-      valor: row.valor,
-      descricao: row.nomeAluno?.slice(0, 80),
-      qtd: 1,
-    });
-  }
-
-  return [...groups.values()]
-    .sort((a, b) => b.qtd - a.qtd || a.metodoRaw.localeCompare(b.metodoRaw))
-    .slice(0, 120);
-}
-
 export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Props) {
   const qc = useQueryClient();
   const { data: school } = useSchool(schoolId);
@@ -164,16 +131,7 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
   const [replaceSim, setReplaceSim] = useState<ReplacementSimulation | null>(null);
   const [importing, setImporting] = useState(false);
   const [postAudit, setPostAudit] = useState<ConferenceReport | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
-  const [aiLoading, setAiLoading] = useState(false);
   const [forceOverride, setForceOverride] = useState(false);
-
-  // Classificação IA (etapa 2).
-  const [classifyLoading, setClassifyLoading] = useState(false);
-  const [classifySuggestions, setClassifySuggestions] = useState<Array<{
-    metodoRaw: string; atual: string | null; sugerida: string; qtd: number; motivo: string;
-  }> | null>(null);
-  const [classifyResumo, setClassifyResumo] = useState<string>('');
 
 
   // Estado para mapeamento manual de colunas quando o auto-detect falha.
@@ -273,42 +231,7 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
   // Step 2: apenas leitura do arquivo (sem comparar com sistema).
   const goToConference = (rows: ParsedRow[]) => {
     setFileSummary(buildFileSummary(rows));
-    setClassifySuggestions(null);
-    setClassifyResumo('');
     setStep(2);
-  };
-
-  // Verificação IA da classificação (chamado manualmente na etapa 2).
-  const verifyClassification = async () => {
-    setClassifyLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-sponte-classification', {
-        body: {
-          rows: buildClassificationPayloadRows(parsed),
-          allowedKeys: PAYMENT_METHOD_ORDER,
-        },
-      });
-      if (error) throw error;
-      setClassifySuggestions(Array.isArray(data?.sugestoes) ? data.sugestoes : []);
-      setClassifyResumo(typeof data?.resumo === 'string' ? data.resumo : '');
-      if (data?.warning) {
-        toast.warning(data.resumo || 'A análise por IA foi pulada, mas a conferência manual pode continuar.');
-      }
-    } catch (e: any) {
-      const message = e?.context?.error || e?.context?.msg || e?.message || 'falha ao verificar';
-      toast.error(`IA: ${message}. A conferência manual pode continuar sem essa etapa.`);
-    } finally {
-      setClassifyLoading(false);
-    }
-  };
-
-  // Aplica uma sugestão da IA reclassificando todas as linhas com aquele metodoRaw.
-  const applySuggestion = (metodoRaw: string, sugerida: PaymentMethodKey) => {
-    setParsed(prev => prev.map(p => p.metodoRaw === metodoRaw ? { ...p, metodoKey: sugerida } : p));
-    setClassifySuggestions(prev => (prev ?? []).filter(s => s.metodoRaw !== metodoRaw));
-    // Recalcular resumo após reclassificação.
-    setFileSummary(buildFileSummary(parsed.map(p => p.metodoRaw === metodoRaw ? { ...p, metodoKey: sugerida } : p)));
-    toast.success(`Reclassificado "${metodoRaw}" → ${methodLabel(sugerida)}`);
   };
 
   // ── Step 3: delay simulation
@@ -408,11 +331,6 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
 
       qc.invalidateQueries({ queryKey: ['entries-from-base'] });
 
-      // AI analysis if diff
-      if (Math.abs(post.diferencaTotal) > 0.01) {
-        runAi(post, sistemaApos);
-      }
-
       toast.success('Importação concluída com auditoria.');
       onImported();
       setStep(5);
@@ -420,29 +338,6 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
       toast.error(`Erro: ${e?.message ?? 'desconhecido'}`);
     } finally {
       setImporting(false);
-    }
-  };
-
-  const runAi = async (post: ConferenceReport, sample: FinancialEntry[]) => {
-    setAiLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('audit-import-differences', {
-        body: {
-          schoolId,
-          totalDiff: post.diferencaTotal,
-          perMethod: post.perMethod,
-          sampleSistemaRows: sample.slice(0, 30).map(e => ({
-            data: e.data, valor: e.valor, categoria: e.categoria, descricao: e.descricao,
-          })),
-          context: `Arquivo: ${fileName}. Registros arquivo: ${parsed.length}.`,
-        },
-      });
-      if (error) throw error;
-      setAiAnalysis(data);
-    } catch (e: any) {
-      toast.error(`IA: ${e?.message}`);
-    } finally {
-      setAiLoading(false);
     }
   };
 
@@ -567,59 +462,6 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
                 </TableRow>
               </TableBody>
             </Table>
-
-            {/* Verificação IA de classificação */}
-            <div className="glass-card rounded-xl p-3 space-y-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <strong className="text-sm">Verificação de classificação por IA</strong>
-                </div>
-                <Button size="sm" variant="outline" onClick={verifyClassification} disabled={classifyLoading}>
-                  {classifyLoading
-                    ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Analisando…</>
-                    : <><Wand2 className="w-3 h-3 mr-1" />{classifySuggestions ? 'Reanalisar' : 'Analisar classificação'}</>}
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                A IA identifica erros como "Dinheiro lido como Boleto", "Débito como Crédito" ou "PIX como Sponte Pay" e sugere a correção.
-              </p>
-
-              {classifySuggestions && classifySuggestions.length === 0 && (
-                <div className="flex items-center gap-2 text-success text-xs">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{classifyResumo || 'Nenhuma classificação suspeita encontrada.'}</span>
-                </div>
-              )}
-
-              {classifySuggestions && classifySuggestions.length > 0 && (
-                <div className="space-y-2">
-                  {classifyResumo && <p className="text-xs italic text-muted-foreground">{classifyResumo}</p>}
-                  {classifySuggestions.map((s, i) => {
-                    const valid = (PAYMENT_METHOD_ORDER as readonly string[]).includes(s.sugerida);
-                    return (
-                      <div key={i} className="flex items-start gap-2 p-2 rounded bg-amber-500/5 border border-amber-500/30">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div className="flex-1 text-xs">
-                          <p className="font-medium">"{s.metodoRaw}" ({s.qtd} {s.qtd === 1 ? 'linha' : 'linhas'})</p>
-                          <p className="text-muted-foreground">
-                            Atual: <Badge variant="outline" className="ml-1">{s.atual ? methodLabel(s.atual as PaymentMethodKey) : 'não reconhecido'}</Badge>
-                            <ArrowRight className="w-3 h-3 inline mx-1" />
-                            Sugerido: <Badge className="ml-1">{valid ? methodLabel(s.sugerida as PaymentMethodKey) : s.sugerida}</Badge>
-                          </p>
-                          <p className="text-muted-foreground italic mt-0.5">{s.motivo}</p>
-                        </div>
-                        {valid && (
-                          <Button size="sm" variant="outline" onClick={() => applySuggestion(s.metodoRaw, s.sugerida as PaymentMethodKey)}>
-                            Aplicar
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
 
             <div className="flex justify-between">
               <Button variant="outline" size="sm" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4 mr-1" />Voltar</Button>
@@ -794,29 +636,6 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
               </TableBody>
             </Table>
 
-            {Math.abs(postAudit.diferencaTotal) > 0.01 && (
-              <div className="glass-card rounded-xl p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <strong className="text-sm">Análise IA das diferenças</strong>
-                </div>
-                {aiLoading && <p className="text-xs text-muted-foreground"><Loader2 className="w-3 h-3 inline animate-spin mr-1" />Analisando…</p>}
-                {aiAnalysis && (
-                  <div className="text-xs space-y-2">
-                    {aiAnalysis.resumo && <p className="italic">{aiAnalysis.resumo}</p>}
-                    {Array.isArray(aiAnalysis.causas) && aiAnalysis.causas.map((c: any, i: number) => (
-                      <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30">
-                        <Badge variant="outline" className="shrink-0">{c.tipo}</Badge>
-                        <div className="flex-1">
-                          <p className="font-medium">{c.valor_estimado != null ? fmt(c.valor_estimado) : ''}</p>
-                          <p className="text-muted-foreground">{c.explicacao}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
             <div className="flex justify-end">
               <Button size="sm" onClick={onClose}>Concluir</Button>
             </div>
