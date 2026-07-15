@@ -19,22 +19,33 @@ interface ReqBody {
   allowedKeys: string[];
 }
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function safeDetail(text: string) {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 700);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   const key = Deno.env.get('LOVABLE_API_KEY');
   if (!key) {
-    return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY missing' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'LOVABLE_API_KEY missing' }, 500);
   }
 
   let body: ReqBody;
   try { body = await req.json(); }
   catch {
-    return new Response(JSON.stringify({ error: 'invalid json' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'invalid json' }, 400);
+  }
+
+  if (!Array.isArray(body.rows) || !Array.isArray(body.allowedKeys) || body.allowedKeys.length === 0) {
+    return jsonResponse({ error: 'invalid payload' }, 400);
   }
 
   // Amostra para o modelo — agrupada por (raw → key) para reduzir tokens.
@@ -46,7 +57,15 @@ Deno.serve(async (req) => {
     if (g) { g.qtd += qtd; if (g.exemplos.length < 3) g.exemplos.push(r.lineNumber); }
     else groups.set(k, { metodoRaw: r.metodoRaw, metodoKey: r.metodoKey, qtd, exemplos: [r.lineNumber] });
   }
-  const distinct = [...groups.values()];
+  const distinct = [...groups.values()]
+    .sort((a, b) => b.qtd - a.qtd || a.metodoRaw.localeCompare(b.metodoRaw))
+    .slice(0, 120)
+    .map((g) => ({
+      metodoRaw: g.metodoRaw.slice(0, 120),
+      metodoKey: g.metodoKey,
+      qtd: g.qtd,
+      exemplos: g.exemplos,
+    }));
 
   const prompt = `Você é auditor de importação financeira. Cada linha do arquivo Sponte tem um texto bruto de "forma de cobrança" (metodoRaw) e foi classificada para uma chave canônica (metodoKey).
 
@@ -74,31 +93,36 @@ ${JSON.stringify(distinct)}`;
   try {
     const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Lovable-API-Key': key },
+      headers: {
+        'Content-Type': 'application/json',
+        'Lovable-API-Key': key,
+        'X-Lovable-AIG-SDK': 'manual-edge-function',
+      },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3-flash-preview',
         messages: [
           { role: 'system', content: 'Responda APENAS com JSON válido.' },
           { role: 'user', content: prompt },
         ],
-        response_format: { type: 'json_object' },
+        max_tokens: 1200,
       }),
     });
 
     if (aiRes.status === 429) {
-      return new Response(JSON.stringify({ error: 'rate_limited' }), {
-        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ sugestoes: [], resumo: 'A análise por IA foi pulada por limite temporário. A conferência do arquivo continua válida.', warning: 'rate_limited' });
     }
     if (aiRes.status === 402) {
-      return new Response(JSON.stringify({ error: 'credits_exhausted' }), {
-        status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ sugestoes: [], resumo: 'A análise por IA foi pulada por falta de créditos. A conferência do arquivo continua válida.', warning: 'credits_exhausted' });
     }
     if (!aiRes.ok) {
       const txt = await aiRes.text();
-      return new Response(JSON.stringify({ error: 'ai_error', detail: txt }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      console.error('verify-sponte-classification ai_error', aiRes.status, safeDetail(txt));
+      return jsonResponse({
+        sugestoes: [],
+        resumo: `A IA recusou a análise (${aiRes.status}). Isso não significa erro na leitura do arquivo; a importação pode seguir pela conferência manual.`,
+        warning: 'ai_error',
+        status: aiRes.status,
+        detail: safeDetail(txt),
       });
     }
 
@@ -107,12 +131,14 @@ ${JSON.stringify(distinct)}`;
     let parsed: unknown = {};
     try { parsed = JSON.parse(content); } catch { parsed = { raw: content }; }
 
-    return new Response(JSON.stringify(parsed), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(parsed);
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    console.error('verify-sponte-classification exception', String(err));
+    return jsonResponse({
+      sugestoes: [],
+      resumo: 'A análise por IA falhou antes de concluir. A conferência do arquivo continua válida e pode ser aprovada manualmente.',
+      warning: 'exception',
+      detail: String(err).slice(0, 700),
     });
   }
 });
