@@ -113,6 +113,37 @@ function pickColumn(cols: string[], aliases: string[]): string | undefined {
   return undefined;
 }
 
+function buildClassificationPayloadRows(rows: ParsedRow[]) {
+  const groups = new Map<string, {
+    lineNumber: number;
+    metodoRaw: string;
+    metodoKey: PaymentMethodKey | null;
+    valor: number;
+    descricao?: string;
+    qtd: number;
+  }>();
+
+  for (const row of rows) {
+    const key = `${row.metodoRaw}||${row.metodoKey ?? '∅'}`;
+    const current = groups.get(key);
+    if (current) {
+      current.qtd += 1;
+      current.valor += row.valor;
+      continue;
+    }
+    groups.set(key, {
+      lineNumber: row.lineNumber,
+      metodoRaw: row.metodoRaw,
+      metodoKey: row.metodoKey,
+      valor: row.valor,
+      descricao: row.nomeAluno,
+      qtd: 1,
+    });
+  }
+
+  return [...groups.values()].slice(0, 250);
+}
+
 export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Props) {
   const qc = useQueryClient();
   const { data: school } = useSchool(schoolId);
@@ -251,13 +282,7 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
     try {
       const { data, error } = await supabase.functions.invoke('verify-sponte-classification', {
         body: {
-          rows: parsed.map(p => ({
-            lineNumber: p.lineNumber,
-            metodoRaw: p.metodoRaw,
-            metodoKey: p.metodoKey,
-            valor: p.valor,
-            descricao: p.nomeAluno,
-          })),
+          rows: buildClassificationPayloadRows(parsed),
           allowedKeys: PAYMENT_METHOD_ORDER,
         },
       });
