@@ -10,6 +10,7 @@ interface RowIn {
   metodoKey: string | null;
   valor: number;
   descricao?: string;
+  qtd?: number;
 }
 
 interface ReqBody {
@@ -40,9 +41,10 @@ Deno.serve(async (req) => {
   const groups = new Map<string, { metodoRaw: string; metodoKey: string | null; qtd: number; exemplos: number[] }>();
   for (const r of body.rows) {
     const k = `${r.metodoRaw}||${r.metodoKey ?? '∅'}`;
+    const qtd = Number.isFinite(r.qtd) && Number(r.qtd) > 0 ? Number(r.qtd) : 1;
     const g = groups.get(k);
-    if (g) { g.qtd += 1; if (g.exemplos.length < 3) g.exemplos.push(r.lineNumber); }
-    else groups.set(k, { metodoRaw: r.metodoRaw, metodoKey: r.metodoKey, qtd: 1, exemplos: [r.lineNumber] });
+    if (g) { g.qtd += qtd; if (g.exemplos.length < 3) g.exemplos.push(r.lineNumber); }
+    else groups.set(k, { metodoRaw: r.metodoRaw, metodoKey: r.metodoKey, qtd, exemplos: [r.lineNumber] });
   }
   const distinct = [...groups.values()];
 
