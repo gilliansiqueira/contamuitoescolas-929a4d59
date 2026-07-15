@@ -1,0 +1,1 @@
+DELETE FROM public.financial_entries WHERE origem_upload_id='4ddef3d0-8895-4b99-840e-2d53246595ec'; DELETE FROM public.upload_records WHERE id='4ddef3d0-8895-4b99-840e-2d53246595ec';
