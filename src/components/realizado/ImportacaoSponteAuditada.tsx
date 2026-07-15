@@ -20,7 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Shield, X, ArrowRightCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { resolveMethodKey, PAYMENT_METHOD_ORDER, methodLabel, type PaymentMethodKey } from '@/lib/import/methodMapping';
+import { resolveMethodKey } from '@/lib/import/methodMapping';
 import {
   buildConferenceReport,
   buildFileSummary,
