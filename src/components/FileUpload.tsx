@@ -570,14 +570,16 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       }
     } else {
       const buf = await file.arrayBuffer();
-      // IMPORTANT: cellDates:false. Com cellDates:true a lib xlsx interpreta
-      // datas de CSV no formato americano (MM/DD/YYYY), então "01/07/2026"
-      // vira 07/jan em vez de 01/jul. Deixando como string, parseDate cuida
-      // do formato brasileiro (DD/MM/YYYY) e de seriais Excel corretamente.
-      const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      // IMPORTANT: `raw: true` + `cellDates: false`. Sem isso, o parser de
+      // CSV do XLSX autoconverte "01/07/2026" para serial Excel assumindo
+      // locale americano (MM/DD/YYYY) — Jan/7 vira Jul/1 corrompido — e
+      // "402,57" vira o inteiro 40257. Com raw:true, todos os valores
+      // chegam como string bruta e o parseDate/parseNumber cuidam do
+      // formato brasileiro corretamente.
+      const wb = XLSX.read(buf, { type: 'array', cellDates: false, raw: true });
 
       const ws = wb.Sheets[wb.SheetNames[0]];
-      raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      raw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true });
     }
 
     if (raw.length === 0) {
