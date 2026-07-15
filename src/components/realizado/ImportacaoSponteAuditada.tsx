@@ -133,15 +133,17 @@ function buildClassificationPayloadRows(rows: ParsedRow[]) {
     }
     groups.set(key, {
       lineNumber: row.lineNumber,
-      metodoRaw: row.metodoRaw,
+      metodoRaw: row.metodoRaw.slice(0, 120),
       metodoKey: row.metodoKey,
       valor: row.valor,
-      descricao: row.nomeAluno,
+      descricao: row.nomeAluno?.slice(0, 80),
       qtd: 1,
     });
   }
 
-  return [...groups.values()].slice(0, 250);
+  return [...groups.values()]
+    .sort((a, b) => b.qtd - a.qtd || a.metodoRaw.localeCompare(b.metodoRaw))
+    .slice(0, 120);
 }
 
 export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Props) {
@@ -289,8 +291,12 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
       if (error) throw error;
       setClassifySuggestions(Array.isArray(data?.sugestoes) ? data.sugestoes : []);
       setClassifyResumo(typeof data?.resumo === 'string' ? data.resumo : '');
+      if (data?.warning) {
+        toast.warning(data.resumo || 'A análise por IA foi pulada, mas a conferência manual pode continuar.');
+      }
     } catch (e: any) {
-      toast.error(`IA: ${e?.message ?? 'falha ao verificar'}`);
+      const message = e?.context?.error || e?.context?.msg || e?.message || 'falha ao verificar';
+      toast.error(`IA: ${message}. A conferência manual pode continuar sem essa etapa.`);
     } finally {
       setClassifyLoading(false);
     }
