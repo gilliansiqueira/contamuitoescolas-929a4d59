@@ -17,7 +17,11 @@ function makeUTCDateString(year: number, month: number, day: number): string | n
 
 function parseExcelSerialDate(serial: number): string | null {
   if (!Number.isFinite(serial) || serial < EXCEL_MIN_SERIAL || serial > EXCEL_MAX_SERIAL) return null;
-  const d = new Date(Math.round((serial - 25569) * 86400000));
+  // Import spreadsheets use dates as calendar days. Some XLSX/CSV exporters leak
+  // timezone offsets into the serial (e.g. 01/06/2026 as 46173.875), which would
+  // otherwise become 31/05 in UTC. Round to the nearest Excel day before converting.
+  const wholeDaySerial = Math.round(serial);
+  const d = new Date((wholeDaySerial - 25569) * 86400000);
   if (Number.isNaN(d.getTime())) return null;
   return makeUTCDateString(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
 }

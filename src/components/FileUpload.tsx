@@ -37,7 +37,14 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   parcelas: ['parcelas', 'num_parcelas', 'qtd_parcelas', 'parcela'],
   favorecido: ['favorecido', 'fornecedor', 'credor', 'beneficiario'],
   categoria: ['categoria', 'tipo_despesa', 'classificacao', 'grupo'],
-  data: ['data', 'dt', 'date'],
+  data: [
+    'data', 'dt', 'date',
+    'data_pagamento', 'data pagamento', 'dt_pagamento', 'dt pagamento',
+    'data_movimento', 'data movimento', 'data_movimentacao', 'data movimentacao', 'data movimentação',
+    'data_lancamento', 'data lancamento', 'data lançamento',
+    'data_credito', 'data credito', 'data crédito',
+    'data_competencia', 'data competencia', 'data competência', 'competencia', 'competência',
+  ],
   descricao: ['descricao', 'desc', 'historico', 'observacao'],
   tipo: ['tipo', 'type', 'natureza'],
 };
@@ -81,7 +88,7 @@ function normalizeColumnName(name: string): string {
 
 // Fields where, if multiple candidate columns are present, we must ask the user
 // which one to use instead of silently picking the first match.
-const AMBIGUOUS_FIELDS = new Set(['valor']);
+const AMBIGUOUS_FIELDS = new Set(['data', 'data_vencimento', 'data_compensacao', 'data_recebimento', 'valor']);
 
 function autoMapColumns(rawColumns: string[], requiredColumns: string[]): { mapping: Record<string, string>; unmapped: string[] } {
   const mapping: Record<string, string> = {};

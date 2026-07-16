@@ -12,6 +12,7 @@ describe("parseSpreadsheetDate", () => {
     expect(parseSpreadsheetDate("01/06/2026")).toBe("2026-06-01");
     expect(parseSpreadsheetDate("01-06-2026")).toBe("2026-06-01");
     expect(parseSpreadsheetDate(46174)).toBe("2026-06-01");
+    expect(parseSpreadsheetDate(46173.875)).toBe("2026-06-01");
     expect(parseSpreadsheetDate(new Date(Date.UTC(2026, 5, 1)))).toBe("2026-06-01");
   });
 });
