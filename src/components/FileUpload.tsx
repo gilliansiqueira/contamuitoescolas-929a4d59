@@ -45,9 +45,10 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 function parseDate(val: any): string | null {
   if (!val) return null;
   if (val instanceof Date) {
-    const y = val.getFullYear();
-    const m = String(val.getMonth() + 1).padStart(2, '0');
-    const d = String(val.getDate()).padStart(2, '0');
+    // Usar UTC — Date de Excel vem em UTC-midnight; em BRT getDate() puxava -1 dia.
+    const y = val.getUTCFullYear();
+    const m = String(val.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(val.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
   let s = String(val).trim();
@@ -59,9 +60,10 @@ function parseDate(val: any): string | null {
   const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
   if (m2) return `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
   if (/^\d+(\.\d+)?$/.test(s)) {
+    // Excel serial → UTC para não sofrer com fuso local (BRT = UTC-3 puxava dia -1).
     const d = new Date((Number(s) - 25569) * 86400000);
     if (!isNaN(d.getTime())) {
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
     }
   }
   return null;
