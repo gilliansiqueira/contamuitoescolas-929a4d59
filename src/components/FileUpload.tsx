@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro, TypeClassification } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { supabase } from '@/integrations/supabase/client';
-import { toPreviousBusinessDay } from '@/lib/dateUtils';
+import { parseSpreadsheetDate, toPreviousBusinessDay } from '@/lib/dateUtils';
 
 // Tipos de upload que representam PROJEÇÃO de recebíveis/contas a pagar.
 // Para esses tipos, um novo upload SUBSTITUI a projeção futura existente
@@ -37,36 +37,20 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   parcelas: ['parcelas', 'num_parcelas', 'qtd_parcelas', 'parcela'],
   favorecido: ['favorecido', 'fornecedor', 'credor', 'beneficiario'],
   categoria: ['categoria', 'tipo_despesa', 'classificacao', 'grupo'],
-  data: ['data', 'dt', 'date'],
+  data: [
+    'data', 'dt', 'date',
+    'data_pagamento', 'data pagamento', 'dt_pagamento', 'dt pagamento',
+    'data_movimento', 'data movimento', 'data_movimentacao', 'data movimentacao', 'data movimentação',
+    'data_lancamento', 'data lancamento', 'data lançamento',
+    'data_credito', 'data credito', 'data crédito',
+    'data_competencia', 'data competencia', 'data competência', 'competencia', 'competência',
+  ],
   descricao: ['descricao', 'desc', 'historico', 'observacao'],
   tipo: ['tipo', 'type', 'natureza'],
 };
 
 function parseDate(val: any): string | null {
-  if (!val) return null;
-  if (val instanceof Date) {
-    // Usar UTC — Date de Excel vem em UTC-midnight; em BRT getDate() puxava -1 dia.
-    const y = val.getUTCFullYear();
-    const m = String(val.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(val.getUTCDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  let s = String(val).trim();
-  // Strip time portion (e.g. "00:00:00", "T00:00:00", "T00:00:00.000Z")
-  s = s.replace(/[T\s]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/, '').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (m2) return `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
-  if (/^\d+(\.\d+)?$/.test(s)) {
-    // Excel serial → UTC para não sofrer com fuso local (BRT = UTC-3 puxava dia -1).
-    const d = new Date((Number(s) - 25569) * 86400000);
-    if (!isNaN(d.getTime())) {
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-    }
-  }
-  return null;
+  return parseSpreadsheetDate(val);
 }
 
 function parseNumber(val: any): number | null {
@@ -104,7 +88,7 @@ function normalizeColumnName(name: string): string {
 
 // Fields where, if multiple candidate columns are present, we must ask the user
 // which one to use instead of silently picking the first match.
-const AMBIGUOUS_FIELDS = new Set(['valor']);
+const AMBIGUOUS_FIELDS = new Set(['data', 'data_vencimento', 'data_compensacao', 'data_recebimento', 'valor']);
 
 function autoMapColumns(rawColumns: string[], requiredColumns: string[]): { mapping: Record<string, string>; unmapped: string[] } {
   const mapping: Record<string, string> = {};

@@ -21,6 +21,7 @@ import { Upload, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sh
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveMethodKey } from '@/lib/import/methodMapping';
+import { parseSpreadsheetDate } from '@/lib/dateUtils';
 import {
   buildConferenceReport,
   buildFileSummary,
@@ -69,21 +70,7 @@ function ManualColPicker({
 }
 
 function parseDateCell(raw: any): string | null {
-  if (raw == null || raw === '') return null;
-  if (raw instanceof Date) {
-    const y = raw.getFullYear(), m = String(raw.getMonth() + 1).padStart(2, '0'), d = String(raw.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  let s = String(raw).trim();
-  s = s.replace(/[T\s]\d{1,2}:\d{2}(:\d{2})?.*$/, '').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  if (/^\d+(\.\d+)?$/.test(s)) {
-    const d = new Date((Number(s) - 25569) * 86400000);
-    if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }
-  return null;
+  return parseSpreadsheetDate(raw);
 }
 
 function parseValueCell(raw: any): number | null {
@@ -181,9 +168,9 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
     setNeedsMapping(false);
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      const wb = XLSX.read(buf, { type: 'array', cellDates: false, raw: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
+      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '', raw: true });
       if (rows.length === 0) { toast.error('Arquivo vazio'); return; }
       const cols = Object.keys(rows[0]);
       const colData = pickColumn(cols, ['data_vencimento', 'dt_vencimento', 'vencimento']);

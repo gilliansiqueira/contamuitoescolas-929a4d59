@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
 import { loadSchoolModelItems } from '@/lib/modelValidation';
 import { matchCategory, normalizeCategory, AUTO_APPLY_THRESHOLD, type MatchResult } from '@/lib/categoryMatcher';
+import { parseSpreadsheetDate } from '@/lib/dateUtils';
 
 interface Props { schoolId: string; }
 type Step = 'idle' | 'mapping' | 'preview';
@@ -32,20 +33,7 @@ function normalizeStr(s: string) {
 }
 
 function parseDate(raw: any): string | null {
-  if (!raw && raw !== 0) return null;
-  let s = String(raw).trim();
-  if (/^\d{5}$/.test(s)) {
-    const d = XLSX.SSF.parse_date_code(Number(s));
-    if (d) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
-  }
-  s = s.replace(/\s+\d{1,2}:\d{2}(:\d{2})?.*$/, '');
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const parts = s.split(/[\/\-\.]/);
-  if (parts.length === 3) {
-    if (parts[2]?.length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-    if (parts[0]?.length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-  }
-  return null;
+  return parseSpreadsheetDate(raw);
 }
 
 function parseValue(raw: any): number | null {
@@ -230,9 +218,9 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const wb = XLSX.read(ev.target?.result, { type: 'binary' });
+        const wb = XLSX.read(ev.target?.result, { type: 'binary', cellDates: false, raw: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws);
+        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true });
         if (rows.length === 0) { toast.error('Arquivo vazio'); return; }
         const cols = Object.keys(rows[0]);
         setRawRows(rows); setFileColumns(cols);
