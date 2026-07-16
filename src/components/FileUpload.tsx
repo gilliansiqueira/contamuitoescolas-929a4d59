@@ -45,9 +45,10 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 function parseDate(val: any): string | null {
   if (!val) return null;
   if (val instanceof Date) {
-    const y = val.getFullYear();
-    const m = String(val.getMonth() + 1).padStart(2, '0');
-    const d = String(val.getDate()).padStart(2, '0');
+    // Usar UTC — Date de Excel vem em UTC-midnight; em BRT getDate() puxava -1 dia.
+    const y = val.getUTCFullYear();
+    const m = String(val.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(val.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
   let s = String(val).trim();
