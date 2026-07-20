@@ -297,7 +297,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 const showReal = !day.isAfterCutoff;
                 const showPrev = day.isAfterCutoff;
                 return (
-                  <>
+                  <Fragment key={day.data}>
                     {day.isCutoff && (
                       <tr key={`${day.data}-cut`} className="bg-emerald-500/5 border-t border-emerald-500/30">
                         <td colSpan={10} className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-emerald-700 font-semibold text-center">
@@ -342,7 +342,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                         {formatCurrency(day.saldoFinalProjecao)}
                       </td>
                     </tr>
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
