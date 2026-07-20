@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { Fragment, useCallback, useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
