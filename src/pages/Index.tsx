@@ -63,7 +63,6 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
   { key: 'users', label: 'Usuários', adminOnly: true },
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
-  { key: 'type_classification', label: 'Classificação de Tipos' },
   { key: 'empresa_modelo', label: 'Modelo da Empresa' },
   { key: 'modelos_financeiros', label: 'Modelos Financeiros (Templates)', adminOnly: true },
   { key: 'historico_financeiro', label: 'Histórico Financeiro' },
