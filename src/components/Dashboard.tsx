@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { usePresentation } from '@/components/presentation-provider';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { InvestimentoSection } from '@/components/InvestimentoSection';
+import { ManualCardsSection } from '@/components/dashboard/ManualCardsSection';
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 
 interface DashboardProps {
@@ -600,8 +601,13 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
+      {/* Cards manuais (admin) — informativos, não afetam saldo/resultado */}
+      <ManualCardsSection schoolId={schoolId} selectedMonth={selectedMonth} />
+
       {/* Investimentos */}
       <InvestimentoSection schoolId={schoolId} selectedMonth={selectedMonth} />
+
+
 
 
       {/* Realizado vs Projetado - apenas se houver lançamentos (não para meses só-histórico) */}
