@@ -320,7 +320,7 @@ function IndexBody({
                 {activeTab === 'export' && <ExportImport schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
                 {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
                 {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
-                {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
+                
                 {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
                 {activeTab === 'users' && <UsersConfig />}
