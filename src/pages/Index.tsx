@@ -23,7 +23,7 @@ import { MonthSelector } from '@/components/MonthSelector';
 import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
 import { UploadHistory } from '@/components/UploadHistory';
 import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
-import { TypeClassificationConfig } from '@/components/TypeClassificationConfig';
+
 import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
 import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
