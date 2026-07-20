@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { IconLibraryPicker } from '@/components/icons/IconLibraryPicker';
 import { useAuth } from '@/hooks/useAuth';
-import { useMonthSync } from './SharedMonthContext';
+import { useMonthSync, useRangeSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 interface Props { schoolId: string; }
@@ -52,6 +52,7 @@ export function RecebimentoCategoria({ schoolId }: Props) {
     selectedMonthsList.length === 1 ? selectedMonthsList[0] : null,
     (m) => setMonthsValue(m)
   );
+  useRangeSync(monthsValue, (r) => setMonthsValue(r));
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
 
