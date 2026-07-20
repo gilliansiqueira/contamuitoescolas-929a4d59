@@ -77,25 +77,44 @@ export function useCloseMonths(schoolId: string, module: ClosureModule = 'realiz
         throw err;
       }
 
-      // 1) Para Projeção, calcula snapshot de cada mês ANTES de fechar
-      //    (assim o snapshot reflete os valores correntes naquele momento)
+      // 1) Para Projeção, monta classifications a partir do Template da escola
       let classifications: TypeClassification[] = [];
       if (module === 'projecao') {
-        const { data: clsRaw = [] } = await supabase
-          .from('type_classifications')
-          .select('*')
-          .eq('school_id', schoolId);
-        classifications = (clsRaw as any[]).map(t => ({
-          id: t.id,
-          school_id: t.school_id,
-          tipoValor: t.tipo_valor,
-          entraNoResultado: t.entra_no_resultado,
-          impactaCaixa: t.impacta_caixa,
-          classificacao: t.classificacao,
-          operacaoSinal: t.operacao_sinal || 'auto',
-          label: t.label,
-        }));
+        const { data: school } = await supabase
+          .from('schools')
+          .select('financial_model_template_id' as any)
+          .eq('id', schoolId)
+          .maybeSingle();
+        const tplId = (school as any)?.financial_model_template_id as string | null;
+        if (tplId) {
+          const { data: items = [] } = await supabase
+            .from('financial_model_template_items' as any)
+            .select('*')
+            .eq('template_id', tplId);
+          const { normalizeTipo } = await import('@/lib/classificationUtils');
+          classifications = (items as any[]).map(it => {
+            const isIgnorar = it.tipo === 'ignorar';
+            const impactaCaixa = isIgnorar ? false : !!it.impacta_caixa;
+            const entraNoResultado = isIgnorar ? false : !!it.entra_no_resultado;
+            const classificacao: TypeClassification['classificacao'] =
+              isIgnorar ? 'ignorar' :
+              entraNoResultado && it.tipo === 'entrada' ? 'receita' :
+              entraNoResultado && it.tipo === 'saida' ? 'despesa' :
+              impactaCaixa ? 'operacao' : 'ignorar';
+            return {
+              id: it.id,
+              school_id: schoolId,
+              tipoValor: normalizeTipo(it.name),
+              entraNoResultado,
+              impactaCaixa,
+              classificacao,
+              operacaoSinal: (it.tipo === 'saida' ? 'subtrair' : 'somar') as TypeClassification['operacaoSinal'],
+              label: it.name,
+            };
+          });
+        }
       }
+
 
       // 2) Cria os fechamentos e captura os IDs criados
       const insertRows = months.map(m => ({
