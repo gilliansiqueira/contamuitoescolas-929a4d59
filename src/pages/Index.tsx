@@ -32,6 +32,8 @@ import { HistoricoFinanceiroConfig } from '@/components/HistoricoFinanceiroConfi
 import { ModelosFinanceirosManager } from '@/components/ModelosFinanceirosManager';
 import { EmpresaModeloConfig } from '@/components/EmpresaModeloConfig';
 import { Button } from '@/components/ui/button';
+import { GlobalPeriodProvider, useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
+import { SharedMonthProvider } from '@/components/realizado/SharedMonthContext';
 
 import { RealizadoModule } from '@/components/realizado/RealizadoModule';
 import {
@@ -81,16 +83,6 @@ const Index = () => {
   const isAdmin = isDemo ? false : realIsAdmin;
   const { data: allSchools = [] } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
-  const [appModule, setAppModule] = useState<AppModule>('projecao');
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [selectedMonth, setSelectedMonth] = useState('all');
-  const [scenario, setScenario] = useState<ScenarioType>('real');
-
-  const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
-
-  const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
-  const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
 
   // Auto-select demo school
   useEffect(() => {
@@ -108,10 +100,6 @@ const Index = () => {
     }
   }, [isDemo, school, isAdminAll, accessibleSchoolIds, allSchools]);
 
-  if ((isPresentationMode || isDemo) && isSettingsTab) {
-    setActiveTab('dashboard');
-  }
-
   if (!school) {
     return (
       <div className="min-h-screen bg-background">
@@ -127,7 +115,56 @@ const Index = () => {
     );
   }
 
-  const showMonthSelector = ['dashboard', 'receivables', 'calendar', 'datatable', 'scenarios', 'daily_flow', 'export'].includes(activeTab);
+  return (
+    <GlobalPeriodProvider schoolId={school.id} key={school.id}>
+      <SharedMonthProvider>
+        <IndexBody
+          school={school}
+          setSchool={setSchool}
+          isAdmin={isAdmin}
+          isAdminAll={isAdminAll}
+          accessibleSchoolIds={accessibleSchoolIds}
+          profile={profile}
+          signOut={signOut}
+          isDemo={isDemo}
+          isPresentationMode={isPresentationMode}
+        />
+      </SharedMonthProvider>
+    </GlobalPeriodProvider>
+  );
+};
+
+interface IndexBodyProps {
+  school: School;
+  setSchool: (s: School | null) => void;
+  isAdmin: boolean;
+  isAdminAll: boolean;
+  accessibleSchoolIds: string[];
+  profile: any;
+  signOut: () => void;
+  isDemo: boolean;
+  isPresentationMode: boolean;
+}
+
+function IndexBody({
+  school, setSchool, isAdmin, isAdminAll, accessibleSchoolIds, profile, signOut, isDemo, isPresentationMode,
+}: IndexBodyProps) {
+  const [appModule, setAppModule] = useState<AppModule>('projecao');
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [scenario, setScenario] = useState<ScenarioType>('real');
+  const period = useGlobalPeriod();
+  const selectedMonth = period.value; // fonte única
+
+  const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
+
+  const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
+  const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
+
+  if ((isPresentationMode || isDemo) && isSettingsTab) {
+    setActiveTab('dashboard');
+  }
+
   const showScenarioSelector = activeTab === 'scenarios';
 
   return (
@@ -135,12 +172,12 @@ const Index = () => {
       {isDemo && <DemoBanner />}
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card/90 backdrop-blur-md border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
             <img src={contaMuitoLogo} alt="Conta Muito" className="h-10 w-auto object-contain" />
             <h1 className="font-display font-bold text-lg hidden sm:block text-foreground">Relatório Financeiro</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {isDemo ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium">
                 {school.nome}
@@ -152,6 +189,11 @@ const Index = () => {
                 else setSchool(s);
               }} />
             )}
+            {/* Filtro GLOBAL de período — controla todas as abas */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/5 border border-primary/20" title="Período aplicado em todas as abas">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Período</span>
+              <MonthSelector schoolId={school.id} value={period.value} onChange={period.setValue} />
+            </div>
             <PresentationToggle />
             <ThemeToggle />
             {!isDemo && (
@@ -167,6 +209,11 @@ const Index = () => {
               </Button>
             )}
           </div>
+        </div>
+        {/* Filtro global mobile */}
+        <div className="sm:hidden px-4 pb-2 flex items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Período</span>
+          <MonthSelector schoolId={school.id} value={period.value} onChange={period.setValue} />
         </div>
       </header>
 
@@ -243,15 +290,10 @@ const Index = () => {
             </div>
           </nav>
 
-          {/* Filters bar */}
-          {(showMonthSelector || showScenarioSelector) && (
+          {/* Filtros específicos (cenário) — o mês agora é global (no header) */}
+          {showScenarioSelector && (
             <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3 border-b border-border/30">
-              {showMonthSelector && (
-                <MonthSelector schoolId={school.id} value={selectedMonth} onChange={setSelectedMonth} />
-              )}
-              {showScenarioSelector && (
-                <ScenarioSelector value={scenario} onChange={setScenario} />
-              )}
+              <ScenarioSelector value={scenario} onChange={setScenario} />
             </div>
           )}
 
@@ -286,8 +328,6 @@ const Index = () => {
                 {activeTab === 'historico_financeiro' && <HistoricoFinanceiroConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'modelos_financeiros' && <ModelosFinanceirosManager />}
                 {activeTab === 'empresa_modelo' && <EmpresaModeloConfig schoolId={school.id} onChanged={refresh} />}
-                
-                
               </motion.div>
             </AnimatePresence>
           </main>
@@ -300,6 +340,6 @@ const Index = () => {
       )}
     </div>
   );
-};
+}
 
 export default Index;

@@ -1,45 +1,33 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 
 /**
- * Contexto global de período (mês inicial + mês final) que serve como
- * FONTE ÚNICA de filtro para todas as abas do app. Persistido por escola
- * em localStorage.
- *
- * `range` é serializado como string compatível com o MonthSelector:
- *   - 'all'  → todos os meses
- *   - 'YYYY-MM,YYYY-MM,...' → lista de meses no intervalo (inclusivo)
+ * Fonte única de filtro de período para o app inteiro.
+ * `value` segue o formato do MonthSelector: 'all' ou 'YYYY-MM,YYYY-MM,...'
+ * Persistido por escola em localStorage.
  */
 interface Ctx {
   schoolId: string | null;
-  startMonth: string | null;   // 'YYYY-MM' ou null (=> 'all')
-  endMonth: string | null;     // 'YYYY-MM' ou null (=> 'all')
-  months: string[];            // lista expandida
-  range: string;               // 'all' ou 'YYYY-MM,YYYY-MM,...'
-  setRange: (start: string | null, end: string | null) => void;
+  /** Valor cru (compatível com MonthSelector): 'all' ou 'YYYY-MM,...'. */
+  value: string;
+  setValue: (v: string) => void;
+  /** Meses selecionados ordenados (vazio se 'all'). */
+  months: string[];
+  /** Mês inicial da seleção (ou null se 'all'). */
+  startMonth: string | null;
+  /** Mês final da seleção (ou null se 'all'). */
+  endMonth: string | null;
 }
 
 const GlobalPeriodContext = createContext<Ctx | null>(null);
 
-function expand(start: string | null, end: string | null): string[] {
-  if (!start || !end) return [];
-  const [ys, ms] = start.split('-').map(Number);
-  const [ye, me] = end.split('-').map(Number);
-  const out: string[] = [];
-  let y = ys, m = ms;
-  while (y < ye || (y === ye && m <= me)) {
-    out.push(`${y}-${String(m).padStart(2, '0')}`);
-    m++;
-    if (m > 12) { m = 1; y++; }
-  }
-  return out;
-}
-
-function defaultRange(): [string, string] {
+function defaultValue(): string {
   const now = new Date();
-  const end = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-  const start = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
-  return [start, end];
+  const months: string[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return months.join(',');
 }
 
 interface ProviderProps {
@@ -50,43 +38,30 @@ interface ProviderProps {
 export function GlobalPeriodProvider({ schoolId, children }: ProviderProps) {
   const storageKey = `global-period:${schoolId}`;
 
-  const [state, setState] = useState<{ start: string | null; end: string | null }>(() => {
+  const [value, setValueState] = useState<string>(() => {
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (typeof p?.start === 'string' && typeof p?.end === 'string') {
-          return { start: p.start, end: p.end };
-        }
-        if (p?.start === null && p?.end === null) return { start: null, end: null };
-      }
+      if (raw && typeof raw === 'string') return raw;
     } catch { /* ignore */ }
-    const [s, e] = defaultRange();
-    return { start: s, end: e };
+    return defaultValue();
   });
 
-  // Persist per school
   useEffect(() => {
-    try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch { /* ignore */ }
-  }, [state, storageKey]);
+    try { localStorage.setItem(storageKey, value); } catch { /* ignore */ }
+  }, [value, storageKey]);
 
-  const setRange = useCallback((start: string | null, end: string | null) => {
-    if (start && end && start > end) [start, end] = [end, start];
-    setState({ start, end });
-  }, []);
+  const setValue = useCallback((v: string) => setValueState(v || 'all'), []);
 
-  const months = useMemo(() => expand(state.start, state.end), [state.start, state.end]);
-  const range = useMemo(() => (months.length ? months.join(',') : 'all'), [months]);
+  const months = useMemo(() => {
+    if (!value || value === 'all') return [];
+    return value.split(',').map(s => s.trim()).filter(Boolean).sort();
+  }, [value]);
+
+  const startMonth = months[0] ?? null;
+  const endMonth = months[months.length - 1] ?? null;
 
   return (
-    <GlobalPeriodContext.Provider value={{
-      schoolId,
-      startMonth: state.start,
-      endMonth: state.end,
-      months,
-      range,
-      setRange,
-    }}>
+    <GlobalPeriodContext.Provider value={{ schoolId, value, setValue, months, startMonth, endMonth }}>
       {children}
     </GlobalPeriodContext.Provider>
   );
@@ -97,11 +72,11 @@ export function useGlobalPeriod(): Ctx {
   if (!ctx) {
     return {
       schoolId: null,
+      value: 'all',
+      setValue: () => {},
+      months: [],
       startMonth: null,
       endMonth: null,
-      months: [],
-      range: 'all',
-      setRange: () => {},
     };
   }
   return ctx;
