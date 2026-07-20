@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { Fragment, useCallback, useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
@@ -31,6 +31,7 @@ interface DayRow {
   data: string;
   saldoFinalPrevisto: number;
   saldoFinalRealizado: number;
+  saldoFinalProjecao: number;
   entradaPrevista: number;
   entradaRealizada: number;
   saidaPrevista: number;
@@ -39,7 +40,10 @@ interface DayRow {
   saldoFinal: number;
   isWeekend: boolean;
   dayOfWeek: string;
+  isAfterCutoff: boolean;
+  isCutoff: boolean;
 }
+
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
   const { entries: projectedEntries } = useProjectedEntries(schoolId);
@@ -178,15 +182,29 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     });
 
 
+    // Cutoff: último dia com QUALQUER movimento realizado.
+    const cutoffIdx = allDays.reduce((last, data, i) => {
+      const d = byDate[data];
+      if (d && (d.entradaRealizada > 0 || d.saidaRealizada > 0 || d.operacoesReal !== 0)) return i;
+      return last;
+    }, -1);
+
     let saldo = priorSaldo;
     let saldoPrev = priorSaldo;
     let saldoReal = priorSaldo;
-    return allDays.map(data => {
+    let saldoProj = priorSaldo; // híbrido: realizado até cutoff, previsto depois
+    return allDays.map((data, i) => {
       const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
       const operacoes = d.operacoesPrev + d.operacoesReal;
       saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + operacoes;
       saldoPrev += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
       saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoesReal;
+      const isAfterCutoff = cutoffIdx >= 0 && i > cutoffIdx;
+      if (!isAfterCutoff) {
+        saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal;
+      } else {
+        saldoProj += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
+      }
       return {
         data,
         entradaPrevista: d.entradaPrevista,
@@ -197,10 +215,14 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         saldoFinal: saldo,
         saldoFinalPrevisto: saldoPrev,
         saldoFinalRealizado: saldoReal,
+        saldoFinalProjecao: saldoProj,
         isWeekend: isWeekend(data),
         dayOfWeek: getDayOfWeek(data),
+        isAfterCutoff,
+        isCutoff: i === cutoffIdx,
       } as DayRow;
     });
+
   }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications, historicalRows, monthSources, modelItems]);
 
   // Saldo final oficial vem da SSOT (invariante saldoInicial(M+1) = saldoFinal(M)).
@@ -264,51 +286,67 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <th className="px-3 py-2.5 text-right font-medium text-purple-600">Operações</th>
                 <th className="px-3 py-2.5 text-right font-medium text-blue-700">Saldo Final Previsto</th>
                 <th className="px-3 py-2.5 text-right font-medium text-primary">Saldo Final Realizado</th>
-
+                <th className="px-3 py-2.5 text-right font-medium text-emerald-600" title="Realizado até o último dia com movimento + previsto daí em diante">
+                  Saldo Final Projetado
+                </th>
               </tr>
             </thead>
             <tbody>
               {dailyData.map(day => {
                 const hasMovement = day.entradaPrevista > 0 || day.entradaRealizada > 0 || day.saidaPrevista > 0 || day.saidaRealizada > 0 || day.operacoes !== 0;
+                const showReal = !day.isAfterCutoff;
+                const showPrev = day.isAfterCutoff;
                 return (
-                  <tr
-                    key={day.data}
-                    className={`border-t border-border/30 ${
-                      day.isWeekend ? 'bg-muted/30' : ''
-                    } ${day.saldoFinal < 0 ? 'bg-destructive/5' : ''} ${
-                      !hasMovement && !day.isWeekend ? 'opacity-60' : ''
-                    }`}
-                  >
-                    <td className="px-3 py-2 font-medium text-foreground">{formatDateBR(day.data)}</td>
-                    <td className={`px-3 py-2 ${day.isWeekend ? 'text-muted-foreground font-semibold' : 'text-muted-foreground'}`}>
-                      {day.dayOfWeek}
-                    </td>
-                    <td className="px-3 py-2 text-right text-blue-600">
-                      {day.entradaPrevista > 0 ? formatCurrency(day.entradaPrevista) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right text-primary">
-                      {day.entradaRealizada > 0 ? formatCurrency(day.entradaRealizada) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right text-orange-500">
-                      {day.saidaPrevista > 0 ? formatCurrency(day.saidaPrevista) : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right text-destructive">
-                      {day.saidaRealizada > 0 ? formatCurrency(day.saidaRealizada) : '-'}
-                    </td>
-                    <td className={`px-3 py-2 text-right ${day.operacoes >= 0 ? 'text-purple-600' : 'text-purple-700'}`}>
-                      {day.operacoes !== 0 ? formatCurrency(day.operacoes) : '-'}
-                    </td>
-                    <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalPrevisto >= 0 ? 'text-blue-700' : 'text-destructive'}`}>
-                      {formatCurrency(day.saldoFinalPrevisto)}
-                    </td>
-                    <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalRealizado >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {formatCurrency(day.saldoFinalRealizado)}
-                    </td>
-
-                  </tr>
+                  <Fragment key={day.data}>
+                    {day.isCutoff && (
+                      <tr key={`${day.data}-cut`} className="bg-emerald-500/5 border-t border-emerald-500/30">
+                        <td colSpan={10} className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-emerald-700 font-semibold text-center">
+                          ↑ Realizado até {formatDateBR(day.data)} · ↓ Previsão a partir do próximo dia
+                        </td>
+                      </tr>
+                    )}
+                    <tr
+                      key={day.data}
+                      className={`border-t border-border/30 ${
+                        day.isWeekend ? 'bg-muted/30' : ''
+                      } ${day.saldoFinal < 0 ? 'bg-destructive/5' : ''} ${
+                        !hasMovement && !day.isWeekend ? 'opacity-60' : ''
+                      } ${day.isAfterCutoff ? 'bg-blue-500/[0.03]' : ''}`}
+                    >
+                      <td className="px-3 py-2 font-medium text-foreground">{formatDateBR(day.data)}</td>
+                      <td className={`px-3 py-2 ${day.isWeekend ? 'text-muted-foreground font-semibold' : 'text-muted-foreground'}`}>
+                        {day.dayOfWeek}
+                      </td>
+                      <td className="px-3 py-2 text-right text-blue-600">
+                        {showPrev && day.entradaPrevista > 0 ? formatCurrency(day.entradaPrevista) : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-primary">
+                        {showReal && day.entradaRealizada > 0 ? formatCurrency(day.entradaRealizada) : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-orange-500">
+                        {showPrev && day.saidaPrevista > 0 ? formatCurrency(day.saidaPrevista) : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-destructive">
+                        {showReal && day.saidaRealizada > 0 ? formatCurrency(day.saidaRealizada) : '—'}
+                      </td>
+                      <td className={`px-3 py-2 text-right ${day.operacoes >= 0 ? 'text-purple-600' : 'text-purple-700'}`}>
+                        {day.operacoes !== 0 ? formatCurrency(day.operacoes) : '—'}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalPrevisto >= 0 ? 'text-blue-700' : 'text-destructive'}`}>
+                        {showPrev ? formatCurrency(day.saldoFinalPrevisto) : '—'}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalRealizado >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                        {showReal ? formatCurrency(day.saldoFinalRealizado) : '—'}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-bold ${day.saldoFinalProjecao >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                        {formatCurrency(day.saldoFinalProjecao)}
+                      </td>
+                    </tr>
+                  </Fragment>
                 );
               })}
             </tbody>
+
             <tfoot className="sticky bottom-0 bg-card z-10">
               <tr className="border-t-2 border-border bg-muted/40 font-semibold">
                 <td className="px-3 py-2.5 text-foreground" colSpan={2}>TOTAIS</td>
@@ -319,6 +357,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo) >= 0 ? 'text-blue-700' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo)}</td>
+                <td className={`px-3 py-2.5 text-right font-bold ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo)}</td>
 
 
               </tr>

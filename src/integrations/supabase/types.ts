@@ -282,6 +282,50 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_manual_cards: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          month: string
+          school_id: string
+          section: string
+          sort_order: number
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          month: string
+          school_id: string
+          section?: string
+          sort_order?: number
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          month?: string
+          school_id?: string
+          section?: string
+          sort_order?: number
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_manual_cards_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exclusion_rules: {
         Row: {
           acao: string

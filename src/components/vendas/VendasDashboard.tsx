@@ -7,7 +7,7 @@ import { VendasTable } from './VendasTable';
 import { VendasCharts } from './VendasCharts';
 import { Button } from '@/components/ui/button';
 import { Settings2, Upload } from 'lucide-react';
-import { useMonthSync } from '@/components/realizado/SharedMonthContext';
+import { useMonthSync, useRangeSync } from '@/components/realizado/SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { ImportacaoVendas } from './ImportacaoVendas';
 
@@ -39,6 +39,7 @@ export function VendasDashboard({ schoolId }: Props) {
     selectedList.length === 1 ? selectedList[0] : null,
     (m) => { setPickerValue(m); setHasManuallySelected(true); }
   );
+  useRangeSync(pickerValue, (r) => { setPickerValue(r); setHasManuallySelected(true); });
 
   const { data: salesData = [] } = useQuery({
     queryKey: ['sales_data', schoolId],

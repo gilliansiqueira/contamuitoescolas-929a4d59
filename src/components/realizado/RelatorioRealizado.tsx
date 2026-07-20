@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { useClosedMonths } from '@/hooks/usePeriodClosures';
-import { useMonthSync } from './SharedMonthContext';
+import { useMonthSync, useRangeSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { YoYLineChart } from './YoYLineChart';
 
@@ -341,6 +341,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
     selectedList.length === 1 ? selectedList[0] : null,
     (m) => setMesFilter(m)
   );
+  useRangeSync(mesFilter, (r) => setMesFilter(r));
 
   const filtered = useMemo(() => {
     const set = new Set(effectiveMonths);

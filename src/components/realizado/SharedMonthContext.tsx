@@ -1,43 +1,81 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 
 interface Ctx {
-  /** Mês compartilhado entre as abas no formato 'YYYY-MM', ou null se nenhuma aba selecionou ainda. */
+  /** Mês compartilhado (single) 'YYYY-MM' ou null. */
   month: string | null;
   setMonth: (m: string | null) => void;
+  /** Range compartilhado (multi): 'all' ou 'YYYY-MM,YYYY-MM,...'. */
+  range: string | null;
+  setRange: (r: string | null) => void;
 }
 
 const SharedMonthContext = createContext<Ctx | null>(null);
 
 export function SharedMonthProvider({ children }: { children: ReactNode }) {
   const [month, setMonth] = useState<string | null>(null);
+  const [range, setRange] = useState<string | null>(null);
   return (
-    <SharedMonthContext.Provider value={{ month, setMonth }}>{children}</SharedMonthContext.Provider>
+    <SharedMonthContext.Provider value={{ month, setMonth, range, setRange }}>
+      <GlobalBridge />
+      {children}
+    </SharedMonthContext.Provider>
   );
+}
+
+/**
+ * Bridge: quando o GlobalPeriodProvider está acima, sincroniza automaticamente
+ * o mês/range compartilhado com o filtro global. Sub-tabs continuam usando
+ * `useMonthSync` / `useRangeSync` para reagir sem alterações.
+ */
+function GlobalBridge() {
+  const global = useGlobalPeriod();
+  const ctx = useContext(SharedMonthContext);
+  useEffect(() => {
+    if (!ctx) return;
+    if (global.endMonth) ctx.setMonth(global.endMonth);
+    ctx.setRange(global.value || 'all');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [global.value, global.endMonth]);
+  return null;
 }
 
 export function useSharedMonth(): Ctx {
   const ctx = useContext(SharedMonthContext);
-  // Fallback no-op para uso fora do provider (não quebra)
-  if (!ctx) return { month: null, setMonth: () => {} };
+  if (!ctx) return { month: null, setMonth: () => {}, range: null, setRange: () => {} };
   return ctx;
 }
 
 /**
- * Hook auxiliar: sincroniza um estado local de mês (YYYY-MM) com o mês compartilhado.
- * - Quando o mês compartilhado mudar e for diferente do local, chama setLocal.
- * - Retorna uma função `pushShared(m)` para publicar uma seleção do usuário no contexto.
+ * Sincroniza um mês local (single) com o mês compartilhado.
+ * Retorna pushShared(m) para publicar uma seleção local.
  */
 export function useMonthSync(localMonth: string | null | undefined, setLocal: (m: string) => void) {
   const { month: shared, setMonth: setShared } = useSharedMonth();
 
   useEffect(() => {
-    if (shared && shared !== localMonth) {
-      setLocal(shared);
-    }
+    if (shared && shared !== localMonth) setLocal(shared);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared]);
 
   return (m: string) => {
     if (m && /^\d{4}-\d{2}$/.test(m)) setShared(m);
+  };
+}
+
+/**
+ * Sincroniza um range local ('all' ou comma-sep) com o range compartilhado.
+ * Retorna pushShared(r) para publicar uma seleção local.
+ */
+export function useRangeSync(localRange: string | null | undefined, setLocal: (r: string) => void) {
+  const { range: shared, setRange: setShared } = useSharedMonth();
+
+  useEffect(() => {
+    if (shared && shared !== localRange) setLocal(shared);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shared]);
+
+  return (r: string) => {
+    if (typeof r === 'string') setShared(r);
   };
 }
