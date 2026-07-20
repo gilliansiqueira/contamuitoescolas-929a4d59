@@ -1895,50 +1895,6 @@ export type Database = {
           },
         ]
       }
-      type_classifications: {
-        Row: {
-          classificacao: string
-          created_at: string
-          entra_no_resultado: boolean
-          id: string
-          impacta_caixa: boolean
-          label: string
-          operacao_sinal: string
-          school_id: string
-          tipo_valor: string
-        }
-        Insert: {
-          classificacao?: string
-          created_at?: string
-          entra_no_resultado?: boolean
-          id?: string
-          impacta_caixa?: boolean
-          label?: string
-          operacao_sinal?: string
-          school_id: string
-          tipo_valor: string
-        }
-        Update: {
-          classificacao?: string
-          created_at?: string
-          entra_no_resultado?: boolean
-          id?: string
-          impacta_caixa?: boolean
-          label?: string
-          operacao_sinal?: string
-          school_id?: string
-          tipo_valor?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "type_classifications_school_id_fkey"
-            columns: ["school_id"]
-            isOneToOne: false
-            referencedRelation: "schools"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       upload_records: {
         Row: {
           file_name: string
