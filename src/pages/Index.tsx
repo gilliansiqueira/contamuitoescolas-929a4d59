@@ -23,7 +23,7 @@ import { MonthSelector } from '@/components/MonthSelector';
 import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
 import { UploadHistory } from '@/components/UploadHistory';
 import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
-import { TypeClassificationConfig } from '@/components/TypeClassificationConfig';
+
 import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
 import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
@@ -46,7 +46,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'type_classification' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -63,7 +63,6 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
   { key: 'users', label: 'Usuários', adminOnly: true },
   { key: 'saldo_inicial', label: 'Saldo Inicial' },
-  { key: 'type_classification', label: 'Classificação de Tipos' },
   { key: 'empresa_modelo', label: 'Modelo da Empresa' },
   { key: 'modelos_financeiros', label: 'Modelos Financeiros (Templates)', adminOnly: true },
   { key: 'historico_financeiro', label: 'Histórico Financeiro' },
@@ -321,7 +320,7 @@ function IndexBody({
                 {activeTab === 'export' && <ExportImport schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
                 {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
                 {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
-                {activeTab === 'type_classification' && <TypeClassificationConfig schoolId={school.id} onChanged={refresh} />}
+                
                 {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
                 {activeTab === 'users' && <UsersConfig />}

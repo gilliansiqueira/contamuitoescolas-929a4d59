@@ -1,79 +1,55 @@
+# Refatoração: Templates como única SSOT financeira
 
-# Plano de implementação
+## Escopo confirmado
+- Aplica-se **apenas ao Relatório Realizado / Dashboard / DRE / Fluxo Diário / Fluxo de Caixa / Histórico / Projeção derivada desses dados**.
+- **NÃO se aplica** a entries com `origem ∈ {sponte, cheque, cartao, contas_pagar}` — esses continuam usando o `tipo` nativo do upload (regra já existente em `ORIGENS_SEMPRE_CLASSIFICADAS`).
+- Eliminar `type_classifications` como fonte de decisão. Templates (`financial_model_template_items`) passam a ser a única SSOT com dois campos-chave: `entra_no_resultado` e `impacta_caixa` (= "entra_no_saldo").
 
-Três mudanças coordenadas, entregues em ordem para minimizar retrabalho.
+## Modelo final de decisão
 
----
+Para cada entry elegível (origens `fluxo`, `manual`, `historico`, `simulacao`):
 
-## 1) Filtro de período global (intervalo) no topo
+1. Chave de lookup = `normalizeTipo(entry.tipoOriginal || entry.categoria || entry.tipo)`.
+2. Busca no template da escola (`fetchSchoolTemplateId` → `fetchTemplateItems`) pelo mesmo `normalizeTipo(item.name)`.
+3. Regras:
+   - `entra_no_resultado=true` + `tipo='entrada'` → **receita**
+   - `entra_no_resultado=true` + `tipo='saida'` → **despesa**
+   - `entra_no_resultado=false` + `impacta_caixa=true` → **operação** (sinal pelo `tipo`)
+   - ambos false ou `tipo='ignorar'` → **ignorar**
+4. **Sem match no template** → fallback pelo `entry.tipo` nativo (entrada=receita+, saida=despesa−), preservando comportamento atual e evitando quebra durante transição.
 
-Adicionar ao lado do nome da empresa (em `src/pages/Index.tsx`) um seletor **"De → Até"** (mês inicial e mês final).
+## Fases
 
-- Novo contexto `GlobalPeriodProvider` (`src/contexts/GlobalPeriodContext.tsx`) expondo `{ startMonth, endMonth, setRange }`, com default = últimos 12 meses.
-- Persistência por escola em `localStorage` (`global-period:{schoolId}`) para lembrar a seleção ao trocar de escola.
-- Cada aba passa a **ler** desse contexto em vez do seu filtro local:
-  - Abas de mês único (Dashboard, Fluxo Diário, Indicadores card, Conversão card único): usam `endMonth`.
-  - Abas de intervalo (Relatório Realizado, Recebimento por Categoria, Vendas, Análise de Vendas, Teto de Gastos, Conversão gráficos): usam `[startMonth, endMonth]`.
-- Filtros locais existentes são removidos das abas listadas acima; apenas o Teto de Gastos mantém o seletor de semestre como refinamento adicional dentro do intervalo global.
+### Fase 1 — Novo motor central (Templates SSOT)
+- `src/lib/templateRules.ts` (novo): `resolveTemplateRule(key, items)`, `getEntrySaldoImpact(entry, items)`, `isEntryIgnored`, `filterActiveEntries`, `calculateTotals`, `getEffectiveClassification`. Assinatura espelha `classificationUtils` para migração 1:1.
+- `src/hooks/useSchoolTemplateItems.ts` (novo): retorna `FinancialModelTemplateItem[]` já cacheados por escola (baseado em `useSchoolModel`).
 
-Arquivos tocados: `Index.tsx`, `Dashboard.tsx`, `DailyFlowTable.tsx`, `RelatorioRealizado.tsx`, `IndicadoresDashboard.tsx`, `ConversaoDashboard.tsx`, `VendasDashboard.tsx`, `AnaliseVendasDashboard.tsx`, `RecebimentoCategoria.tsx`, `TetoGastos.tsx`.
+### Fase 2 — Migrar consumidores
+Substituir `useTypeClassifications` → `useSchoolTemplateItems` e `classificationUtils` → `templateRules` em:
+- Hooks: `usePeriodMovementCtx`, `usePeriodSnapshots`, `useSaldoInicialPeriodo`, `useProjectedEntries`, `usePeriodClosures`.
+- Libs: `periodMovement`, `snapshotUtils`, `projectionEngine`, `closureValidation`, `modelValidation`, `ledgerEngine`, `tipoMeta`.
+- Componentes: `Dashboard`, `DailyFlowTable`, `CashFlow`, `FinancialCalendar`, `DataTable`, `ProjectedVsReal`, `Receivables`, `Simulation`, `HistoricoFinanceiroConfig`, `FileUpload`, `upload/TipoMappingStep`.
+- Testes: `ledgerEngine.test`, `periodMovement.test` (adaptar mocks para template items).
 
----
+Regra de isolamento das origens de upload preservada dentro do novo motor (mesma constante `ORIGENS_SEMPRE_CLASSIFICADAS`).
 
-## 2) Fluxo Diário — modo híbrido automático
+### Fase 3 — Remoção da Classificação de Tipos
+- Deletar: `src/components/TypeClassificationConfig.tsx`, `src/lib/classificationUtils.ts` (ou reduzir a stub re-exportando de `templateRules` para não quebrar imports esquecidos — decidir na hora), `useTypeClassifications` em `useFinancialData`.
+- Remover aba/rota da tela em `pages/Index.tsx` e onde for referenciada.
+- Migration Supabase: `DROP TABLE public.type_classifications CASCADE` + remover triggers/guards/functions que a referenciem (validar antes com `pg_depend`).
+- Ajustar `financialModels.applyTemplateToSchool` para deixar de escrever em `type_classifications` (só grava `financial_model_template_id`).
 
-Em `DailyFlowTable.tsx`, detectar automaticamente a **última data com movimento realizado** no mês selecionado (upload real ou realizado).
+### Fase 4 — Auditoria final
+- `rg` por `type_classifications|TypeClassification|useTypeClassifications|classificationUtils` deve retornar 0 hits fora dos arquivos gerados.
+- Rodar `bunx vitest run` e conferir Dashboard/Fluxo/DRE de uma escola real via Playwright para checar paridade de saldo antes/depois.
 
-- Até essa data (inclusive): mostra colunas **Realizado** preenchidas; colunas Previsto ficam ocultas visualmente para essas linhas (mostrando "—").
-- A partir do dia seguinte: mostra apenas **Previsto** (Realizado fica "—").
-- Uma linha divisória sutil ("Últimos dados realizados em DD/MM — previsão a partir daqui") separa as duas seções.
-- Saldo Final Realizado acumula até a data de corte e, a partir dela, passa a acumular Saldo Final Previsto **partindo do último realizado**, dando o saldo final projetado do mês em uma única coluna contínua.
-- Se não houver realizado no mês: comportamento atual (100% previsto). Se o mês inteiro é passado com dados realizados: 100% realizado.
-
-Regra reusa a lógica SSOT já em `periodMovement.ts` (nada de recálculo paralelo).
-
----
-
-## 3) Dashboard — cards manuais arrastáveis por mês
-
-Novos "cards livres" no Dashboard, com **a mesma aparência dos cards de Operações**, editáveis apenas por admin.
-
-### Modelo de dados
-Nova tabela `dashboard_manual_cards`:
-```
-id uuid pk
-school_id uuid fk schools
-month text (YYYY-MM)
-label text
-value numeric
-section text check in ('operacoes','resultado')  -- destino atual
-sort_order int
-created_at, updated_at
-```
-- RLS: SELECT para membros da escola; INSERT/UPDATE/DELETE apenas admin.
-- GRANT authenticated + service_role.
-- Nunca entra em `periodMovement` / SSOT — puramente visual/informativo.
-
-### UI
-- Componente `ManualCardsSection` exibido no Dashboard, agrupado por seção (Operações / Resultado).
-- Admin vê botão "+ Adicionar card" e ícone de edição/exclusão em cada card.
-- **Drag-and-drop** (react já tem `framer-motion`; usar `@dnd-kit/core` — leve) para arrastar entre "Operações" e "Resultado" e reordenar. A seção de destino é persistida em `section`.
-- Um card existe por combinação (school, month, id). O Dashboard mostra os cards do mês ativo (do filtro global).
-- Não impactam saldo, resultado nem gráficos — apenas exibidos ao lado dos cards existentes com um badge discreto "Manual".
-
----
-
-## Ordem de entrega
-1. Migration + contexto global + refactor mínimo de `Index.tsx` para injetar o seletor.
-2. Adaptar Dashboard e Fluxo Diário ao contexto global (maior impacto).
-3. Implementar Fluxo Diário híbrido.
-4. Migrar demais abas para o filtro global (remover filtros locais).
-5. Criar tabela + UI dos cards manuais com drag-and-drop.
+## Riscos & mitigação
+- **Escolas sem template atribuído**: fallback do passo 4 mantém sistema funcional; sinal manual do usuário anterior (`operacao_sinal`) é perdido — aviso no changelog. Se identificarmos escolas assim, oferecemos migração automática (converter `type_classifications` existentes em itens de template privado antes do DROP).
+- **DROP CASCADE**: antes de aprovar a migration final, listar dependências e migrar dados críticos para itens de template.
 
 ## Detalhes técnicos
-- Sem mudanças em `ledgerEngine`, `projectionEngine`, `periodMovement`, `classificationUtils` — SSOT preservada.
-- Cards manuais isolados de qualquer cálculo financeiro por design (não entram em nenhuma agregação).
-- Dependência nova: `@dnd-kit/core` + `@dnd-kit/sortable` (~15KB gzip).
-- Persistência do filtro global via `localStorage`, não banco (preferência de UI por usuário/escola).
+- `FinancialModelTemplateItem.tipo` já cobre `entrada|saida|ignorar` e possui `impacta_caixa` + `entra_no_resultado` — modelo suficiente, sem mudança de schema nos templates.
+- `type_classifications.operacao_sinal` (auto|somar|subtrair): não há equivalente em template. Proposta: quando `tipo='saida'` + `impacta_caixa=true` + `entra_no_resultado=false`, sinal = subtrair; quando `tipo='entrada'` idem, sinal = somar. Cobre 100% dos casos observados; casos "auto" viram fixo pelo `tipo` do item.
+- Manter `ORIGENS_SEMPRE_CLASSIFICADAS = {sponte, cheque, cartao, contas_pagar}` como bypass — projeções desses uploads continuam intactas.
 
-Confirma que posso seguir com esse plano?
+Entrega prevista em uma sequência: Fase 1+2 num commit (sistema funcional com Templates SSOT, tela antiga ainda visível mas ignorada), depois aprovação sua para Fase 3 (remoção + migration DROP).

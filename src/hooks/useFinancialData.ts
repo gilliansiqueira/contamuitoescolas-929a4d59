@@ -275,71 +275,65 @@ export function useDeleteUpload() {
   });
 }
 
-// ─── Type Classifications ───────────────────────────
+// ─── Type Classifications (adaptador: Templates são a única SSOT) ─────
+// A tabela `type_classifications` foi descontinuada. Este hook agora lê os
+// itens do Template Financeiro atribuído à escola e adapta para o formato
+// TypeClassification usado historicamente pelos consumidores.
 export function useTypeClassifications(schoolId: string) {
   return useQuery({
-    queryKey: ['typeClassifications', schoolId],
+    queryKey: ['typeClassifications', 'from-template', schoolId],
     queryFn: async (): Promise<TypeClassification[]> => {
-      const { data, error } = await supabase
-        .from('type_classifications')
+      if (!schoolId) return [];
+      const { data: school } = await supabase
+        .from('schools')
+        .select('financial_model_template_id' as any)
+        .eq('id', schoolId)
+        .maybeSingle();
+      const tplId = (school as any)?.financial_model_template_id as string | null;
+      if (!tplId) return [];
+      const { data: items = [], error } = await supabase
+        .from('financial_model_template_items' as any)
         .select('*')
-        .eq('school_id', schoolId);
+        .eq('template_id', tplId);
       if (error) throw error;
-      return (data ?? []).map((t: any) => ({
-        id: t.id,
-        school_id: t.school_id,
-        tipoValor: t.tipo_valor,
-        entraNoResultado: t.entra_no_resultado,
-        impactaCaixa: t.impacta_caixa,
-        classificacao: t.classificacao as TypeClassification['classificacao'],
-        operacaoSinal: (t.operacao_sinal as TypeClassification['operacaoSinal']) || 'auto',
-        label: t.label,
-      }));
+
+      const { normalizeTipo } = await import('@/lib/classificationUtils');
+      return (items as any[]).map(it => {
+        const isIgnorar = it.tipo === 'ignorar';
+        const impactaCaixa = isIgnorar ? false : !!it.impacta_caixa;
+        const entraNoResultado = isIgnorar ? false : !!it.entra_no_resultado;
+        const classificacao: TypeClassification['classificacao'] =
+          isIgnorar ? 'ignorar' :
+          entraNoResultado && it.tipo === 'entrada' ? 'receita' :
+          entraNoResultado && it.tipo === 'saida' ? 'despesa' :
+          impactaCaixa ? 'operacao' : 'ignorar';
+        const operacaoSinal: TypeClassification['operacaoSinal'] =
+          it.tipo === 'saida' ? 'subtrair' : 'somar';
+        return {
+          id: it.id,
+          school_id: schoolId,
+          tipoValor: normalizeTipo(it.name),
+          entraNoResultado,
+          impactaCaixa,
+          classificacao,
+          operacaoSinal,
+          label: it.name,
+        };
+      });
     },
     enabled: !!schoolId,
   });
 }
 
+// No-op para compatibilidade — edições devem ser feitas nos Templates.
 export function useSaveTypeClassification() {
-  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (tc: TypeClassification) => {
-      // Procura existente por (school_id, tipo_valor) para garantir UPDATE quando aplicável,
-      // evitando colisão de PK quando o id local não bate com o registro do banco.
-      const { data: existing, error: selErr } = await supabase
-        .from('type_classifications')
-        .select('id')
-        .eq('school_id', tc.school_id)
-        .eq('tipo_valor', tc.tipoValor)
-        .maybeSingle();
-      if (selErr) throw selErr;
-
-      const payload = {
-        school_id: tc.school_id,
-        tipo_valor: tc.tipoValor,
-        entra_no_resultado: tc.entraNoResultado,
-        impacta_caixa: tc.impactaCaixa,
-        classificacao: tc.classificacao,
-        operacao_sinal: tc.operacaoSinal || 'auto',
-        label: tc.label,
-      };
-
-      if (existing?.id) {
-        const { error } = await supabase
-          .from('type_classifications')
-          .update(payload)
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('type_classifications')
-          .insert({ id: tc.id, ...payload } as any);
-        if (error) throw error;
-      }
+    mutationFn: async (_tc: TypeClassification) => {
+      return;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['typeClassifications'] }),
   });
 }
+
 
 // ─── Payment Delay Rules ────────────────────────────
 export function usePaymentDelayRules(schoolId: string) {

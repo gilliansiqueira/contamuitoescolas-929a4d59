@@ -30,17 +30,23 @@ export async function validateClosure(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // 1) Tipos válidos (banco + fallbacks padrão do Ledger Engine)
-  const { data: clsRows = [] } = await supabase
-    .from('type_classifications')
-    .select('tipo_valor, label, classificacao')
-    .eq('school_id', schoolId);
-    
+  // 1) Tipos válidos: itens do Template Financeiro da escola + fallbacks do Ledger
+  const { data: school } = await supabase
+    .from('schools')
+    .select('financial_model_template_id' as any)
+    .eq('id', schoolId)
+    .maybeSingle();
+  const tplId = (school as any)?.financial_model_template_id as string | null;
+  const { data: tplItems = [] } = tplId
+    ? await supabase
+        .from('financial_model_template_items' as any)
+        .select('name')
+        .eq('template_id', tplId)
+    : { data: [] as any[] } as any;
+
   const validKeys = new Set<string>();
-  
-  // Adiciona do banco
-  (clsRows as any[]).forEach(c => {
-    validKeys.add(normalizeTipo(c.tipo_valor));
+  (tplItems as any[]).forEach(c => {
+    if (c?.name) validKeys.add(normalizeTipo(c.name));
   });
 
   // Adiciona chaves padrão oficiais do ledgerEngine
