@@ -31,6 +31,7 @@ interface DayRow {
   data: string;
   saldoFinalPrevisto: number;
   saldoFinalRealizado: number;
+  saldoFinalProjecao: number;
   entradaPrevista: number;
   entradaRealizada: number;
   saidaPrevista: number;
@@ -39,7 +40,10 @@ interface DayRow {
   saldoFinal: number;
   isWeekend: boolean;
   dayOfWeek: string;
+  isAfterCutoff: boolean;
+  isCutoff: boolean;
 }
+
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
   const { entries: projectedEntries } = useProjectedEntries(schoolId);
@@ -178,15 +182,29 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     });
 
 
+    // Cutoff: último dia com QUALQUER movimento realizado.
+    const cutoffIdx = allDays.reduce((last, data, i) => {
+      const d = byDate[data];
+      if (d && (d.entradaRealizada > 0 || d.saidaRealizada > 0 || d.operacoesReal !== 0)) return i;
+      return last;
+    }, -1);
+
     let saldo = priorSaldo;
     let saldoPrev = priorSaldo;
     let saldoReal = priorSaldo;
-    return allDays.map(data => {
+    let saldoProj = priorSaldo; // híbrido: realizado até cutoff, previsto depois
+    return allDays.map((data, i) => {
       const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
       const operacoes = d.operacoesPrev + d.operacoesReal;
       saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + operacoes;
       saldoPrev += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
       saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoesReal;
+      const isAfterCutoff = cutoffIdx >= 0 && i > cutoffIdx;
+      if (!isAfterCutoff) {
+        saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal;
+      } else {
+        saldoProj += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
+      }
       return {
         data,
         entradaPrevista: d.entradaPrevista,
@@ -197,10 +215,14 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         saldoFinal: saldo,
         saldoFinalPrevisto: saldoPrev,
         saldoFinalRealizado: saldoReal,
+        saldoFinalProjecao: saldoProj,
         isWeekend: isWeekend(data),
         dayOfWeek: getDayOfWeek(data),
+        isAfterCutoff,
+        isCutoff: i === cutoffIdx,
       } as DayRow;
     });
+
   }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications, historicalRows, monthSources, modelItems]);
 
   // Saldo final oficial vem da SSOT (invariante saldoInicial(M+1) = saldoFinal(M)).
