@@ -34,9 +34,9 @@ function GlobalBridge() {
   useEffect(() => {
     if (!ctx) return;
     if (global.endMonth) ctx.setMonth(global.endMonth);
-    ctx.setRange(global.range || 'all');
+    ctx.setRange(global.value || 'all');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [global.range, global.endMonth]);
+  }, [global.value, global.endMonth]);
   return null;
 }
 
