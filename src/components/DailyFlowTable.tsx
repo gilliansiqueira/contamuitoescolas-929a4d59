@@ -357,6 +357,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo) >= 0 ? 'text-blue-700' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo)}</td>
+                <td className={`px-3 py-2.5 text-right font-bold ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo)}</td>
 
 
               </tr>
