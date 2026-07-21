@@ -294,8 +294,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             <tbody>
               {dailyData.map(day => {
                 const hasMovement = day.entradaPrevista > 0 || day.entradaRealizada > 0 || day.saidaPrevista > 0 || day.saidaRealizada > 0 || day.operacoes !== 0;
+                // Realizado só aparece até o corte; Previsto aparece SEMPRE
+                // (assim vê-se quanto foi realizado + a previsão para fechar o mês).
                 const showReal = !day.isAfterCutoff;
-                const showPrev = day.isAfterCutoff;
+                const showPrev = true;
                 return (
                   <Fragment key={day.data}>
                     {day.isCutoff && (
