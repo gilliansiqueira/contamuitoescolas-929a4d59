@@ -537,7 +537,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
             <Layers className="w-4 h-4" /> Por Tipo Financeiro
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {tipoAggregations.filter(a => a.entraNoResultado).map((a, i) => {
               const Icon = a.classificacao === 'receita' ? ArrowUp : a.classificacao === 'despesa' ? ArrowDown : Coins;
               const color = a.classificacao === 'receita' ? 'text-success' : a.classificacao === 'despesa' ? 'text-destructive' : 'text-muted-foreground';
@@ -568,7 +568,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
             <Coins className="w-4 h-4" /> Operações Financeiras
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).map((a, i) => {
               const Icon = a.isEntrada ? ArrowUp : ArrowDown;
               const color = a.isEntrada ? 'text-success' : 'text-destructive';
