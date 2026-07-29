@@ -985,6 +985,39 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             />
           )}
 
+          {selectedType.key === 'contas_pagar' && (
+            <div className="glass-card rounded-xl p-4 space-y-3">
+              <p className="text-sm font-medium">Quando o vencimento cair em dia não útil:</p>
+              <div className="space-y-2">
+                {([
+                  { v: 'anterior', label: 'Antecipar para o dia útil anterior' },
+                  { v: 'proximo', label: 'Prorrogar para o próximo dia útil' },
+                  { v: 'manter', label: 'Manter a data original (apenas para projeção)' },
+                ] as { v: WeekendPolicy; label: string }[]).map(opt => (
+                  <label key={opt.v} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="weekend-policy"
+                      className="accent-primary"
+                      checked={weekendPolicy === opt.v}
+                      onChange={() => {
+                        setWeekendPolicy(opt.v);
+                        if (preview.length > 0 && pendingRows.length > 0) {
+                          const { entries, errors: errs } = convertRows(
+                            pendingRows, selectedType, schoolId, rules, currentMapping, classifications, opt.v
+                          );
+                          setPreview(entries);
+                          setErrors(errs);
+                        }
+                      }}
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {preview.length === 0 && columnErrors.length === 0 && !needsMapping && !tipoMapping && (
             <label className="glass-card rounded-xl p-8 border-2 border-dashed border-primary/30 hover:border-primary/60 transition-colors cursor-pointer flex flex-col items-center gap-3">
               <Upload className="w-10 h-10 text-primary" />
