@@ -27,6 +27,18 @@ function formatValue(v: number, type: string) {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Rótulo curto para exibir dentro do gráfico (suave, sem poluir). */
+function formatCompact(v: number, type: string) {
+  if (type === 'currency') {
+    const abs = Math.abs(v);
+    if (abs >= 1000) return `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`;
+    return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  }
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+}
+
+
 function getThresholdColor(def: KpiDefinitionWithThresholds, value: number | null): string {
   if (value === null || !def.thresholds.length) return 'hsl(var(--muted-foreground))';
   for (const t of def.thresholds) {
