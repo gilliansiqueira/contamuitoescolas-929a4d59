@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { FinancialEntry, TypeClassification } from '@/types/financial';
@@ -12,6 +12,8 @@ import {
   computeSaldoInicial,
   computeSaldoFinal,
   includeEntryForMonth,
+  computeFluxoCutoff,
+
   resolveMonthSource,
   type MovementSource,
   type PorTipoAgg,
@@ -32,6 +34,9 @@ import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { InvestimentoSection } from '@/components/InvestimentoSection';
 import { ManualCardsSection } from '@/components/dashboard/ManualCardsSection';
 import { ResumoMensalImagem } from '@/components/dashboard/ResumoMensalImagem';
+import { ProjecaoNotas } from '@/components/dashboard/ProjecaoNotas';
+import { ExportProjecaoPdf } from '@/components/dashboard/ExportProjecaoPdf';
+
 
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 
@@ -115,8 +120,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const includeEntry = useCallback((e: FinancialEntry, src: MovementSource) => {
     // Aceita ProjectedEntry e FinancialEntry; garante dataProjetada.
     const pe = { ...e, dataProjetada: (e as any).dataProjetada ?? e.data, impacto: (e as any).impacto ?? 0 } as any;
-    return includeEntryForMonth(pe, src, todayStr, classifications);
-  }, [todayStr, classifications]);
+    const fluxoCutoff = src === 'fluxo' ? computeFluxoCutoff(pe.dataProjetada.slice(0, 7), movementCtx) : undefined;
+    return includeEntryForMonth(pe, src, todayStr, classifications, { fluxoCutoff });
+  }, [todayStr, classifications, movementCtx]);
+
 
   // ─── SSOT: movimentação canônica por mês selecionado ───
   const monthMovements = useMemo(
@@ -489,10 +496,20 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return parts.join(' + ');
   }, [sourcesUsed]);
 
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  // Item 8: meses com realizado parcial (não fechados) ficam sinalizados.
+  const mesesParciais = useMemo(
+    () => monthMovements.filter(m => m.parcial).map(m => ({ month: m.month, realizadoAte: m.realizadoAte })),
+    [monthMovements]
+  );
+
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="space-y-6" ref={exportRef}>
+      <div className="flex flex-wrap items-center justify-end gap-2" data-export-hide>
         <ResumoMensalImagem schoolId={schoolId} selectedMonth={selectedMonth} />
+        <ExportProjecaoPdf targetRef={exportRef} fileName={`projecao-${selectedMonth === 'all' ? 'periodo' : selectedMonth.replace(/,/g, '_')}`} />
         {!isPresentationMode && (
           <Button variant="ghost" size="sm" onClick={() => setShowInsights(!showInsights)}>
             {showInsights ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
@@ -501,7 +518,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         )}
       </div>
 
+      {mesesParciais.length > 0 && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs sm:text-sm">
+          <span className="font-semibold">Período em aberto (parcial).</span>{' '}
+          {mesesParciais.map(m => `${m.month} realizado até ${m.realizadoAte ? m.realizadoAte.split('-').reverse().join('/') : '—'}`).join(' · ')}
+          {' — '}os dias seguintes são projeção. O mês só é consolidado como realizado após o fechamento.
+        </div>
+      )}
+
       {showInsights && <InsightsBar insights={insights} title="Insights & Alertas" emptyHint="Sem alertas relevantes para este período." />}
+
+
 
       {/* KPIs Fixos: Saldo Inicial + Resultado + Saldo Final */}
       <div>
@@ -830,6 +857,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           <Receivables schoolId={schoolId} selectedMonth={selectedMonth} />
         </motion.div>
       )}
+
+      {/* Observações do período (projeção) */}
+      <ProjecaoNotas schoolId={schoolId} selectedMonth={selectedMonth} />
     </div>
   );
 }

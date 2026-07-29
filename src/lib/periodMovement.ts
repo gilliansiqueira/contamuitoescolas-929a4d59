@@ -62,7 +62,12 @@ export interface MonthMovement {
   porTipo: PorTipoAgg[];
   /** Entries efetivamente considerados neste mês para movimentação de caixa. */
   entriesConsiderados: ProjectedEntry[];
+  /** Mês com realizado parcial (fluxo importado + projeção após o corte). */
+  parcial: boolean;
+  /** Último dia com movimento realizado (quando `parcial`). */
+  realizadoAte?: string;
 }
+
 
 export interface PeriodMovementCtx {
   entries: ProjectedEntry[];                  // já vem de useProjectedEntries (com dataProjetada + impacto)
@@ -116,9 +121,23 @@ export function resolveMonthSource(
 }
 
 /**
+ * Último dia do mês que já possui movimento REALIZADO (origem 'fluxo').
+ * Retorna undefined quando o mês não tem fluxo importado.
+ */
+export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): string | undefined {
+  let cutoff: string | undefined;
+  for (const e of ctx.entries) {
+    if (e.origem !== 'fluxo') continue;
+    if (monthOf(e.dataProjetada) !== month) continue;
+    if (!cutoff || e.dataProjetada > cutoff) cutoff = e.dataProjetada;
+  }
+  return cutoff;
+}
+
+/**
  * Decide se uma entry participa da movimentação de caixa do seu mês,
  * dada a fonte oficial daquele mês. Nunca há sobreposição:
- *  - fonte='fluxo'   → fluxo + manual + projeções FUTURAS (>= hoje)
+ *  - fonte='fluxo'   → fluxo + manual até o corte + projeções APÓS o corte
  *  - fonte='historico'→ apenas operações (histórico já cobre rec/desp)
  *  - fonte='projecao'→ tudo que não seja fluxo
  *  - fonte='snapshot'/'vazio' → nada (snapshot vem congelado)
@@ -127,15 +146,19 @@ export function includeEntryForMonth(
   entry: ProjectedEntry,
   source: MovementSource,
   todayStr: string,
-  classifications: TypeClassification[]
+  classifications: TypeClassification[],
+  opts: { fluxoCutoff?: string } = {}
 ): boolean {
   if (source === 'fluxo') {
-    // Quando há fluxo realizado no mês, ele substitui integralmente a projeção
-    // do próprio mês. Projeções futuras (contas a pagar, sponte, cheques, etc.)
-    // NÃO entram no resultado nem no saldo — apenas fluxo/manual.
+    // Mês parcialmente realizado: o fluxo importado manda até o último dia
+    // com movimento (corte). Depois do corte, voltamos a usar a projeção —
+    // assim nunca há soma duplicada no mesmo dia e o saldo final do mês já
+    // reflete "realizado até X + previsão até o fim do mês".
     if (entry.origem === 'fluxo') return true;
     if (entry.origem === 'manual') return true;
-    return false;
+    const cutoff = opts.fluxoCutoff;
+    if (!cutoff) return false;
+    return entry.dataProjetada > cutoff;
   }
   if (source === 'historico') {
     const rule = resolveEntryLedgerRule(entry, classifications);
@@ -145,6 +168,7 @@ export function includeEntryForMonth(
   if (source === 'projecao') return entry.origem !== 'fluxo';
   return false;
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Construção da movimentação de um mês
@@ -162,6 +186,7 @@ function emptyMovement(month: string, source: MovementSource): MonthMovement {
     saldoMovimento: 0,
     porTipo: [],
     entriesConsiderados: [],
+    parcial: false,
   };
 }
 
@@ -197,6 +222,7 @@ function fromSnapshot(snap: PeriodClosureSnapshot, isInModel?: (l: string) => bo
     saldoMovimento: receitas - despesas + operacoesImpacto,
     porTipo,
     entriesConsiderados: [],
+    parcial: false,
   };
 }
 
@@ -217,8 +243,12 @@ export function buildMonthMovement(
 
   const todayStr = ctx.todayStr ?? new Date().toISOString().slice(0, 10);
   const mov = emptyMovement(month, source);
+  const fluxoCutoff = source === 'fluxo' ? computeFluxoCutoff(month, ctx) : undefined;
+  mov.parcial = source === 'fluxo';
+  mov.realizadoAte = fluxoCutoff;
   const byKey = new Map<string, PorTipoAgg>();
   let saldoDelta = 0; // acumula somente o que efetivamente impacta o caixa
+
 
   const ensureKey = (
     key: string,
@@ -268,7 +298,7 @@ export function buildMonthMovement(
   // 2. Entries do mês
   const monthEntries = ctx.entries.filter(e => monthOf(e.dataProjetada) === month);
   for (const e of monthEntries) {
-    if (!includeEntryForMonth(e, source, todayStr, ctx.classifications)) continue;
+    if (!includeEntryForMonth(e, source, todayStr, ctx.classifications, { fluxoCutoff })) continue;
     const valor = Number(e.valor) || 0;
     if (valor === 0) continue;
 

@@ -11,6 +11,11 @@ export interface FinancialEntry {
   tipoOriginal?: string; // raw "tipo" value from the source file
   tipoRegistro: 'realizado' | 'projetado';
   editadoManualmente: boolean;
+  /** Data de vencimento original, antes de qualquer prazo aplicado na importação. */
+  dataOriginal?: string;
+  /** Verdadeiro quando o prazo de compensação já foi aplicado e gravado em `data`. */
+  delayJaAplicado?: boolean;
+
 }
 
 export interface School {

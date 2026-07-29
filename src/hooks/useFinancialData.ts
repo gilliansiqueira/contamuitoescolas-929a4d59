@@ -99,7 +99,10 @@ function mapEntry(e: any): FinancialEntry {
     tipoOriginal: e.tipo_original ?? undefined,
     tipoRegistro: (e.tipo_registro as 'realizado' | 'projetado') || 'realizado',
     editadoManualmente: e.editado_manualmente ?? false,
+    dataOriginal: e.data_original ?? undefined,
+    delayJaAplicado: !!e.delay_rule_applied,
   };
+
 }
 
 export function useEntries(schoolId: string) {

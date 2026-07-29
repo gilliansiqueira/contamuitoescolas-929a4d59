@@ -69,6 +69,10 @@ export function applyPaymentDelay(
   rules: PaymentDelayRule[]
 ): string {
   if (entry.tipoRegistro !== 'projetado') return entry.data;
+  // O prazo pode já ter sido aplicado e persistido na importação (Sponte
+  // auditado grava `data` deslocada + `delay_rule_applied`). Reaplicar aqui
+  // deslocaria a data uma segunda vez (ex.: 30/07 → 03/08 → 05/08).
+  if (entry.delayJaAplicado) return entry.data;
   if (entry.origem !== 'sponte' && entry.origem !== 'cheque') return entry.data;
   // Para uploads de cheque, a forma de cobrança é sempre "Cheque",
   // independente da categoria armazenada na entry.
@@ -76,6 +80,7 @@ export function applyPaymentDelay(
   if (!forma) return entry.data;
   const rule = findDelayRule(forma, rules);
   const prazo = rule?.prazo ?? 0;
+
   const dataFinal = prazo > 0 ? addDaysAndAdjust(entry.data, prazo) : entry.data;
   // Debug para validação de prazos por forma de cobrança
   if (normalizeTipo(forma).includes('credito') || entry.origem === 'cheque') {

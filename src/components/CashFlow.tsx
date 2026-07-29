@@ -9,6 +9,8 @@ import {
   buildMonthMovement,
   computeSaldoInicial,
   includeEntryForMonth,
+  computeFluxoCutoff,
+
   resolveMonthSource,
 } from '@/lib/periodMovement';
 
@@ -32,9 +34,12 @@ export function CashFlow({ schoolId, selectedMonth }: CashFlowProps) {
   const activeEntries = useMemo(
     () => projectedEntries.filter(e => {
       if (e.impacto === 0) return false;
-      const src = resolveMonthSource(e.dataProjetada.slice(0, 7), movementCtx);
-      return includeEntryForMonth(e, src, todayStr, classifications);
+      const month = e.dataProjetada.slice(0, 7);
+      const src = resolveMonthSource(month, movementCtx);
+      const fluxoCutoff = src === 'fluxo' ? computeFluxoCutoff(month, movementCtx) : undefined;
+      return includeEntryForMonth(e, src, todayStr, classifications, { fluxoCutoff });
     }),
+
     [projectedEntries, movementCtx, todayStr, classifications]
   );
 
