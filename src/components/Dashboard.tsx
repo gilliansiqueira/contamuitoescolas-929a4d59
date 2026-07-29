@@ -31,6 +31,8 @@ import { usePresentation } from '@/components/presentation-provider';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { InvestimentoSection } from '@/components/InvestimentoSection';
 import { ManualCardsSection } from '@/components/dashboard/ManualCardsSection';
+import { ResumoMensalImagem } from '@/components/dashboard/ResumoMensalImagem';
+
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 
 interface DashboardProps {
