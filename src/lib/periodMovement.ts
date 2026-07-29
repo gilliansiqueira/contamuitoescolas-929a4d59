@@ -121,8 +121,11 @@ export function resolveMonthSource(
 }
 
 /**
- * Último dia do mês que já possui movimento REALIZADO (origem 'fluxo').
- * Retorna undefined quando o mês não tem fluxo importado.
+ * Data de corte do realizado no mês: até ela vale o fluxo importado, depois
+ * dela volta a valer a projeção. É o maior valor entre o último dia com
+ * movimento de fluxo e "hoje" (para meses já encerrados, o fim do mês) —
+ * assim dias sem movimento dentro do trecho já conciliado não voltam a
+ * receber projeção.
  */
 export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): string | undefined {
   let cutoff: string | undefined;
@@ -131,8 +134,20 @@ export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): strin
     if (monthOf(e.dataProjetada) !== month) continue;
     if (!cutoff || e.dataProjetada > cutoff) cutoff = e.dataProjetada;
   }
+  if (!cutoff) return undefined;
+
+  const todayStr = ctx.todayStr ?? new Date().toISOString().slice(0, 10);
+  const currentMonth = monthOf(todayStr);
+  if (month < currentMonth) {
+    // Mês já encerrado: o realizado cobre o mês inteiro.
+    const [y, m] = month.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return `${month}-${String(lastDay).padStart(2, '0')}`;
+  }
+  if (month === currentMonth && todayStr > cutoff) return todayStr;
   return cutoff;
 }
+
 
 /**
  * Decide se uma entry participa da movimentação de caixa do seu mês,
