@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Settings, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2, Calendar } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useKpiDefinitions, useKpiValues } from './useKpiData';
 import { KpiCard } from './KpiCard';
