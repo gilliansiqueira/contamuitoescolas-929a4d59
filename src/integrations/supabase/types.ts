@@ -1197,6 +1197,44 @@ export type Database = {
           },
         ]
       }
+      projection_notes: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          note: string
+          school_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          note?: string
+          school_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          note?: string
+          school_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projection_notes_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       realized_entries: {
         Row: {
           complemento: string

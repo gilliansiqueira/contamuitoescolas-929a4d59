@@ -42,3 +42,4 @@ Updated: agora
 - [Gate do Modelo Financeiro](mem://funcionalidades/modelo-financeiro-gate-estrito) — Dashboard/Histórico/Snapshots filtram tipos fora do modelo ativo
 - [Aba Vendas](mem://features/relatorio-realizado-vendas) — Receitas por forma de pagamento + bandeiras de cartão com ícones
 - [SSOT Financeira](mem://financeiro/single-source-of-truth) — classificationUtils + tipoMeta + useSchoolModel em todas as telas, sem heurística por nome
+- [Mês parcial e prazo único](mem://features/mes-parcial-corte-realizado) — Corte do realizado em meses abertos, prazo não reaplicado, observações por mês
