@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro, TypeClassification } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { supabase } from '@/integrations/supabase/client';
-import { parseSpreadsheetDate, toPreviousBusinessDay } from '@/lib/dateUtils';
+import { parseSpreadsheetDate, toPreviousBusinessDay, toNextBusinessDay } from '@/lib/dateUtils';
 
 // Tipos de upload que representam PROJEÇÃO de recebíveis/contas a pagar.
 // Para esses tipos, um novo upload SUBSTITUI a projeção futura existente
@@ -147,13 +147,23 @@ function classifyFluxoEntry(
   return { tipo: valor >= 0 ? 'entrada' : 'saida', tipoOriginal };
 }
 
+export type WeekendPolicy = 'anterior' | 'proximo' | 'manter';
+
+/** Aplica a política de dia não útil escolhida pelo usuário. */
+function applyWeekendPolicy(dateStr: string, policy: WeekendPolicy): string {
+  if (policy === 'manter') return dateStr;
+  if (policy === 'proximo') return toNextBusinessDay(dateStr);
+  return toPreviousBusinessDay(dateStr);
+}
+
 function convertRows(
   rows: Record<string, any>[],
   uploadType: UploadType,
   schoolId: string,
   rules: ExclusionRule[],
   columnMapping: Record<string, string>,
-  classifications: TypeClassification[]
+  classifications: TypeClassification[],
+  weekendPolicy: WeekendPolicy = 'anterior'
 ): { entries: FinancialEntry[]; errors: ValidationError[] } {
   const errors: ValidationError[] = [];
   const entries: FinancialEntry[] = [];
@@ -222,8 +232,8 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_vencimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          // Projeção nunca cai em fim de semana — antecipa para sexta.
-          const dt = toPreviousBusinessDay(dtRaw);
+          // Vencimento em dia não útil segue a política escolhida no upload.
+          const dt = applyWeekendPolicy(dtRaw, weekendPolicy);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Pagar - ${get(row, 'favorecido') || ''}`,
             valor: Math.abs(val), tipo: 'saida', categoria: get(row, 'categoria') || 'despesa',
@@ -319,6 +329,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '' });
   const [savingManual, setSavingManual] = useState(false);
+  const [weekendPolicy, setWeekendPolicy] = useState<WeekendPolicy>('anterior');
 
   const totals = useMemo(() => {
     return calculateTotals(preview, classifications);
@@ -496,7 +507,9 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       return;
     }
 
-    const { entries, errors: validationErrors } = convertRows(rows, uploadType, schoolId, rules, mapping, classifications);
+    setPendingRows(rows);
+    setCurrentMapping(mapping);
+    const { entries, errors: validationErrors } = convertRows(rows, uploadType, schoolId, rules, mapping, classifications, weekendPolicy);
     setPreview(entries);
     setErrors(validationErrors);
     setNeedsMapping(false);
@@ -523,7 +536,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         }.`
       );
     }
-  }, [schoolId, rules, classifications, modelItems]);
+  }, [schoolId, rules, classifications, modelItems, weekendPolicy]);
 
   const handleFile = useCallback(async (file: File, uploadType: UploadType) => {
     setFileName(file.name);
@@ -970,6 +983,39 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
               onCancel={handleTipoMappingCancel}
               onSaveAsDefault={handleTipoMappingSaveAsDefault}
             />
+          )}
+
+          {selectedType.key === 'contas_pagar' && (
+            <div className="glass-card rounded-xl p-4 space-y-3">
+              <p className="text-sm font-medium">Quando o vencimento cair em dia não útil:</p>
+              <div className="space-y-2">
+                {([
+                  { v: 'anterior', label: 'Antecipar para o dia útil anterior' },
+                  { v: 'proximo', label: 'Prorrogar para o próximo dia útil' },
+                  { v: 'manter', label: 'Manter a data original (apenas para projeção)' },
+                ] as { v: WeekendPolicy; label: string }[]).map(opt => (
+                  <label key={opt.v} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="weekend-policy"
+                      className="accent-primary"
+                      checked={weekendPolicy === opt.v}
+                      onChange={() => {
+                        setWeekendPolicy(opt.v);
+                        if (preview.length > 0 && pendingRows.length > 0) {
+                          const { entries, errors: errs } = convertRows(
+                            pendingRows, selectedType, schoolId, rules, currentMapping, classifications, opt.v
+                          );
+                          setPreview(entries);
+                          setErrors(errs);
+                        }
+                      }}
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           )}
 
           {preview.length === 0 && columnErrors.length === 0 && !needsMapping && !tipoMapping && (
