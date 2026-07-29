@@ -122,10 +122,13 @@ export function resolveMonthSource(
 
 /**
  * Data de corte do realizado no mês: até ela vale o fluxo importado, depois
- * dela volta a valer a projeção. É o maior valor entre o último dia com
- * movimento de fluxo e "hoje" (para meses já encerrados, o fim do mês) —
- * assim dias sem movimento dentro do trecho já conciliado não voltam a
- * receber projeção.
+ * dela volta a valer a projeção. É o último dia com movimento de fluxo
+ * importado (para meses já encerrados, o fim do mês).
+ *
+ * Importante: em mês ainda em aberto NÃO estendemos o corte até "hoje" —
+ * o saldo final do mês precisa ser o SALDO PROJETADO (realizado até o corte
+ * + previsão de todos os dias seguintes), pois é ele que será herdado como
+ * saldo inicial do mês seguinte.
  */
 export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): string | undefined {
   let cutoff: string | undefined;
@@ -144,9 +147,9 @@ export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): strin
     const lastDay = new Date(y, m, 0).getDate();
     return `${month}-${String(lastDay).padStart(2, '0')}`;
   }
-  if (month === currentMonth && todayStr > cutoff) return todayStr;
   return cutoff;
 }
+
 
 
 /**
