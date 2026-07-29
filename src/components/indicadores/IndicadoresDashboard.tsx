@@ -138,7 +138,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
                 definition={def}
                 values={allValues.filter(v => v.kpi_definition_id === def.id)}
                 months={months}
-                insights={insightsByDef[def.id] ?? []}
+                
                 referenceMonth={effectiveRefMonth}
               />
             ))}
