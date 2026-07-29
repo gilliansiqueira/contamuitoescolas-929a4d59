@@ -6,7 +6,7 @@ import { KpiCard } from './KpiCard';
 import { KpiConfigDrawer } from './KpiConfigDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePresentation } from '@/components/presentation-provider';
-import type { Insight } from '@/components/InsightsBar';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMonthSync, useRangeSync } from '@/components/realizado/SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
