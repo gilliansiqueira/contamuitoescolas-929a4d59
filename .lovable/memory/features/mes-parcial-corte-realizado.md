@@ -5,7 +5,7 @@ type: feature
 ---
 **Corte do realizado (`computeFluxoCutoff` em `src/lib/periodMovement.ts`)**
 Quando um mês tem entries de origem `fluxo` (fonte = 'fluxo') e não está fechado:
-- O realizado vale até a data de corte = maior valor entre o último dia com movimento de fluxo e "hoje"; para meses já encerrados o corte é o último dia do mês.
+- O realizado vale até a data de corte = último dia com movimento de fluxo (para meses já encerrados o corte é o último dia do mês). Não se estende o corte até "hoje": mês em aberto herda o SALDO PROJETADO para o mês seguinte, não o realizado parcial.
 - Depois do corte, a projeção volta a valer (contas a pagar, sponte, cheque, cartão). Nunca há soma no mesmo dia.
 - `MonthMovement.parcial` + `realizadoAte` sinalizam o mês em aberto; o Dashboard mostra um aviso "Período em aberto (parcial)".
 - Consequência: `saldoFinal(M)` de um mês parcial já é "realizado até X + previsão até o fim do mês" e é herdado como `saldoInicial(M+1)`.
