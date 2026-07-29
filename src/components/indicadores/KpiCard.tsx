@@ -241,9 +241,13 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
             )}
             <span className="text-muted-foreground">vs {yoy.prevYear}</span>
           </div>
-          <div className="text-[10px] text-muted-foreground">
+          <div className="text-[10px] text-muted-foreground text-center leading-snug">
+            Comparado ao acumulado do ano passado (mesmo período)
+          </div>
+          <div className="text-[10px] text-muted-foreground text-center">
             Média Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
           </div>
+
         </div>
       )}
 
