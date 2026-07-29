@@ -38,7 +38,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
     return map;
   }, [recebiveis]);
 
-  const totalGeral = useMemo(() => recebiveis.reduce((s, e) => s + e.valor, 0), [recebiveis]);
+  
   const totalRealizado = useMemo(() =>
     recebiveis.filter(e => e.tipoRegistro === 'realizado').reduce((s, e) => s + e.valor, 0),
     [recebiveis]
@@ -62,11 +62,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
     <div className="space-y-5">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-xl p-5">
         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Resumo de Recebíveis</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <span className="text-[10px] text-muted-foreground uppercase">Total</span>
-            <p className="text-lg font-display font-bold text-success">{formatCurrency(totalGeral)}</p>
-          </div>
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <span className="text-[10px] text-muted-foreground uppercase">Realizado</span>
             <p className="text-lg font-display font-bold text-blue-600">{formatCurrency(totalRealizado)}</p>
@@ -78,9 +74,9 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
         </div>
       </motion.div>
 
+
       {sortedEntries.map(([tipo, items], gi) => {
         const config = RECEIVABLE_CONFIG[tipo];
-        const total = items.reduce((s, e) => s + e.valor, 0);
         const realized = items.filter(e => e.tipoRegistro === 'realizado').reduce((s, e) => s + e.valor, 0);
         const projected = items.filter(e => e.tipoRegistro === 'projetado').reduce((s, e) => s + e.valor, 0);
         const Icon = config.icon;
@@ -96,7 +92,10 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                   </p>
                 </div>
               </div>
-              <p className="text-lg font-display font-bold text-success">{formatCurrency(total)}</p>
+              <div className="text-right">
+                <p className="text-sm font-display font-bold text-blue-600">{formatCurrency(realized)}</p>
+                <p className="text-sm font-display font-bold text-amber-600">{formatCurrency(projected)}</p>
+              </div>
             </div>
             <div className="max-h-64 overflow-y-auto">
               <table className="w-full text-xs"><thead><tr className="bg-surface">
