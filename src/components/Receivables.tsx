@@ -77,7 +77,6 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
 
       {sortedEntries.map(([tipo, items], gi) => {
         const config = RECEIVABLE_CONFIG[tipo];
-        const total = items.reduce((s, e) => s + e.valor, 0);
         const realized = items.filter(e => e.tipoRegistro === 'realizado').reduce((s, e) => s + e.valor, 0);
         const projected = items.filter(e => e.tipoRegistro === 'projetado').reduce((s, e) => s + e.valor, 0);
         const Icon = config.icon;
@@ -93,7 +92,10 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                   </p>
                 </div>
               </div>
-              <p className="text-lg font-display font-bold text-success">{formatCurrency(total)}</p>
+              <div className="text-right">
+                <p className="text-sm font-display font-bold text-blue-600">{formatCurrency(realized)}</p>
+                <p className="text-sm font-display font-bold text-amber-600">{formatCurrency(projected)}</p>
+              </div>
             </div>
             <div className="max-h-64 overflow-y-auto">
               <table className="w-full text-xs"><thead><tr className="bg-surface">
