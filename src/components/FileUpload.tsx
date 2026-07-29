@@ -506,7 +506,9 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       return;
     }
 
-    const { entries, errors: validationErrors } = convertRows(rows, uploadType, schoolId, rules, mapping, classifications);
+    setPendingRows(rows);
+    setCurrentMapping(mapping);
+    const { entries, errors: validationErrors } = convertRows(rows, uploadType, schoolId, rules, mapping, classifications, weekendPolicy);
     setPreview(entries);
     setErrors(validationErrors);
     setNeedsMapping(false);
