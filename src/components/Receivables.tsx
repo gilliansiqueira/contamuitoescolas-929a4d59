@@ -38,7 +38,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
     return map;
   }, [recebiveis]);
 
-  const totalGeral = useMemo(() => recebiveis.reduce((s, e) => s + e.valor, 0), [recebiveis]);
+  
   const totalRealizado = useMemo(() =>
     recebiveis.filter(e => e.tipoRegistro === 'realizado').reduce((s, e) => s + e.valor, 0),
     [recebiveis]
