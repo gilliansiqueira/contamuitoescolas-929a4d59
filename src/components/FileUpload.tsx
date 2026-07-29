@@ -232,8 +232,8 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_vencimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          // Projeção nunca cai em fim de semana — antecipa para sexta.
-          const dt = toPreviousBusinessDay(dtRaw);
+          // Vencimento em dia não útil segue a política escolhida no upload.
+          const dt = applyWeekendPolicy(dtRaw, weekendPolicy);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Pagar - ${get(row, 'favorecido') || ''}`,
             valor: Math.abs(val), tipo: 'saida', categoria: get(row, 'categoria') || 'despesa',
