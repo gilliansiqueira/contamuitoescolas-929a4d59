@@ -31,6 +31,8 @@ import { usePresentation } from '@/components/presentation-provider';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
 import { InvestimentoSection } from '@/components/InvestimentoSection';
 import { ManualCardsSection } from '@/components/dashboard/ManualCardsSection';
+import { ResumoMensalImagem } from '@/components/dashboard/ResumoMensalImagem';
+
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 
 interface DashboardProps {
@@ -489,43 +491,45 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      {!isPresentationMode && (
-        <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <ResumoMensalImagem schoolId={schoolId} selectedMonth={selectedMonth} />
+        {!isPresentationMode && (
           <Button variant="ghost" size="sm" onClick={() => setShowInsights(!showInsights)}>
             {showInsights ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
             {showInsights ? 'Ocultar insights' : 'Mostrar insights'}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {showInsights && <InsightsBar insights={insights} title="Insights & Alertas" emptyHint="Sem alertas relevantes para este período." />}
 
       {/* KPIs Fixos: Saldo Inicial + Resultado + Saldo Final */}
       <div>
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex flex-wrap items-center gap-2">
           <Target className="w-4 h-4" /> {hasRealizado ? 'Resultado do Período' : 'Projeção do Período'}
           {sourceBadge && (
-            <span className="ml-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold normal-case tracking-normal">
+            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold normal-case tracking-normal">
               {sourceBadge}
             </span>
           )}
         </h3>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {[
             { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
             { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
             { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-success' : 'text-destructive' },
           ].map((kpi, i) => (
-            <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-5">
+            <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-2">
-                <kpi.icon className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
+                <kpi.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
               </div>
-              <p className={`text-2xl font-display font-bold ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
+              <p className={`text-xl sm:text-2xl font-display font-bold break-words ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
             </motion.div>
           ))}
         </div>
       </div>
+
 
       {/* KPIs DINÂMICOS por tipo */}
       {tipoAggregations.filter(a => a.entraNoResultado).length > 0 && (
@@ -533,7 +537,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
             <Layers className="w-4 h-4" /> Por Tipo Financeiro
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {tipoAggregations.filter(a => a.entraNoResultado).map((a, i) => {
               const Icon = a.classificacao === 'receita' ? ArrowUp : a.classificacao === 'despesa' ? ArrowDown : Coins;
               const color = a.classificacao === 'receita' ? 'text-success' : a.classificacao === 'despesa' ? 'text-destructive' : 'text-muted-foreground';
@@ -564,7 +568,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
             <Coins className="w-4 h-4" /> Operações Financeiras
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).map((a, i) => {
               const Icon = a.isEntrada ? ArrowUp : ArrowDown;
               const color = a.isEntrada ? 'text-success' : 'text-destructive';
