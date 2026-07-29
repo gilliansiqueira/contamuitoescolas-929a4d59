@@ -94,7 +94,7 @@ describe('periodMovement — SSOT única de movimentação', () => {
     expect(mv.saldoMovimento).toBe(5000);
   });
 
-  it('mês com fluxo + projeções PASSADAS de contas_pagar → projeções passadas ignoradas', () => {
+  it('mês em aberto: realizado até o corte + projeção depois (saldo projetado)', () => {
     const classifications: TypeClassification[] = [
       { id: '1', school_id: schoolId, tipoValor: 'Receita', classificacao: 'receita', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar', label: 'Receita' } as any,
       { id: '2', school_id: schoolId, tipoValor: 'Despesa', classificacao: 'despesa', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Despesa' } as any,
@@ -105,16 +105,16 @@ describe('periodMovement — SSOT única de movimentação', () => {
       entries: [
         e({ data: '2026-06-01', valor: 5000, tipo: 'entrada', origem: 'fluxo', tipoOriginal: 'Receita' }),
         e({ data: '2026-06-02', valor: 2000, tipo: 'saida', origem: 'fluxo', tipoOriginal: 'Despesa' }),
-        // Projeção passada — NÃO deve contar (fluxo já cobre o passado do mês)
+        // Projeções após o último dia realizado (02/06) — devem contar, mesmo antes de "hoje"
         e({ data: '2026-06-10', valor: 9000, tipo: 'saida', origem: 'contas_pagar', tipoRegistro: 'projetado' }),
-        // Projeção futura — deve contar (fluxo ainda não a cobriu)
         e({ data: '2026-06-25', valor: 1000, tipo: 'saida', origem: 'contas_pagar', tipoRegistro: 'projetado' }),
       ],
     });
     const mv = buildMonthMovement('2026-06', ctx);
     expect(mv.receitas).toBe(5000);
-    expect(mv.despesas).toBe(3000); // 2000 fluxo + 1000 projeção futura, sem os 9000 passados
+    expect(mv.despesas).toBe(12000);
   });
+
 
   it('cenário Fazenda RG Maio → saldo_final = 3.264,91', () => {
     // Classificações explícitas: pró-labore e antecipação como OPERAÇÃO (não entra no resultado).
