@@ -252,10 +252,10 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
       )}
 
       {/* Chart */}
-      <div className="flex-1 min-h-[160px]">
-        <ResponsiveContainer width="100%" height={160}>
+      <div className="flex-1 min-h-[170px]">
+        <ResponsiveContainer width="100%" height={170}>
           {isMultiYear ? (
-            <LineChart data={multiYearData} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+            <LineChart data={multiYearData} margin={{ top: 16, right: 8, bottom: 0, left: -10 }}>
               {def.thresholds.map((t, i) => {
                 const lo = t.min_value ?? yMin;
                 const hi = t.max_value ?? yMax;
@@ -280,11 +280,24 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
                   dot={{ r: 3, strokeWidth: 0, fill: YEAR_COLORS[idx % YEAR_COLORS.length] }}
                   connectNulls
                   activeDot={{ r: 5 }}
-                />
+                >
+                  {/* rótulo suave apenas no ano mais recente para não poluir */}
+                  {idx === years.length - 1 && (
+                    <LabelList
+                      dataKey={year}
+                      position="top"
+                      offset={8}
+                      fontSize={8}
+                      fill="hsl(var(--muted-foreground))"
+                      opacity={0.65}
+                      formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type))}
+                    />
+                  )}
+                </Line>
               ))}
             </LineChart>
           ) : (
-            <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+            <LineChart data={chartData} margin={{ top: 16, right: 8, bottom: 0, left: -10 }}>
               {def.thresholds.map((t, i) => {
                 const lo = t.min_value ?? yMin;
                 const hi = t.max_value ?? yMax;
@@ -306,10 +319,21 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
                 dot={<ThresholdDot def={def} />}
                 connectNulls
                 activeDot={{ r: 5 }}
-              />
+              >
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  offset={8}
+                  fontSize={8}
+                  fill="hsl(var(--muted-foreground))"
+                  opacity={0.65}
+                  formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type))}
+                />
+              </Line>
             </LineChart>
           )}
         </ResponsiveContainer>
+
       </div>
 
       {/* Year legend for multi-year */}
