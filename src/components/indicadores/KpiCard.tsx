@@ -140,14 +140,15 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
     return { aggCur, aggPrev, delta, relPct, improvement, isPercent, prevYear, monthIdx };
   }, [currentMonth, values, def.value_type, def.direction]);
 
-  // Format variation with correct unit (p.p. for percent KPIs)
+  // Format variation (percent KPIs usam % em vez de p.p.)
   const formatVariation = (v: number) => {
     const prefix = v > 0 ? '+' : '';
     if (def.value_type === 'percent') {
-      return `${prefix}${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} p.p.`;
+      return `${prefix}${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
     }
     return `${prefix}${formatValue(v, def.value_type)}`;
   };
+
 
   // Compute Y domain from thresholds and data
   const allValues = values.map(v => v.value);
