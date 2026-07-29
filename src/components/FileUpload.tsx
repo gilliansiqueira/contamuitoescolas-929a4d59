@@ -329,6 +329,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '' });
   const [savingManual, setSavingManual] = useState(false);
+  const [weekendPolicy, setWeekendPolicy] = useState<WeekendPolicy>('anterior');
 
   const totals = useMemo(() => {
     return calculateTotals(preview, classifications);
