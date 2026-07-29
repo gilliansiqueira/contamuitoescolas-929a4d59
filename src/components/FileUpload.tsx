@@ -147,13 +147,23 @@ function classifyFluxoEntry(
   return { tipo: valor >= 0 ? 'entrada' : 'saida', tipoOriginal };
 }
 
+export type WeekendPolicy = 'anterior' | 'proximo' | 'manter';
+
+/** Aplica a política de dia não útil escolhida pelo usuário. */
+function applyWeekendPolicy(dateStr: string, policy: WeekendPolicy): string {
+  if (policy === 'manter') return dateStr;
+  if (policy === 'proximo') return toNextBusinessDay(dateStr);
+  return toPreviousBusinessDay(dateStr);
+}
+
 function convertRows(
   rows: Record<string, any>[],
   uploadType: UploadType,
   schoolId: string,
   rules: ExclusionRule[],
   columnMapping: Record<string, string>,
-  classifications: TypeClassification[]
+  classifications: TypeClassification[],
+  weekendPolicy: WeekendPolicy = 'anterior'
 ): { entries: FinancialEntry[]; errors: ValidationError[] } {
   const errors: ValidationError[] = [];
   const entries: FinancialEntry[] = [];
