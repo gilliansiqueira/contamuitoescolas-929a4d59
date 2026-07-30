@@ -13,6 +13,8 @@ function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: '
 function formatDate(d: string) { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; }
 
 export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
+  const isMobile = useIsMobile();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const { entries: allEntries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
 
