@@ -15,6 +15,8 @@ import {
 import { getAllDaysInMonths, isWeekend, getDayOfWeek, formatDateBR } from '@/lib/dateUtils';
 import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { CompactStat } from '@/components/mobile/CompactStat';
 import type { FinancialEntry } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
 
@@ -46,6 +48,7 @@ interface DayRow {
 
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
+  const isMobile = useIsMobile();
   const { entries: projectedEntries } = useProjectedEntries(schoolId);
   const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
@@ -245,6 +248,82 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     );
   }
 
+  if (isMobile) {
+    const movementDays = dailyData.filter(
+      d => d.entradaPrevista > 0 || d.entradaRealizada > 0 || d.saidaPrevista > 0 || d.saidaRealizada > 0 || d.operacoes !== 0
+    );
+    return (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <CompactStat
+            label="Saldo inicial"
+            value={formatCurrency(saldoInicialPeriodo)}
+            valueClassName={saldoInicialPeriodo >= 0 ? 'text-foreground' : 'text-destructive'}
+          />
+          <CompactStat
+            label="Saldo final"
+            value={formatCurrency(saldoFinalPeriodo)}
+            valueClassName={saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}
+          />
+          <CompactStat label="Entrada prevista" value={formatCurrency(totals.entradaPrevista)} valueClassName="text-blue-600" />
+          <CompactStat label="Entrada realizada" value={formatCurrency(totals.entradaRealizada)} valueClassName="text-primary" />
+          <CompactStat label="Saída prevista" value={formatCurrency(totals.saidaPrevista)} valueClassName="text-orange-500" />
+          <CompactStat label="Saída realizada" value={formatCurrency(totals.saidaRealizada)} valueClassName="text-destructive" />
+        </div>
+
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Dias com movimento</h3>
+          <span className="text-[10px] text-muted-foreground">{movementDays.length} de {allDays.length} dias</span>
+        </div>
+
+        <div className="space-y-2">
+          {movementDays.length === 0 && (
+            <div className="glass-card rounded-lg p-4 text-center text-xs text-muted-foreground">
+              Nenhum movimento no período.
+            </div>
+          )}
+          {movementDays.map(day => {
+            const showReal = !day.isAfterCutoff;
+            return (
+              <div key={day.data} className={`glass-card rounded-lg px-3 py-2 ${day.saldoFinalProjecao < 0 ? 'bg-destructive/5' : ''}`}>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-xs font-semibold text-foreground">
+                    {formatDateBR(day.data)} <span className="text-muted-foreground font-normal">· {day.dayOfWeek}</span>
+                  </span>
+                  <span className={`text-xs font-display font-bold ${day.saldoFinalProjecao >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                    {formatCurrency(day.saldoFinalProjecao)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                  {day.entradaPrevista > 0 && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Ent. prev.</span><span className="text-blue-600 font-medium">{formatCurrency(day.entradaPrevista)}</span></div>
+                  )}
+                  {showReal && day.entradaRealizada > 0 && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Ent. real.</span><span className="text-primary font-medium">{formatCurrency(day.entradaRealizada)}</span></div>
+                  )}
+                  {day.saidaPrevista > 0 && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Saí. prev.</span><span className="text-orange-500 font-medium">{formatCurrency(day.saidaPrevista)}</span></div>
+                  )}
+                  {showReal && day.saidaRealizada > 0 && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Saí. real.</span><span className="text-destructive font-medium">{formatCurrency(day.saidaRealizada)}</span></div>
+                  )}
+                  {day.operacoes !== 0 && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Operações</span><span className="text-purple-600 font-medium">{formatCurrency(day.operacoes)}</span></div>
+                  )}
+                </div>
+                {day.isCutoff && (
+                  <p className="mt-1.5 text-[9px] uppercase tracking-wider text-emerald-700 font-semibold">
+                    Realizado até aqui · a seguir, previsão
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -273,6 +352,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
           <h3 className="font-display font-semibold text-foreground text-sm">Fluxo Diário Completo</h3>
           <p className="text-xs text-muted-foreground mt-1">{allDays.length} dia(s) no período</p>
         </div>
+
         <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-card z-10">

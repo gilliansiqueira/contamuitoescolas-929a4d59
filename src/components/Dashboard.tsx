@@ -36,6 +36,10 @@ import { ManualCardsSection } from '@/components/dashboard/ManualCardsSection';
 import { ResumoMensalImagem } from '@/components/dashboard/ResumoMensalImagem';
 import { ProjecaoNotas } from '@/components/dashboard/ProjecaoNotas';
 import { ExportProjecaoPdf } from '@/components/dashboard/ExportProjecaoPdf';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MobileSection } from '@/components/mobile/MobileSection';
+import { CompactStat } from '@/components/mobile/CompactStat';
+import { useChartPresets, ChartScroller } from '@/components/mobile/chartPresets';
 
 
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
@@ -497,6 +501,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   }, [sourcesUsed]);
 
   const exportRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const monthlyPresets = useChartPresets(monthlyChart.length);
+  const annualPresets = useChartPresets(annualLineChart.data.length);
+  const dailyPresets = useChartPresets(projectionData.length);
 
   // Item 8: meses com realizado parcial (não fechados) ficam sinalizados.
   const mesesParciais = useMemo(
@@ -506,7 +514,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
 
   return (
-    <div className="space-y-6" ref={exportRef}>
+    <div className="space-y-3 sm:space-y-6" ref={exportRef}>
       <div className="flex flex-wrap items-center justify-end gap-2" data-export-hide>
         <ResumoMensalImagem schoolId={schoolId} selectedMonth={selectedMonth} />
         <ExportProjecaoPdf targetRef={exportRef} fileName={`projecao-${selectedMonth === 'all' ? 'periodo' : selectedMonth.replace(/,/g, '_')}`} />
@@ -519,7 +527,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       </div>
 
       {mesesParciais.length > 0 && (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs sm:text-sm">
+        <div className="rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 sm:px-4 sm:py-3 text-[11px] sm:text-sm leading-snug">
           <span className="font-semibold">Período em aberto (parcial).</span>{' '}
           {mesesParciais.map(m => `${m.month} realizado até ${m.realizadoAte ? m.realizadoAte.split('-').reverse().join('/') : '—'}`).join(' · ')}
           {' — '}os dias seguintes são projeção. O mês só é consolidado como realizado após o fechamento.
@@ -532,43 +540,86 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
       {/* KPIs Fixos: Saldo Inicial + Resultado + Saldo Final */}
       <div>
-        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex flex-wrap items-center gap-2">
-          <Target className="w-4 h-4" /> {hasRealizado ? 'Resultado do Período' : 'Projeção do Período'}
+        <h3 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-3 flex flex-wrap items-center gap-2">
+          <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {hasRealizado ? 'Resultado do Período' : 'Projeção do Período'}
           {sourceBadge && (
             <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold normal-case tracking-normal">
               {sourceBadge}
             </span>
           )}
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {[
-            { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
-            { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
-            { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-success' : 'text-destructive' },
-          ].map((kpi, i) => (
-            <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-4 sm:p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <kpi.icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
-              </div>
-              <p className={`text-xl sm:text-2xl font-display font-bold break-words ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
-            </motion.div>
-          ))}
-        </div>
+        {isMobile ? (
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
+              { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
+              { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-success' },
+              { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive' },
+            ].map(kpi => (
+              <CompactStat
+                key={kpi.label}
+                label={kpi.label}
+                value={formatCurrency(kpi.value)}
+                icon={<kpi.icon className="w-3 h-3 text-muted-foreground shrink-0" />}
+                valueClassName={kpi.color}
+              />
+            ))}
+            <div className="col-span-2">
+              <CompactStat
+                label="Saldo Final do Período"
+                value={formatCurrency(saldoFinal)}
+                icon={<CalendarCheck className="w-3 h-3 text-muted-foreground shrink-0" />}
+                valueClassName={saldoFinal >= 0 ? 'text-success text-lg' : 'text-destructive text-lg'}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {[
+              { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
+              { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
+              { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-success' : 'text-destructive' },
+            ].map((kpi, i) => (
+              <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <kpi.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
+                </div>
+                <p className={`text-xl sm:text-2xl font-display font-bold break-words ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
+
 
 
       {/* KPIs DINÂMICOS por tipo */}
       {tipoAggregations.filter(a => a.entraNoResultado).length > 0 && (
-        <div>
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+        <MobileSection
+          title="Por Tipo Financeiro"
+          icon={<Layers className="w-3.5 h-3.5" />}
+          summary={`${tipoAggregations.filter(a => a.entraNoResultado).length} tipos`}
+        >
+          <h3 className="hidden sm:flex text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 items-center gap-2">
             <Layers className="w-4 h-4" /> Por Tipo Financeiro
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
             {tipoAggregations.filter(a => a.entraNoResultado).map((a, i) => {
               const Icon = a.classificacao === 'receita' ? ArrowUp : a.classificacao === 'despesa' ? ArrowDown : Coins;
               const color = a.classificacao === 'receita' ? 'text-success' : a.classificacao === 'despesa' ? 'text-destructive' : 'text-muted-foreground';
               const accent = a.classificacao === 'receita' ? 'bg-success/10 text-success' : a.classificacao === 'despesa' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground';
+              if (isMobile) {
+                return (
+                  <CompactStat
+                    key={a.key}
+                    label={a.label}
+                    value={formatCurrency(a.valor)}
+                    icon={<Icon className={`w-3 h-3 shrink-0 ${color}`} />}
+                    valueClassName={color}
+                  />
+                );
+              }
               return (
                 <motion.div key={a.key} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="glass-card rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -586,21 +637,37 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
               );
             })}
           </div>
-        </div>
+        </MobileSection>
       )}
 
       {/* Operações Financeiras */}
       {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).length > 0 && (
-        <div>
-          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+        <MobileSection
+          title="Operações Financeiras"
+          icon={<Coins className="w-3.5 h-3.5" />}
+          summary={`${tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).length} itens`}
+        >
+          <h3 className="hidden sm:flex text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 items-center gap-2">
             <Coins className="w-4 h-4" /> Operações Financeiras
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
             {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).map((a, i) => {
               const Icon = a.isEntrada ? ArrowUp : ArrowDown;
               const color = a.isEntrada ? 'text-success' : 'text-destructive';
               const accent = a.isEntrada ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive';
               const label = a.isEntrada ? 'Entrada' : 'Saída';
+              if (isMobile) {
+                return (
+                  <CompactStat
+                    key={a.key}
+                    label={a.label}
+                    value={formatCurrency(a.valor)}
+                    icon={<Icon className={`w-3 h-3 shrink-0 ${color}`} />}
+                    valueClassName={color}
+                    hint="Não entra no resultado"
+                  />
+                );
+              }
               return (
                 <motion.div key={a.key} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="glass-card rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -616,18 +683,19 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
               );
             })}
           </div>
-        </div>
+        </MobileSection>
       )}
+
 
       {/* Operações */}
       {(totals.operacoesIn > 0 || totals.operacoesOut > 0) && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="glass-card rounded-xl p-4">
-          <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">💼 Operações (não entram no resultado)</h4>
-          <div className="flex flex-wrap gap-6 text-sm">
-            <span className="text-success">Entradas: {formatCurrency(totals.operacoesIn)}</span>
-            <span className="text-destructive">Saídas: {formatCurrency(totals.operacoesOut)}</span>
-            <span className="text-muted-foreground">Líquido: {formatCurrency(totals.operacoesIn - totals.operacoesOut)}</span>
+          className="glass-card rounded-xl p-3 sm:p-4">
+          <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">💼 Operações (não entram no resultado)</h4>
+          <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:gap-6 gap-2 text-[11px] sm:text-sm">
+            <span className="text-success truncate">Entradas: {formatCurrency(totals.operacoesIn)}</span>
+            <span className="text-destructive truncate">Saídas: {formatCurrency(totals.operacoesOut)}</span>
+            <span className="text-muted-foreground truncate">Líquido: {formatCurrency(totals.operacoesIn - totals.operacoesOut)}</span>
           </div>
         </motion.div>
       )}
@@ -643,6 +711,30 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
       {/* Realizado vs Projetado - apenas se houver lançamentos (não para meses só-histórico) */}
       {hasRealizado && (sourcesUsed.hasUpload || sourcesUsed.hasProjecao) && (
+        isMobile ? (
+          <MobileSection
+            title="Realizado x Projetado"
+            plainOnDesktop={false}
+            summary={formatCurrency(realizadoTotals.resultado + projetadoTotals.resultado)}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <CompactStat label="Rec. realizada" value={formatCurrency(realizadoTotals.receitas)} valueClassName="text-success" />
+              <CompactStat label="Rec. futura" value={formatCurrency(projetadoTotals.receitas)} valueClassName="text-success" />
+              <CompactStat label="Desp. realizada" value={formatCurrency(realizadoTotals.despesas)} valueClassName="text-destructive" />
+              <CompactStat label="Desp. futura" value={formatCurrency(projetadoTotals.despesas)} valueClassName="text-destructive" />
+              <CompactStat
+                label="Result. realizado"
+                value={formatCurrency(realizadoTotals.resultado)}
+                valueClassName={realizadoTotals.resultado >= 0 ? 'text-success' : 'text-destructive'}
+              />
+              <CompactStat
+                label="Result. projetado"
+                value={formatCurrency(projetadoTotals.resultado)}
+                valueClassName={projetadoTotals.resultado >= 0 ? 'text-success' : 'text-destructive'}
+              />
+            </div>
+          </MobileSection>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
             <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
@@ -684,6 +776,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             </div>
           </motion.div>
         </div>
+        )
       )}
 
       {/* Comparativo Previsto x Realizado */}
@@ -734,44 +827,52 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       {/* Entradas vs Saídas Bar Chart (mensal — sempre disponível, inclusive só-histórico) */}
       {monthlyChart.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-          className="glass-card rounded-xl p-5">
-          <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">📊 Entradas vs Saídas</h4>
-          <div className="h-64">
+          className="glass-card rounded-xl p-3 sm:p-5">
+          <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-4">📊 Entradas vs Saídas</h4>
+          <ChartScroller width={monthlyPresets.scrollWidth} height={monthlyPresets.height}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyChart}>
+              <BarChart data={monthlyChart} margin={monthlyPresets.margin}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="mes" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <XAxis dataKey="mes" tick={{ fontSize: monthlyPresets.tickFontSize }} interval={monthlyPresets.scrollWidth ? 0 : monthlyPresets.xInterval} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: monthlyPresets.tickFontSize }} width={monthlyPresets.isMobile ? 34 : 60} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{
                   backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px',
                 }} />
-                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                {monthlyPresets.showLegend && <Legend wrapperStyle={{ fontSize: '11px' }} />}
                 <Bar dataKey="entradas" name="Entradas" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="saidas" name="Saídas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </ChartScroller>
+          {monthlyPresets.isMobile && (
+            <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-success inline-block" />Entradas</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-destructive inline-block" />Saídas</span>
+            </div>
+          )}
         </motion.div>
       )}
+
 
       {/* Comparativo Anual de Entradas vs Saídas (linhas, série por ano) */}
       {annualLineChart.years.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}
-          className="glass-card rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+          className="glass-card rounded-xl p-3 sm:p-5">
+          <div className="flex items-center justify-between mb-2 sm:mb-4 flex-wrap gap-2">
+            <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest">
               📈 Comparativo Anual — Entradas vs Saídas
             </h4>
             <span className="text-[10px] text-muted-foreground">
               {annualLineChart.years.length} ano{annualLineChart.years.length > 1 ? 's' : ''} acumulado{annualLineChart.years.length > 1 ? 's' : ''}
             </span>
           </div>
-          <div className="h-72">
+          <ChartScroller width={annualPresets.scrollWidth} height={annualPresets.tallHeight}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={annualLineChart.data}>
+              <LineChart data={annualLineChart.data} margin={annualPresets.margin}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="mes" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <XAxis dataKey="mes" tick={{ fontSize: annualPresets.tickFontSize }} interval={annualPresets.scrollWidth ? 0 : annualPresets.xInterval} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: annualPresets.tickFontSize }} width={annualPresets.isMobile ? 34 : 60} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+
                 <Tooltip
                   formatter={(value: number, name: string) => [formatCurrency(value), name]}
                   contentStyle={{
@@ -814,7 +915,20 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                 })}
               </LineChart>
             </ResponsiveContainer>
-          </div>
+          </ChartScroller>
+          {annualPresets.isMobile && (
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-[9px] text-muted-foreground">
+              {annualLineChart.years.map((year, idx) => {
+                const YEAR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+                return (
+                  <span key={year} className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: YEAR_PALETTE[idx % YEAR_PALETTE.length] }} />
+                    {year}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           <p className="text-[10px] text-muted-foreground mt-2">
             Cada ano tem uma cor distinta · linhas contínuas = Entradas · linhas tracejadas = Saídas.
           </p>
@@ -824,11 +938,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       {/* Projeção de Saldo Diário — OCULTO em meses só-histórico */}
       {!sourcesUsed.onlyHistorico && projectionData.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
-          className="glass-card rounded-xl p-5">
-          <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">📈 Projeção de Saldo</h4>
-          <div className="h-64">
+          className="glass-card rounded-xl p-3 sm:p-5">
+          <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-4">📈 Projeção de Saldo</h4>
+          <ChartScroller width={undefined} height={dailyPresets.height}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={projectionData}>
+              <AreaChart data={projectionData} margin={dailyPresets.margin}>
                 <defs>
                   <linearGradient id="saldoGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
@@ -836,15 +950,16 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="data" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <XAxis dataKey="data" tick={{ fontSize: dailyPresets.tickFontSize }} interval={dailyPresets.xInterval} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tick={{ fontSize: dailyPresets.tickFontSize }} width={dailyPresets.isMobile ? 34 : 60} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip formatter={(value: number) => formatCurrency(value)} labelFormatter={(label) => `Data: ${label}`}
                   contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
                 <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="3 3" />
                 <Area type="monotone" dataKey="saldo" stroke="hsl(var(--success))" fill="url(#saldoGrad)" strokeWidth={2} name="Saldo" />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
+          </ChartScroller>
+
         </motion.div>
       )}
 
