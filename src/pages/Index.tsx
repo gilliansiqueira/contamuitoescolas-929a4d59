@@ -38,7 +38,7 @@ import { SharedMonthProvider } from '@/components/realizado/SharedMonthContext';
 import { RealizadoModule } from '@/components/realizado/RealizadoModule';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -171,12 +171,12 @@ function IndexBody({
       {isDemo && <DemoBanner />}
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card/90 backdrop-blur-md border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
-            <img src={contaMuitoLogo} alt="Conta Muito" className="h-10 w-auto object-contain" />
+            <img src={contaMuitoLogo} alt="Conta Muito" className="h-7 sm:h-10 w-auto object-contain" />
             <h1 className="font-display font-bold text-lg hidden sm:block text-foreground">Relatório Financeiro</h1>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {isDemo ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium">
                 {school.nome}
@@ -217,11 +217,11 @@ function IndexBody({
       </header>
 
       {/* Module Selector */}
-      <div className="sticky top-[57px] z-45 bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 flex">
+      <div className="sticky top-[49px] sm:top-[57px] z-45 bg-card border-b border-border">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 flex">
           <button
             onClick={() => setAppModule('projecao')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors border-b-3 ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition-colors border-b-3 ${
               appModule === 'projecao'
                 ? 'border-primary text-primary bg-primary/5'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -232,14 +232,15 @@ function IndexBody({
           </button>
           <button
             onClick={() => setAppModule('realizado')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors border-b-3 ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition-colors border-b-3 ${
               appModule === 'realizado'
                 ? 'border-primary text-primary bg-primary/5'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             <FileBarChart className="w-4 h-4" />
-            Relatório Realizado
+            <span className="sm:hidden">Realizado</span>
+            <span className="hidden sm:inline">Relatório Realizado</span>
           </button>
         </div>
       </div>
@@ -247,7 +248,7 @@ function IndexBody({
       {appModule === 'projecao' ? (
         <>
           {/* Projeção Tabs */}
-          <nav className="sticky top-[105px] z-40 bg-card/80 backdrop-blur-md border-b border-border/50 overflow-x-auto">
+          <nav className="hidden sm:block sticky top-[105px] z-40 bg-card/80 backdrop-blur-md border-b border-border/50 overflow-x-auto">
             <div className="max-w-7xl mx-auto px-4 flex gap-1 items-center">
               {mainTabs.map(tab => (
                 <button
@@ -289,6 +290,48 @@ function IndexBody({
             </div>
           </nav>
 
+          {/* Navegação mobile — barra inferior tipo app nativo */}
+          <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]">
+            <div className="flex items-stretch justify-around">
+              {mainTabs.slice(0, 4).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-medium transition-colors ${
+                    activeTab === tab.key ? 'text-primary' : 'text-muted-foreground'
+                  }`}
+                >
+                  <tab.icon className="w-[18px] h-[18px]" />
+                  <span className="truncate max-w-full px-0.5">{tab.label}</span>
+                </button>
+              ))}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-medium ${
+                      mainTabs.slice(4).some(t => t.key === activeTab) || isSettingsTab ? 'text-primary' : 'text-muted-foreground'
+                    }`}
+                  >
+                    <MoreHorizontal className="w-[18px] h-[18px]" />
+                    <span>Mais</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="top" className="max-h-[60vh] overflow-y-auto">
+                  {mainTabs.slice(4).map(t => (
+                    <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
+                      <t.icon className="w-4 h-4 mr-2" /> {t.label}
+                    </DropdownMenuItem>
+                  ))}
+                  {!isPresentationMode && isAdmin && settingsTabs.map(t => (
+                    <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
+                      <Settings className="w-4 h-4 mr-2" /> {t.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </nav>
+
           {/* Filtros específicos (cenário) — o mês agora é global (no header) */}
           {showScenarioSelector && (
             <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3 border-b border-border/30">
@@ -297,7 +340,7 @@ function IndexBody({
           )}
 
           {/* Projeção Content */}
-          <main className="max-w-7xl mx-auto px-4 py-6">
+          <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-24 sm:pb-6">
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${activeTab}-${refreshKey}-${selectedMonth}-${scenario}`}
@@ -333,7 +376,7 @@ function IndexBody({
         </>
       ) : (
         /* Relatório Realizado */
-        <main className="max-w-7xl mx-auto px-4 py-6">
+        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-24 sm:pb-6">
           <RealizadoModule schoolId={school.id} />
         </main>
       )}

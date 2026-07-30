@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea, LabelList,
 } from 'recharts';
 import type { KpiDefinitionWithThresholds, KpiValue } from './types';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Props {
   definition: KpiDefinitionWithThresholds;
@@ -73,6 +74,8 @@ function ThresholdDot(props: any) {
 }
 
 export function KpiCard({ definition: def, values, months, referenceMonth }: Props) {
+  const isMobile = useIsMobile();
+  const [expanded, setExpanded] = useState(false);
   // Group values by year
   const years = useMemo(() => {
     const allMonths = new Set<string>();
@@ -169,6 +172,103 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
   const yMin = allNums.length ? Math.floor(Math.min(...allNums) * 0.9) : 0;
   const yMax = allNums.length ? Math.ceil(Math.max(...allNums) * 1.1) : 100;
 
+  if (isMobile) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl border border-border/50 bg-card shadow-sm p-2.5 flex flex-col"
+      >
+        <div className="flex items-center gap-1.5 mb-1 min-w-0">
+          {def.icon?.file_url ? (
+            <img src={def.icon.file_url} alt={def.name} className="object-contain shrink-0" style={{ width: 20, height: 20 }} />
+          ) : (
+            <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
+              {def.name.charAt(0)}
+            </div>
+          )}
+          <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground truncate">{def.name}</span>
+        </div>
+
+        <div className="flex items-baseline justify-between gap-1">
+          <span className="text-lg font-extrabold leading-tight" style={{ color }}>
+            {currentVal !== null ? formatValue(currentVal, def.value_type) : '—'}
+          </span>
+          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white shrink-0" style={{ backgroundColor: color }}>
+            {label}
+          </span>
+        </div>
+
+        {variation !== null && (
+          <div className="flex items-center gap-0.5 mt-0.5 text-[9px]">
+            {variation > 0 ? (
+              <ArrowUp className="w-2.5 h-2.5" style={{ color: isImprovement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
+            ) : variation < 0 ? (
+              <ArrowDown className="w-2.5 h-2.5" style={{ color: isImprovement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} />
+            ) : (
+              <Minus className="w-2.5 h-2.5 text-muted-foreground" />
+            )}
+            <span style={variation === 0 ? undefined : { color: isImprovement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }} className="font-medium truncate">
+              {formatVariation(variation)}
+            </span>
+            <span className="text-muted-foreground">vs mês ant.</span>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          className="mt-1.5 text-[9px] font-semibold text-primary self-start"
+        >
+          {expanded ? 'Ocultar' : 'Ver mais'}
+        </button>
+
+        {expanded && (
+          <div className="mt-1.5 space-y-1.5">
+            {yoy && (
+              <div className="text-[9px] text-muted-foreground leading-snug">
+                <span
+                  className="font-semibold"
+                  style={yoy.delta === 0 ? undefined : { color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }}
+                >
+                  {yoy.isPercent ? formatVariation(yoy.delta) : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type)}`}
+                </span>{' '}
+                vs {yoy.prevYear} (mesmo período) · Média {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
+              </div>
+            )}
+            <ResponsiveContainer width="100%" height={130}>
+              <LineChart data={isMultiYear ? multiYearData : chartData} margin={{ top: 12, right: 4, bottom: 0, left: -22 }}>
+                <XAxis dataKey="month" tick={{ fontSize: 8 }} axisLine={false} tickLine={false} interval={isMultiYear ? 1 : Math.max(0, Math.ceil(chartData.length / 5) - 1)} />
+                <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8 }} width={30} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(v: number, name: string) => [formatValue(v, def.value_type), isMultiYear ? name : def.name]}
+                  contentStyle={{ fontSize: 10, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+                />
+                {isMultiYear
+                  ? years.map((year, idx) => (
+                      <Line key={year} type="monotone" dataKey={year} name={year} stroke={YEAR_COLORS[idx % YEAR_COLORS.length]} strokeWidth={2} dot={false} connectNulls />
+                    ))
+                  : (
+                    <Line type="monotone" dataKey="value" stroke={NEUTRAL_LINE_COLOR} strokeWidth={2} dot={<ThresholdDot def={def} />} connectNulls />
+                  )}
+              </LineChart>
+            </ResponsiveContainer>
+            {isMultiYear && (
+              <div className="flex flex-wrap justify-center gap-2">
+                {years.map((year, idx) => (
+                  <div key={year} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                    <div className="w-2.5 h-0.5 rounded" style={{ backgroundColor: YEAR_COLORS[idx % YEAR_COLORS.length] }} />
+                    {year}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -192,6 +292,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
         )}
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{def.name}</span>
       </div>
+
 
       {/* Value */}
       <div className="text-center mb-1">

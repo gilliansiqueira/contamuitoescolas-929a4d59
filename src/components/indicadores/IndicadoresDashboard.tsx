@@ -131,7 +131,7 @@ export function IndicadoresDashboard({ schoolId }: Props) {
         </div>
       ) : (
         <div className="pt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-5">
             {enabledDefs.map(def => (
               <KpiCard
                 key={def.id}
