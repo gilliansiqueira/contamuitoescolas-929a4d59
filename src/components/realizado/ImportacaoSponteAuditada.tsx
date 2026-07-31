@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveMethodKey } from '@/lib/import/methodMapping';
 import { parseSpreadsheetDate } from '@/lib/dateUtils';
+import { schoolAllowsWeekend } from '@/lib/dateUtils';
 import {
   buildConferenceReport,
   buildFileSummary,
