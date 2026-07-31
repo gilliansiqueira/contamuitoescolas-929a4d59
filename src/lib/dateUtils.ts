@@ -65,8 +65,22 @@ export function parseSpreadsheetDate(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * Escolas autorizadas a manter lançamentos em sábado/domingo.
+ * Exceção à regra global de dias úteis (pedido específico da Jurassic).
+ */
+export const WEEKEND_ALLOWED_SCHOOL_IDS = new Set<string>([
+  '58cbf0b4-027e-4124-813c-3b6a6bfde87a', // Jurassic
+]);
+
+/** true quando a escola pode ter valores em fim de semana */
+export function schoolAllowsWeekend(schoolId?: string | null): boolean {
+  return !!schoolId && WEEKEND_ALLOWED_SCHOOL_IDS.has(schoolId);
+}
+
 /** Move a date to next business day (Mon-Fri) if it falls on weekend */
-export function toNextBusinessDay(dateStr: string): string {
+export function toNextBusinessDay(dateStr: string, allowWeekend = false): string {
+  if (allowWeekend) return dateStr;
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay();
   if (day === 6) d.setDate(d.getDate() + 2); // Sat → Mon
@@ -78,8 +92,10 @@ export function toNextBusinessDay(dateStr: string): string {
  * Move a date to previous business day (Mon-Fri) if it falls on weekend.
  * Regra de Projeção: lançamento projetado (a pagar / a receber) nunca cai
  * em sábado ou domingo — desloca para a sexta-feira anterior.
+ * Escolas em WEEKEND_ALLOWED_SCHOOL_IDS ignoram essa regra.
  */
-export function toPreviousBusinessDay(dateStr: string): string {
+export function toPreviousBusinessDay(dateStr: string, allowWeekend = false): string {
+  if (allowWeekend) return dateStr;
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay();
   if (day === 6) d.setDate(d.getDate() - 1); // Sat → Fri
@@ -88,11 +104,11 @@ export function toPreviousBusinessDay(dateStr: string): string {
 }
 
 /** Add N calendar days to a date string and return business day */
-export function addDaysAndAdjust(dateStr: string, days: number): string {
+export function addDaysAndAdjust(dateStr: string, days: number, allowWeekend = false): string {
   const d = new Date(dateStr + 'T12:00:00');
   d.setDate(d.getDate() + days);
   const iso = d.toISOString().slice(0, 10);
-  return toNextBusinessDay(iso);
+  return toNextBusinessDay(iso, allowWeekend);
 }
 
 /** Check if a date is weekend */
