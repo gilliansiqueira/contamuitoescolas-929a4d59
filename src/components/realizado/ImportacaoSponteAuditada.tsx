@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveMethodKey } from '@/lib/import/methodMapping';
 import { parseSpreadsheetDate } from '@/lib/dateUtils';
+import { schoolAllowsWeekend } from '@/lib/dateUtils';
 import {
   buildConferenceReport,
   buildFileSummary,
@@ -223,7 +224,7 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
 
   // ── Step 3: delay simulation
   const goToDelay = () => {
-    const sim = simulateDelays(parsed, rules);
+    const sim = simulateDelays(parsed, rules, schoolAllowsWeekend(schoolId));
     setDelaySim(sim);
     setDelayViz(buildDelayVisualization(sim));
     setStep(3);

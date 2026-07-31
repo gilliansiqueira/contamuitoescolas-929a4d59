@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro, TypeClassification } from '@/types/financial';
 import { useExclusionRules, useAddEntries, useAddUpload, useAddAuditLog, useTypeClassifications, useSaveTypeClassification } from '@/hooks/useFinancialData';
 import { supabase } from '@/integrations/supabase/client';
-import { parseSpreadsheetDate, toPreviousBusinessDay, toNextBusinessDay } from '@/lib/dateUtils';
+import { parseSpreadsheetDate, toPreviousBusinessDay, toNextBusinessDay, schoolAllowsWeekend } from '@/lib/dateUtils';
 
 // Tipos de upload que representam PROJEÇÃO de recebíveis/contas a pagar.
 // Para esses tipos, um novo upload SUBSTITUI a projeção futura existente
@@ -165,6 +165,8 @@ function convertRows(
   classifications: TypeClassification[],
   weekendPolicy: WeekendPolicy = 'anterior'
 ): { entries: FinancialEntry[]; errors: ValidationError[] } {
+  // Escolas liberadas (ex.: Jurassic) mantêm lançamentos em fim de semana.
+  const allowWeekend = schoolAllowsWeekend(schoolId);
   const errors: ValidationError[] = [];
   const entries: FinancialEntry[] = [];
 
@@ -202,7 +204,7 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_compensacao', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          const dt = toPreviousBusinessDay(dtRaw);
+          const dt = toPreviousBusinessDay(dtRaw, allowWeekend);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cheque - ${get(row, 'nome_aluno') || ''}`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cheque',
@@ -217,7 +219,7 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_recebimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          const dt = toPreviousBusinessDay(dtRaw);
+          const dt = toPreviousBusinessDay(dtRaw, allowWeekend);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cartão`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cartao',
@@ -233,7 +235,7 @@ function convertRows(
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_vencimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
           // Vencimento em dia não útil segue a política escolhida no upload.
-          const dt = applyWeekendPolicy(dtRaw, weekendPolicy);
+          const dt = allowWeekend ? dtRaw : applyWeekendPolicy(dtRaw, weekendPolicy);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Pagar - ${get(row, 'favorecido') || ''}`,
             valor: Math.abs(val), tipo: 'saida', categoria: get(row, 'categoria') || 'despesa',
