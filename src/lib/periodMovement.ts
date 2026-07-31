@@ -3,20 +3,34 @@
  *
  * Nenhuma tela deve calcular receitas, despesas, operações ou saldo por
  * conta própria. Todas devem consumir:
- *   - `buildMonthMovement(month, ctx)` → receitas/despesas/operações do mês
- *   - `computeSaldoInicial(month, ctx)` → saldo final do mês anterior
- *   - `computeSaldoFinal(month, ctx)`   → saldo inicial + movimento do mês
+ * - `buildMonthMovement(month, ctx)` → receitas/despesas/operações do mês
+ * - `computeSaldoInicial(month, ctx)` → saldo final do mês anterior
+ * - `computeSaldoFinal(month, ctx)` → saldo inicial + movimento do mês
  *
  * Regra invariante:
  *   saldoInicial(M) === saldoFinal(M-1)
  *   saldoFinal(M)   === saldoInicial(M) + movimento(M).saldoMovimento
  *
  * Regra de origem por mês (sem sobreposição):
- *   1. snapshot fechado         → valores congelados
- *   2. há entry origem='fluxo'  → fluxo/manual + projeções futuras (>= hoje)
- *   3. há historical_monthly    → histórico (rec/desp) + operações de entries
- *   4. há projeção              → todas as entries do mês
- *   5. senão                    → vazio
+ *   1. snapshot fechado      → valores congelados
+ *   2. há entry origem='fluxo' → fluxo/manual + projeções futuras (>= hoje)
+ *   3. há historical_monthly → histórico (rec/desp) + operações de entries
+ *   4. há projeção            → todas as entries do mês
+ *   5. senão                 → vazio
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * Visão "Realizado" (apenas exibição — NÃO usada para herança de saldo):
+ * Cada MonthMovement também expõe `receitasRealizadas`, `despesasRealizadas`
+ * e `saldoMovimentoRealizado`, que somam apenas a parcela já efetivamente
+ * realizada (fluxo importado + manuais com tipoRegistro='realizado' +
+ * meses históricos/snapshot, que são sempre 100% realizados). A parcela
+ * projetada (entries com tipoRegistro='projetado', ex.: Sponte/Cheques/
+ * Cartões/Contas a Pagar após o corte do fluxo) fica de fora dessa soma.
+ * `computeSaldoFinalRealizado`/`computeSaldoInicialRealizado` são as
+ * versões paralelas de `computeSaldoFinal`/`computeSaldoInicial` para essa
+ * visão. Nenhuma das duas altera a lógica existente de encadeamento entre
+ * meses — servem apenas para os KPIs "Resultado Realizado" e "Saldo Final
+ * Realizado" no Dashboard.
  */
 import type { FinancialEntry, TypeClassification } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
@@ -34,31 +48,31 @@ export type Classificacao = 'receita' | 'despesa' | 'operacao' | 'ignorar';
 export type Sinal = 'somar' | 'subtrair';
 
 export interface HistoricalRow {
-  month: string;      // YYYY-MM
+  month: string; // YYYY-MM
   tipo_valor: string;
   valor: number;
 }
 
 export interface PorTipoAgg {
-  key: string;        // canonical
+  key: string; // canonical
   label: string;
   classificacao: Classificacao;
   sinal: Sinal;
   isEntrada: boolean;
   entraNoResultado: boolean;
   impactaCaixa: boolean;
-  valor: number;      // valor absoluto (>= 0)
+  valor: number; // valor absoluto (>= 0)
 }
 
 export interface MonthMovement {
   month: string;
   source: MovementSource;
-  receitas: number;             // >= 0
-  despesas: number;             // >= 0
-  operacoesIn: number;          // >= 0
-  operacoesOut: number;         // >= 0
-  operacoesImpacto: number;     // com sinal (+in, -out)
-  saldoMovimento: number;       // receitas - despesas + operacoesImpacto
+  receitas: number; // >= 0
+  despesas: number; // >= 0
+  operacoesIn: number; // >= 0
+  operacoesOut: number; // >= 0
+  operacoesImpacto: number; // com sinal (+in, -out)
+  saldoMovimento: number; // receitas - despesas + operacoesImpacto
   porTipo: PorTipoAgg[];
   /** Entries efetivamente considerados neste mês para movimentação de caixa. */
   entriesConsiderados: ProjectedEntry[];
@@ -66,18 +80,25 @@ export interface MonthMovement {
   parcial: boolean;
   /** Último dia com movimento realizado (quando `parcial`). */
   realizadoAte?: string;
+  /**
+   * Parcela já efetivamente realizada do mês (sem projeção). Uso exclusivo
+   * para exibição nos KPIs "Realizado" — não participa da herança de saldo
+   * entre meses (isso continua sendo feito por `saldoMovimento`).
+   */
+  receitasRealizadas: number;
+  despesasRealizadas: number;
+  saldoMovimentoRealizado: number;
 }
 
-
 export interface PeriodMovementCtx {
-  entries: ProjectedEntry[];                  // já vem de useProjectedEntries (com dataProjetada + impacto)
-  historicalRows: HistoricalRow[];            // já filtrados pelo modelo se aplicável
+  entries: ProjectedEntry[]; // já vem de useProjectedEntries (com dataProjetada + impacto)
+  historicalRows: HistoricalRow[]; // já filtrados pelo modelo se aplicável
   snapshotMap: Map<string, PeriodClosureSnapshot>;
   classifications: TypeClassification[];
   modelItems: ModelItemRule[];
-  saldoInicialBase: number;                   // school.saldoInicial
-  saldoInicialBaseDate?: string;              // 'YYYY-MM-DD' (define o mês da âncora)
-  todayStr?: string;                          // override para testes
+  saldoInicialBase: number; // school.saldoInicial
+  saldoInicialBaseDate?: string; // 'YYYY-MM-DD' (define o mês da âncora)
+  todayStr?: string; // override para testes
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,15 +171,13 @@ export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): strin
   return cutoff;
 }
 
-
-
 /**
  * Decide se uma entry participa da movimentação de caixa do seu mês,
  * dada a fonte oficial daquele mês. Nunca há sobreposição:
- *  - fonte='fluxo'   → fluxo + manual até o corte + projeções APÓS o corte
- *  - fonte='historico'→ apenas operações (histórico já cobre rec/desp)
- *  - fonte='projecao'→ tudo que não seja fluxo
- *  - fonte='snapshot'/'vazio' → nada (snapshot vem congelado)
+ * - fonte='fluxo'    → fluxo + manual até o corte + projeções APÓS o corte
+ * - fonte='historico'→ apenas operações (histórico já cobre rec/desp)
+ * - fonte='projecao' → tudo que não seja fluxo
+ * - fonte='snapshot'/'vazio' → nada (snapshot vem congelado)
  */
 export function includeEntryForMonth(
   entry: ProjectedEntry,
@@ -187,7 +206,6 @@ export function includeEntryForMonth(
   return false;
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Construção da movimentação de um mês
 // ─────────────────────────────────────────────────────────────────────────────
@@ -205,6 +223,9 @@ function emptyMovement(month: string, source: MovementSource): MonthMovement {
     porTipo: [],
     entriesConsiderados: [],
     parcial: false,
+    receitasRealizadas: 0,
+    despesasRealizadas: 0,
+    saldoMovimentoRealizado: 0,
   };
 }
 
@@ -233,14 +254,19 @@ function fromSnapshot(snap: PeriodClosureSnapshot, isInModel?: (l: string) => bo
     });
   }
   const operacoesImpacto = operacoesIn - operacoesOut;
+  const saldoMovimento = receitas - despesas + operacoesImpacto;
   return {
     month: snap.month,
     source: 'snapshot',
     receitas, despesas, operacoesIn, operacoesOut, operacoesImpacto,
-    saldoMovimento: receitas - despesas + operacoesImpacto,
+    saldoMovimento,
     porTipo,
     entriesConsiderados: [],
     parcial: false,
+    // Snapshot é um mês fechado/congelado: 100% realizado.
+    receitasRealizadas: receitas,
+    despesasRealizadas: despesas,
+    saldoMovimentoRealizado: saldoMovimento,
   };
 }
 
@@ -266,7 +292,9 @@ export function buildMonthMovement(
   mov.realizadoAte = fluxoCutoff;
   const byKey = new Map<string, PorTipoAgg>();
   let saldoDelta = 0; // acumula somente o que efetivamente impacta o caixa
-
+  let saldoDeltaRealizado = 0; // idem, mas só a parcela já efetivamente realizada
+  let receitasRealizadasAcc = 0;
+  let despesasRealizadasAcc = 0;
 
   const ensureKey = (
     key: string,
@@ -292,6 +320,7 @@ export function buildMonthMovement(
   };
 
   // 1. Histórico (só quando source==='historico')
+  // Mês histórico é sempre um mês encerrado — tratado como 100% realizado.
   if (source === 'historico') {
     for (const r of ctx.historicalRows) {
       if (r.month !== month) continue;
@@ -299,14 +328,16 @@ export function buildMonthMovement(
       if (meta.classificacao === 'ignorar') continue;
       const v = Number(r.valor) || 0;
       if (v === 0) continue;
-      if (meta.classificacao === 'receita') mov.receitas += v;
-      else if (meta.classificacao === 'despesa') mov.despesas += v;
+      if (meta.classificacao === 'receita') { mov.receitas += v; receitasRealizadasAcc += v; }
+      else if (meta.classificacao === 'despesa') { mov.despesas += v; despesasRealizadasAcc += v; }
       else if (meta.classificacao === 'operacao') {
         if (meta.sinal === 'somar') mov.operacoesIn += v;
         else mov.operacoesOut += v;
       }
       if (meta.impactaCaixa) {
-        saldoDelta += meta.sinal === 'somar' ? v : -v;
+        const delta = meta.sinal === 'somar' ? v : -v;
+        saldoDelta += delta;
+        saldoDeltaRealizado += delta;
       }
       const agg = ensureKey(r.tipo_valor, meta.label, meta.classificacao, meta.sinal, meta.impactaCaixa);
       agg.valor += v;
@@ -319,6 +350,7 @@ export function buildMonthMovement(
     if (!includeEntryForMonth(e, source, todayStr, ctx.classifications, { fluxoCutoff })) continue;
     const valor = Number(e.valor) || 0;
     if (valor === 0) continue;
+    const isRealizado = (e as any).tipoRegistro === 'realizado';
 
     // Origens nativas de upload: classificação fixa pelo tipo, bucket próprio.
     if (ORIGENS_NATIVAS.has(e.origem)) {
@@ -331,6 +363,10 @@ export function buildMonthMovement(
       agg.valor += valor;
       if (isEntrada) mov.receitas += valor; else mov.despesas += valor;
       saldoDelta += isEntrada ? valor : -valor;
+      if (isRealizado) {
+        if (isEntrada) receitasRealizadasAcc += valor; else despesasRealizadasAcc += valor;
+        saldoDeltaRealizado += isEntrada ? valor : -valor;
+      }
       mov.entriesConsiderados.push(e);
       continue;
     }
@@ -346,14 +382,16 @@ export function buildMonthMovement(
     const agg = ensureKey(tipoKey, label, cls, rule.operacaoSinal, rule.impactaCaixa);
     agg.valor += valor;
 
-    if (cls === 'receita') mov.receitas += valor;
-    else if (cls === 'despesa') mov.despesas += valor;
+    if (cls === 'receita') { mov.receitas += valor; if (isRealizado) receitasRealizadasAcc += valor; }
+    else if (cls === 'despesa') { mov.despesas += valor; if (isRealizado) despesasRealizadasAcc += valor; }
     else if (cls === 'operacao') {
       if (rule.operacaoSinal === 'somar') mov.operacoesIn += valor;
       else mov.operacoesOut += valor;
     }
     if (rule.impactaCaixa) {
-      saldoDelta += rule.operacaoSinal === 'somar' ? valor : -valor;
+      const delta = rule.operacaoSinal === 'somar' ? valor : -valor;
+      saldoDelta += delta;
+      if (isRealizado) saldoDeltaRealizado += delta;
     }
     mov.entriesConsiderados.push(e);
   }
@@ -361,6 +399,9 @@ export function buildMonthMovement(
   mov.operacoesImpacto = mov.operacoesIn - mov.operacoesOut;
   mov.saldoMovimento = saldoDelta;
   mov.porTipo = Array.from(byKey.values());
+  mov.receitasRealizadas = receitasRealizadasAcc;
+  mov.despesasRealizadas = despesasRealizadasAcc;
+  mov.saldoMovimentoRealizado = saldoDeltaRealizado;
   return mov;
 }
 
@@ -454,4 +495,53 @@ export function computeSaldoInicial(
   // Se o mês anterior é anterior à âncora, saldo inicial === âncora.
   if (!baseMonth || prev < baseMonth) return ctx.saldoInicialBase;
   return computeSaldoFinal(prev, ctx, opts);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Saldo Inicial / Saldo Final — versão "Realizado" (somente exibição)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Versão paralela de `computeSaldoFinal` que soma apenas
+ * `saldoMovimentoRealizado` de cada mês (sem a parcela projetada).
+ *
+ * IMPORTANTE: esta função é usada exclusivamente para exibição no Dashboard
+ * (KPI "Saldo Final Realizado"). A herança de saldo entre meses continua
+ * usando `computeSaldoFinal`/`computeSaldoInicial`, que não são alteradas.
+ */
+export function computeSaldoFinalRealizado(
+  month: string,
+  ctx: PeriodMovementCtx,
+  opts: { isInModel?: (label: string) => boolean } = {}
+): number {
+  const baseMonth = resolveAnchorMonth(ctx);
+  const months = monthsFromBaseTo(baseMonth, month);
+  if (months.length === 0) return ctx.saldoInicialBase;
+
+  let saldo = ctx.saldoInicialBase;
+  for (const m of months) {
+    const snap = ctx.snapshotMap.get(m);
+    if (snap) {
+      // Snapshot é um mês fechado — 100% realizado, mesmo valor da versão projetada.
+      saldo = snap.saldo_final;
+      continue;
+    }
+    const mov = buildMonthMovement(m, ctx, opts);
+    saldo += mov.saldoMovimentoRealizado;
+  }
+  return saldo;
+}
+
+/**
+ * Versão paralela de `computeSaldoInicial` para a visão "Realizado".
+ */
+export function computeSaldoInicialRealizado(
+  month: string,
+  ctx: PeriodMovementCtx,
+  opts: { isInModel?: (label: string) => boolean } = {}
+): number {
+  const prev = prevMonth(month);
+  const baseMonth = resolveAnchorMonth(ctx);
+  if (!baseMonth || prev < baseMonth) return ctx.saldoInicialBase;
+  return computeSaldoFinalRealizado(prev, ctx, opts);
 }

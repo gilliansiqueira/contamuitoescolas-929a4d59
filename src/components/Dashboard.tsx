@@ -11,6 +11,8 @@ import {
   buildMonthMovement,
   computeSaldoInicial,
   computeSaldoFinal,
+  computeSaldoInicialRealizado,
+  computeSaldoFinalRealizado,
   includeEntryForMonth,
   computeFluxoCutoff,
 
@@ -186,6 +188,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return { receitas, despesas, resultado: receitas - despesas, operacoesIn, operacoesOut };
   }, [monthMovements]);
 
+  // ─── Resultado Realizado (exibição) — apenas movimentações efetivamente realizadas ───
+  // Não substitui `totals`; é um cálculo paralelo só para os KPIs do topo.
+  const totalsRealizado = useMemo(() => {
+    let receitasRealizadas = 0, despesasRealizadas = 0;
+    for (const mv of monthMovements) {
+      receitasRealizadas += mv.receitasRealizadas;
+      despesasRealizadas += mv.despesasRealizadas;
+    }
+    return { receitas: receitasRealizadas, despesas: despesasRealizadas, resultado: receitasRealizadas - despesasRealizadas };
+  }, [monthMovements]);
+
   // ─── Saldo Inicial: saldo final do mês anterior ao primeiro selecionado (SSOT) ───
   const saldoInicialCalculado = useMemo(() => {
     if (selectedMonth === 'all' || selectedMonths.length === 0) return saldoInicial;
@@ -203,6 +216,24 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     }
     return computeSaldoFinal(selectedMonths[selectedMonths.length - 1], movementCtx, { isInModel });
   }, [selectedMonth, selectedMonths, saldoInicialCalculado, monthMovements, movementCtx, isInModel]);
+
+  // ─── Saldo Inicial Realizado (exibição) — mesma lógica do saldoInicialCalculado, porém "realizado" ───
+  const saldoInicialCalculadoRealizado = useMemo(() => {
+    if (selectedMonth === 'all' || selectedMonths.length === 0) return saldoInicial;
+    return computeSaldoInicialRealizado(selectedMonths[0], movementCtx, { isInModel });
+  }, [selectedMonth, selectedMonths, saldoInicial, movementCtx, isInModel]);
+
+  // ─── Saldo Final Realizado (exibição) — Saldo Inicial Real + Resultado Realizado ───
+  // Não substitui `saldoFinal` (que continua sendo usado pela herança de saldo entre meses,
+  // projeções e demais telas). É apenas a versão "realizado" para os KPIs do topo.
+  const saldoFinalRealizado = useMemo(() => {
+    if (selectedMonth === 'all' || selectedMonths.length === 0) {
+      let saldo = saldoInicialCalculadoRealizado;
+      for (const mv of monthMovements) saldo += mv.saldoMovimentoRealizado;
+      return saldo;
+    }
+    return computeSaldoFinalRealizado(selectedMonths[selectedMonths.length - 1], movementCtx, { isInModel });
+  }, [selectedMonth, selectedMonths, saldoInicialCalculadoRealizado, monthMovements, movementCtx, isInModel]);
 
   // ─── Bandeiras para condicionar UI ───
   const sourcesUsed = useMemo(() => {
@@ -551,10 +582,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         {isMobile ? (
           <div className="grid grid-cols-2 gap-2">
             {[
-              { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
-              { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
-              { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-success' },
-              { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive' },
+              { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground', hint: undefined as string | undefined },
+              { icon: Target, label: 'Resultado', value: totalsRealizado.resultado, color: totalsRealizado.resultado >= 0 ? 'text-success' : 'text-destructive', hint: `Projetado: ${formatCurrency(totals.resultado)}` },
+              { icon: ArrowUp, label: 'Receitas', value: totals.receitas, color: 'text-success', hint: undefined as string | undefined },
+              { icon: ArrowDown, label: 'Despesas', value: totals.despesas, color: 'text-destructive', hint: undefined as string | undefined },
             ].map(kpi => (
               <CompactStat
                 key={kpi.label}
@@ -562,23 +593,25 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                 value={formatCurrency(kpi.value)}
                 icon={<kpi.icon className="w-3 h-3 text-muted-foreground shrink-0" />}
                 valueClassName={kpi.color}
+                hint={kpi.hint}
               />
             ))}
             <div className="col-span-2">
               <CompactStat
                 label="Saldo Final do Período"
-                value={formatCurrency(saldoFinal)}
+                value={formatCurrency(saldoFinalRealizado)}
                 icon={<CalendarCheck className="w-3 h-3 text-muted-foreground shrink-0" />}
-                valueClassName={saldoFinal >= 0 ? 'text-success text-lg' : 'text-destructive text-lg'}
+                valueClassName={saldoFinalRealizado >= 0 ? 'text-success text-lg' : 'text-destructive text-lg'}
+                hint={`Projetado: ${formatCurrency(saldoFinal)}`}
               />
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {[
-              { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground' },
-              { icon: Target, label: 'Resultado', value: totals.resultado, color: totals.resultado >= 0 ? 'text-success' : 'text-destructive' },
-              { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinal, color: saldoFinal >= 0 ? 'text-success' : 'text-destructive' },
+              { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground', projected: undefined as number | undefined },
+              { icon: Target, label: 'Resultado', value: totalsRealizado.resultado, color: totalsRealizado.resultado >= 0 ? 'text-success' : 'text-destructive', projected: totals.resultado },
+              { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinalRealizado, color: saldoFinalRealizado >= 0 ? 'text-success' : 'text-destructive', projected: saldoFinal },
             ].map((kpi, i) => (
               <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-2">
@@ -586,6 +619,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                   <span className="text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</span>
                 </div>
                 <p className={`text-xl sm:text-2xl font-display font-bold break-words ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
+                {kpi.projected !== undefined && (
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Projetado: {formatCurrency(kpi.projected)}</p>
+                )}
               </motion.div>
             ))}
           </div>
