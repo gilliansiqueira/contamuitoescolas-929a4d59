@@ -223,7 +223,7 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
 
   // ── Step 3: delay simulation
   const goToDelay = () => {
-    const sim = simulateDelays(parsed, rules);
+    const sim = simulateDelays(parsed, rules, schoolAllowsWeekend(schoolId));
     setDelaySim(sim);
     setDelayViz(buildDelayVisualization(sim));
     setStep(3);

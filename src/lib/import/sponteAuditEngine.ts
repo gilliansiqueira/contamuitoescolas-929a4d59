@@ -22,7 +22,7 @@ import {
   resolveMethodKey,
   type PaymentMethodKey,
 } from './methodMapping';
-import { addDaysAndAdjust, toNextBusinessDay, isWeekend } from '@/lib/dateUtils';
+import { addDaysAndAdjust, toNextBusinessDay, isWeekend, schoolAllowsWeekend } from '@/lib/dateUtils';
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +204,7 @@ export function buildConferenceReport(
 export function simulateDelays(
   parsed: ParsedRow[],
   rules: PaymentDelayRule[],
+  allowWeekend = false,
 ): DelaySimulationResult {
   const antes: MonthlyBucket = {};
   const depois: MonthlyBucket = {};
@@ -222,9 +223,9 @@ export function simulateDelays(
     const prazo = findDelayDays(method, rules);
 
     const dataAjustada = prazo > 0
-      ? addDaysAndAdjust(row.dataVencimento, prazo)
-      : toNextBusinessDay(row.dataVencimento);
-    const weekendAdjusted = isWeekend(prazo > 0
+      ? addDaysAndAdjust(row.dataVencimento, prazo, allowWeekend)
+      : toNextBusinessDay(row.dataVencimento, allowWeekend);
+    const weekendAdjusted = !allowWeekend && isWeekend(prazo > 0
       ? addDaysToISO(row.dataVencimento, prazo)
       : row.dataVencimento);
 
@@ -347,13 +348,14 @@ export function buildInsertableEntries(
   opts: BuildEntriesOpts,
 ): InsertableEntry[] {
   const stamp = opts.importedAt ?? new Date().toISOString();
+  const allowWeekend = schoolAllowsWeekend(opts.schoolId);
   const out: InsertableEntry[] = [];
   for (const row of parsed) {
     if (!row.metodoKey) continue;
     const prazo = findDelayDays(row.metodoKey, opts.rules);
     const dataFinal = prazo > 0
-      ? addDaysAndAdjust(row.dataVencimento, prazo)
-      : toNextBusinessDay(row.dataVencimento);
+      ? addDaysAndAdjust(row.dataVencimento, prazo, allowWeekend)
+      : toNextBusinessDay(row.dataVencimento, allowWeekend);
     const weekendAdjusted = dataFinal !== (prazo > 0 ? addDaysToISO(row.dataVencimento, prazo) : row.dataVencimento);
     const isEstorno = row.valor < 0;
     out.push({
