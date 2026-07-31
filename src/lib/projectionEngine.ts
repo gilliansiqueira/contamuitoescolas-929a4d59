@@ -139,7 +139,8 @@ export function projectEntries(
     let dataProjetada = applyPaymentDelay(e, rules);
     // Regra global: projeção nunca cai em sábado/domingo — antecipa para
     // sexta-feira (safety-net para dados já persistidos antes da regra).
-    if (e.tipoRegistro === 'projetado') {
+    // Escolas liberadas (ex.: Jurassic) mantêm a data de fim de semana.
+    if (e.tipoRegistro === 'projetado' && !schoolAllowsWeekend(e.school_id)) {
       dataProjetada = toPreviousBusinessDay(dataProjetada);
     }
     const impacto = getSaldoImpact(e, classifications);
