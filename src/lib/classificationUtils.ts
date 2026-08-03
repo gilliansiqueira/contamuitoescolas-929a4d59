@@ -53,9 +53,8 @@ export function getEffectiveClassification(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): EffectiveClassification {
-  if (entry.editadoManualmente) {
-    return entry.tipo === 'entrada' ? 'receita' : 'despesa';
-  }
+  // `editadoManualmente` é apenas auditoria — não altera a classificação.
+
 
   const rule = resolveEffectiveRule(entry, classifications);
   if (!rule.impactaCaixa && !rule.entraNoResultado) return 'ignorar';
@@ -108,9 +107,8 @@ export function getEffectiveSinal(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): OperacaoSinal {
-  if (entry.editadoManualmente) {
-    return entry.tipo === 'entrada' ? 'somar' : 'subtrair';
-  }
+  // `editadoManualmente` é apenas auditoria — não altera o sinal.
+
 
   const rule = resolveEffectiveRule(entry, classifications);
   return rule.operacaoSinal;

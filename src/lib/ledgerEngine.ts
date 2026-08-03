@@ -213,11 +213,8 @@ export function getLedgerSaldoImpact(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): number {
-  if (entry.editadoManualmente) {
-    const sinal = entry.tipo === 'entrada' ? 'somar' : 'subtrair';
-    return sinal === 'somar' ? entry.valor : -entry.valor;
-  }
-
+  // `editadoManualmente` é apenas marcação de auditoria — não influencia
+  // a resolução contábil.
   const rule = resolveEntryLedgerRule(entry, classifications);
   if (!rule.impactaCaixa) return 0;
   return rule.operacaoSinal === 'somar' ? entry.valor : -entry.valor;
@@ -245,13 +242,7 @@ export function processLedger(
     const impact = getLedgerSaldoImpact(e, classifications);
     saldoMovimento += impact;
 
-    const rule = e.editadoManualmente
-      ? {
-          impactaCaixa: true,
-          entraNoResultado: true,
-          operacaoSinal: e.tipo === 'entrada' ? ('somar' as const) : ('subtrair' as const)
-        }
-      : resolveEntryLedgerRule(e, classifications);
+    const rule = resolveEntryLedgerRule(e, classifications);
 
     if (rule.entraNoResultado) {
       if (rule.operacaoSinal === 'somar') {
