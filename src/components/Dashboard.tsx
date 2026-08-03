@@ -543,12 +543,83 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     [monthMovements]
   );
 
+  // ─── Dados do PDF nativo "Mês completo" (montado só no clique) ───
+  const buildMesCompletoData = useCallback((): MesCompletoData => {
+    const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const labelOf = (m: string) => {
+      const [yy, mm] = m.split('-');
+      return `${monthNames[parseInt(mm, 10) - 1]} de ${yy}`;
+    };
+    const periodoLabel =
+      selectedMonths.length === 0 ? 'Todo o período'
+      : selectedMonths.length === 1 ? labelOf(selectedMonths[0])
+      : `${labelOf(selectedMonths[0])} a ${labelOf(selectedMonths[selectedMonths.length - 1])}`;
+
+    // Lançamentos do período, respeitando a fonte da verdade de cada mês.
+    const periodEntries = activeEntries.filter(e => {
+      const m = (e.data || '').slice(0, 7);
+      if (selectedMonths.length > 0 && !selectedMonths.includes(m)) return false;
+      if (selectedMonths.length === 0 && !matchesMonthFilter(e.data, selectedMonth)) return false;
+      return includeEntry(e, monthSources[m] ?? 'projecao');
+    });
+
+    // Recebíveis por forma de cobrança
+    const recMap: Record<string, number> = {};
+    // Contas a pagar por categoria + favorecido
+    const pagMap: Record<string, { label: string; sub: string; valor: number }> = {};
+    periodEntries.forEach(e => {
+      const cls = getEffectiveClassification(e as any, classifications);
+      if (cls === 'receita') {
+        const key = RECEIVABLE_CONFIG[categorizeReceivable(e as any)]?.label || 'Outros';
+        recMap[key] = (recMap[key] || 0) + Math.abs(Number(e.valor) || 0);
+      } else if (cls === 'despesa') {
+        const cat = (e.categoria || 'Sem categoria').trim() || 'Sem categoria';
+        const fav = (e.descricao || '—').trim() || '—';
+        const k = `${cat}||${fav}`;
+        if (!pagMap[k]) pagMap[k] = { label: cat, sub: fav, valor: 0 };
+        pagMap[k].valor += Math.abs(Number(e.valor) || 0);
+      }
+    });
+
+    // Mês anterior para comparação
+    let anterior: MesCompletoData['anterior'];
+    if (selectedMonths.length > 0) {
+      const prev = prevMonth(selectedMonths[0]);
+      const mv = buildMonthMovement(prev, movementCtx, { isInModel });
+      if (mv.receitas !== 0 || mv.despesas !== 0) {
+        anterior = {
+          label: labelOf(prev),
+          receitas: mv.receitas,
+          despesas: mv.despesas,
+          resultado: mv.receitas - mv.despesas,
+          saldoFinal: computeSaldoFinal(prev, movementCtx, { isInModel }),
+        };
+      }
+    }
+
+    return {
+      schoolName: school?.nome || 'Empresa',
+      periodoLabel,
+      saldoInicial: saldoInicialCalculado,
+      saldoFinal,
+      receitas: totals.receitas,
+      despesas: totals.despesas,
+      resultado: totals.resultado,
+      porTipo: tipoAggregations.map(t => ({ label: t.label, valor: t.valor, classificacao: t.classificacao })),
+      recebiveis: Object.entries(recMap).map(([label, valor]) => ({ label, valor })).filter(r => r.valor > 0),
+      contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
+      anterior,
+      fileName: `mes-completo-${selectedMonths[0] || 'periodo'}`,
+    };
+  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, saldoInicialCalculado, saldoFinal, totals, tipoAggregations, movementCtx, isInModel]);
 
   return (
     <div className="space-y-3 sm:space-y-6" ref={exportRef}>
       <div className="flex flex-wrap items-center justify-end gap-2" data-export-hide>
+        <ExportMesCompletoPdf buildData={buildMesCompletoData} />
         <ResumoMensalImagem schoolId={schoolId} selectedMonth={selectedMonth} />
         <ExportProjecaoPdf targetRef={exportRef} fileName={`projecao-${selectedMonth === 'all' ? 'periodo' : selectedMonth.replace(/,/g, '_')}`} />
+
         {!isPresentationMode && (
           <Button variant="ghost" size="sm" onClick={() => setShowInsights(!showInsights)}>
             {showInsights ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
