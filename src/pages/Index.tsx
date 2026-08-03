@@ -350,16 +350,44 @@ function IndexBody({
                 transition={{ duration: 0.2 }}
               >
                 {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
-                {activeTab === 'daily_flow' && <DailyFlowTable schoolId={school.id} selectedMonth={selectedMonth} />}
+                {activeTab === 'daily_flow' && (
+                  <ExportPdfSection fileName={`fluxo-diario-${selectedMonth}`}>
+                    <DailyFlowTable schoolId={school.id} selectedMonth={selectedMonth} />
+                  </ExportPdfSection>
+                )}
                 {activeTab === 'upload' && <FileUpload schoolId={school.id} onImported={refresh} />}
                 {activeTab === 'cashflow' && <CashFlow schoolId={school.id} selectedMonth={selectedMonth} />}
-                {activeTab === 'receivables' && <Receivables schoolId={school.id} selectedMonth={selectedMonth} />}
-                {activeTab === 'calendar' && <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />}
-                {activeTab === 'datatable' && <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
-                {activeTab === 'scenarios' && <ScenarioView schoolId={school.id} scenario={scenario} selectedMonth={selectedMonth} />}
-                {activeTab === 'simulation' && <Simulation schoolId={school.id} />}
+                {activeTab === 'receivables' && (
+                  <ExportPdfSection fileName={`recebiveis-${selectedMonth}`}>
+                    <Receivables schoolId={school.id} selectedMonth={selectedMonth} />
+                  </ExportPdfSection>
+                )}
+                {activeTab === 'calendar' && (
+                  <ExportPdfSection fileName={`calendario-${selectedMonth}`}>
+                    <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />
+                  </ExportPdfSection>
+                )}
+                {activeTab === 'datatable' && (
+                  <ExportPdfSection fileName={`dados-${selectedMonth}`}>
+                    <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />
+                  </ExportPdfSection>
+                )}
+                {activeTab === 'scenarios' && (
+                  <ExportPdfSection fileName={`cenarios-${selectedMonth}`}>
+                    <ScenarioView schoolId={school.id} scenario={scenario} selectedMonth={selectedMonth} />
+                  </ExportPdfSection>
+                )}
+                {activeTab === 'simulation' && (
+                  <ExportPdfSection fileName="simulacao">
+                    <Simulation schoolId={school.id} />
+                  </ExportPdfSection>
+                )}
                 {activeTab === 'guide' && <UploadGuide schoolId={school.id} />}
-                {activeTab === 'comparison' && <ProjectedVsReal schoolId={school.id} />}
+                {activeTab === 'comparison' && (
+                  <ExportPdfSection fileName="projetado-vs-real">
+                    <ProjectedVsReal schoolId={school.id} />
+                  </ExportPdfSection>
+                )}
                 {activeTab === 'export' && <ExportImport schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
                 {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
                 {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
