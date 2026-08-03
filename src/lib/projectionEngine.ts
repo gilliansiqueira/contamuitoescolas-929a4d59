@@ -85,7 +85,8 @@ export function applyPaymentDelay(
   const policy = rule?.weekendPolicy ?? 'proximo';
   const dataFinal = prazo > 0
     ? addDaysWithPolicy(entry.data, prazo, policy, allowWeekend)
-    : applyWeekendPolicy(entry.data, policy, allowWeekend);
+    : entry.data;
+
 
   // Debug para validação de prazos por forma de cobrança
   if (normalizeTipo(forma).includes('credito') || entry.origem === 'cheque') {
