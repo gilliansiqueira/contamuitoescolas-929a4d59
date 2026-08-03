@@ -82,7 +82,11 @@ export function applyPaymentDelay(
   const prazo = rule?.prazo ?? 0;
 
   const allowWeekend = schoolAllowsWeekend(entry.school_id);
-  const dataFinal = prazo > 0 ? addDaysAndAdjust(entry.data, prazo, allowWeekend) : entry.data;
+  const policy = rule?.weekendPolicy ?? 'proximo';
+  const dataFinal = prazo > 0
+    ? addDaysWithPolicy(entry.data, prazo, policy, allowWeekend)
+    : applyWeekendPolicy(entry.data, policy, allowWeekend);
+
   // Debug para validação de prazos por forma de cobrança
   if (normalizeTipo(forma).includes('credito') || entry.origem === 'cheque') {
     // eslint-disable-next-line no-console
