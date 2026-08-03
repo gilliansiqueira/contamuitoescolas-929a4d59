@@ -707,41 +707,86 @@ export function RelatorioRealizado({ schoolId }: Props) {
               ) : (
                 <p className="text-xs text-muted-foreground mb-4">Informe o faturamento para ver o percentual por categoria.</p>
               )}
-              <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 48, 140)}>
-                <BarChart data={barChartData} layout="vertical" margin={{ left: 8, right: 200, top: 4, bottom: 4 }}>
-                  <XAxis type="number" hide domain={[0, (dataMax: number) => dataMax * 1.05]} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
-                    width={150}
-                    interval={0}
-                  />
-                  <Tooltip
-                    formatter={(v: number, name: string, props: any) => {
-                      if (name === 'value') {
-                        const pct = props?.payload?.pctFat ?? 0;
-                        return currentRevenue > 0
-                          ? [`${formatCurrency(v)} (${pct.toFixed(1)}%)`, 'Total']
-                          : [formatCurrency(v), 'Total'];
-                      }
-                      return [v, name];
-                    }}
-                    labelFormatter={(label) => `${label}`}
-                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                  />
-                  <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={28}>
-                    {barChartData.map((d, i) => (
-                      <Cell key={i} fill={currentRevenue > 0 && d.pctFat > 30 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} />
-                    ))}
-                    <LabelList
-                      dataKey="label"
-                      position="right"
-                      style={{ fontSize: 11, fill: 'hsl(var(--foreground))', fontWeight: 600 }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div ref={chartContainerRef}>
+                {containerWidth > 0 && containerWidth < 560 ? (
+                  <TooltipProvider>
+                    <div className="space-y-4">
+                      {barChartData.map((d, i) => {
+                        const overLimit = currentRevenue > 0 && d.pctFat > 30;
+                        const maxValue = Math.max(...barChartData.map(x => x.value), 1);
+                        const widthPct = Math.min((d.value / maxValue) * 100, 100);
+                        return (
+                          <div key={d.name} className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <UITooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-sm font-medium text-foreground truncate flex-1 min-w-0 cursor-help">
+                                    {d.name}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  <p>{d.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatCurrency(d.value)}
+                                    {currentRevenue > 0 ? ` (${d.pctFat.toFixed(1)}%)` : ''}
+                                  </p>
+                                </TooltipContent>
+                              </UITooltip>
+                              <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                                {d.label}
+                              </span>
+                            </div>
+                            <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${widthPct}%` }}
+                                transition={{ duration: 0.5, delay: i * 0.05 }}
+                                className={`h-full rounded-full ${overLimit ? 'bg-destructive' : 'bg-primary'}`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </TooltipProvider>
+                ) : (
+                  <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 48, 140)}>
+                    <BarChart data={barChartData} layout="vertical" margin={{ left: 8, right: 200, top: 4, bottom: 4 }}>
+                      <XAxis type="number" hide domain={[0, (dataMax: number) => dataMax * 1.05]} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                        width={150}
+                        interval={0}
+                      />
+                      <Tooltip
+                        formatter={(v: number, name: string, props: any) => {
+                          if (name === 'value') {
+                            const pct = props?.payload?.pctFat ?? 0;
+                            return currentRevenue > 0
+                              ? [`${formatCurrency(v)} (${pct.toFixed(1)}%)`, 'Total']
+                              : [formatCurrency(v), 'Total'];
+                          }
+                          return [v, name];
+                        }}
+                        labelFormatter={(label) => `${label}`}
+                        contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                      />
+                      <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={28}>
+                        {barChartData.map((d, i) => (
+                          <Cell key={i} fill={currentRevenue > 0 && d.pctFat > 30 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} />
+                        ))}
+                        <LabelList
+                          dataKey="label"
+                          position="right"
+                          style={{ fontSize: 11, fill: 'hsl(var(--foreground))', fontWeight: 600 }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
 
               {/* YoY: total despesas mensais — ano atual vs ano anterior */}
               {!isMulti && activeMes && (
