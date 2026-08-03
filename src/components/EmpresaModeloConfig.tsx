@@ -3,7 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { applyTemplateToSchool, fetchTemplates, fetchSchoolTemplateId } from '@/lib/financialModels';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Building2, LayoutTemplate, CheckCircle2 } from 'lucide-react';
+import { Building2, LayoutTemplate, CheckCircle2, CalendarDays } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
+import { setSchoolAllowsWeekend } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -23,6 +27,49 @@ export function EmpresaModeloConfig({ schoolId, onChanged }: Props) {
     queryFn: () => fetchSchoolTemplateId(schoolId),
     enabled: !!schoolId,
   });
+
+  const { data: schoolConfig } = useQuery({
+    queryKey: ['school_weekend_config', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('schools')
+        .select('id, allow_weekend_entries')
+        .eq('id', schoolId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; allow_weekend_entries: boolean } | null;
+    },
+    enabled: !!schoolId,
+  });
+
+  const [allowWeekend, setAllowWeekend] = useState(false);
+  const [savingWeekend, setSavingWeekend] = useState(false);
+
+  useEffect(() => {
+    if (schoolConfig) setAllowWeekend(!!schoolConfig.allow_weekend_entries);
+  }, [schoolConfig]);
+
+  const toggleWeekend = async (value: boolean) => {
+    setAllowWeekend(value);
+    setSavingWeekend(true);
+    try {
+      const { error } = await supabase
+        .from('schools')
+        .update({ allow_weekend_entries: value } as any)
+        .eq('id', schoolId);
+      if (error) throw error;
+      setSchoolAllowsWeekend(schoolId, value);
+      qc.invalidateQueries({ queryKey: ['school_weekend_config', schoolId] });
+      qc.invalidateQueries({ queryKey: ['schools'] });
+      toast.success(value ? 'Lançamentos em fim de semana habilitados' : 'Lançamentos em fim de semana desabilitados');
+      onChanged?.();
+    } catch (e: any) {
+      setAllowWeekend(!value);
+      toast.error(e.message || 'Erro ao salvar configuração');
+    } finally {
+      setSavingWeekend(false);
+    }
+  };
 
   const [selected, setSelected] = useState<string>('');
   const [confirm, setConfirm] = useState(false);
@@ -95,6 +142,28 @@ export function EmpresaModeloConfig({ schoolId, onChanged }: Props) {
           <Button onClick={() => setConfirm(true)} disabled={!selected || applying}>
             {applying ? 'Aplicando…' : 'Aplicar modelo'}
           </Button>
+        </div>
+      </div>
+
+      <div className="glass-card rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="w-5 h-5 text-primary" />
+          <h3 className="font-display font-semibold text-foreground text-sm">Lançamentos em fim de semana</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Quando desativado, datas que caem em sábado ou domingo são ajustadas para dia útil nas projeções e
+          importações. Ative para manter os lançamentos exatamente no fim de semana nesta empresa.
+        </p>
+        <div className="flex items-center gap-3 pt-1">
+          <Switch
+            id="allow-weekend-entries"
+            checked={allowWeekend}
+            disabled={savingWeekend}
+            onCheckedChange={toggleWeekend}
+          />
+          <Label htmlFor="allow-weekend-entries" className="text-sm cursor-pointer">
+            Permitir valores em sábado/domingo
+          </Label>
         </div>
       </div>
 
