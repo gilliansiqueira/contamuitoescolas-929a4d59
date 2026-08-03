@@ -15,6 +15,7 @@ import { ExportPdfDialog } from './ExportPdfDialog';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { FechamentoMeses } from './FechamentoMeses';
 import { TetoGastos } from './TetoGastos';
+import { ExportPdfSection } from '@/components/ExportPdfSection';
 // SharedMonthProvider is now provided at the app root (Index.tsx) so the
 // global period filter reaches every tab.
 import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target } from 'lucide-react';
@@ -306,12 +307,24 @@ export function RealizadoModule({ schoolId }: Props) {
       </div>
       <motion.div key={activeView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
         {activeView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
-        {activeView === 'indicadores' && <IndicadoresDashboard schoolId={schoolId} />}
-        {activeView === 'conversao' && <ConversaoDashboard schoolId={schoolId} />}
-        {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
-        {activeView === 'analise_vendas' && <AnaliseVendasDashboard schoolId={schoolId} />}
-        {activeView === 'recebimento_categoria' && <RecebimentoCategoria schoolId={schoolId} />}
-        {activeView === 'teto_gastos' && <TetoGastos schoolId={schoolId} />}
+        {activeView === 'indicadores' && (
+          <ExportPdfSection fileName="indicadores"><IndicadoresDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'conversao' && (
+          <ExportPdfSection fileName="conversao"><ConversaoDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'vendas' && (
+          <ExportPdfSection fileName="vendas"><VendasDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'analise_vendas' && (
+          <ExportPdfSection fileName="analise-de-vendas"><AnaliseVendasDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'recebimento_categoria' && (
+          <ExportPdfSection fileName="recebimento-por-categoria"><RecebimentoCategoria schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'teto_gastos' && (
+          <ExportPdfSection fileName="teto-de-gastos"><TetoGastos schoolId={schoolId} /></ExportPdfSection>
+        )}
       </motion.div>
 
       <ExportPdfDialog 

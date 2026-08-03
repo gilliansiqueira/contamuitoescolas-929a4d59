@@ -194,7 +194,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
             <span className="text-primary font-semibold">Entradas: {formatCurrency(totalEntradas)}</span>
             <span className="text-destructive font-semibold">Saídas: {formatCurrency(totalSaidas)}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-export-hide>
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
@@ -259,7 +259,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
 
         {/* Bulk actions */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 pt-2 border-t border-border/30">
+          <div className="flex items-center gap-3 pt-2 border-t border-border/30" data-export-hide>
             <span className="text-sm text-muted-foreground">{selectedIds.size} selecionado(s)</span>
             <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
               <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir selecionados
@@ -335,7 +335,8 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                         </td>
                         <td />
                         <td className="px-2 py-1 text-center">
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1" data-export-hide>
+
                             <button onClick={saveEdit} className="p-1 rounded hover:bg-primary/10 text-primary"><Check className="w-4 h-4" /></button>
                             <button onClick={cancelEdit} className="p-1 rounded hover:bg-destructive/10 text-destructive"><X className="w-4 h-4" /></button>
                           </div>
