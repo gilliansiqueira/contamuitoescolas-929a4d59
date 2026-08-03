@@ -111,6 +111,36 @@ export function addDaysAndAdjust(dateStr: string, days: number, allowWeekend = f
   return toNextBusinessDay(iso, allowWeekend);
 }
 
+/** Política para datas que caem em dia não útil. */
+export type WeekendPolicy = 'anterior' | 'proximo' | 'manter';
+
+export const DEFAULT_WEEKEND_POLICY: WeekendPolicy = 'proximo';
+
+/** Aplica a política de dia não útil escolhida. */
+export function applyWeekendPolicy(
+  dateStr: string,
+  policy: WeekendPolicy = DEFAULT_WEEKEND_POLICY,
+  allowWeekend = false,
+): string {
+  if (allowWeekend || policy === 'manter') return dateStr;
+  if (policy === 'proximo') return toNextBusinessDay(dateStr, allowWeekend);
+  return toPreviousBusinessDay(dateStr, allowWeekend);
+}
+
+/** Soma N dias e aplica a política de dia não útil configurada. */
+export function addDaysWithPolicy(
+  dateStr: string,
+  days: number,
+  policy: WeekendPolicy = DEFAULT_WEEKEND_POLICY,
+  allowWeekend = false,
+): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  const iso = d.toISOString().slice(0, 10);
+  return applyWeekendPolicy(iso, policy, allowWeekend);
+}
+
+
 /** Check if a date is weekend */
 export function isWeekend(dateStr: string): boolean {
   const d = new Date(dateStr + 'T12:00:00');
