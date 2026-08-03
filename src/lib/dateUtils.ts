@@ -67,16 +67,33 @@ export function parseSpreadsheetDate(raw: unknown): string | null {
 
 /**
  * Escolas autorizadas a manter lançamentos em sábado/domingo.
- * Exceção à regra global de dias úteis (pedido específico da Jurassic).
+ * A fonte da verdade é a coluna `allow_weekend_entries` da tabela `schools`.
+ * Este cache em memória é alimentado ao carregar as escolas (ver useFinancialData).
+ * O seed inicial garante o comportamento histórico da Jurassic antes do 1º fetch.
  */
-export const WEEKEND_ALLOWED_SCHOOL_IDS = new Set<string>([
-  '58cbf0b4-027e-4124-813c-3b6a6bfde87a', // Jurassic
+const weekendAllowedCache = new Set<string>([
+  '58cbf0b4-027e-4124-813c-3b6a6bfde87a', // Jurassic (seed; sobrescrito pelo banco)
 ]);
+
+/** Atualiza o cache a partir do valor salvo no banco para uma escola. */
+export function setSchoolAllowsWeekend(schoolId: string, allowed: boolean): void {
+  if (!schoolId) return;
+  if (allowed) weekendAllowedCache.add(schoolId);
+  else weekendAllowedCache.delete(schoolId);
+}
+
+/** Atualiza o cache em lote (lista completa de escolas). */
+export function syncWeekendAllowedSchools(
+  schools: { id: string; allowWeekendEntries?: boolean }[],
+): void {
+  for (const s of schools) setSchoolAllowsWeekend(s.id, !!s.allowWeekendEntries);
+}
 
 /** true quando a escola pode ter valores em fim de semana */
 export function schoolAllowsWeekend(schoolId?: string | null): boolean {
-  return !!schoolId && WEEKEND_ALLOWED_SCHOOL_IDS.has(schoolId);
+  return !!schoolId && weekendAllowedCache.has(schoolId);
 }
+
 
 /** Move a date to next business day (Mon-Fri) if it falls on weekend */
 export function toNextBusinessDay(dateStr: string, allowWeekend = false): string {
