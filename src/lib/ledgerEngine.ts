@@ -5,6 +5,8 @@ export interface LedgerRule {
   entraNoResultado: boolean;
   operacaoSinal: 'somar' | 'subtrair';
   label?: string;
+  /** true quando a regra veio do fallback absoluto (tipo não classificado). */
+  unclassified?: boolean;
 }
 
 /**
