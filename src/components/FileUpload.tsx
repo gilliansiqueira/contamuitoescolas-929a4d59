@@ -657,7 +657,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
 
     const { rows, mapping, uploadType } = tipoMappingPending;
     const { entries, errors: validationErrors } = convertRows(
-      rows, uploadType, schoolId, rules, mapping, localClassifications
+      rows, uploadType, schoolId, rules, mapping, localClassifications, weekendPolicy
     );
     setPreview(entries);
     setErrors(validationErrors);
