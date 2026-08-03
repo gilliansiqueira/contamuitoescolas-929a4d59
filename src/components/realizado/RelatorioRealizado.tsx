@@ -71,6 +71,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewEntries, setReviewEntries] = useState<any[]>([]);
   const [pendingUpdate, setPendingUpdate] = useState<{ id: string; updates: any; originalCategory: string; originalDescription: string } | null>(null);
+  const { ref: chartContainerRef, width: containerWidth } = useContainerWidth();
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
