@@ -242,13 +242,7 @@ export function processLedger(
     const impact = getLedgerSaldoImpact(e, classifications);
     saldoMovimento += impact;
 
-    const rule = e.editadoManualmente
-      ? {
-          impactaCaixa: true,
-          entraNoResultado: true,
-          operacaoSinal: e.tipo === 'entrada' ? ('somar' as const) : ('subtrair' as const)
-        }
-      : resolveEntryLedgerRule(e, classifications);
+    const rule = resolveEntryLedgerRule(e, classifications);
 
     if (rule.entraNoResultado) {
       if (rule.operacaoSinal === 'somar') {
