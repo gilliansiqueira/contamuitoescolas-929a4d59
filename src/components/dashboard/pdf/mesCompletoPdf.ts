@@ -87,21 +87,14 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   const geradoEm = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
 
   let y = MARGIN_X;
-  let pageNum = 1;
+  const headeredPages = new Set<number>();
 
-  const addFooter = () => {
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(8);
-    pdf.setTextColor(...MUTED);
-    pdf.setDrawColor(...BORDER);
-    pdf.setLineWidth(0.2);
-    pdf.line(MARGIN_X, PAGE_H - 12, PAGE_W - MARGIN_X, PAGE_H - 12);
-    pdf.text(`${data.schoolName} · Gerado em ${geradoEm}`, MARGIN_X, PAGE_H - 7);
-    pdf.text(`Página ${pageNum}`, PAGE_W - MARGIN_X, PAGE_H - 7, { align: 'right' });
-    pageNum++;
-  };
+  const currentPage = () => (pdf as any).internal.getCurrentPageInfo().pageNumber as number;
 
   const addHeader = () => {
+    const page = currentPage();
+    if (headeredPages.has(page)) return;
+    headeredPages.add(page);
     if (logoDataUrl) {
       try {
         pdf.addImage(logoDataUrl, 'PNG', PAGE_W - MARGIN_X - 25, MARGIN_X, 25, 12);
@@ -125,19 +118,18 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     pdf.setDrawColor(...PRIMARY);
     pdf.setLineWidth(0.5);
     pdf.line(MARGIN_X, MARGIN_X + 22, PAGE_W - MARGIN_X, MARGIN_X + 22);
-    y = MARGIN_X + 28;
   };
 
   const ensureSpace = (needed: number) => {
     if (y + needed > PAGE_H - 18) {
-      addFooter();
       pdf.addPage();
       addHeader();
+      y = MARGIN_X + 28;
     }
   };
 
   const addSectionTitle = (title: string) => {
-    ensureSpace(18);
+    ensureSpace(22);
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(12);
     pdf.setTextColor(...TEXT);
@@ -156,13 +148,12 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       bodyStyles: { fontSize: 9, textColor: TEXT, cellPadding: 1.6 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: MARGIN_X, right: MARGIN_X, top: MARGIN_X + 28, bottom: 18 },
-      didDrawPage: () => {
-        /* páginas criadas pelo autoTable herdam cabeçalho/rodapé abaixo */
-      },
       ...opts,
+      didDrawPage: () => addHeader(),
     });
     y = (pdf as any).lastAutoTable.finalY + 7;
   };
+
 
   addHeader();
 
