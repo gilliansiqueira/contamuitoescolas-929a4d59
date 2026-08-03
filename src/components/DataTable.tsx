@@ -335,7 +335,8 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
                         </td>
                         <td />
                         <td className="px-2 py-1 text-center">
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1" data-export-hide>
+
                             <button onClick={saveEdit} className="p-1 rounded hover:bg-primary/10 text-primary"><Check className="w-4 h-4" /></button>
                             <button onClick={cancelEdit} className="p-1 rounded hover:bg-destructive/10 text-destructive"><X className="w-4 h-4" /></button>
                           </div>
