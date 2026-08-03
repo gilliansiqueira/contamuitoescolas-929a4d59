@@ -56,6 +56,17 @@ export const DEFAULT_MAPPINGS: Record<string, LedgerRule> = {
   'rendimento': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar' },
   'aplicacao e resgate automatico': { entraNoResultado: false, impactaCaixa: false, operacaoSinal: 'somar' },
   'aplicacao e resgate': { entraNoResultado: false, impactaCaixa: false, operacaoSinal: 'somar' },
+  // Rótulos órfãos identificados no diagnóstico (maio/2026+) — antes caíam no
+  // fallback absoluto e sumiam do Resultado/Saldo.
+  'receita real': { entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar' },
+  'entrada': { entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar' },
+  'aporte entrada': { entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar' },
+  'distribuicao de lucros (dl)': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
+  'distribuicao de lucro': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
+  'emprestimo': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
+  'saque saida': { entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair' },
+  'aporte saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
+  'compra escola': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
 };
 
 /**
