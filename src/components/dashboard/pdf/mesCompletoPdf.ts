@@ -156,6 +156,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
 
 
   addHeader();
+  y = MARGIN_X + 28;
+
 
   // ───── 1. Resumo executivo (cards) ─────
   const cards: { label: string; value: number; color: [number, number, number] }[] = [
