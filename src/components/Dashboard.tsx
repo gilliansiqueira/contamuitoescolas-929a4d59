@@ -34,6 +34,7 @@ import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
 import { usePresentation } from '@/components/presentation-provider';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
+import { UnclassifiedAlert } from '@/components/UnclassifiedAlert';
 import { InvestimentoSection } from '@/components/InvestimentoSection';
 import { ManualCardsSection } from '@/components/dashboard/ManualCardsSection';
 import { ResumoMensalImagem } from '@/components/dashboard/ResumoMensalImagem';
@@ -639,6 +640,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           {' — '}os dias seguintes são projeção. O mês só é consolidado como realizado após o fechamento.
         </div>
       )}
+
+      <UnclassifiedAlert
+        entries={activeEntries.filter(e => selectedMonths.includes(e.data.slice(0, 7)))}
+        classifications={classifications}
+      />
+
 
       {showInsights && <InsightsBar insights={insights} title="Insights & Alertas" emptyHint="Sem alertas relevantes para este período." />}
 
