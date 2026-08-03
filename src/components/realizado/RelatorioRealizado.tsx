@@ -711,42 +711,44 @@ export function RelatorioRealizado({ schoolId }: Props) {
                 {containerWidth > 0 && containerWidth < 560 ? (
                   <TooltipProvider>
                     <div className="space-y-4">
-                      {barChartData.map((d, i) => {
-                        const overLimit = currentRevenue > 0 && d.pctFat > 30;
+                      {(() => {
                         const maxValue = Math.max(...barChartData.map(x => x.value), 1);
-                        const widthPct = Math.min((d.value / maxValue) * 100, 100);
-                        return (
-                          <div key={d.name} className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <UITooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="text-sm font-medium text-foreground truncate flex-1 min-w-0 cursor-help">
-                                    {d.name}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs">
-                                  <p>{d.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {formatCurrency(d.value)}
-                                    {currentRevenue > 0 ? ` (${d.pctFat.toFixed(1)}%)` : ''}
-                                  </p>
-                                </TooltipContent>
-                              </UITooltip>
-                              <span className="text-sm font-semibold text-foreground whitespace-nowrap">
-                                {d.label}
-                              </span>
+                        return barChartData.map((d, i) => {
+                          const overLimit = currentRevenue > 0 && d.pctFat > 30;
+                          const widthPct = Math.min((d.value / maxValue) * 100, 100);
+                          return (
+                            <div key={d.name} className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <UITooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-sm font-medium text-foreground truncate flex-1 min-w-0 cursor-help">
+                                      {d.name}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs">
+                                    <p>{d.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatCurrency(d.value)}
+                                      {currentRevenue > 0 ? ` (${d.pctFat.toFixed(1)}%)` : ''}
+                                    </p>
+                                  </TooltipContent>
+                                </UITooltip>
+                                <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                                  {d.label}
+                                </span>
+                              </div>
+                              <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${widthPct}%` }}
+                                  transition={{ duration: 0.5, delay: i * 0.05 }}
+                                  className={`h-full rounded-full ${overLimit ? 'bg-destructive' : 'bg-primary'}`}
+                                />
+                              </div>
                             </div>
-                            <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${widthPct}%` }}
-                                transition={{ duration: 0.5, delay: i * 0.05 }}
-                                className={`h-full rounded-full ${overLimit ? 'bg-destructive' : 'bg-primary'}`}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                      })()}
                     </div>
                   </TooltipProvider>
                 ) : (
