@@ -10,6 +10,9 @@ import { parseSpreadsheetDate, toPreviousBusinessDay, toNextBusinessDay, schoolA
 // (a partir da menor data do novo arquivo) — preservando lançamentos manuais
 // e tudo que estiver marcado como `realizado`.
 const PROJECTION_REPLACE_TYPES = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
+
+// Tipos de upload onde o usuário pode escolher a política para datas em dia não útil.
+const WEEKEND_POLICY_TYPES = new Set(['contas_pagar', 'cheque', 'cartao']);
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight, Plus, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -204,7 +207,7 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_compensacao', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          const dt = toPreviousBusinessDay(dtRaw, allowWeekend);
+          const dt = allowWeekend ? dtRaw : applyWeekendPolicy(dtRaw, weekendPolicy);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cheque - ${get(row, 'nome_aluno') || ''}`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cheque',
@@ -219,7 +222,7 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_recebimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          const dt = toPreviousBusinessDay(dtRaw, allowWeekend);
+          const dt = allowWeekend ? dtRaw : applyWeekendPolicy(dtRaw, weekendPolicy);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cartão`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cartao',
@@ -654,7 +657,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
 
     const { rows, mapping, uploadType } = tipoMappingPending;
     const { entries, errors: validationErrors } = convertRows(
-      rows, uploadType, schoolId, rules, mapping, localClassifications
+      rows, uploadType, schoolId, rules, mapping, localClassifications, weekendPolicy
     );
     setPreview(entries);
     setErrors(validationErrors);
@@ -987,9 +990,9 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             />
           )}
 
-          {selectedType.key === 'contas_pagar' && (
+          {WEEKEND_POLICY_TYPES.has(selectedType.key) && (
             <div className="glass-card rounded-xl p-4 space-y-3">
-              <p className="text-sm font-medium">Quando o vencimento cair em dia não útil:</p>
+              <p className="text-sm font-medium">Quando a data cair em dia não útil:</p>
               <div className="space-y-2">
                 {([
                   { v: 'anterior', label: 'Antecipar para o dia útil anterior' },
