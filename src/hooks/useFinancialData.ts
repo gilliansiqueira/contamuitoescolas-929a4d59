@@ -353,6 +353,7 @@ export function usePaymentDelayRules(schoolId: string) {
         school_id: r.school_id,
         formaCobranca: r.forma_cobranca,
         prazo: r.prazo,
+        weekendPolicy: ((r as any).weekend_policy ?? 'proximo') as 'anterior' | 'proximo' | 'manter',
       }));
     },
     enabled: !!schoolId,
@@ -368,9 +369,11 @@ export function useSavePaymentDelayRule() {
         school_id: rule.school_id,
         forma_cobranca: rule.formaCobranca,
         prazo: rule.prazo,
-      }, { onConflict: 'school_id,forma_cobranca' });
+        weekend_policy: rule.weekendPolicy ?? 'proximo',
+      } as any, { onConflict: 'school_id,forma_cobranca' });
       if (error) throw error;
     },
+
     onSuccess: () => qc.invalidateQueries({ queryKey: ['paymentDelayRules'] }),
   });
 }
