@@ -53,9 +53,8 @@ export function getEffectiveClassification(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): EffectiveClassification {
-  if (entry.editadoManualmente) {
-    return entry.tipo === 'entrada' ? 'receita' : 'despesa';
-  }
+  // `editadoManualmente` é apenas auditoria — não altera a classificação.
+
 
   const rule = resolveEffectiveRule(entry, classifications);
   if (!rule.impactaCaixa && !rule.entraNoResultado) return 'ignorar';
