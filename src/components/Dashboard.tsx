@@ -13,6 +13,7 @@ import {
   computeSaldoFinal,
   computeSaldoInicialRealizado,
   computeSaldoFinalRealizado,
+  prevMonth,
   includeEntryForMonth,
   computeFluxoCutoff,
 
