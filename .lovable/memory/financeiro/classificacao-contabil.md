@@ -24,9 +24,12 @@ Toda configuração de tipo tem **dois campos obrigatórios** (exceto `ignorar`)
 - Ignorar → desabilita o sinal
 
 ## Resolução da classificação efetiva (sem heurística por nome)
-1. Se `editadoManualmente=true` → usa `entry.tipo` (entrada=receita, saida=despesa)
-2. Se há config em `type_classifications` (lookup pela chave normalizada) → usa a config
-3. Sem config → fallback pelo `entry.tipo` (entrada=receita, saida=despesa)
+1. Se há config em `type_classifications` da empresa (lookup pela chave normalizada) → usa a config
+2. Sem config → fallback pelo `entry.tipo` (entrada=receita, saida=despesa)
+
+> A flag `editadoManualmente` é **apenas um marcador de auditoria** (indica que o lançamento foi ajustado manualmente na tela de Dados). Ela **não influencia** a resolução da classificação contábil.
+
+> Origens `sponte`, `cheque`, `cartao` e `contas_pagar` sempre usam o tipo nativo (`entry.tipo`), sem passar pela configuração de `type_classifications`.
 
 > A normalização (`normalizeTipo`) só remove acento/case/espaços para casar variações de escrita do **mesmo nome**. Não há mais mapa de sinônimos (`saida → despesa`, etc.) — a configuração do usuário manda.
 
