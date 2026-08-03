@@ -336,7 +336,7 @@ export function Simulation({ schoolId }: SimulationProps) {
                       </td>
                     );
                   })}
-                  <td className="px-2 py-2 border-b border-border/30 text-center">
+                  <td className="px-2 py-2 border-b border-border/30 text-center" data-export-hide>
                     <button onClick={() => removeProduct(p.id, p.isNew)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
