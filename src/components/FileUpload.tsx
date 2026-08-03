@@ -207,7 +207,7 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_compensacao', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          const dt = toPreviousBusinessDay(dtRaw, allowWeekend);
+          const dt = allowWeekend ? dtRaw : applyWeekendPolicy(dtRaw, weekendPolicy);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cheque - ${get(row, 'nome_aluno') || ''}`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cheque',
@@ -222,7 +222,7 @@ function convertRows(
           const val = parseNumber(get(row, 'valor'));
           if (!dtRaw) { errors.push({ linha: lineNum, coluna: 'data_recebimento', mensagem: 'Data inválida' }); return; }
           if (val == null) { errors.push({ linha: lineNum, coluna: 'valor', mensagem: 'Valor inválido' }); return; }
-          const dt = toPreviousBusinessDay(dtRaw, allowWeekend);
+          const dt = allowWeekend ? dtRaw : applyWeekendPolicy(dtRaw, weekendPolicy);
           entry = {
             id: crypto.randomUUID(), data: dt, descricao: `Cartão`,
             valor: Math.abs(val), tipo: 'entrada', categoria: 'cartao',
