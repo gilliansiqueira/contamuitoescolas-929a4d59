@@ -27,6 +27,7 @@ import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
 import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
 import { AuditHistory } from '@/components/AuditHistory';
 import { DailyFlowTable } from '@/components/DailyFlowTable';
+import { ExportPdfSection } from '@/components/ExportPdfSection';
 import { UsersConfig } from '@/components/UsersConfig';
 import { HistoricoFinanceiroConfig } from '@/components/HistoricoFinanceiroConfig';
 import { ModelosFinanceirosManager } from '@/components/ModelosFinanceirosManager';
