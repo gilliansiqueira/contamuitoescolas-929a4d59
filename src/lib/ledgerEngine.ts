@@ -158,7 +158,8 @@ export function resolveLedgerRule(
     impactaCaixa: false,
     entraNoResultado: false,
     operacaoSinal: 'somar',
-    label: tipoKey
+    label: tipoKey,
+    unclassified: true,
   };
 }
 
