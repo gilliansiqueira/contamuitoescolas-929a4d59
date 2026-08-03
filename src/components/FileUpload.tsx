@@ -990,9 +990,9 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
             />
           )}
 
-          {selectedType.key === 'contas_pagar' && (
+          {WEEKEND_POLICY_TYPES.has(selectedType.key) && (
             <div className="glass-card rounded-xl p-4 space-y-3">
-              <p className="text-sm font-medium">Quando o vencimento cair em dia não útil:</p>
+              <p className="text-sm font-medium">Quando a data cair em dia não útil:</p>
               <div className="space-y-2">
                 {([
                   { v: 'anterior', label: 'Antecipar para o dia útil anterior' },
