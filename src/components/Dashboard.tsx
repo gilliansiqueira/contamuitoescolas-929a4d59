@@ -640,6 +640,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </div>
       )}
 
+      <UnclassifiedAlert
+        entries={activeEntries.filter(e => selectedMonths.includes(e.data.slice(0, 7)))}
+        classifications={classifications}
+      />
+
+
       {showInsights && <InsightsBar insights={insights} title="Insights & Alertas" emptyHint="Sem alertas relevantes para este período." />}
 
 
