@@ -23,7 +23,7 @@
 
 import type { FinancialEntry, TypeClassification, PaymentDelayRule } from '@/types/financial';
 import { getSaldoImpact, getEffectiveClassification } from './classificationUtils';
-import { addDaysAndAdjust, toPreviousBusinessDay, schoolAllowsWeekend } from './dateUtils';
+import { addDaysAndAdjust, addDaysWithPolicy, applyWeekendPolicy, toPreviousBusinessDay, schoolAllowsWeekend } from './dateUtils';
 import { normalizeTipo } from './ledgerEngine';
 
 export interface ProjectedEntry extends FinancialEntry {
@@ -82,7 +82,12 @@ export function applyPaymentDelay(
   const prazo = rule?.prazo ?? 0;
 
   const allowWeekend = schoolAllowsWeekend(entry.school_id);
-  const dataFinal = prazo > 0 ? addDaysAndAdjust(entry.data, prazo, allowWeekend) : entry.data;
+  const policy = rule?.weekendPolicy ?? 'proximo';
+  const dataFinal = prazo > 0
+    ? addDaysWithPolicy(entry.data, prazo, policy, allowWeekend)
+    : entry.data;
+
+
   // Debug para validação de prazos por forma de cobrança
   if (normalizeTipo(forma).includes('credito') || entry.origem === 'cheque') {
     // eslint-disable-next-line no-console

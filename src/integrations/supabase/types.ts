@@ -1015,6 +1015,7 @@ export type Database = {
           id: string
           prazo: number
           school_id: string
+          weekend_policy: string
         }
         Insert: {
           created_at?: string
@@ -1022,6 +1023,7 @@ export type Database = {
           id?: string
           prazo?: number
           school_id: string
+          weekend_policy?: string
         }
         Update: {
           created_at?: string
@@ -1029,6 +1031,7 @@ export type Database = {
           id?: string
           prazo?: number
           school_id?: string
+          weekend_policy?: string
         }
         Relationships: [
           {

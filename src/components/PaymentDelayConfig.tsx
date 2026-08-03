@@ -4,6 +4,8 @@ import { usePaymentDelayRules, useSavePaymentDelayRule, useAddAuditLog, useEntri
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Clock, Save } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { WeekendPolicy } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { normalizeTipo } from '@/lib/ledgerEngine';
@@ -19,6 +21,13 @@ export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigPr
   const saveRule = useSavePaymentDelayRule();
   const addAuditLog = useAddAuditLog();
   const [edits, setEdits] = useState<Record<string, number>>({});
+  const [policyEdits, setPolicyEdits] = useState<Record<string, WeekendPolicy>>({});
+
+  const POLICY_OPTIONS: { v: WeekendPolicy; label: string }[] = [
+    { v: 'proximo', label: 'Prorrogar para o próximo dia útil' },
+    { v: 'anterior', label: 'Antecipar para o dia útil anterior' },
+    { v: 'manter', label: 'Manter a data original' },
+  ];
 
   const rules = useMemo(() => {
     // Coleta formas de cobrança reais a partir dos uploads Sponte da escola.
@@ -32,7 +41,7 @@ export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigPr
     }
 
     // Une defaults + formas vindas do Sponte + regras já salvas (sem duplicar).
-    const byKey = new Map<string, { forma: string; prazo: number; id: string }>();
+    const byKey = new Map<string, { forma: string; prazo: number; id: string; weekendPolicy: WeekendPolicy }>();
     const addForma = (forma: string, defaultPrazo: number) => {
       const k = normalizeTipo(forma);
       if (byKey.has(k)) return;
@@ -40,6 +49,7 @@ export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigPr
       byKey.set(k, {
         forma: saved?.formaCobranca || forma,
         prazo: saved?.prazo ?? defaultPrazo,
+        weekendPolicy: (saved?.weekendPolicy ?? 'proximo') as WeekendPolicy,
         id: saved?.id || crypto.randomUUID(),
       });
     };
@@ -52,16 +62,20 @@ export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigPr
   }, [savedRules, entries]);
 
   const handleSave = async (forma: string, id: string) => {
-    const prazo = edits[forma] ?? rules.find(r => r.forma === forma)?.prazo ?? 0;
+    const rule = rules.find(r => r.forma === forma);
+    const prazo = edits[forma] ?? rule?.prazo ?? 0;
+    const weekendPolicy = policyEdits[forma] ?? rule?.weekendPolicy ?? 'proximo';
     if (prazo < 0) { toast.error('Prazo não pode ser negativo'); return; }
     try {
-      await saveRule.mutateAsync({ id, school_id: schoolId, formaCobranca: forma, prazo });
+      await saveRule.mutateAsync({ id, school_id: schoolId, formaCobranca: forma, prazo, weekendPolicy });
+      const policyLabel = POLICY_OPTIONS.find(o => o.v === weekendPolicy)?.label ?? weekendPolicy;
       await addAuditLog.mutateAsync({
         school_id: schoolId,
         action: 'config',
-        description: `Prazo de ${forma} alterado para ${prazo} dias`,
+        description: `Prazo de ${forma} alterado para ${prazo} dias (dia não útil: ${policyLabel})`,
       });
       setEdits(prev => { const n = { ...prev }; delete n[forma]; return n; });
+      setPolicyEdits(prev => { const n = { ...prev }; delete n[forma]; return n; });
       onChanged();
       toast.success(`Prazo de "${forma}" salvo`);
     } catch {
@@ -77,7 +91,8 @@ export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigPr
       </div>
       <p className="text-xs text-muted-foreground mb-4">
         Defina o prazo (em dias) para cada forma de cobrança. Para Sponte, recebimentos de cartão de crédito serão
-        lançados como entrada prevista N dias após a data de vencimento, ajustados para dia útil.
+        lançados como entrada prevista N dias após a data de vencimento. Escolha também o que fazer quando a data
+        cair em dia não útil (sábado/domingo) para cada forma de cobrança.
       </p>
       {isLoading ? (
         <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
@@ -87,13 +102,15 @@ export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigPr
             <tr className="border-b border-border">
               <th className="px-3 py-2 text-left font-medium text-muted-foreground">Forma de Cobrança</th>
               <th className="px-3 py-2 text-center font-medium text-muted-foreground">Prazo (dias)</th>
+              <th className="px-3 py-2 text-center font-medium text-muted-foreground">Dia não útil</th>
               <th className="px-3 py-2 text-center font-medium text-muted-foreground">Ação</th>
             </tr>
           </thead>
           <tbody>
             {rules.map(r => {
               const currentPrazo = edits[r.forma] ?? r.prazo;
-              const isDirty = edits[r.forma] !== undefined;
+              const currentPolicy = policyEdits[r.forma] ?? r.weekendPolicy;
+              const isDirty = edits[r.forma] !== undefined || policyEdits[r.forma] !== undefined;
               return (
                 <tr key={r.forma} className="border-t border-border/30">
                   <td className="px-3 py-2.5 font-medium text-foreground">{r.forma}</td>
@@ -105,6 +122,21 @@ export function PaymentDelayConfig({ schoolId, onChanged }: PaymentDelayConfigPr
                       onChange={e => setEdits(prev => ({ ...prev, [r.forma]: parseInt(e.target.value) || 0 }))}
                       className="w-20 h-8 text-sm text-center mx-auto"
                     />
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <Select
+                      value={currentPolicy}
+                      onValueChange={(v) => setPolicyEdits(prev => ({ ...prev, [r.forma]: v as WeekendPolicy }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[220px] mx-auto">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {POLICY_OPTIONS.map(o => (
+                          <SelectItem key={o.v} value={o.v} className="text-xs">{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </td>
                   <td className="px-3 py-2.5 text-center">
                     <Button
