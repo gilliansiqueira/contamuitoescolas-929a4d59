@@ -34,6 +34,7 @@ import { Receivables } from '@/components/Receivables';
 import { Button } from '@/components/ui/button';
 import { usePresentation } from '@/components/presentation-provider';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
+import { UnclassifiedAlert } from '@/components/UnclassifiedAlert';
 import { InvestimentoSection } from '@/components/InvestimentoSection';
 import { ManualCardsSection } from '@/components/dashboard/ManualCardsSection';
 import { ResumoMensalImagem } from '@/components/dashboard/ResumoMensalImagem';
