@@ -192,11 +192,11 @@ export function CategoryBlock({ name, entries, allYearEntries, totalGeral, fatur
         <CardContent className="p-0">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-between p-5 hover:bg-muted/30 transition-colors text-left"
+            className="w-full flex flex-wrap items-start justify-between p-5 hover:bg-muted/30 transition-colors text-left gap-3"
           >
-            <div className="flex items-center gap-3">
-              {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-              <div>
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+              <div className="min-w-0">
                 <h3 className="font-display font-semibold text-foreground text-sm">{name}</h3>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   {insights.slice(0, 2).map((ins, i) => (
@@ -207,9 +207,9 @@ export function CategoryBlock({ name, entries, allYearEntries, totalGeral, fatur
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
               <Badge variant="outline" className="text-xs rounded-lg">{pct.toFixed(1)}%</Badge>
-              <p className="text-xl font-bold text-foreground">{formatCurrency(total)}</p>
+              <p className="text-xl font-bold text-foreground whitespace-nowrap">{formatCurrency(total)}</p>
             </div>
           </button>
 
