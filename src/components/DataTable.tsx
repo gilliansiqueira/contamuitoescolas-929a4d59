@@ -259,7 +259,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
 
         {/* Bulk actions */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 pt-2 border-t border-border/30">
+          <div className="flex items-center gap-3 pt-2 border-t border-border/30" data-export-hide>
             <span className="text-sm text-muted-foreground">{selectedIds.size} selecionado(s)</span>
             <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
               <Trash2 className="w-3.5 h-3.5 mr-1" /> Excluir selecionados
