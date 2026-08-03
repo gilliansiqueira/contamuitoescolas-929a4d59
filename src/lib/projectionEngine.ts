@@ -23,7 +23,7 @@
 
 import type { FinancialEntry, TypeClassification, PaymentDelayRule } from '@/types/financial';
 import { getSaldoImpact, getEffectiveClassification } from './classificationUtils';
-import { addDaysAndAdjust, toPreviousBusinessDay, schoolAllowsWeekend } from './dateUtils';
+import { addDaysAndAdjust, addDaysWithPolicy, applyWeekendPolicy, toPreviousBusinessDay, schoolAllowsWeekend } from './dateUtils';
 import { normalizeTipo } from './ledgerEngine';
 
 export interface ProjectedEntry extends FinancialEntry {
