@@ -306,12 +306,24 @@ export function RealizadoModule({ schoolId }: Props) {
       </div>
       <motion.div key={activeView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
         {activeView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
-        {activeView === 'indicadores' && <IndicadoresDashboard schoolId={schoolId} />}
-        {activeView === 'conversao' && <ConversaoDashboard schoolId={schoolId} />}
-        {activeView === 'vendas' && <VendasDashboard schoolId={schoolId} />}
-        {activeView === 'analise_vendas' && <AnaliseVendasDashboard schoolId={schoolId} />}
-        {activeView === 'recebimento_categoria' && <RecebimentoCategoria schoolId={schoolId} />}
-        {activeView === 'teto_gastos' && <TetoGastos schoolId={schoolId} />}
+        {activeView === 'indicadores' && (
+          <ExportPdfSection fileName="indicadores"><IndicadoresDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'conversao' && (
+          <ExportPdfSection fileName="conversao"><ConversaoDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'vendas' && (
+          <ExportPdfSection fileName="vendas"><VendasDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'analise_vendas' && (
+          <ExportPdfSection fileName="analise-de-vendas"><AnaliseVendasDashboard schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'recebimento_categoria' && (
+          <ExportPdfSection fileName="recebimento-por-categoria"><RecebimentoCategoria schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'teto_gastos' && (
+          <ExportPdfSection fileName="teto-de-gastos"><TetoGastos schoolId={schoolId} /></ExportPdfSection>
+        )}
       </motion.div>
 
       <ExportPdfDialog 
