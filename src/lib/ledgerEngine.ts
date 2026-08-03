@@ -217,8 +217,29 @@ export function resolveEntryLedgerRule(
   if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
     return defaultRuleForTipo(entry.tipo);
   }
-  return resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
+  const rule = resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
+
+  // Fallback seguro para o Fluxo de Caixa Realizado: em vez de zerar o
+  // lançamento silenciosamente, usa o tipo nativo (entrada soma / saída
+  // subtrai). Mantém a marcação `unclassified` para o alerta na UI.
+  if (rule.unclassified && entry.origem === 'fluxo') {
+    return { ...defaultRuleForTipo(entry.tipo), label: rule.label, unclassified: true };
+  }
+
+  return rule;
 }
+
+/**
+ * Indica que o lançamento não tem classificação conhecida (caiu no fallback).
+ * Usado apenas para alertar na UI — não altera cálculos.
+ */
+export function isUnclassifiedEntry(
+  entry: FinancialEntry,
+  classifications: TypeClassification[]
+): boolean {
+  return resolveEntryLedgerRule(entry, classifications).unclassified === true;
+}
+
 
 /**
  * Retorna o impacto absoluto de saldo de uma transação.
