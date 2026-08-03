@@ -15,6 +15,7 @@ import { ExportPdfDialog } from './ExportPdfDialog';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { FechamentoMeses } from './FechamentoMeses';
 import { TetoGastos } from './TetoGastos';
+import { ExportPdfSection } from '@/components/ExportPdfSection';
 // SharedMonthProvider is now provided at the app root (Index.tsx) so the
 // global period filter reaches every tab.
 import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target } from 'lucide-react';
