@@ -194,7 +194,7 @@ export function DataTable({ schoolId, selectedMonth, onDataChanged }: DataTableP
             <span className="text-primary font-semibold">Entradas: {formatCurrency(totalEntradas)}</span>
             <span className="text-destructive font-semibold">Saídas: {formatCurrency(totalSaidas)}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-export-hide>
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
