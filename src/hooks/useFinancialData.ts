@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { FinancialEntry, School, TypeClassification, PaymentDelayRule, ExclusionRule, UploadRecord, AuditLogEntry } from '@/types/financial';
 import { fetchAllRows } from '@/lib/fetchAll';
+import { syncWeekendAllowedSchools, setSchoolAllowsWeekend } from '@/lib/dateUtils';
 
 // Bump when the canonical fetch strategy changes so React Query does not keep
 // totals computed from old, non-deterministic paginated responses in memory.
@@ -14,13 +15,16 @@ export function useSchools() {
     queryFn: async (): Promise<School[]> => {
       const { data, error } = await supabase.from('schools').select('*').order('created_at');
       if (error) throw error;
-      return (data ?? []).map(s => ({
+      const schools = (data ?? []).map(s => ({
         id: s.id,
         nome: s.nome,
         createdAt: s.created_at,
         saldoInicial: Number(s.saldo_inicial) || 0,
         saldoInicialData: s.saldo_inicial_data ?? undefined,
+        allowWeekendEntries: !!(s as any).allow_weekend_entries,
       }));
+      syncWeekendAllowedSchools(schools);
+      return schools;
     },
   });
 }
@@ -32,13 +36,16 @@ export function useSchool(schoolId: string) {
       const { data, error } = await supabase.from('schools').select('*').eq('id', schoolId).maybeSingle();
       if (error) throw error;
       if (!data) return null;
-      return {
+      const school = {
         id: data.id,
         nome: data.nome,
         createdAt: data.created_at,
         saldoInicial: Number(data.saldo_inicial) || 0,
         saldoInicialData: data.saldo_inicial_data ?? undefined,
+        allowWeekendEntries: !!(data as any).allow_weekend_entries,
       };
+      setSchoolAllowsWeekend(school.id, school.allowWeekendEntries);
+      return school;
     },
     enabled: !!schoolId,
   });
