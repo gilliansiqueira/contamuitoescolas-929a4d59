@@ -10,6 +10,9 @@ import { parseSpreadsheetDate, toPreviousBusinessDay, toNextBusinessDay, schoolA
 // (a partir da menor data do novo arquivo) — preservando lançamentos manuais
 // e tudo que estiver marcado como `realizado`.
 const PROJECTION_REPLACE_TYPES = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
+
+// Tipos de upload onde o usuário pode escolher a política para datas em dia não útil.
+const WEEKEND_POLICY_TYPES = new Set(['contas_pagar', 'cheque', 'cartao']);
 import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X, FileText, ArrowRight, Plus, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
