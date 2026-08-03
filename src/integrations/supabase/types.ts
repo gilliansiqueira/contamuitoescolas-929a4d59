@@ -1778,6 +1778,7 @@ export type Database = {
       }
       schools: {
         Row: {
+          allow_weekend_entries: boolean
           created_at: string
           financial_model_template_id: string | null
           id: string
@@ -1786,6 +1787,7 @@ export type Database = {
           saldo_inicial_data: string | null
         }
         Insert: {
+          allow_weekend_entries?: boolean
           created_at?: string
           financial_model_template_id?: string | null
           id?: string
@@ -1794,6 +1796,7 @@ export type Database = {
           saldo_inicial_data?: string | null
         }
         Update: {
+          allow_weekend_entries?: boolean
           created_at?: string
           financial_model_template_id?: string | null
           id?: string

@@ -24,6 +24,8 @@ export interface School {
   createdAt: string;
   saldoInicial?: number;
   saldoInicialData?: string; // YYYY-MM-DD base date
+  /** Permite lançamentos em sábado/domingo (config por empresa) */
+  allowWeekendEntries?: boolean;
 }
 
 export interface ExclusionRule {
