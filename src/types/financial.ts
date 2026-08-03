@@ -113,7 +113,10 @@ export interface PaymentDelayRule {
   school_id: string;
   formaCobranca: string;
   prazo: number;
+  /** Política para datas que caem em dia não útil. Padrão: 'proximo'. */
+  weekendPolicy?: 'anterior' | 'proximo' | 'manter';
 }
+
 
 /** Audit log entry */
 export interface AuditLogEntry {
