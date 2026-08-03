@@ -1,55 +1,68 @@
-# Refatoração: Templates como única SSOT financeira
+# Diagnóstico: lançamentos que "somem" do Realizado (maio/2026 em diante)
 
-## Escopo confirmado
-- Aplica-se **apenas ao Relatório Realizado / Dashboard / DRE / Fluxo Diário / Fluxo de Caixa / Histórico / Projeção derivada desses dados**.
-- **NÃO se aplica** a entries com `origem ∈ {sponte, cheque, cartao, contas_pagar}` — esses continuam usando o `tipo` nativo do upload (regra já existente em `ORIGENS_SEMPRE_CLASSIFICADAS`).
-- Eliminar `type_classifications` como fonte de decisão. Templates (`financial_model_template_items`) passam a ser a única SSOT com dois campos-chave: `entra_no_resultado` e `impacta_caixa` (= "entra_no_saldo").
+Levantamento feito direto no banco, sem nenhuma alteração.
 
-## Modelo final de decisão
+## 1. A hipótese do "editadoManualmente" não se confirma
 
-Para cada entry elegível (origens `fluxo`, `manual`, `historico`, `simulacao`):
+- Existem apenas **94 lançamentos** com `editadoManualmente = true` a partir de 01/05/2026 (em 112.952 no período).
+- Desses 94, **nenhum** cai na regra absoluta de fallback:
+  - a grande maioria tem origem `contas_pagar`, `sponte` ou `cartao` — origens que, por regra, nunca passam pelas classificações do usuário e sempre entram pelo `tipo` nativo;
+  - os poucos de origem `manual` usam "Rendimento" e "Despesa", ambos presentes no DEFAULT_MAPPINGS.
+- Valor "sumindo" por causa do `editadoManualmente`: **R$ 0,00**.
 
-1. Chave de lookup = `normalizeTipo(entry.tipoOriginal || entry.categoria || entry.tipo)`.
-2. Busca no template da escola (`fetchSchoolTemplateId` → `fetchTemplateItems`) pelo mesmo `normalizeTipo(item.name)`.
-3. Regras:
-   - `entra_no_resultado=true` + `tipo='entrada'` → **receita**
-   - `entra_no_resultado=true` + `tipo='saida'` → **despesa**
-   - `entra_no_resultado=false` + `impacta_caixa=true` → **operação** (sinal pelo `tipo`)
-   - ambos false ou `tipo='ignorar'` → **ignorar**
-4. **Sem match no template** → fallback pelo `entry.tipo` nativo (entrada=receita+, saida=despesa−), preservando comportamento atual e evitando quebra durante transição.
+## 2. O problema real: um único rótulo órfão — "Receita Real"
 
-## Fases
+Analisando todos os lançamentos de origem `manual`/`fluxo`/`simulacao` de 01/05/2026 em diante, cruzando a chave efetiva (tipoOriginal → categoria → tipo) contra o DEFAULT_MAPPINGS e contra os itens do Modelo Financeiro de cada escola:
 
-### Fase 1 — Novo motor central (Templates SSOT)
-- `src/lib/templateRules.ts` (novo): `resolveTemplateRule(key, items)`, `getEntrySaldoImpact(entry, items)`, `isEntryIgnored`, `filterActiveEntries`, `calculateTotals`, `getEffectiveClassification`. Assinatura espelha `classificationUtils` para migração 1:1.
-- `src/hooks/useSchoolTemplateItems.ts` (novo): retorna `FinancialModelTemplateItem[]` já cacheados por escola (baseado em `useSchoolModel`).
+- **3.354 lançamentos órfãos**, somando **R$ 3.336.886,92**, resolvem hoje para `impactaCaixa=false` e `entraNoResultado=false`.
+- São apenas **9 rótulos distintos** — ou seja, poucos valores órfãos repetidos, não uma variação grande:
 
-### Fase 2 — Migrar consumidores
-Substituir `useTypeClassifications` → `useSchoolTemplateItems` e `classificationUtils` → `templateRules` em:
-- Hooks: `usePeriodMovementCtx`, `usePeriodSnapshots`, `useSaldoInicialPeriodo`, `useProjectedEntries`, `usePeriodClosures`.
-- Libs: `periodMovement`, `snapshotUtils`, `projectionEngine`, `closureValidation`, `modelValidation`, `ledgerEngine`, `tipoMeta`.
-- Componentes: `Dashboard`, `DailyFlowTable`, `CashFlow`, `FinancialCalendar`, `DataTable`, `ProjectedVsReal`, `Receivables`, `Simulation`, `HistoricoFinanceiroConfig`, `FileUpload`, `upload/TipoMappingStep`.
-- Testes: `ledgerEngine.test`, `periodMovement.test` (adaptar mocks para template items).
+| Rótulo (normalizado) | Tipo | Lançamentos | Valor |
+|---|---|---|---|
+| receita real | entrada | 3.199 | R$ 2.800.245,18 |
+| distribuicao de lucros (dl) | saída | 73 | R$ 306.926,62 |
+| emprestimo | saída | 23 | R$ 132.547,91 |
+| entrada | entrada | 33 | R$ 44.990,90 |
+| distribuicao de lucro | saída | 3 | R$ 27.826,70 |
+| saque saida | saída | 16 | R$ 15.588,40 |
+| aporte saida | saída | 3 | R$ 3.749,00 |
+| aporte entrada | entrada | 3 | R$ 3.749,00 |
+| compra escola | saída | 1 | R$ 1.263,21 |
 
-Regra de isolamento das origens de upload preservada dentro do novo motor (mesma constante `ORIGENS_SEMPRE_CLASSIFICADAS`).
+Detalhe do caso dominante: são entries de **origem `fluxo`**, com `tipo_original = "Receita Real"` e `categoria = "fluxo_realizado"` — todas em escolas que **têm** Modelo Financeiro atribuído, mas cujo modelo não contém o item "Receita Real". Como "receita real" também não existe no DEFAULT_MAPPINGS, cai no fallback absoluto e o valor desaparece do Resultado e do Saldo.
 
-### Fase 3 — Remoção da Classificação de Tipos
-- Deletar: `src/components/TypeClassificationConfig.tsx`, `src/lib/classificationUtils.ts` (ou reduzir a stub re-exportando de `templateRules` para não quebrar imports esquecidos — decidir na hora), `useTypeClassifications` em `useFinancialData`.
-- Remover aba/rota da tela em `pages/Index.tsx` e onde for referenciada.
-- Migration Supabase: `DROP TABLE public.type_classifications CASCADE` + remover triggers/guards/functions que a referenciem (validar antes com `pg_depend`).
-- Ajustar `financialModels.applyTemplateToSchool` para deixar de escrever em `type_classifications` (só grava `financial_model_template_id`).
+## 3. Receita "sumindo" por empresa
 
-### Fase 4 — Auditoria final
-- `rg` por `type_classifications|TypeClassification|useTypeClassifications|classificationUtils` deve retornar 0 hits fora dos arquivos gerados.
-- Rodar `bunx vitest run` e conferir Dashboard/Fluxo/DRE de uma escola real via Playwright para checar paridade de saldo antes/depois.
+Total de **receita (entrada)** perdida no período: **R$ 2.848.985,08** (3.235 lançamentos).
 
-## Riscos & mitigação
-- **Escolas sem template atribuído**: fallback do passo 4 mantém sistema funcional; sinal manual do usuário anterior (`operacao_sinal`) é perdido — aviso no changelog. Se identificarmos escolas assim, oferecemos migração automática (converter `type_classifications` existentes em itens de template privado antes do DROP).
-- **DROP CASCADE**: antes de aprovar a migration final, listar dependências e migrar dados críticos para itens de template.
+| Empresa | Lançamentos | Receita sumindo |
+|---|---|---|
+| Portão | 335 | R$ 414.225,73 |
+| Cuiabá Jardim Itália | 248 | R$ 391.172,81 |
+| Cuiabá Goiabeiras | 257 | R$ 346.227,36 |
+| Rio Verde | 385 | R$ 325.968,68 |
+| Pinheirinho | 259 | R$ 209.753,31 |
+| Campo Largo | 361 | R$ 205.213,45 |
+| Hauer | 323 | R$ 166.952,72 |
+| Maracaju | 229 | R$ 152.037,75 |
+| Bairro Alto | 180 | R$ 135.559,33 |
+| Vitória | 76 | R$ 103.256,53 |
+| Brasília | 181 | R$ 102.060,41 |
+| São Chico | 193 | R$ 101.168,86 |
+| Boa Vista | 96 | R$ 84.667,23 |
+| São Mateus | 79 | R$ 65.730,01 |
+| Influx Boa Vista | 33 | R$ 44.990,90 |
 
-## Detalhes técnicos
-- `FinancialModelTemplateItem.tipo` já cobre `entrada|saida|ignorar` e possui `impacta_caixa` + `entra_no_resultado` — modelo suficiente, sem mudança de schema nos templates.
-- `type_classifications.operacao_sinal` (auto|somar|subtrair): não há equivalente em template. Proposta: quando `tipo='saida'` + `impacta_caixa=true` + `entra_no_resultado=false`, sinal = subtrair; quando `tipo='entrada'` idem, sinal = somar. Cobre 100% dos casos observados; casos "auto" viram fixo pelo `tipo` do item.
-- Manter `ORIGENS_SEMPRE_CLASSIFICADAS = {sponte, cheque, cartao, contas_pagar}` como bypass — projeções desses uploads continuam intactas.
+Considerando também as saídas órfãs (distribuição de lucros, empréstimo, saque, aporte, compra escola), o impacto total no caixa/resultado sobe para R$ 3.336.886,92, concentrado em: Cuiabá Jardim Itália (R$ 465.561,13), Portão (R$ 464.064,45), Cuiabá Goiabeiras (R$ 442.075,00), Rio Verde (R$ 370.349,12), Pinheirinho (R$ 225.582,61).
 
-Entrega prevista em uma sequência: Fase 1+2 num commit (sistema funcional com Templates SSOT, tela antiga ainda visível mas ignorada), depois aprovação sua para Fase 3 (remoção + migration DROP).
+## 4. Observação complementar (Histórico Financeiro)
+
+No `historical_monthly` a partir de 2026-05 também existem rótulos fora do padrão que dependem do modelo de cada escola para serem contabilizados, ex.: "cheques sicredi", "distribuicao de lucros - sicredi", "despesas outras unidades", "pagamentos em dinheiro", "receitas pf", "franqueadora", "compra de veiculo", "recebimentos em dinheiro". Não foram somados acima porque a validação depende do modelo por escola.
+
+## Conclusão
+
+Não é preciso mexer na lógica do `editadoManualmente`. O buraco é o **fallback absoluto silencioso** aplicado a 9 rótulos órfãos — sobretudo "Receita Real", gerado pelo próprio importador de Fluxo de Caixa Realizado.
+
+Caminhos possíveis (nenhum aplicado ainda):
+- adicionar esses rótulos ao DEFAULT_MAPPINGS (correção global, 1 arquivo);
+- e/ou trocar o fallback absoluto por um fallback pelo `tipo` nativo em origem `fluxo`, com um alerta de "tipo não classificado" na tela, para nunca mais um valor sumir sem aviso.
