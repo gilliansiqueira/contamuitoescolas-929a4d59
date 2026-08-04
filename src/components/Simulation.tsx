@@ -27,6 +27,17 @@ interface Cell {
   parcelas: number;
 }
 
+interface Adjustment {
+  id: string;
+  descricao: string;
+  tipo: 'entrada' | 'saida';
+  month: string;
+  valor: number;
+  sort_order: number;
+  isNew?: boolean;
+}
+
+
 const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
 function formatCurrency(v: number) {
