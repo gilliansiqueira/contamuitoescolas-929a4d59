@@ -441,6 +441,80 @@ export function Simulation({ schoolId }: SimulationProps) {
         </div>
       </motion.div>
 
+      {/* Entradas e saídas específicas */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card rounded-xl p-5 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h3 className="font-display font-semibold text-sm">Entradas e saídas específicas</h3>
+          <Button size="sm" variant="outline" onClick={addAdjustment} data-export-hide>
+            <Plus className="w-3 h-3 mr-1" /> Lançamento
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Lançamentos pontuais que <strong>não</strong> entram na receita simulada, mas afetam o resultado e o saldo final.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-surface border-b border-border">
+                <th className="px-2 py-2 text-left font-medium text-muted-foreground min-w-[200px]">Descrição</th>
+                <th className="px-2 py-2 text-left font-medium text-muted-foreground w-[120px]">Tipo</th>
+                <th className="px-2 py-2 text-left font-medium text-muted-foreground w-[120px]">Mês</th>
+                <th className="px-2 py-2 text-right font-medium text-muted-foreground w-[140px]">Valor</th>
+                <th className="px-2 py-2 w-8" data-export-hide></th>
+              </tr>
+            </thead>
+            <tbody>
+              {adjustments.length === 0 ? (
+                <tr><td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">
+                  Nenhum lançamento específico.
+                </td></tr>
+              ) : adjustments.map(a => (
+                <tr key={a.id} className="border-t border-border/30">
+                  <td className="px-2 py-1.5">
+                    <Input value={a.descricao} placeholder="Ex.: Aporte de sócio"
+                      onChange={e => updateAdjustment(a.id, 'descricao', e.target.value)}
+                      className="h-8 text-xs" />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <select
+                      value={a.tipo}
+                      onChange={e => updateAdjustment(a.id, 'tipo', e.target.value)}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                    >
+                      <option value="entrada">Entrada</option>
+                      <option value="saida">Saída</option>
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <select
+                      value={a.month}
+                      onChange={e => updateAdjustment(a.id, 'month', e.target.value)}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                    >
+                      {(months.includes(a.month) ? months : [a.month, ...months]).map(m => (
+                        <option key={m} value={m}>{formatMonth(m)}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <Input type="number" step="0.01" min={0} value={a.valor || ''}
+                      onChange={e => updateAdjustment(a.id, 'valor', Number(e.target.value) || 0)}
+                      className="h-8 text-xs text-right" placeholder="0,00" />
+                  </td>
+                  <td className="px-2 py-1.5 text-center" data-export-hide>
+                    <button onClick={() => removeAdjustment(a.id, a.isNew)} className="text-muted-foreground hover:text-destructive">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
+
+
+
       {/* Consolidação */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-xl p-5 space-y-3">
         <h3 className="font-display font-semibold text-sm">Consolidação Mensal</h3>
