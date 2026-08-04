@@ -487,19 +487,34 @@ export function Simulation({ schoolId }: SimulationProps) {
                 })}
               </tr>
               <tr className="border-t border-border/30">
+                <td className="px-2 py-2 text-muted-foreground">Entradas específicas</td>
+                {months.map(m => (
+                  <td key={m} className="px-2 py-2 text-right text-success">{formatCurrency(entradasExtrasPorMes[m] || 0)}</td>
+                ))}
+              </tr>
+              <tr className="border-t border-border/30">
                 <td className="px-2 py-2 text-muted-foreground">Contas a pagar (projetado)</td>
                 {months.map(m => (
                   <td key={m} className="px-2 py-2 text-right text-destructive">{formatCurrency(contasPagarPorMes[m] || 0)}</td>
                 ))}
               </tr>
+              <tr className="border-t border-border/30">
+                <td className="px-2 py-2 text-muted-foreground">Saídas específicas</td>
+                {months.map(m => (
+                  <td key={m} className="px-2 py-2 text-right text-destructive">{formatCurrency(saidasExtrasPorMes[m] || 0)}</td>
+                ))}
+              </tr>
               <tr className="border-t-2 border-border bg-muted/40 font-bold">
                 <td className="px-2 py-2 text-foreground">Resultado simulado</td>
                 {months.map(m => {
-                  const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0) - (contasPagarPorMes[m] || 0);
+                  const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0)
+                    + (entradasExtrasPorMes[m] || 0)
+                    - (contasPagarPorMes[m] || 0) - (saidasExtrasPorMes[m] || 0);
                   return (
                     <td key={m} className={`px-2 py-2 text-right ${res >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {formatCurrency(res)}
                     </td>
+
                   );
                 })}
               </tr>
