@@ -238,6 +238,85 @@ export function Simulation({ schoolId }: SimulationProps) {
     return map;
   }, [entries, classifications]);
 
+  // Ajustes manuais (entradas/saídas específicas) — não entram em "Receita simulada"
+  const { data: dbAdjustments = [] } = useQuery({
+    queryKey: ['simulation_adjustments', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('simulation_adjustments' as any)
+        .select('*').eq('school_id', schoolId).order('sort_order');
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+    enabled: !!schoolId,
+  });
+
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
+  useEffect(() => {
+    setAdjustments(dbAdjustments.map((r: any) => ({
+      id: r.id, descricao: r.descricao || '', tipo: r.tipo === 'saida' ? 'saida' : 'entrada',
+      month: r.month, valor: Number(r.valor) || 0, sort_order: r.sort_order ?? 0,
+    })));
+  }, [dbAdjustments]);
+
+  const persistAdjustment = useCallback((a: Adjustment) => {
+    clearTimeout(saveTimer.current[`a:${a.id}`]);
+    saveTimer.current[`a:${a.id}`] = setTimeout(async () => {
+      const payload: any = {
+        school_id: schoolId, descricao: a.descricao, tipo: a.tipo,
+        month: a.month, valor: a.valor, sort_order: a.sort_order,
+      };
+      if (a.isNew) {
+        const { error } = await supabase.from('simulation_adjustments' as any).insert({ id: a.id, ...payload });
+        if (error) { toast.error(error.message); return; }
+        setAdjustments(as => as.map(x => x.id === a.id ? { ...x, isNew: false } : x));
+        qc.invalidateQueries({ queryKey: ['simulation_adjustments', schoolId] });
+      } else {
+        const { error } = await supabase.from('simulation_adjustments' as any)
+          .update(payload).eq('id', a.id);
+        if (error) toast.error(error.message);
+      }
+    }, 500);
+  }, [schoolId, qc]);
+
+  const updateAdjustment = (id: string, field: keyof Adjustment, value: any) => {
+    setAdjustments(as => {
+      const next = as.map(a => a.id === id ? { ...a, [field]: value } : a);
+      const upd = next.find(a => a.id === id);
+      if (upd) persistAdjustment(upd);
+      return next;
+    });
+  };
+
+  const addAdjustment = () => {
+    const a: Adjustment = {
+      id: crypto.randomUUID(), descricao: '', tipo: 'entrada',
+      month: months[0], valor: 0, sort_order: adjustments.length, isNew: true,
+    };
+    setAdjustments(as => [...as, a]);
+    persistAdjustment(a);
+  };
+
+  const removeAdjustment = async (id: string, isNew?: boolean) => {
+    setAdjustments(as => as.filter(a => a.id !== id));
+    if (!isNew) {
+      await supabase.from('simulation_adjustments' as any).delete().eq('id', id);
+      qc.invalidateQueries({ queryKey: ['simulation_adjustments', schoolId] });
+    }
+  };
+
+  const entradasExtrasPorMes = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const a of adjustments) if (a.tipo === 'entrada') map[a.month] = (map[a.month] || 0) + (a.valor || 0);
+    return map;
+  }, [adjustments]);
+
+  const saidasExtrasPorMes = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const a of adjustments) if (a.tipo === 'saida') map[a.month] = (map[a.month] || 0) + (a.valor || 0);
+    return map;
+  }, [adjustments]);
+
   // Saldo inicial do período — mesma SSOT usada no Dashboard
   const saldoInicialCalculado = useSaldoInicialPeriodo(schoolId, months);
 
@@ -248,12 +327,15 @@ export function Simulation({ schoolId }: SimulationProps) {
     let acc = saldoInicialCalculado;
     for (const m of months) {
       inicial[m] = acc;
-      const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0) - (contasPagarPorMes[m] || 0);
+      const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0)
+        + (entradasExtrasPorMes[m] || 0)
+        - (contasPagarPorMes[m] || 0) - (saidasExtrasPorMes[m] || 0);
       acc += res;
       final[m] = acc;
     }
     return { saldoInicialPorMes: inicial, saldoFinalPorMes: final };
-  }, [saldoInicialCalculado, months, sistemaProjetadoPorMes, simuladoPorMes, contasPagarPorMes]);
+  }, [saldoInicialCalculado, months, sistemaProjetadoPorMes, simuladoPorMes, contasPagarPorMes, entradasExtrasPorMes, saidasExtrasPorMes]);
+
 
   return (
     <div className="space-y-6">
