@@ -137,8 +137,10 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
 
     });
   } finally {
+    fields.forEach((f) => f.removeAttribute('data-pdf-field'));
     restore(saved);
   }
+
 
   // Paisagem quando o conteúdo é mais largo do que alto (evita reduzir demais)
   const landscape = canvas.width / canvas.height > 1.15;
