@@ -69,10 +69,14 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
   ]);
 
   const saved = expand(el);
+  // Marca os campos de formulário para reencontrá-los no clone do html2canvas
+  const fields = Array.from(el.querySelectorAll<HTMLElement>('input, textarea, select'));
+  fields.forEach((f, i) => f.setAttribute('data-pdf-field', String(i)));
   let canvas: HTMLCanvasElement;
   try {
     // Aguarda o reflow depois da expansão
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
 
     const fullWidth = Math.ceil(Math.max(el.scrollWidth, el.offsetWidth));
     const fullHeight = Math.ceil(Math.max(el.scrollHeight, el.offsetHeight));
@@ -92,11 +96,69 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
         doc.querySelectorAll('[data-export-hide]').forEach((n) => {
           (n as HTMLElement).style.display = 'none';
         });
+
+        // O html2canvas não renderiza corretamente o texto de campos de
+        // formulário (o React define o valor por propriedade e o texto sai
+        // cortado/em branco). Substituímos cada campo por um bloco de texto
+        // equivalente no clone, preservando o visual.
+        const originals = Array.from(
+          el.querySelectorAll<HTMLElement>('input, textarea, select'),
+        );
+        originals.forEach((orig, i) => {
+          const clone = doc.querySelector<HTMLElement>(`[data-pdf-field="${i}"]`);
+          if (!clone) return;
+
+          if (orig instanceof HTMLInputElement && (orig.type === 'checkbox' || orig.type === 'radio')) {
+            (clone as HTMLInputElement).checked = orig.checked;
+            if (orig.checked) clone.setAttribute('checked', '');
+            else clone.removeAttribute('checked');
+            return;
+          }
+
+          let text = '';
+          if (orig instanceof HTMLSelectElement) {
+            text = orig.selectedOptions[0]?.text ?? '';
+          } else {
+            text = (orig as HTMLInputElement | HTMLTextAreaElement).value ?? '';
+          }
+
+          const cs = getComputedStyle(orig);
+          const rect = orig.getBoundingClientRect();
+          const box = doc.createElement('div');
+          box.textContent = text;
+          box.style.cssText = [
+            `width:${rect.width}px`,
+            `min-height:${rect.height}px`,
+            `font:${cs.font}`,
+            `font-family:${cs.fontFamily}`,
+            `font-size:${cs.fontSize}`,
+            `font-weight:${cs.fontWeight}`,
+            `color:${cs.color}`,
+            `text-align:${cs.textAlign}`,
+            `padding:${cs.paddingTop} ${cs.paddingRight} ${cs.paddingBottom} ${cs.paddingLeft}`,
+            `border:${cs.border}`,
+            `border-radius:${cs.borderRadius}`,
+            `background:${cs.backgroundColor}`,
+            `box-sizing:border-box`,
+            `white-space:pre-wrap`,
+            `overflow:hidden`,
+            `display:flex`,
+            `align-items:center`,
+            `justify-content:${
+              cs.textAlign === 'right' ? 'flex-end' : cs.textAlign === 'center' ? 'center' : 'flex-start'
+            }`,
+          ].join(';');
+          clone.replaceWith(box);
+        });
+
       },
+
     });
   } finally {
+    fields.forEach((f) => f.removeAttribute('data-pdf-field'));
     restore(saved);
   }
+
 
   // Paisagem quando o conteúdo é mais largo do que alto (evita reduzir demais)
   const landscape = canvas.width / canvas.height > 1.15;
