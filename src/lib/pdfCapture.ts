@@ -99,14 +99,10 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
         const originals = Array.from(
           el.querySelectorAll<HTMLElement>('input, textarea, select'),
         );
-        const clones = Array.from(
-          doc.querySelectorAll<HTMLElement>('input, textarea, select'),
-        );
-        // O clone contém o documento inteiro; localizamos o offset da nossa área.
-        const offset = Math.max(0, clones.length - originals.length);
         originals.forEach((orig, i) => {
-          const clone = clones[offset + i];
+          const clone = doc.querySelector<HTMLElement>(`[data-pdf-field="${i}"]`);
           if (!clone) return;
+
           if (orig instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
             if (orig.type === 'checkbox' || orig.type === 'radio') {
               clone.checked = orig.checked;
