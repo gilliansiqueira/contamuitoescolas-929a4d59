@@ -97,9 +97,10 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
           (n as HTMLElement).style.display = 'none';
         });
 
-        // React define o valor dos inputs via propriedade (não atributo), então
-        // o clone usado pelo html2canvas sai em branco. Copiamos os valores reais
-        // (inputs, selects e textareas) para o clone antes da captura.
+        // O html2canvas não renderiza corretamente o texto de campos de
+        // formulário (o React define o valor por propriedade e o texto sai
+        // cortado/em branco). Substituímos cada campo por um bloco de texto
+        // equivalente no clone, preservando o visual.
         const originals = Array.from(
           el.querySelectorAll<HTMLElement>('input, textarea, select'),
         );
@@ -107,32 +108,49 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
           const clone = doc.querySelector<HTMLElement>(`[data-pdf-field="${i}"]`);
           if (!clone) return;
 
-          if (orig instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
-            if (orig.type === 'checkbox' || orig.type === 'radio') {
-              clone.checked = orig.checked;
-              if (orig.checked) clone.setAttribute('checked', '');
-              else clone.removeAttribute('checked');
-            } else {
-              clone.setAttribute('value', orig.value);
-              clone.value = orig.value;
-            }
-          } else if (
-            orig instanceof HTMLTextAreaElement &&
-            clone instanceof HTMLTextAreaElement
-          ) {
-            clone.textContent = orig.value;
-            clone.value = orig.value;
-          } else if (
-            orig instanceof HTMLSelectElement &&
-            clone instanceof HTMLSelectElement
-          ) {
-            clone.value = orig.value;
-            Array.from(clone.options).forEach((o) => {
-              if (o.value === orig.value) o.setAttribute('selected', '');
-              else o.removeAttribute('selected');
-            });
+          if (orig instanceof HTMLInputElement && (orig.type === 'checkbox' || orig.type === 'radio')) {
+            (clone as HTMLInputElement).checked = orig.checked;
+            if (orig.checked) clone.setAttribute('checked', '');
+            else clone.removeAttribute('checked');
+            return;
           }
+
+          let text = '';
+          if (orig instanceof HTMLSelectElement) {
+            text = orig.selectedOptions[0]?.text ?? '';
+          } else {
+            text = (orig as HTMLInputElement | HTMLTextAreaElement).value ?? '';
+          }
+
+          const cs = getComputedStyle(orig);
+          const rect = orig.getBoundingClientRect();
+          const box = doc.createElement('div');
+          box.textContent = text;
+          box.style.cssText = [
+            `width:${rect.width}px`,
+            `min-height:${rect.height}px`,
+            `font:${cs.font}`,
+            `font-family:${cs.fontFamily}`,
+            `font-size:${cs.fontSize}`,
+            `font-weight:${cs.fontWeight}`,
+            `color:${cs.color}`,
+            `text-align:${cs.textAlign}`,
+            `padding:${cs.paddingTop} ${cs.paddingRight} ${cs.paddingBottom} ${cs.paddingLeft}`,
+            `border:${cs.border}`,
+            `border-radius:${cs.borderRadius}`,
+            `background:${cs.backgroundColor}`,
+            `box-sizing:border-box`,
+            `white-space:pre-wrap`,
+            `overflow:hidden`,
+            `display:flex`,
+            `align-items:center`,
+            `justify-content:${
+              cs.textAlign === 'right' ? 'flex-end' : cs.textAlign === 'center' ? 'center' : 'flex-start'
+            }`,
+          ].join(';');
+          clone.replaceWith(box);
         });
+
       },
 
     });
