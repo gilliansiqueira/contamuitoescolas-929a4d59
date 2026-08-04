@@ -92,7 +92,49 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
         doc.querySelectorAll('[data-export-hide]').forEach((n) => {
           (n as HTMLElement).style.display = 'none';
         });
+
+        // React define o valor dos inputs via propriedade (não atributo), então
+        // o clone usado pelo html2canvas sai em branco. Copiamos os valores reais
+        // (inputs, selects e textareas) para o clone antes da captura.
+        const originals = Array.from(
+          el.querySelectorAll<HTMLElement>('input, textarea, select'),
+        );
+        const clones = Array.from(
+          doc.querySelectorAll<HTMLElement>('input, textarea, select'),
+        );
+        // O clone contém o documento inteiro; localizamos o offset da nossa área.
+        const offset = Math.max(0, clones.length - originals.length);
+        originals.forEach((orig, i) => {
+          const clone = clones[offset + i];
+          if (!clone) return;
+          if (orig instanceof HTMLInputElement && clone instanceof HTMLInputElement) {
+            if (orig.type === 'checkbox' || orig.type === 'radio') {
+              clone.checked = orig.checked;
+              if (orig.checked) clone.setAttribute('checked', '');
+              else clone.removeAttribute('checked');
+            } else {
+              clone.setAttribute('value', orig.value);
+              clone.value = orig.value;
+            }
+          } else if (
+            orig instanceof HTMLTextAreaElement &&
+            clone instanceof HTMLTextAreaElement
+          ) {
+            clone.textContent = orig.value;
+            clone.value = orig.value;
+          } else if (
+            orig instanceof HTMLSelectElement &&
+            clone instanceof HTMLSelectElement
+          ) {
+            clone.value = orig.value;
+            Array.from(clone.options).forEach((o) => {
+              if (o.value === orig.value) o.setAttribute('selected', '');
+              else o.removeAttribute('selected');
+            });
+          }
+        });
       },
+
     });
   } finally {
     restore(saved);
