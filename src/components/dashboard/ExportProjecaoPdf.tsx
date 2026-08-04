@@ -21,46 +21,8 @@ export function ExportProjecaoPdf({ targetRef, fileName = 'projecao' }: Props) {
     if (!el) return;
     setBusy(true);
     try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: getComputedStyle(document.body).backgroundColor || '#ffffff',
-        windowWidth: Math.max(el.scrollWidth, 1100),
-        onclone: (doc) => {
-          doc.querySelectorAll('[data-export-hide]').forEach(n => {
-            (n as HTMLElement).style.display = 'none';
-          });
-        },
-      });
-
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 24;
-      const imgW = pageW - margin * 2;
-      const imgH = (canvas.height * imgW) / canvas.width;
-
-      const img = canvas.toDataURL('image/jpeg', 0.95);
-      let remaining = imgH;
-      let position = margin;
-
-      pdf.addImage(img, 'JPEG', margin, position, imgW, imgH);
-      remaining -= pageH - margin * 2;
-
-      while (remaining > 0) {
-        pdf.addPage();
-        position -= pageH - margin * 2;
-        pdf.addImage(img, 'JPEG', margin, position, imgW, imgH);
-        remaining -= pageH - margin * 2;
-      }
-
-      pdf.save(`${fileName}.pdf`);
+      const { exportElementToPdf } = await import('@/lib/pdfCapture');
+      await exportElementToPdf(el, fileName);
       toast.success('PDF gerado');
     } catch (err) {
       console.error('[ExportProjecaoPdf]', err);
@@ -69,6 +31,7 @@ export function ExportProjecaoPdf({ targetRef, fileName = 'projecao' }: Props) {
       setBusy(false);
     }
   };
+
 
   return (
     <Button variant="outline" size="sm" onClick={handleExport} disabled={busy}>
