@@ -1814,6 +1814,50 @@ export type Database = {
           },
         ]
       }
+      simulation_adjustments: {
+        Row: {
+          created_at: string
+          descricao: string
+          id: string
+          month: string
+          school_id: string
+          sort_order: number
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          month: string
+          school_id: string
+          sort_order?: number
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          id?: string
+          month?: string
+          school_id?: string
+          sort_order?: number
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_adjustments_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       simulation_entries: {
         Row: {
           created_at: string
