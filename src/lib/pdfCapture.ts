@@ -69,10 +69,14 @@ export async function exportElementToPdf(el: HTMLElement, fileName = 'relatorio'
   ]);
 
   const saved = expand(el);
+  // Marca os campos de formulário para reencontrá-los no clone do html2canvas
+  const fields = Array.from(el.querySelectorAll<HTMLElement>('input, textarea, select'));
+  fields.forEach((f, i) => f.setAttribute('data-pdf-field', String(i)));
   let canvas: HTMLCanvasElement;
   try {
     // Aguarda o reflow depois da expansão
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
 
     const fullWidth = Math.ceil(Math.max(el.scrollWidth, el.offsetWidth));
     const fullHeight = Math.ceil(Math.max(el.scrollHeight, el.offsetHeight));
