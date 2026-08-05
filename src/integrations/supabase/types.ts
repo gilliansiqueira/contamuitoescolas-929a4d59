@@ -754,6 +754,7 @@ export type Database = {
       kpi_definitions: {
         Row: {
           created_at: string
+          decimals: number
           direction: string
           enabled: boolean
           icon_id: string | null
@@ -765,6 +766,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          decimals?: number
           direction?: string
           enabled?: boolean
           icon_id?: string | null
@@ -776,6 +778,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          decimals?: number
           direction?: string
           enabled?: boolean
           icon_id?: string | null

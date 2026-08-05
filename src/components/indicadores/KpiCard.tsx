@@ -22,21 +22,24 @@ function formatMonth(m: string) {
   return `${names[parseInt(mo, 10) - 1]}/${y.slice(2)}`;
 }
 
-function formatValue(v: number, type: string) {
-  if (type === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (type === 'percent') return `${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatValue(v: number, type: string, decimals = 2) {
+  const d = Number.isFinite(decimals) ? Math.min(Math.max(decimals, 0), 4) : 2;
+  const opts = { minimumFractionDigits: d, maximumFractionDigits: d };
+  if (type === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', ...opts });
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', opts)}%`;
+  return v.toLocaleString('pt-BR', opts);
 }
 
 /** Rótulo curto para exibir dentro do gráfico (suave, sem poluir). */
-function formatCompact(v: number, type: string) {
+function formatCompact(v: number, type: string, decimals = 1) {
+  const d = Number.isFinite(decimals) ? Math.min(Math.max(decimals, 0), 4) : 1;
   if (type === 'currency') {
     const abs = Math.abs(v);
-    if (abs >= 1000) return `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`;
-    return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    if (abs >= 1000) return `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: Math.min(d, 1) })}k`;
+    return v.toLocaleString('pt-BR', { maximumFractionDigits: Math.min(d, 1) });
   }
-  if (type === 'percent') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
-  return v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: d })}%`;
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: d });
 }
 
 
@@ -161,7 +164,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
     if (def.value_type === 'percent') {
       return `${prefix}${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
     }
-    return `${prefix}${formatValue(v, def.value_type)}`;
+    return `${prefix}${formatValue(v, def.value_type, def.decimals)}`;
   };
 
 
@@ -192,7 +195,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
 
         <div className="flex items-baseline justify-between gap-1">
           <span className="text-lg font-extrabold leading-tight" style={{ color }}>
-            {currentVal !== null ? formatValue(currentVal, def.value_type) : '—'}
+            {currentVal !== null ? formatValue(currentVal, def.value_type, def.decimals) : '—'}
           </span>
           <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white shrink-0" style={{ backgroundColor: color }}>
             {label}
@@ -231,9 +234,9 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
                   className="font-semibold"
                   style={yoy.delta === 0 ? undefined : { color: yoy.improvement ? 'hsl(142 71% 45%)' : 'hsl(0 84% 60%)' }}
                 >
-                  {yoy.isPercent ? formatVariation(yoy.delta) : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type)}`}
+                  {yoy.isPercent ? formatVariation(yoy.delta) : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type, def.decimals)}`}
                 </span>{' '}
-                vs {yoy.prevYear} (mesmo período) · Média {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
+                vs {yoy.prevYear} (mesmo período) · Média {formatValue(yoy.aggCur, def.value_type, def.decimals)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type, def.decimals)}
               </div>
             )}
             <ResponsiveContainer width="100%" height={130}>
@@ -241,7 +244,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
                 <XAxis dataKey="month" tick={{ fontSize: 8 }} axisLine={false} tickLine={false} interval={isMultiYear ? 1 : Math.max(0, Math.ceil(chartData.length / 5) - 1)} />
                 <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8 }} width={30} axisLine={false} tickLine={false} />
                 <Tooltip
-                  formatter={(v: number, name: string) => [formatValue(v, def.value_type), isMultiYear ? name : def.name]}
+                  formatter={(v: number, name: string) => [formatValue(v, def.value_type, def.decimals), isMultiYear ? name : def.name]}
                   contentStyle={{ fontSize: 10, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
                 />
                 {isMultiYear
@@ -297,7 +300,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
       {/* Value */}
       <div className="text-center mb-1">
         <span className="text-3xl font-extrabold" style={{ color }}>
-          {currentVal !== null ? formatValue(currentVal, def.value_type) : '—'}
+          {currentVal !== null ? formatValue(currentVal, def.value_type, def.decimals) : '—'}
         </span>
       </div>
 
@@ -345,7 +348,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
             >
               {yoy.isPercent
                 ? formatVariation(yoy.delta)
-                : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type)}`}
+                : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type, def.decimals)}`}
             </span>
             {yoy.relPct !== null && (
               <span className="text-muted-foreground">
@@ -358,7 +361,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
             Comparado ao acumulado do ano passado (mesmo período)
           </div>
           <div className="text-[10px] text-muted-foreground text-center">
-            Média Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type)}
+            Média Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type, def.decimals)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type, def.decimals)}
           </div>
 
         </div>
@@ -379,7 +382,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
               <XAxis dataKey="month" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <Tooltip
-                formatter={(v: number, name: string) => [formatValue(v, def.value_type), name]}
+                formatter={(v: number, name: string) => [formatValue(v, def.value_type, def.decimals), name]}
                 contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
               />
               {years.map((year, idx) => (
@@ -403,7 +406,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
                       fontSize={8}
                       fill="hsl(var(--muted-foreground))"
                       opacity={0.65}
-                      formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type))}
+                      formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type, def.decimals))}
                     />
                   )}
                 </Line>
@@ -421,7 +424,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
               <XAxis dataKey="month" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <Tooltip
-                formatter={(v: number) => [formatValue(v, def.value_type), def.name]}
+                formatter={(v: number) => [formatValue(v, def.value_type, def.decimals), def.name]}
                 contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
               />
               <Line
@@ -440,7 +443,7 @@ export function KpiCard({ definition: def, values, months, referenceMonth }: Pro
                   fontSize={8}
                   fill="hsl(var(--muted-foreground))"
                   opacity={0.65}
-                  formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type))}
+                  formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type, def.decimals))}
                 />
               </Line>
             </LineChart>
