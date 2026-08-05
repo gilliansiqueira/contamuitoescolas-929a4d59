@@ -59,6 +59,7 @@ export function useKpiDefinitions(schoolId: string) {
       ...d,
       value_type: d.value_type as KpiDefinition['value_type'],
       direction: d.direction as KpiDefinition['direction'],
+      decimals: (d as any).decimals ?? 2,
       thresholds: thresholds.filter(t => t.kpi_definition_id === d.id),
       icon: icons.find(i => i.id === d.icon_id),
     }));

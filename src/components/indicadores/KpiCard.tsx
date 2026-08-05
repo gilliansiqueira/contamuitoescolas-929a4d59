@@ -22,21 +22,24 @@ function formatMonth(m: string) {
   return `${names[parseInt(mo, 10) - 1]}/${y.slice(2)}`;
 }
 
-function formatValue(v: number, type: string) {
-  if (type === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (type === 'percent') return `${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatValue(v: number, type: string, decimals = 2) {
+  const d = Number.isFinite(decimals) ? Math.min(Math.max(decimals, 0), 4) : 2;
+  const opts = { minimumFractionDigits: d, maximumFractionDigits: d };
+  if (type === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', ...opts });
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', opts)}%`;
+  return v.toLocaleString('pt-BR', opts);
 }
 
 /** Rótulo curto para exibir dentro do gráfico (suave, sem poluir). */
-function formatCompact(v: number, type: string) {
+function formatCompact(v: number, type: string, decimals = 1) {
+  const d = Number.isFinite(decimals) ? Math.min(Math.max(decimals, 0), 4) : 1;
   if (type === 'currency') {
     const abs = Math.abs(v);
-    if (abs >= 1000) return `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`;
-    return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    if (abs >= 1000) return `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: Math.min(d, 1) })}k`;
+    return v.toLocaleString('pt-BR', { maximumFractionDigits: Math.min(d, 1) });
   }
-  if (type === 'percent') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
-  return v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: d })}%`;
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: d });
 }
 
 

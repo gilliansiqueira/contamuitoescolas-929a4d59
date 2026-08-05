@@ -13,6 +13,7 @@ export interface KpiDefinition {
   icon_id: string | null;
   value_type: 'percent' | 'currency' | 'number';
   direction: 'higher_is_better' | 'lower_is_better';
+  decimals: number;
   enabled: boolean;
   sort_order: number;
 }

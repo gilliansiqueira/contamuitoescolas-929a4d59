@@ -140,13 +140,13 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
   const startEdit = (def: KpiDefinitionWithThresholds) => {
     setEditing(def.id);
     const url = def.icon?.file_url || libIcons.find(i => i.id === def.icon_id)?.file_url || '';
-    setForm({ name: def.name, icon_url: url, value_type: def.value_type, direction: def.direction });
+    setForm({ name: def.name, icon_url: url, value_type: def.value_type, direction: def.direction, decimals: def.decimals ?? 2 });
     setThresholds(def.thresholds.map(t => ({ min_value: t.min_value ?? '', max_value: t.max_value ?? '', color: t.color, label: t.label })));
   };
 
   const startNew = () => {
     setEditing('new');
-    setForm({ name: '', icon_url: '', value_type: 'percent', direction: 'higher_is_better' });
+    setForm({ name: '', icon_url: '', value_type: 'percent', direction: 'higher_is_better', decimals: 2 });
     setThresholds([]);
   };
 
@@ -159,6 +159,7 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
         icon_id: iconId,
         value_type: form.value_type,
         direction: form.direction,
+        decimals: Number(form.decimals ?? 2),
         sort_order: definitions.length,
       };
       if (editing !== 'new') defPayload.id = editing;
@@ -226,6 +227,17 @@ function IndicadoresTab({ definitions, icons, schoolId, mutations }: {
               <SelectContent>
                 <SelectItem value="higher_is_better">Maior = melhor</SelectItem>
                 <SelectItem value="lower_is_better">Menor = melhor</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Casas decimais</Label>
+            <Select value={String(form.decimals ?? 2)} onValueChange={v => setForm({ ...form, decimals: Number(v) })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[0, 1, 2, 3, 4].map(n => (
+                  <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'casa' : 'casas'}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
