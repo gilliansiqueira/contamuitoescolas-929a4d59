@@ -1,0 +1,1 @@
+ALTER TABLE public.kpi_definitions ADD COLUMN IF NOT EXISTS decimals smallint NOT NULL DEFAULT 2;
