@@ -440,7 +440,16 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .filter(mm => mm <= cutoffMM)
       .map(mm => ({ mes: monthBuckets[mm].__label as any, ...monthBuckets[mm] }))
       .map(({ __label, ...rest }: any) => rest);
-    return { data, years };
+
+    // Acumulado por série (até o último mês exibido)
+    const seriesTotals: Record<string, number> = {};
+    for (const row of data) {
+      for (const [k, v] of Object.entries(row)) {
+        if (k === 'mes' || typeof v !== 'number') continue;
+        seriesTotals[k] = (seriesTotals[k] || 0) + v;
+      }
+    }
+    return { data, years, seriesTotals };
   }, [activeEntries, historicalRows, classifications, snapshotMap, todayStr, modelItems]);
 
   const negativeDays = useMemo(() => projectionData.filter(d => d.saldo < 0), [projectionData]);
