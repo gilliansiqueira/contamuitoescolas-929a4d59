@@ -1009,7 +1009,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                     fontSize: '12px',
                   }}
                 />
-                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                <Legend
+                  wrapperStyle={{ fontSize: '11px' }}
+                  formatter={(value: any, entry: any) => {
+                    const key = entry?.dataKey as string;
+                    const total = key ? annualLineChart.seriesTotals?.[key] : undefined;
+                    return total !== undefined
+                      ? `${value} — ${formatCurrency(total)}`
+                      : String(value);
+                  }}
+                />
+
                 {annualLineChart.years.map((year, idx) => {
                   // Cor distinta por ano (paleta diversa, alto contraste)
                   const YEAR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
