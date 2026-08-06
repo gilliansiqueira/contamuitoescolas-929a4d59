@@ -440,7 +440,16 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       .filter(mm => mm <= cutoffMM)
       .map(mm => ({ mes: monthBuckets[mm].__label as any, ...monthBuckets[mm] }))
       .map(({ __label, ...rest }: any) => rest);
-    return { data, years };
+
+    // Acumulado por série (até o último mês exibido)
+    const seriesTotals: Record<string, number> = {};
+    for (const row of data) {
+      for (const [k, v] of Object.entries(row)) {
+        if (k === 'mes' || typeof v !== 'number') continue;
+        seriesTotals[k] = (seriesTotals[k] || 0) + v;
+      }
+    }
+    return { data, years, seriesTotals };
   }, [activeEntries, historicalRows, classifications, snapshotMap, todayStr, modelItems]);
 
   const negativeDays = useMemo(() => projectionData.filter(d => d.saldo < 0), [projectionData]);
@@ -1000,7 +1009,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                     fontSize: '12px',
                   }}
                 />
-                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                <Legend
+                  wrapperStyle={{ fontSize: '11px' }}
+                  formatter={(value: any, entry: any) => {
+                    const key = entry?.dataKey as string;
+                    const total = key ? annualLineChart.seriesTotals?.[key] : undefined;
+                    return total !== undefined
+                      ? `${value} — ${formatCurrency(total)}`
+                      : String(value);
+                  }}
+                />
+
                 {annualLineChart.years.map((year, idx) => {
                   // Cor distinta por ano (paleta diversa, alto contraste)
                   const YEAR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];

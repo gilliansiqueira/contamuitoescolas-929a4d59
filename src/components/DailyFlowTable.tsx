@@ -222,7 +222,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         isWeekend: isWeekend(data),
         dayOfWeek: getDayOfWeek(data),
         isAfterCutoff,
-        isCutoff: i === cutoffIdx,
+        // Linha divisória só existe quando há transição realizado→previsão dentro do mês
+        isCutoff: i === cutoffIdx && cutoffIdx >= 0 && cutoffIdx < allDays.length - 1,
       } as DayRow;
     });
 
