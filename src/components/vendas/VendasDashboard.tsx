@@ -11,6 +11,8 @@ import { Settings2, Upload } from 'lucide-react';
 import { useMonthSync, useRangeSync } from '@/components/realizado/SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { ImportacaoVendas } from './ImportacaoVendas';
+import { GraficosPersonalizados } from './GraficosPersonalizados';
+
 
 interface Props {
   schoolId: string;
