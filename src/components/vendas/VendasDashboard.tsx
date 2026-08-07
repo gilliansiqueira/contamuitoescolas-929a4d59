@@ -115,6 +115,12 @@ export function VendasDashboard({ schoolId }: Props) {
         selectedMonths={selectedList.length > 0 ? selectedList : [latestMonth]}
       />
 
+      <GraficosPersonalizados
+        schoolId={schoolId}
+        selectedMonths={selectedList.length > 0 ? selectedList : [latestMonth]}
+      />
+
+
       <div className="pt-4 border-t border-border">
         <VendasTable schoolId={schoolId} defaultYear={selectedYear} availableYears={availableYears} />
       </div>
