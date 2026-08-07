@@ -5,6 +5,7 @@ import { SalesData } from './vendas-types';
 import { VendasConfig } from './VendasConfig';
 import { VendasTable } from './VendasTable';
 import { VendasCharts } from './VendasCharts';
+import { VendasProdutosCharts } from './VendasProdutosCharts';
 import { Button } from '@/components/ui/button';
 import { Settings2, Upload } from 'lucide-react';
 import { useMonthSync, useRangeSync } from '@/components/realizado/SharedMonthContext';
@@ -108,7 +109,12 @@ export function VendasDashboard({ schoolId }: Props) {
         selectedMonths={selectedList.length > 0 ? selectedList : [latestMonth]}
         selectedYearStr={selectedYear}
       />
-      
+
+      <VendasProdutosCharts
+        schoolId={schoolId}
+        selectedMonths={selectedList.length > 0 ? selectedList : [latestMonth]}
+      />
+
       <div className="pt-4 border-t border-border">
         <VendasTable schoolId={schoolId} defaultYear={selectedYear} availableYears={availableYears} />
       </div>
