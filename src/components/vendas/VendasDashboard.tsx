@@ -11,6 +11,8 @@ import { Settings2, Upload } from 'lucide-react';
 import { useMonthSync, useRangeSync } from '@/components/realizado/SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { ImportacaoVendas } from './ImportacaoVendas';
+import { GraficosPersonalizados } from './GraficosPersonalizados';
+
 
 interface Props {
   schoolId: string;
@@ -114,6 +116,12 @@ export function VendasDashboard({ schoolId }: Props) {
         schoolId={schoolId}
         selectedMonths={selectedList.length > 0 ? selectedList : [latestMonth]}
       />
+
+      <GraficosPersonalizados
+        schoolId={schoolId}
+        selectedMonths={selectedList.length > 0 ? selectedList : [latestMonth]}
+      />
+
 
       <div className="pt-4 border-t border-border">
         <VendasTable schoolId={schoolId} defaultYear={selectedYear} availableYears={availableYears} />

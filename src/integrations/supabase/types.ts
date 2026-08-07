@@ -1675,6 +1675,53 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_custom_charts: {
+        Row: {
+          chart_type: string
+          created_at: string
+          group_by: string
+          id: string
+          metric: string
+          school_id: string
+          sort_order: number
+          source: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          chart_type?: string
+          created_at?: string
+          group_by?: string
+          id?: string
+          metric?: string
+          school_id: string
+          sort_order?: number
+          source?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          chart_type?: string
+          created_at?: string
+          group_by?: string
+          id?: string
+          metric?: string
+          school_id?: string
+          sort_order?: number
+          source?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_custom_charts_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_data: {
         Row: {
           brand_id: string | null
