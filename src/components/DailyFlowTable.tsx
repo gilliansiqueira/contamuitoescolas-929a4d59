@@ -130,11 +130,17 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       return byDate[data];
     };
 
+    // Meses que já têm fluxo realizado dia a dia na tabela: o histórico mensal
+    // não pode ser somado de novo no último dia (dupla contagem).
+    const mesesComFluxoDiario = new Set(realizedEntries.map(e => e.data.slice(0, 7)));
+
     historicalRows.forEach(r => {
       if (monthSources[r.month] !== 'historico') return;
+      if (mesesComFluxoDiario.has(r.month)) return;
       const monthDays = allDays.filter(d => d.startsWith(r.month));
       const data = monthDays[monthDays.length - 1];
       if (!data) return;
+
       const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
       if (!meta.impactaCaixa) return;
       const valor = Number(r.valor) || 0;
