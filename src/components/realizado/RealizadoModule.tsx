@@ -12,6 +12,7 @@ import { VendasDashboard } from '@/components/vendas/VendasDashboard';
 import { AnaliseVendasDashboard } from '@/components/analise-vendas/AnaliseVendasDashboard';
 import { RecebimentoCategoria } from './RecebimentoCategoria';
 import { ExportPdfDialog } from './ExportPdfDialog';
+import { useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { FechamentoMeses } from './FechamentoMeses';
 import { TetoGastos } from './TetoGastos';
