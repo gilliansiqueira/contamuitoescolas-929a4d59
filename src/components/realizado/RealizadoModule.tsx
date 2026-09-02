@@ -98,9 +98,16 @@ export function RealizadoModule({ schoolId }: Props) {
   const [mainView, setMainView] = useState<MainView>('relatorio');
   const [showPdfExport, setShowPdfExport] = useState(false);
 
+  // Usa o mês final do filtro global (topo). Fallback: mês atual.
+  const globalPeriod = useGlobalPeriod();
   const now = new Date();
-  const [exportMonth] = useState((now.getMonth() + 1).toString().padStart(2, '0'));
-  const [exportYear] = useState(now.getFullYear().toString());
+  const [exportYearFallback, exportMonthFallback] = [
+    now.getFullYear().toString(),
+    (now.getMonth() + 1).toString().padStart(2, '0'),
+  ];
+  const [gY, gM] = (globalPeriod.endMonth ?? '').split('-');
+  const exportMonth = gM || exportMonthFallback;
+  const exportYear = gY || exportYearFallback;
 
   const queryClient = useQueryClient();
   const { visibility, toggle } = useTabVisibility(schoolId);
