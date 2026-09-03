@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_financial_entries_school_data_id ON public.financial_entries (school_id, data, id);
+CREATE INDEX IF NOT EXISTS idx_realized_entries_school_data_id ON public.realized_entries (school_id, data, id);
