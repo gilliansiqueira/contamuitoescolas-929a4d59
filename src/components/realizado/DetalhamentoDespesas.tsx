@@ -104,7 +104,10 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
 
   const startNewItem = (groupId: string) => {
     setOpenGroups(p => ({ ...p, [groupId]: true }));
-    setDraft({ groupId, item: { descricao: '', valor: '', data: `${effectiveMonths[effectiveMonths.length - 1]}-01` === todayISO().slice(0, 8) + '01' ? todayISO() : `${effectiveMonths[effectiveMonths.length - 1]}-01` } });
+    const month = effectiveMonths[effectiveMonths.length - 1];
+    const today = todayISO();
+    const data = today.startsWith(month) ? today : `${month}-01`;
+    setDraft({ groupId, item: { descricao: '', valor: '', data } });
   };
 
   const handleSaveDraft = async () => {
