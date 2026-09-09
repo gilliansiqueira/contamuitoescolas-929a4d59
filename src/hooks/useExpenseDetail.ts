@@ -149,6 +149,47 @@ export function useExpenseDetail(schoolId: string) {
     onSuccess: invalidate,
   });
 
+  /** Importa lista colada: grupos (MAIÚSCULAS) com itens abaixo. */
+  const pasteImport = useMutation({
+    mutationFn: async ({
+      parsed,
+      data,
+    }: {
+      parsed: { grupo: string; itens: { descricao: string; valor: number }[] }[];
+      data: string;
+    }) => {
+      const existing = [...(groupsQuery.data || [])];
+      let sort = existing.length;
+
+      for (const block of parsed) {
+        let group = existing.find(g => g.name.trim().toLowerCase() === block.grupo.trim().toLowerCase());
+        if (!group) {
+          const { data: inserted, error } = await supabase
+            .from('expense_detail_groups')
+            .insert({ school_id: schoolId, name: block.grupo, sort_order: sort++ })
+            .select()
+            .single();
+          if (error) throw error;
+          group = inserted as DetailGroup;
+          existing.push(group);
+        }
+        if (block.itens.length) {
+          const { error } = await supabase.from('expense_detail_items').insert(
+            block.itens.map(i => ({
+              school_id: schoolId,
+              group_id: group!.id,
+              descricao: i.descricao,
+              valor: i.valor,
+              data,
+            }))
+          );
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: invalidate,
+  });
+
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('expense_detail_items').delete().eq('id', id);
