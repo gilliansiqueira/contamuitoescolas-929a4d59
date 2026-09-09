@@ -415,10 +415,10 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
                       <span className="font-semibold flex-1 truncate">{g.name}</span>
                       <span className="font-bold whitespace-nowrap">{formatCurrency(total)}</span>
                       <div className="flex items-center gap-1">
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={idx === 0} onClick={() => moveGroup.mutate({ id: g.id, dir: -1 })}>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={!manualOrder || idx === 0} onClick={() => moveGroup.mutate({ id: g.id, dir: -1 })}>
                           <ChevronUp className="w-4 h-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={idx === groups.length - 1} onClick={() => moveGroup.mutate({ id: g.id, dir: 1 })}>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={!manualOrder || idx === sortedGroups.length - 1} onClick={() => moveGroup.mutate({ id: g.id, dir: 1 })}>
                           <ChevronDown className="w-4 h-4" />
                         </Button>
                         <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => setRenaming({ id: g.id, value: g.name })}>
