@@ -208,5 +208,6 @@ export function useExpenseDetail(schoolId: string) {
     deleteGroup,
     saveItem,
     deleteItem,
+    pasteImport,
   };
 }
