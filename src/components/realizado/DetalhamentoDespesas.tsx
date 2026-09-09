@@ -236,12 +236,67 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
               </Button>
             </div>
           ) : (
-            <Button size="sm" className="rounded-xl gap-2" onClick={() => setAddingGroup(true)}>
-              <Plus className="w-4 h-4" /> Novo grupo
-            </Button>
+            <>
+              <Button size="sm" variant="outline" className="rounded-xl gap-2" onClick={() => setShowPaste(v => !v)}>
+                <ClipboardPaste className="w-4 h-4" /> Colar lista
+              </Button>
+              <Button size="sm" className="rounded-xl gap-2" onClick={() => setAddingGroup(true)}>
+                <Plus className="w-4 h-4" /> Novo grupo
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Colar lista */}
+      {showPaste && (
+        <Card className="rounded-2xl border-dashed">
+          <CardContent className="p-5 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Cole a lista: linhas em MAIÚSCULAS viram grupos, as linhas abaixo viram itens. O valor pode vir no fim da linha
+              (ex.: <code>Pedreiro 1.500,00</code>) ou em outra coluna colada do Excel. Os itens entram na data{' '}
+              <strong>{(() => { const month = effectiveMonths[effectiveMonths.length - 1]; const t = todayISO(); return (t.startsWith(month) ? t : `${month}-01`).split('-').reverse().join('/'); })()}</strong>.
+            </p>
+            <Textarea
+              autoFocus
+              rows={8}
+              className="rounded-xl font-mono text-sm"
+              placeholder={'OBRA SALA\nPedreiro\t1.500,00\nMóveis\t300,00\nOBRA BANHEIRO\nPedreiro\t59,00'}
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="rounded-xl gap-2"
+                disabled={pasteImport.isPending}
+                onClick={async () => {
+                  const parsed = parsePastedDetail(pasteText);
+                  if (!parsed.length) { toast.error('Nada para importar'); return; }
+                  const month = effectiveMonths[effectiveMonths.length - 1];
+                  const today = todayISO();
+                  const data = today.startsWith(month) ? today : `${month}-01`;
+                  try {
+                    await pasteImport.mutateAsync({ parsed, data });
+                    const totalItens = parsed.reduce((s, b) => s + b.itens.length, 0);
+                    toast.success(`${parsed.length} grupo(s) e ${totalItens} item(ns) importados`);
+                    setPasteText('');
+                    setShowPaste(false);
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Erro ao importar');
+                  }
+                }}
+              >
+                <Check className="w-4 h-4" /> Importar
+              </Button>
+              <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => { setShowPaste(false); setPasteText(''); }}>
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
 
       {/* Total */}
       <Card className="rounded-2xl bg-gradient-to-r from-primary/5 to-transparent border-primary/20">
