@@ -214,6 +214,17 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
           allowEmpty
           emptyLabel="Mês atual"
         />
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value as typeof sortBy)}
+          className="h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="manual">Ordenação manual</option>
+          <option value="value-desc">Maior valor</option>
+          <option value="value-asc">Menor valor</option>
+          <option value="name-asc">A a Z</option>
+          <option value="name-desc">Z a A</option>
+        </select>
         <div className="ml-auto flex items-center gap-2">
           {addingGroup ? (
             <div className="flex items-center gap-2">
