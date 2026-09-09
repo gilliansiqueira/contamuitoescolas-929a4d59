@@ -206,6 +206,7 @@ export function RealizadoModule({ schoolId }: Props) {
           )}
           {configTab === 'fechamento' && <FechamentoMeses schoolId={schoolId} />}
           {configTab === 'dados' && <ExportacaoDados schoolId={schoolId} />}
+          {configTab === 'detalhamento' && <DetalhamentoConfig schoolId={schoolId} />}
           {configTab === 'icones' && isAdmin && <IconLibraryManager />}
         </motion.div>
       </div>
