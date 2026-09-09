@@ -97,6 +97,8 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
   const [newGroupName, setNewGroupName] = useState('');
   const [addingGroup, setAddingGroup] = useState(false);
   const [draft, setDraft] = useState<{ groupId: string; item: ItemDraft } | null>(null);
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   const currentYM = useMemo(() => {
     const d = new Date();
