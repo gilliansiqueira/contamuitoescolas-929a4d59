@@ -16,10 +16,13 @@ import { useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { FechamentoMeses } from './FechamentoMeses';
 import { TetoGastos } from './TetoGastos';
+import { DetalhamentoDespesas } from './DetalhamentoDespesas';
+import { DetalhamentoConfig } from './DetalhamentoConfig';
+import { useExpenseDetailConfig } from '@/hooks/useExpenseDetail';
 import { ExportPdfSection } from '@/components/ExportPdfSection';
 // SharedMonthProvider is now provided at the app root (Index.tsx) so the
 // global period filter reaches every tab.
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target } from 'lucide-react';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
@@ -31,8 +34,8 @@ interface Props {
   schoolId: string;
 }
 
-type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'icones';
-type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos';
+type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'detalhamento' | 'icones';
+type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -41,6 +44,7 @@ const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'historico', label: 'Histórico' },
   { key: 'fechamento', label: 'Fechamento' },
   { key: 'dados', label: 'Exportar Dados' },
+  { key: 'detalhamento', label: 'Detalhamento de Despesas' },
   { key: 'icones', label: 'Biblioteca de Ícones', adminOnly: true },
 ];
 
@@ -113,6 +117,7 @@ export function RealizadoModule({ schoolId }: Props) {
   const queryClient = useQueryClient();
   const { visibility, toggle } = useTabVisibility(schoolId);
   const { isPresentationMode } = usePresentation();
+  const { enabled: detalhamentoEnabled, label: detalhamentoLabel } = useExpenseDetailConfig(schoolId);
 
   // Força sair das configurações se ligar apresentação
   if (isPresentationMode && showConfig) {
@@ -133,8 +138,9 @@ export function RealizadoModule({ schoolId }: Props) {
     if (mainView === 'analise_vendas' && !visibility.analise_vendas) return 'relatorio';
     if (mainView === 'recebimento_categoria' && !visibility.recebimento_categoria) return 'relatorio';
     if (mainView === 'teto_gastos' && !visibility.teto_gastos) return 'relatorio';
+    if (mainView === 'detalhamento' && !detalhamentoEnabled) return 'relatorio';
     return mainView;
-  }, [mainView, visibility]);
+  }, [mainView, visibility, detalhamentoEnabled]);
 
   if (showConfig) {
     return (
@@ -200,6 +206,7 @@ export function RealizadoModule({ schoolId }: Props) {
           )}
           {configTab === 'fechamento' && <FechamentoMeses schoolId={schoolId} />}
           {configTab === 'dados' && <ExportacaoDados schoolId={schoolId} />}
+          {configTab === 'detalhamento' && <DetalhamentoConfig schoolId={schoolId} />}
           {configTab === 'icones' && isAdmin && <IconLibraryManager />}
         </motion.div>
       </div>
@@ -299,6 +306,19 @@ export function RealizadoModule({ schoolId }: Props) {
               Teto de Gastos
             </button>
           )}
+          {detalhamentoEnabled && (
+            <button
+              onClick={() => setMainView('detalhamento')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeView === 'detalhamento'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              {detalhamentoLabel}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!isPresentationMode && (
@@ -332,6 +352,9 @@ export function RealizadoModule({ schoolId }: Props) {
         )}
         {activeView === 'teto_gastos' && (
           <ExportPdfSection fileName="teto-de-gastos"><TetoGastos schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'detalhamento' && (
+          <ExportPdfSection fileName="detalhamento-despesas"><DetalhamentoDespesas schoolId={schoolId} /></ExportPdfSection>
         )}
       </motion.div>
 
