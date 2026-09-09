@@ -88,7 +88,7 @@ interface ItemDraft {
 
 export function DetalhamentoDespesas({ schoolId }: Props) {
   const { label } = useExpenseDetailConfig(schoolId);
-  const { groups, items, isLoading, addGroup, renameGroup, moveGroup, deleteGroup, saveItem, deleteItem } =
+  const { groups, items, isLoading, addGroup, renameGroup, moveGroup, deleteGroup, saveItem, deleteItem, pasteImport } =
     useExpenseDetail(schoolId);
 
   const [mesFilter, setMesFilter] = useState('all');
