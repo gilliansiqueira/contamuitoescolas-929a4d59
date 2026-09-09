@@ -420,6 +420,8 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
                       <p className="text-xs text-muted-foreground py-2">Nenhum item neste período.</p>
                     )}
 
+                    <GroupChart items={groupItems} />
+
                     {groupItems.map(item =>
                       draft?.item.id === item.id ? (
                         <ItemEditor
@@ -480,6 +482,37 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** Gráfico de barras dos itens de um grupo (soma por descrição). */
+function GroupChart({ items }: { items: DetailItem[] }) {
+  const data = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach(i => map.set(i.descricao, (map.get(i.descricao) || 0) + i.valor));
+    return Array.from(map, ([name, value]) => ({ name, value, label: formatCurrency(value) }))
+      .filter(d => d.value > 0)
+      .sort((a, b) => a.value - b.value);
+  }, [items]);
+
+  if (data.length === 0) return null;
+
+  return (
+    <div className="rounded-xl bg-muted/30 p-3 mb-2">
+      <ResponsiveContainer width="100%" height={Math.max(data.length * 34, 90)}>
+        <BarChart data={data} layout="vertical" margin={{ left: 4, right: 110, top: 2, bottom: 2 }}>
+          <XAxis type="number" hide domain={[0, (dataMax: number) => dataMax * 1.05]} />
+          <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={120} interval={0} />
+          <Tooltip
+            formatter={(v: number) => [formatCurrency(v), 'Valor']}
+            contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+          />
+          <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18} fill="hsl(var(--primary))" fillOpacity={0.8}>
+            <LabelList dataKey="label" position="right" style={{ fontSize: 10, fill: 'hsl(var(--foreground))', fontWeight: 600 }} />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
