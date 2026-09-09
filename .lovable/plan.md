@@ -1,30 +1,39 @@
-# Análise de Despesas Detalhada (agrupamento configurável)
+# Nova aba: Detalhamento de Despesas (estrutura livre)
 
-Nova aba que reaproveita a Análise de Despesas atual, mas com um nível extra de agrupamento configurável por empresa (Obras, Unidades, Projetos...). O relatório atual permanece intacto.
+A Análise de Despesas atual não muda em nada. A nova aba é uma área independente, editável a qualquer momento, sem ligação com o plano de contas.
 
-## Como vai funcionar
+## A estrutura mais simples possível
 
-1. **Configurações > Detalhamento de Despesas** (visível para administradores):
-   - liga/desliga a função para a empresa;
-   - define o nome do detalhamento (ex.: "Obras");
-   - cadastra, edita, reordena e desativa as opções (ex.: Sala, Banheiro, Loja).
-2. **Lançamentos**: quando a função está ligada, os formulários de novo lançamento e de edição ganham um campo opcional "Obras" (nome conforme configurado) com as opções cadastradas.
-3. **Nova aba** no Relatório Realizado, exibida como "Análise de Despesas — Obras", ativável/desativável como as demais abas. Estrutura idêntica à atual (filtros de mês, faturamento, cartões, gráficos, blocos), mas a primeira divisão passa a ser a opção de detalhamento; dentro de cada opção aparecem as categorias e seus lançamentos. Lançamentos sem detalhamento caem em um bloco "Sem detalhamento".
-4. O mesmo lançamento continua único: aparece normalmente na Análise de Despesas atual e também na visão detalhada.
+Só três conceitos:
+
+1. **Nome da aba** (por empresa): ex. "Obras", "Unidades", "Projetos".
+2. **Grupos**: ex. Sala, Banheiro, Loja. Criar, renomear, reordenar e remover a qualquer momento.
+3. **Itens** dentro de cada grupo: descrição + valor + data. Criar, editar e apagar direto na tela.
+
+Nada mais. Sem categoria mãe, sem categoria filha, sem regras, sem validação de estrutura, sem vínculo com lançamentos existentes.
+
+## Como fica na tela
+
+- A aba aparece só para empresas com a função ligada, com o título configurado (ex. "Obras").
+- Mesmo visual da Análise de Despesas: filtro de mês no topo, cartão de total, gráfico de barras por grupo e blocos expansíveis.
+- Cada bloco é um grupo, com o total ao lado do nome. Abrindo o bloco, aparecem os itens em lista.
+- Tudo é editado no próprio lugar: botão "+ Grupo" no topo, lápis para renomear o grupo, lixeira para remover, arrastar/setas para reordenar, "+ Item" dentro de cada grupo, e clique no item para editar ou apagar.
+- Apagar um grupo pergunta uma vez e apaga os itens dele junto.
+
+## Ligar/desligar por empresa
+
+Em Configurações do Relatório Realizado, uma seção "Detalhamento de Despesas": chave liga/desliga e o campo de nome da aba. Desligado, a aba simplesmente não aparece e nada é perdido.
 
 ## Detalhes técnicos
 
-**Banco (migration aditiva):**
-- `expense_breakdown_settings`: `school_id` (único), `enabled` bool default false, `label` text default 'Detalhamento', timestamps. RLS por escola + GRANTs.
-- `expense_breakdown_options`: `id`, `school_id`, `name`, `sort_order`, `active`, `created_at`. RLS por escola + GRANTs.
-- `realized_entries`: nova coluna nullable `breakdown_id uuid` referenciando `expense_breakdown_options(id)` com `ON DELETE SET NULL`; índice `(school_id, breakdown_id)`.
-- Regenerar os tipos gerados do backend.
+Duas tabelas novas, nenhuma alteração em tabelas existentes:
 
-**Frontend:**
-- `src/hooks/useExpenseBreakdown.ts`: carrega settings + options da escola, expõe `{ enabled, label, options }`.
-- `src/components/realizado/DetalhamentoConfig.tsx`: tela de configuração (toggle, nome, CRUD de opções); nova aba `detalhamento` em `configTabs` de `RealizadoModule.tsx`.
-- `src/components/realizado/RelatorioRealizadoDetalhado.tsx`: cópia da lógica de `RelatorioRealizado.tsx` com o agrupamento primário trocado — mapa `breakdown_id -> opção`, cada bloco reusa `CategoryBlock` com as categorias internas; gráficos de barras e comparativo de faturamento passam a usar os totais por opção.
-- `AddEntryDialog.tsx` / `EditEntryDialog.tsx`: campo `Select` opcional de detalhamento (só quando `enabled`), gravado em `breakdown_id`; mutações de insert/update em `RelatorioRealizado.tsx` passam o campo adiante.
-- `RealizadoModule.tsx`: nova view `analise_detalhada` em `MainView`, `TabVisibility` e nos toggles de abas; botão só aparece quando a função está ligada, com rótulo `Análise de Despesas — {label}`; envolvido em `ExportPdfSection`.
+- `expense_detail_groups`: `id`, `school_id`, `name`, `sort_order`, `created_at`.
+- `expense_detail_items`: `id`, `school_id`, `group_id` (FK → groups, `ON DELETE CASCADE`), `descricao`, `valor numeric`, `data text` (YYYY-MM-DD), `created_at`.
+- RLS por escola nas duas (mesmo padrão das demais tabelas) + GRANTs para `authenticated` e `service_role`.
+- Configuração por empresa: colunas novas em `schools` — `expense_detail_enabled boolean default false` e `expense_detail_label text default 'Detalhamento'` (aditivo, com default; evita uma terceira tabela).
 
-O `RelatorioRealizado.tsx` atual não muda de comportamento — apenas ganha o campo extra opcional nos diálogos de lançamento.
+Frontend:
+- `src/components/realizado/DetalhamentoDespesas.tsx`: a aba inteira (filtro de mês via `SharedMonthContext`/`GlobalPeriod`, total, gráfico de barras Recharts nos mesmos moldes, blocos de grupo com edição inline). Um único arquivo, sem tocar em `RelatorioRealizado.tsx`.
+- `src/hooks/useExpenseDetail.ts`: queries e mutations dos grupos/itens + config da escola.
+- `RealizadoModule.tsx`: nova view `detalhamento` em `MainView`/`TabVisibility`, botão com o rótulo configurado, envolvida em `ExportPdfSection`; e a seção de configuração (liga/desliga + nome) dentro das Configurações.
