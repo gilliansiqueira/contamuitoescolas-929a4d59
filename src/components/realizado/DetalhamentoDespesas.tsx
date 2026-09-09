@@ -99,6 +99,7 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
   const [draft, setDraft] = useState<{ groupId: string; item: ItemDraft } | null>(null);
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [sortBy, setSortBy] = useState<'manual' | 'value-desc' | 'value-asc' | 'name-asc' | 'name-desc'>('manual');
 
   const currentYM = useMemo(() => {
     const d = new Date();
@@ -134,18 +135,30 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
     return map;
   }, [filtered]);
 
+  const sortedGroups = useMemo(() => {
+    const withTotal = groups.map(g => ({ ...g, total: (byGroup[g.id] || []).reduce((s, i) => s + i.valor, 0) }));
+    switch (sortBy) {
+      case 'value-desc':
+        return withTotal.sort((a, b) => b.total - a.total);
+      case 'value-asc':
+        return withTotal.sort((a, b) => a.total - b.total);
+      case 'name-asc':
+        return withTotal.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+      case 'name-desc':
+        return withTotal.sort((a, b) => b.name.localeCompare(a.name, 'pt-BR', { sensitivity: 'base' }));
+      default:
+        return withTotal;
+    }
+  }, [groups, byGroup, sortBy]);
+
   const totalGeral = useMemo(() => filtered.reduce((s, i) => s + i.valor, 0), [filtered]);
 
   const chartData = useMemo(
     () =>
-      groups
-        .map(g => {
-          const total = (byGroup[g.id] || []).reduce((s, i) => s + i.valor, 0);
-          return { name: g.name, value: total, label: formatCurrency(total) };
-        })
-        .filter(d => d.value > 0)
-        .sort((a, b) => a.value - b.value),
-    [groups, byGroup]
+      sortedGroups
+        .map(g => ({ name: g.name, value: g.total, label: formatCurrency(g.total) }))
+        .filter(d => d.value > 0),
+    [sortedGroups]
   );
 
   const startNewItem = (groupId: string) => {
@@ -201,6 +214,17 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
           allowEmpty
           emptyLabel="Mês atual"
         />
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value as typeof sortBy)}
+          className="h-9 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="manual">Ordenação manual</option>
+          <option value="value-desc">Maior valor</option>
+          <option value="value-asc">Menor valor</option>
+          <option value="name-asc">A a Z</option>
+          <option value="name-desc">Z a A</option>
+        </select>
         <div className="ml-auto flex items-center gap-2">
           {addingGroup ? (
             <div className="flex items-center gap-2">
@@ -343,10 +367,11 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
       )}
 
       <div className="space-y-3">
-        {groups.map((g, idx) => {
+        {sortedGroups.map((g, idx) => {
           const groupItems = byGroup[g.id] || [];
-          const total = groupItems.reduce((s, i) => s + i.valor, 0);
+          const total = g.total;
           const open = openGroups[g.id] ?? false;
+          const manualOrder = sortBy === 'manual';
           return (
             <motion.div key={g.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="rounded-2xl overflow-hidden">
@@ -390,10 +415,10 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
                       <span className="font-semibold flex-1 truncate">{g.name}</span>
                       <span className="font-bold whitespace-nowrap">{formatCurrency(total)}</span>
                       <div className="flex items-center gap-1">
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={idx === 0} onClick={() => moveGroup.mutate({ id: g.id, dir: -1 })}>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={!manualOrder || idx === 0} onClick={() => moveGroup.mutate({ id: g.id, dir: -1 })}>
                           <ChevronUp className="w-4 h-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={idx === groups.length - 1} onClick={() => moveGroup.mutate({ id: g.id, dir: 1 })}>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" disabled={!manualOrder || idx === sortedGroups.length - 1} onClick={() => moveGroup.mutate({ id: g.id, dir: 1 })}>
                           <ChevronDown className="w-4 h-4" />
                         </Button>
                         <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => setRenaming({ id: g.id, value: g.name })}>
