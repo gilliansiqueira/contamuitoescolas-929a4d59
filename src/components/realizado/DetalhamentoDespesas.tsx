@@ -367,10 +367,11 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
       )}
 
       <div className="space-y-3">
-        {groups.map((g, idx) => {
+        {sortedGroups.map((g, idx) => {
           const groupItems = byGroup[g.id] || [];
-          const total = groupItems.reduce((s, i) => s + i.valor, 0);
+          const total = g.total;
           const open = openGroups[g.id] ?? false;
+          const manualOrder = sortBy === 'manual';
           return (
             <motion.div key={g.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="rounded-2xl overflow-hidden">
