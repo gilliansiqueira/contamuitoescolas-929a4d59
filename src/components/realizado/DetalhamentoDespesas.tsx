@@ -135,18 +135,30 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
     return map;
   }, [filtered]);
 
+  const sortedGroups = useMemo(() => {
+    const withTotal = groups.map(g => ({ ...g, total: (byGroup[g.id] || []).reduce((s, i) => s + i.valor, 0) }));
+    switch (sortBy) {
+      case 'value-desc':
+        return withTotal.sort((a, b) => b.total - a.total);
+      case 'value-asc':
+        return withTotal.sort((a, b) => a.total - b.total);
+      case 'name-asc':
+        return withTotal.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+      case 'name-desc':
+        return withTotal.sort((a, b) => b.name.localeCompare(a.name, 'pt-BR', { sensitivity: 'base' }));
+      default:
+        return withTotal;
+    }
+  }, [groups, byGroup, sortBy]);
+
   const totalGeral = useMemo(() => filtered.reduce((s, i) => s + i.valor, 0), [filtered]);
 
   const chartData = useMemo(
     () =>
-      groups
-        .map(g => {
-          const total = (byGroup[g.id] || []).reduce((s, i) => s + i.valor, 0);
-          return { name: g.name, value: total, label: formatCurrency(total) };
-        })
-        .filter(d => d.value > 0)
-        .sort((a, b) => a.value - b.value),
-    [groups, byGroup]
+      sortedGroups
+        .map(g => ({ name: g.name, value: g.total, label: formatCurrency(g.total) }))
+        .filter(d => d.value > 0),
+    [sortedGroups]
   );
 
   const startNewItem = (groupId: string) => {
