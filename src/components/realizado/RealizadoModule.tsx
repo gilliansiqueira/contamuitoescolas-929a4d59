@@ -117,6 +117,7 @@ export function RealizadoModule({ schoolId }: Props) {
   const queryClient = useQueryClient();
   const { visibility, toggle } = useTabVisibility(schoolId);
   const { isPresentationMode } = usePresentation();
+  const { enabled: detalhamentoEnabled, label: detalhamentoLabel } = useExpenseDetailConfig(schoolId);
 
   // Força sair das configurações se ligar apresentação
   if (isPresentationMode && showConfig) {
@@ -137,8 +138,9 @@ export function RealizadoModule({ schoolId }: Props) {
     if (mainView === 'analise_vendas' && !visibility.analise_vendas) return 'relatorio';
     if (mainView === 'recebimento_categoria' && !visibility.recebimento_categoria) return 'relatorio';
     if (mainView === 'teto_gastos' && !visibility.teto_gastos) return 'relatorio';
+    if (mainView === 'detalhamento' && !detalhamentoEnabled) return 'relatorio';
     return mainView;
-  }, [mainView, visibility]);
+  }, [mainView, visibility, detalhamentoEnabled]);
 
   if (showConfig) {
     return (
