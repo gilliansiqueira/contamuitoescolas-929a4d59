@@ -16,10 +16,13 @@ import { useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
 import { FechamentoMeses } from './FechamentoMeses';
 import { TetoGastos } from './TetoGastos';
+import { DetalhamentoDespesas } from './DetalhamentoDespesas';
+import { DetalhamentoConfig } from './DetalhamentoConfig';
+import { useExpenseDetailConfig } from '@/hooks/useExpenseDetail';
 import { ExportPdfSection } from '@/components/ExportPdfSection';
 // SharedMonthProvider is now provided at the app root (Index.tsx) so the
 // global period filter reaches every tab.
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target } from 'lucide-react';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
@@ -31,8 +34,8 @@ interface Props {
   schoolId: string;
 }
 
-type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'icones';
-type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos';
+type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'detalhamento' | 'icones';
+type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -41,6 +44,7 @@ const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'historico', label: 'Histórico' },
   { key: 'fechamento', label: 'Fechamento' },
   { key: 'dados', label: 'Exportar Dados' },
+  { key: 'detalhamento', label: 'Detalhamento de Despesas' },
   { key: 'icones', label: 'Biblioteca de Ícones', adminOnly: true },
 ];
 
