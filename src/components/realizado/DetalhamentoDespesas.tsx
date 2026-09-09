@@ -36,6 +36,49 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** Converte "1.234,56" / "1234.56" / "1234" em número. */
+function parseValorTexto(s: string) {
+  let t = (s || '').replace(/[R$\s]/gi, '');
+  if (!t) return 0;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(t);
+  return isFinite(n) ? n : 0;
+}
+
+/** Linhas em MAIÚSCULAS viram grupos; as demais viram itens do último grupo. */
+function parsePastedDetail(text: string) {
+  const lines = text.split('\n').map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
+  const result: { grupo: string; itens: { descricao: string; valor: number }[] }[] = [];
+  let current: (typeof result)[number] | null = null;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    const letters = line.replace(/[^A-Za-zÀ-ÿ]/g, '');
+    const isGroup = letters.length > 0 && letters === letters.toUpperCase() && !/[a-zà-ÿ]/.test(letters);
+
+    if (isGroup) {
+      current = { grupo: line.replace(/[\t;]+.*$/, '').trim(), itens: [] };
+      result.push(current);
+      continue;
+    }
+
+    if (!current) { current = { grupo: 'GERAL', itens: [] }; result.push(current); }
+
+    let descricao = line;
+    let valor = 0;
+    const parts = line.split(/\t|;/).map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      descricao = parts[0];
+      valor = parseValorTexto(parts[parts.length - 1]);
+    } else {
+      const m = line.match(/^(.*?)[\s-]+(R?\$?\s*[\d.,]+)$/);
+      if (m) { descricao = m[1].trim(); valor = parseValorTexto(m[2]); }
+    }
+    if (descricao) current.itens.push({ descricao, valor });
+  }
+  return result.filter(b => b.grupo);
+}
+
 interface ItemDraft {
   id?: string;
   descricao: string;
