@@ -353,6 +353,9 @@ export function RealizadoModule({ schoolId }: Props) {
         {activeView === 'teto_gastos' && (
           <ExportPdfSection fileName="teto-de-gastos"><TetoGastos schoolId={schoolId} /></ExportPdfSection>
         )}
+        {activeView === 'detalhamento' && (
+          <ExportPdfSection fileName="detalhamento-despesas"><DetalhamentoDespesas schoolId={schoolId} /></ExportPdfSection>
+        )}
       </motion.div>
 
       <ExportPdfDialog 
