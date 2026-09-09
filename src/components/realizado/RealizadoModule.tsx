@@ -306,6 +306,19 @@ export function RealizadoModule({ schoolId }: Props) {
               Teto de Gastos
             </button>
           )}
+          {detalhamentoEnabled && (
+            <button
+              onClick={() => setMainView('detalhamento')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                activeView === 'detalhamento'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              {detalhamentoLabel}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!isPresentationMode && (
