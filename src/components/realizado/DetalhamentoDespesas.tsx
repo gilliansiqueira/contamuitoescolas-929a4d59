@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ChevronUp, Check, X, Layers } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ChevronUp, Check, X, Layers, ClipboardPaste } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { useMonthSync, useRangeSync } from './SharedMonthContext';
@@ -35,6 +36,49 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** Converte "1.234,56" / "1234.56" / "1234" em número. */
+function parseValorTexto(s: string) {
+  let t = (s || '').replace(/[R$\s]/gi, '');
+  if (!t) return 0;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(t);
+  return isFinite(n) ? n : 0;
+}
+
+/** Linhas em MAIÚSCULAS viram grupos; as demais viram itens do último grupo. */
+function parsePastedDetail(text: string) {
+  const lines = text.split('\n').map(l => l.replace(/\s+$/, '')).filter(l => l.trim());
+  const result: { grupo: string; itens: { descricao: string; valor: number }[] }[] = [];
+  let current: (typeof result)[number] | null = null;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    const letters = line.replace(/[^A-Za-zÀ-ÿ]/g, '');
+    const isGroup = letters.length > 0 && letters === letters.toUpperCase() && !/[a-zà-ÿ]/.test(letters);
+
+    if (isGroup) {
+      current = { grupo: line.replace(/[\t;]+.*$/, '').trim(), itens: [] };
+      result.push(current);
+      continue;
+    }
+
+    if (!current) { current = { grupo: 'GERAL', itens: [] }; result.push(current); }
+
+    let descricao = line;
+    let valor = 0;
+    const parts = line.split(/\t|;/).map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      descricao = parts[0];
+      valor = parseValorTexto(parts[parts.length - 1]);
+    } else {
+      const m = line.match(/^(.*?)[\s-]+(R?\$?\s*[\d.,]+)$/);
+      if (m) { descricao = m[1].trim(); valor = parseValorTexto(m[2]); }
+    }
+    if (descricao) current.itens.push({ descricao, valor });
+  }
+  return result.filter(b => b.grupo);
+}
+
 interface ItemDraft {
   id?: string;
   descricao: string;
@@ -44,7 +88,7 @@ interface ItemDraft {
 
 export function DetalhamentoDespesas({ schoolId }: Props) {
   const { label } = useExpenseDetailConfig(schoolId);
-  const { groups, items, isLoading, addGroup, renameGroup, moveGroup, deleteGroup, saveItem, deleteItem } =
+  const { groups, items, isLoading, addGroup, renameGroup, moveGroup, deleteGroup, saveItem, deleteItem, pasteImport } =
     useExpenseDetail(schoolId);
 
   const [mesFilter, setMesFilter] = useState('all');
@@ -53,6 +97,8 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
   const [newGroupName, setNewGroupName] = useState('');
   const [addingGroup, setAddingGroup] = useState(false);
   const [draft, setDraft] = useState<{ groupId: string; item: ItemDraft } | null>(null);
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   const currentYM = useMemo(() => {
     const d = new Date();
@@ -190,12 +236,67 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
               </Button>
             </div>
           ) : (
-            <Button size="sm" className="rounded-xl gap-2" onClick={() => setAddingGroup(true)}>
-              <Plus className="w-4 h-4" /> Novo grupo
-            </Button>
+            <>
+              <Button size="sm" variant="outline" className="rounded-xl gap-2" onClick={() => setShowPaste(v => !v)}>
+                <ClipboardPaste className="w-4 h-4" /> Colar lista
+              </Button>
+              <Button size="sm" className="rounded-xl gap-2" onClick={() => setAddingGroup(true)}>
+                <Plus className="w-4 h-4" /> Novo grupo
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Colar lista */}
+      {showPaste && (
+        <Card className="rounded-2xl border-dashed">
+          <CardContent className="p-5 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Cole a lista: linhas em MAIÚSCULAS viram grupos, as linhas abaixo viram itens. O valor pode vir no fim da linha
+              (ex.: <code>Pedreiro 1.500,00</code>) ou em outra coluna colada do Excel. Os itens entram na data{' '}
+              <strong>{(() => { const month = effectiveMonths[effectiveMonths.length - 1]; const t = todayISO(); return (t.startsWith(month) ? t : `${month}-01`).split('-').reverse().join('/'); })()}</strong>.
+            </p>
+            <Textarea
+              autoFocus
+              rows={8}
+              className="rounded-xl font-mono text-sm"
+              placeholder={'OBRA SALA\nPedreiro\t1.500,00\nMóveis\t300,00\nOBRA BANHEIRO\nPedreiro\t59,00'}
+              value={pasteText}
+              onChange={e => setPasteText(e.target.value)}
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="rounded-xl gap-2"
+                disabled={pasteImport.isPending}
+                onClick={async () => {
+                  const parsed = parsePastedDetail(pasteText);
+                  if (!parsed.length) { toast.error('Nada para importar'); return; }
+                  const month = effectiveMonths[effectiveMonths.length - 1];
+                  const today = todayISO();
+                  const data = today.startsWith(month) ? today : `${month}-01`;
+                  try {
+                    await pasteImport.mutateAsync({ parsed, data });
+                    const totalItens = parsed.reduce((s, b) => s + b.itens.length, 0);
+                    toast.success(`${parsed.length} grupo(s) e ${totalItens} item(ns) importados`);
+                    setPasteText('');
+                    setShowPaste(false);
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Erro ao importar');
+                  }
+                }}
+              >
+                <Check className="w-4 h-4" /> Importar
+              </Button>
+              <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => { setShowPaste(false); setPasteText(''); }}>
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
 
       {/* Total */}
       <Card className="rounded-2xl bg-gradient-to-r from-primary/5 to-transparent border-primary/20">
