@@ -406,6 +406,83 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_detail_groups: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_detail_groups_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_detail_items: {
+        Row: {
+          created_at: string
+          data: string
+          descricao: string
+          group_id: string
+          id: string
+          school_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          descricao?: string
+          group_id: string
+          id?: string
+          school_id: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          descricao?: string
+          group_id?: string
+          id?: string
+          school_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_detail_items_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "expense_detail_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_detail_items_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           categoria: string
@@ -1830,6 +1907,8 @@ export type Database = {
         Row: {
           allow_weekend_entries: boolean
           created_at: string
+          expense_detail_enabled: boolean
+          expense_detail_label: string
           financial_model_template_id: string | null
           id: string
           nome: string
@@ -1839,6 +1918,8 @@ export type Database = {
         Insert: {
           allow_weekend_entries?: boolean
           created_at?: string
+          expense_detail_enabled?: boolean
+          expense_detail_label?: string
           financial_model_template_id?: string | null
           id?: string
           nome: string
@@ -1848,6 +1929,8 @@ export type Database = {
         Update: {
           allow_weekend_entries?: boolean
           created_at?: string
+          expense_detail_enabled?: boolean
+          expense_detail_label?: string
           financial_model_template_id?: string | null
           id?: string
           nome?: string
