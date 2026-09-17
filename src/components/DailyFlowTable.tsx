@@ -246,6 +246,20 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     operacoes: acc.operacoes + d.operacoes,
   }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 }), [dailyData]);
 
+  // Previsto de fechamento: realizado até o corte + previsto apenas dos dias futuros.
+  // Sem nenhum realizado no período, todo o previsto conta como "restante".
+  const closingEstimate = useMemo(() => {
+    const hasRealized = totals.entradaRealizada > 0 || totals.saidaRealizada > 0;
+    const restante = dailyData.reduce((acc, d) => {
+      if (hasRealized && !d.isAfterCutoff) return acc;
+      return { entrada: acc.entrada + d.entradaPrevista, saida: acc.saida + d.saidaPrevista };
+    }, { entrada: 0, saida: 0 });
+    return {
+      entrada: totals.entradaRealizada + restante.entrada,
+      saida: totals.saidaRealizada + restante.saida,
+    };
+  }, [dailyData, totals]);
+
 
   if (allDays.length === 0) {
     return (
@@ -447,8 +461,20 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo) >= 0 ? 'text-blue-700' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right font-bold ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo)}</td>
-
-
+              </tr>
+              <tr className="border-t border-border/50 bg-muted/20">
+                <td className="px-3 py-2.5 text-foreground font-bold italic" colSpan={2} title="Realizado até hoje + previsto dos dias futuros">
+                  Previsto de fechamento
+                </td>
+                <td className="px-3 py-2.5 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2.5 text-right text-primary font-bold italic" title="Entrada realizada até hoje + entradas previstas dos dias futuros">
+                  {formatCurrency(closingEstimate.entrada)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2.5 text-right text-destructive font-bold italic" title="Saída realizada até hoje + saídas previstas dos dias futuros">
+                  {formatCurrency(closingEstimate.saida)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-muted-foreground" colSpan={4}>—</td>
               </tr>
             </tfoot>
           </table>
