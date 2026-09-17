@@ -432,6 +432,41 @@ export function RelatorioRealizado({ schoolId }: Props) {
     [entries]
   );
 
+  // Opções do filtro: categorias-mãe e subcategorias presentes nos lançamentos
+  const categoriaOptions = useMemo(() => {
+    const grupos = new Set<string>();
+    const subs = new Set<string>();
+    entries.forEach((e: any) => {
+      const catName = e.conta_nome || '';
+      if (catName) subs.add(catName);
+      grupos.add(catName ? (contaGrupoMap[normalizeStr(catName)] || 'Outros') : 'Outros');
+    });
+    const collator = new Intl.Collator('pt-BR');
+    return {
+      grupos: Array.from(grupos).sort(collator.compare),
+      subs: Array.from(subs).sort(collator.compare),
+    };
+  }, [entries, contaGrupoMap]);
+
+  const filtroLabel = useMemo(() => {
+    if (categoriaFiltro === 'all') return null;
+    return categoriaFiltro.replace(/^(grupo|sub)::/, '');
+  }, [categoriaFiltro]);
+
+  const entriesForFiltro = useMemo(() => {
+    if (categoriaFiltro === 'all') return [] as { data: string; valor: number }[];
+    return entries
+      .filter((e: any) => {
+        const catName = e.conta_nome || '';
+        if (categoriaFiltro.startsWith('sub::')) {
+          return normalizeStr(catName) === normalizeStr(categoriaFiltro.slice(5));
+        }
+        const grupo = catName ? (contaGrupoMap[normalizeStr(catName)] || 'Outros') : 'Outros';
+        return normalizeStr(grupo) === normalizeStr(categoriaFiltro.slice(7));
+      })
+      .map((e: any) => ({ data: e.data || '', valor: Number(e.valor || 0) }));
+  }, [entries, categoriaFiltro, contaGrupoMap]);
+
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
   const barChartData = useMemo(() => {
