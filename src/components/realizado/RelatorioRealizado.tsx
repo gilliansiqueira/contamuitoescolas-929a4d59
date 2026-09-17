@@ -10,7 +10,7 @@ import { CategoryBlock } from './CategoryBlock';
 import { EditEntryDialog } from './EditEntryDialog';
 import { AddEntryDialog } from './AddEntryDialog';
 import { ReviewEntriesDialog } from './ReviewEntriesDialog';
-import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock, Plus, Trash2 } from 'lucide-react';
+import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock, Plus, Trash2, ListFilter, ChevronsUpDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
@@ -24,6 +24,8 @@ import { useClosedMonths } from '@/hooks/usePeriodClosures';
 import { useMonthSync, useRangeSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { YoYLineChart } from './YoYLineChart';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 interface Props {
   schoolId: string;
@@ -72,6 +74,8 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [reviewEntries, setReviewEntries] = useState<any[]>([]);
   const [pendingUpdate, setPendingUpdate] = useState<{ id: string; updates: any; originalCategory: string; originalDescription: string } | null>(null);
   const { ref: chartContainerRef, width: containerWidth } = useContainerWidth();
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>('all');
+  const [filtroOpen, setFiltroOpen] = useState(false);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
@@ -428,6 +432,41 @@ export function RelatorioRealizado({ schoolId }: Props) {
     [entries]
   );
 
+  // Opções do filtro: categorias-mãe e subcategorias presentes nos lançamentos
+  const categoriaOptions = useMemo(() => {
+    const grupos = new Set<string>();
+    const subs = new Set<string>();
+    entries.forEach((e: any) => {
+      const catName = e.conta_nome || '';
+      if (catName) subs.add(catName);
+      grupos.add(catName ? (contaGrupoMap[normalizeStr(catName)] || 'Outros') : 'Outros');
+    });
+    const collator = new Intl.Collator('pt-BR');
+    return {
+      grupos: Array.from(grupos).sort(collator.compare),
+      subs: Array.from(subs).sort(collator.compare),
+    };
+  }, [entries, contaGrupoMap]);
+
+  const filtroLabel = useMemo(() => {
+    if (categoriaFiltro === 'all') return null;
+    return categoriaFiltro.replace(/^(grupo|sub)::/, '');
+  }, [categoriaFiltro]);
+
+  const entriesForFiltro = useMemo(() => {
+    if (categoriaFiltro === 'all') return [] as { data: string; valor: number }[];
+    return entries
+      .filter((e: any) => {
+        const catName = e.conta_nome || '';
+        if (categoriaFiltro.startsWith('sub::')) {
+          return normalizeStr(catName) === normalizeStr(categoriaFiltro.slice(5));
+        }
+        const grupo = catName ? (contaGrupoMap[normalizeStr(catName)] || 'Outros') : 'Outros';
+        return normalizeStr(grupo) === normalizeStr(categoriaFiltro.slice(7));
+      })
+      .map((e: any) => ({ data: e.data || '', valor: Number(e.valor || 0) }));
+  }, [entries, categoriaFiltro, contaGrupoMap]);
+
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
 
   const barChartData = useMemo(() => {
@@ -684,13 +723,81 @@ export function RelatorioRealizado({ schoolId }: Props) {
                   <Check className="w-4 h-4" />
                 </Button>
               </div>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <ListFilter className="w-4 h-4 text-muted-foreground shrink-0" />
+                <Popover open={filtroOpen} onOpenChange={setFiltroOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="rounded-xl justify-between min-w-[200px] max-w-[260px] font-normal" role="combobox">
+                      <span className="truncate">{filtroLabel || 'Filtrar por categoria'}</span>
+                      <ChevronsUpDown className="w-4 h-4 ml-2 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0" align="end">
+                    <Command>
+                      <CommandInput placeholder="Buscar categoria..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhuma categoria encontrada.</CommandEmpty>
+                        <CommandGroup heading="Categorias">
+                          {categoriaOptions.grupos.map(g => (
+                            <CommandItem
+                              key={`grupo::${g}`}
+                              value={`grupo::${g}`}
+                              onSelect={() => { setCategoriaFiltro(`grupo::${g}`); setFiltroOpen(false); }}
+                            >
+                              <Check className={`w-4 h-4 mr-2 ${categoriaFiltro === `grupo::${g}` ? 'opacity-100' : 'opacity-0'}`} />
+                              {g}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                        <CommandGroup heading="Subcategorias">
+                          {categoriaOptions.subs.map(s => (
+                            <CommandItem
+                              key={`sub::${s}`}
+                              value={`sub::${s}`}
+                              onSelect={() => { setCategoriaFiltro(`sub::${s}`); setFiltroOpen(false); }}
+                            >
+                              <Check className={`w-4 h-4 mr-2 ${categoriaFiltro === `sub::${s}` ? 'opacity-100' : 'opacity-0'}`} />
+                              {s}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {categoriaFiltro !== 'all' && (
+                  <Button size="sm" variant="ghost" className="rounded-xl shrink-0 px-2" onClick={() => setCategoriaFiltro('all')} title="Limpar filtro">
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
               {currentRevenue > 0 && !editingFat && (
-                <p className="text-lg font-bold text-foreground ml-auto">{formatCurrency(currentRevenue)}</p>
+                <p className="text-lg font-bold text-foreground">{formatCurrency(currentRevenue)}</p>
               )}
             </div>
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Evolução mensal da categoria filtrada — comparativo anual */}
+      {filtroLabel && !isMulti && activeMes && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="rounded-2xl">
+            <CardContent className="p-5">
+              {entriesForFiltro.length > 0 ? (
+                <YoYLineChart
+                  title={`${filtroLabel} — comparativo anual`}
+                  activeMonth={activeMes}
+                  entries={entriesForFiltro}
+                  invertColors={true}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado para "{filtroLabel}".</p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* (Cards de Faturamento / Despesas / Acumulado removidos — substituídos por linhas YoY abaixo de cada gráfico) */}
 
