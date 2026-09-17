@@ -779,6 +779,26 @@ export function RelatorioRealizado({ schoolId }: Props) {
         </Card>
       </motion.div>
 
+      {/* Evolução mensal da categoria filtrada — comparativo anual */}
+      {filtroLabel && !isMulti && activeMes && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="rounded-2xl">
+            <CardContent className="p-5">
+              {entriesForFiltro.length > 0 ? (
+                <YoYLineChart
+                  title={`${filtroLabel} — comparativo anual`}
+                  activeMonth={activeMes}
+                  entries={entriesForFiltro}
+                  invertColors={true}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado para "{filtroLabel}".</p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* (Cards de Faturamento / Despesas / Acumulado removidos — substituídos por linhas YoY abaixo de cada gráfico) */}
 
       {/* Despesas por Categoria (valor + % no mesmo rótulo) */}
