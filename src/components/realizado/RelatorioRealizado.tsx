@@ -723,8 +723,56 @@ export function RelatorioRealizado({ schoolId }: Props) {
                   <Check className="w-4 h-4" />
                 </Button>
               </div>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <ListFilter className="w-4 h-4 text-muted-foreground shrink-0" />
+                <Popover open={filtroOpen} onOpenChange={setFiltroOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="rounded-xl justify-between min-w-[200px] max-w-[260px] font-normal" role="combobox">
+                      <span className="truncate">{filtroLabel || 'Filtrar por categoria'}</span>
+                      <ChevronsUpDown className="w-4 h-4 ml-2 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0" align="end">
+                    <Command>
+                      <CommandInput placeholder="Buscar categoria..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhuma categoria encontrada.</CommandEmpty>
+                        <CommandGroup heading="Categorias">
+                          {categoriaOptions.grupos.map(g => (
+                            <CommandItem
+                              key={`grupo::${g}`}
+                              value={`grupo::${g}`}
+                              onSelect={() => { setCategoriaFiltro(`grupo::${g}`); setFiltroOpen(false); }}
+                            >
+                              <Check className={`w-4 h-4 mr-2 ${categoriaFiltro === `grupo::${g}` ? 'opacity-100' : 'opacity-0'}`} />
+                              {g}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                        <CommandGroup heading="Subcategorias">
+                          {categoriaOptions.subs.map(s => (
+                            <CommandItem
+                              key={`sub::${s}`}
+                              value={`sub::${s}`}
+                              onSelect={() => { setCategoriaFiltro(`sub::${s}`); setFiltroOpen(false); }}
+                            >
+                              <Check className={`w-4 h-4 mr-2 ${categoriaFiltro === `sub::${s}` ? 'opacity-100' : 'opacity-0'}`} />
+                              {s}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {categoriaFiltro !== 'all' && (
+                  <Button size="sm" variant="ghost" className="rounded-xl shrink-0 px-2" onClick={() => setCategoriaFiltro('all')} title="Limpar filtro">
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
               {currentRevenue > 0 && !editingFat && (
-                <p className="text-lg font-bold text-foreground ml-auto">{formatCurrency(currentRevenue)}</p>
+                <p className="text-lg font-bold text-foreground">{formatCurrency(currentRevenue)}</p>
               )}
             </div>
           </CardContent>
