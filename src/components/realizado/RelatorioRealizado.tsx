@@ -10,7 +10,7 @@ import { CategoryBlock } from './CategoryBlock';
 import { EditEntryDialog } from './EditEntryDialog';
 import { AddEntryDialog } from './AddEntryDialog';
 import { ReviewEntriesDialog } from './ReviewEntriesDialog';
-import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock, Plus, Trash2 } from 'lucide-react';
+import { DollarSign, Check, AlertTriangle, TrendingUp, TrendingDown, Flame, PiggyBank, Sparkles, Lock, Plus, Trash2, ListFilter, ChevronsUpDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { InsightsBar, type Insight } from '@/components/InsightsBar';
@@ -24,6 +24,8 @@ import { useClosedMonths } from '@/hooks/usePeriodClosures';
 import { useMonthSync, useRangeSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { YoYLineChart } from './YoYLineChart';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 interface Props {
   schoolId: string;
@@ -72,6 +74,8 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [reviewEntries, setReviewEntries] = useState<any[]>([]);
   const [pendingUpdate, setPendingUpdate] = useState<{ id: string; updates: any; originalCategory: string; originalDescription: string } | null>(null);
   const { ref: chartContainerRef, width: containerWidth } = useContainerWidth();
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>('all');
+  const [filtroOpen, setFiltroOpen] = useState(false);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['realized_entries', schoolId],
