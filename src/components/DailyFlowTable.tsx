@@ -247,9 +247,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 }), [dailyData]);
 
   // Previsto de fechamento: realizado até o corte + previsto apenas dos dias futuros.
+  // Sem nenhum realizado no período, todo o previsto conta como "restante".
   const closingEstimate = useMemo(() => {
+    const hasRealized = totals.entradaRealizada > 0 || totals.saidaRealizada > 0;
     const restante = dailyData.reduce((acc, d) => {
-      if (!d.isAfterCutoff) return acc;
+      if (hasRealized && !d.isAfterCutoff) return acc;
       return { entrada: acc.entrada + d.entradaPrevista, saida: acc.saida + d.saidaPrevista };
     }, { entrada: 0, saida: 0 });
     return {
