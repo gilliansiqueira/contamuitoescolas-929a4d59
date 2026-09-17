@@ -246,6 +246,18 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     operacoes: acc.operacoes + d.operacoes,
   }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 }), [dailyData]);
 
+  // Previsto de fechamento: realizado até o corte + previsto apenas dos dias futuros.
+  const closingEstimate = useMemo(() => {
+    const restante = dailyData.reduce((acc, d) => {
+      if (!d.isAfterCutoff) return acc;
+      return { entrada: acc.entrada + d.entradaPrevista, saida: acc.saida + d.saidaPrevista };
+    }, { entrada: 0, saida: 0 });
+    return {
+      entrada: totals.entradaRealizada + restante.entrada,
+      saida: totals.saidaRealizada + restante.saida,
+    };
+  }, [dailyData, totals]);
+
 
   if (allDays.length === 0) {
     return (
