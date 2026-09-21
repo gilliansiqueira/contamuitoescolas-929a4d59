@@ -96,8 +96,7 @@ function DeltaBadge({ diff, pct, invert }: { diff: number; pct: number | null; i
 }
 
 export function ComparativoPeriodos({ schoolId }: Props) {
-  const { data: entries = [], isLoading } = useEntries(schoolId);
-  const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const { ctx, isInModel, isLoading } = usePeriodMovementCtx(schoolId);
 
   const { data: realized = [] } = useQuery({
     queryKey: ['realized_entries', schoolId],
@@ -118,12 +117,15 @@ export function ComparativoPeriodos({ schoolId }: Props) {
     enabled: !!schoolId,
   });
 
+  // Meses com qualquer dado: projeção/fluxo, histórico consolidado, fechamento ou realizado.
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
-    entries.forEach(e => { const ym = (e.data || '').slice(0, 7); if (ym) set.add(ym); });
+    ctx.entries.forEach(e => { const ym = (e.dataProjetada || e.data || '').slice(0, 7); if (ym) set.add(ym); });
+    ctx.historicalRows.forEach(r => { if (r.month) set.add(r.month); });
+    ctx.snapshotMap.forEach((_v, k) => set.add(k));
     realized.forEach((e: any) => { const ym = (e.data || '').slice(0, 7); if (ym) set.add(ym); });
     return Array.from(set).sort();
-  }, [entries, realized]);
+  }, [ctx, realized]);
 
   const defaults = useMemo(() => {
     if (availableMonths.length === 0) {
@@ -154,44 +156,70 @@ export function ComparativoPeriodos({ schoolId }: Props) {
   const monthsA = useMemo(() => monthsBetween(r.aStart, r.aEnd), [r]);
   const monthsB = useMemo(() => monthsBetween(r.bStart, r.bEnd), [r]);
 
-  const byMonth = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    entries.forEach(e => {
-      const ym = (e.data || '').slice(0, 7);
-      if (!ym) return;
-      (map[ym] ||= []).push(e);
-    });
+  // SSOT: usa a mesma movimentação canônica do Dashboard (snapshot > fluxo > histórico > projeção).
+  const monthlyTotals = useMemo(() => {
+    const map: Record<string, { receita: number; despesa: number; resultado: number; source: MovementSource }> = {};
+    const all = Array.from(new Set([...monthsA, ...monthsB]));
+    for (const m of all) {
+      const mv = buildMonthMovement(m, ctx, { isInModel });
+      map[m] = {
+        receita: mv.receitas,
+        despesa: mv.despesas,
+        resultado: mv.receitas - mv.despesas,
+        source: mv.source,
+      };
+    }
     return map;
-  }, [entries]);
+  }, [monthsA, monthsB, ctx, isInModel]);
 
   const aggregate = (months: string[]) => {
-    const all = months.flatMap(m => byMonth[m] || []);
-    return processLedger(all as any, classifications as any);
+    let receita = 0, despesa = 0;
+    for (const m of months) {
+      const t = monthlyTotals[m];
+      if (!t) continue;
+      receita += t.receita;
+      despesa += t.despesa;
+    }
+    return { receitas: receita, despesas: despesa, resultado: receita - despesa };
   };
 
-  const totA = useMemo(() => aggregate(monthsA), [monthsA, byMonth, classifications]);
-  const totB = useMemo(() => aggregate(monthsB), [monthsB, byMonth, classifications]);
+  const totA = useMemo(() => aggregate(monthsA), [monthsA, monthlyTotals]);
+  const totB = useMemo(() => aggregate(monthsB), [monthsB, monthlyTotals]);
+
+  const sourceSummary = (months: string[]) => {
+    const labels = new Set<string>();
+    const vazios: string[] = [];
+    for (const m of months) {
+      const src = monthlyTotals[m]?.source ?? 'vazio';
+      if (src === 'vazio') { vazios.push(m); continue; }
+      labels.add(SOURCE_LABEL[src] ?? src);
+    }
+    return { labels: Array.from(labels), vazios };
+  };
+  const srcA = useMemo(() => sourceSummary(monthsA), [monthsA, monthlyTotals]);
+  const srcB = useMemo(() => sourceSummary(monthsB), [monthsB, monthlyTotals]);
 
   const chartData = useMemo(() => {
     const len = Math.max(monthsA.length, monthsB.length);
     return Array.from({ length: len }, (_, i) => {
       const ma = monthsA[i];
       const mb = monthsB[i];
-      const a = ma ? processLedger((byMonth[ma] || []) as any, classifications as any) : null;
-      const b = mb ? processLedger((byMonth[mb] || []) as any, classifications as any) : null;
+      const a = ma ? monthlyTotals[ma] : null;
+      const b = mb ? monthlyTotals[mb] : null;
       return {
         pos: mb ? labelMonth(mb) : ma ? labelMonth(ma) : `${i + 1}º`,
         mesA: ma ? labelMonth(ma) : '—',
         mesB: mb ? labelMonth(mb) : '—',
-        receitaA: a?.receitas ?? null,
-        receitaB: b?.receitas ?? null,
-        despesaA: a?.despesas ?? null,
-        despesaB: b?.despesas ?? null,
+        receitaA: a ? a.receita : null,
+        receitaB: b ? b.receita : null,
+        despesaA: a ? a.despesa : null,
+        despesaB: b ? b.despesa : null,
         resultadoA: a ? a.resultado : null,
         resultadoB: b ? b.resultado : null,
       };
     });
-  }, [monthsA, monthsB, byMonth, classifications]);
+  }, [monthsA, monthsB, monthlyTotals]);
+
 
   const contaGrupoMap = useMemo(() => {
     const map: Record<string, string> = {};
