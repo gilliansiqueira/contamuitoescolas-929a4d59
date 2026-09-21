@@ -9,8 +9,16 @@ import {
 } from 'recharts';
 import { ArrowUp, ArrowDown, Minus, ChevronDown, ChevronRight, CalendarRange } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
-import { processLedger } from '@/lib/ledgerEngine';
+import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import { buildMonthMovement, type MovementSource } from '@/lib/periodMovement';
+
+const SOURCE_LABEL: Record<string, string> = {
+  snapshot: 'fechamento',
+  fluxo: 'realizado (fluxo)',
+  historico: 'histórico',
+  projecao: 'projeção',
+};
+
 
 interface Props {
   schoolId: string;
