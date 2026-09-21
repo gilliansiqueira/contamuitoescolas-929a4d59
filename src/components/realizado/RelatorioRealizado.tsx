@@ -454,7 +454,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
   }, [categoriaFiltro]);
 
   const entriesForFiltro = useMemo(() => {
-    if (categoriaFiltro === 'all') return [] as { data: string; valor: number }[];
+    if (categoriaFiltro === 'all') return [] as FiltroEntry[];
     return entries
       .filter((e: any) => {
         const catName = e.conta_nome || '';
@@ -464,7 +464,14 @@ export function RelatorioRealizado({ schoolId }: Props) {
         const grupo = catName ? (contaGrupoMap[normalizeStr(catName)] || 'Outros') : 'Outros';
         return normalizeStr(grupo) === normalizeStr(categoriaFiltro.slice(7));
       })
-      .map((e: any) => ({ data: e.data || '', valor: Number(e.valor || 0) }));
+      .map((e: any) => ({
+        id: e.id,
+        data: e.data || '',
+        valor: Number(e.valor || 0),
+        descricao: e.descricao || '',
+        complemento: e.complemento || '',
+        conta_nome: e.conta_nome || '',
+      })) as FiltroEntry[];
   }, [entries, categoriaFiltro, contaGrupoMap]);
 
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
