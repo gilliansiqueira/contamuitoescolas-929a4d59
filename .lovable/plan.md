@@ -65,6 +65,16 @@ O relatório usará exatamente os meses escolhidos no filtro global e terá como
 - Gráficos serão preparados especificamente para impressão, sem depender de capturar a tela atual.
 - O relatório seguirá a identidade visual clara da Conta Muito e continuará legível quando aberto no celular.
 
+## Direção visual escolhida
+
+- Seguir a prévia **Executive financial report**, adaptada integralmente à identidade real da Conta Muito.
+- Cabeçalho teal com o logotipo oficial da Conta Muito e detalhes laranja.
+- Fundo branco, divisórias leves e números grandes, evitando aparência bancária genérica ou excesso de cartões.
+- A primeira página terá os cinco valores obrigatórios em destaque: saldo inicial, receitas, despesas, resultado e saldo final.
+- Laranja será usado para alertas, pontos de atenção e detalhes; teal para estrutura, receitas e elementos institucionais.
+- Gráficos e destaques responderão rapidamente: o que melhorou, o que piorou e o que exige atenção.
+- Todo conteúdo será empresarial e gerencial, sem exemplos de investimentos pessoais ou movimentações genéricas.
+
 ## Integridade financeira
 
 - Receitas, despesas, resultado e saldos virão da mesma fonte oficial usada no Dashboard, mês a mês.
