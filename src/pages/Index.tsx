@@ -18,6 +18,7 @@ import { ExportImport } from '@/components/ExportImport';
 import { Receivables } from '@/components/Receivables';
 import { FinancialCalendar } from '@/components/FinancialCalendar';
 import { DataTable } from '@/components/DataTable';
+import { ComparativoPeriodos } from '@/components/comparativo/ComparativoPeriodos';
 import { ScenarioView } from '@/components/ScenarioView';
 import { MonthSelector } from '@/components/MonthSelector';
 import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
@@ -47,7 +48,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -56,7 +57,7 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'daily_flow', label: 'Fluxo Diário', icon: Table2 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
   { key: 'calendar', label: 'Calendário', icon: CalendarDays },
-  { key: 'datatable', label: 'Dados', icon: TableProperties },
+  { key: 'comparativo_periodos', label: 'Comparativo', icon: TableProperties },
   { key: 'scenarios', label: 'Cenários', icon: TrendingUp },
   { key: 'simulation', label: 'Simulação', icon: Calculator },
 ];
@@ -74,6 +75,7 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
   { key: 'guide', label: 'Guia & Regras' },
   { key: 'export', label: 'Exportar / Importar' },
   { key: 'comparison', label: 'Projetado vs Real' },
+  { key: 'datatable', label: 'Dados (tabela bruta)', adminOnly: true },
 ];
 
 const Index = () => {
@@ -371,6 +373,11 @@ function IndexBody({
                 {activeTab === 'datatable' && (
                   <ExportPdfSection fileName={`dados-${selectedMonth}`}>
                     <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />
+                  </ExportPdfSection>
+                )}
+                {activeTab === 'comparativo_periodos' && (
+                  <ExportPdfSection fileName="comparativo-periodos">
+                    <ComparativoPeriodos schoolId={school.id} />
                   </ExportPdfSection>
                 )}
                 {activeTab === 'scenarios' && (

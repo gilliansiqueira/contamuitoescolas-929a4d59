@@ -24,6 +24,7 @@ import { useClosedMonths } from '@/hooks/usePeriodClosures';
 import { useMonthSync, useRangeSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { YoYLineChart } from './YoYLineChart';
+import { FiltroLancamentos, type FiltroEntry } from './FiltroLancamentos';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
@@ -454,7 +455,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
   }, [categoriaFiltro]);
 
   const entriesForFiltro = useMemo(() => {
-    if (categoriaFiltro === 'all') return [] as { data: string; valor: number }[];
+    if (categoriaFiltro === 'all') return [] as FiltroEntry[];
     return entries
       .filter((e: any) => {
         const catName = e.conta_nome || '';
@@ -464,7 +465,14 @@ export function RelatorioRealizado({ schoolId }: Props) {
         const grupo = catName ? (contaGrupoMap[normalizeStr(catName)] || 'Outros') : 'Outros';
         return normalizeStr(grupo) === normalizeStr(categoriaFiltro.slice(7));
       })
-      .map((e: any) => ({ data: e.data || '', valor: Number(e.valor || 0) }));
+      .map((e: any) => ({
+        id: e.id,
+        data: e.data || '',
+        valor: Number(e.valor || 0),
+        descricao: e.descricao || '',
+        complemento: e.complemento || '',
+        conta_nome: e.conta_nome || '',
+      })) as FiltroEntry[];
   }, [entries, categoriaFiltro, contaGrupoMap]);
 
   const totalDespesas = useMemo(() => filtered.reduce((s, e) => s + Number(e.valor || 0), 0), [filtered]);
@@ -785,12 +793,21 @@ export function RelatorioRealizado({ schoolId }: Props) {
           <Card className="rounded-2xl">
             <CardContent className="p-5">
               {entriesForFiltro.length > 0 ? (
-                <YoYLineChart
-                  title={`${filtroLabel} — comparativo anual`}
-                  activeMonth={activeMes}
-                  entries={entriesForFiltro}
-                  invertColors={true}
-                />
+                <div className="space-y-5">
+                  <YoYLineChart
+                    title={`${filtroLabel} — comparativo anual`}
+                    activeMonth={activeMes}
+                    entries={entriesForFiltro.map(e => ({ data: e.data, valor: e.valor }))}
+                    invertColors={true}
+                  />
+                  <div className="pt-4 border-t border-border/60">
+                    <FiltroLancamentos
+                      label={filtroLabel}
+                      entries={entriesForFiltro}
+                      activeMonth={activeMes}
+                    />
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado para "{filtroLabel}".</p>
               )}
