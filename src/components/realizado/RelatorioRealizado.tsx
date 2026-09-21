@@ -47,17 +47,21 @@ function normalizeStr(s: string) {
 }
 
 function useContainerWidth() {
-  const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
+  const roRef = useRef<ResizeObserver | null>(null);
+  // Callback ref: observa o elemento no momento em que ele é anexado ao DOM.
+  // O gráfico renderiza condicionalmente (após os dados carregarem), então um
+  // efeito de montagem não encontra o elemento e a largura ficaria 0 para sempre.
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
       setWidth(entries[0]?.contentRect.width ?? 0);
     });
     ro.observe(el);
     setWidth(el.getBoundingClientRect().width);
-    return () => ro.disconnect();
+    roRef.current = ro;
   }, []);
   return { ref, width };
 }
@@ -833,48 +837,97 @@ export function RelatorioRealizado({ schoolId }: Props) {
               )}
               <div ref={chartContainerRef}>
                 {containerWidth > 0 && containerWidth < 560 ? (
-                  <TooltipProvider>
-                    <div className="space-y-4">
-                      {(() => {
-                        const maxValue = Math.max(...barChartData.map(x => x.value), 1);
-                        return barChartData.map((d, i) => {
-                          const overLimit = currentRevenue > 0 && d.pctFat > 30;
-                          const widthPct = Math.min((d.value / maxValue) * 100, 100);
-                          return (
-                            <div key={d.name} className="space-y-1.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <UITooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-sm font-medium text-foreground truncate flex-1 min-w-0 cursor-help">
-                                      {d.name}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-xs">
-                                    <p>{d.name}</p>
-                                    <p className="text-xs text-muted-foreground">
+                  (() => {
+                    const totalAll = barChartData.reduce((s, x) => s + x.value, 0);
+                    const maxValue = Math.max(...barChartData.map(x => x.value), 1);
+                    const big = barChartData.filter(d => totalAll > 0 && d.value / totalAll >= 0.05);
+                    const small = barChartData.filter(d => !(totalAll > 0 && d.value / totalAll >= 0.05));
+                    const periodChip = isMulti
+                      ? `${effectiveMonths.length} MESES`
+                      : activeMes ? formatMonth(activeMes).toUpperCase() : '';
+                    return (
+                      <div className="space-y-5">
+                        {periodChip && (
+                          <div className="flex justify-end">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground px-2 py-0.5 rounded">
+                              {periodChip}
+                            </span>
+                          </div>
+                        )}
+                        <div className="space-y-5">
+                          {big.map((d, i) => {
+                            const overLimit = currentRevenue > 0 && d.pctFat > 30;
+                            const widthPct = Math.min((d.value / maxValue) * 100, 100);
+                            return (
+                              <div key={d.name} className="space-y-1.5">
+                                <div className="flex justify-between items-end gap-2">
+                                  <div className="flex flex-col min-w-0">
+                                    {overLimit && (
+                                      <span className="text-[10px] font-bold uppercase tracking-wide text-destructive">
+                                        Acima de 30% do faturamento
+                                      </span>
+                                    )}
+                                    <span className="text-sm font-bold text-foreground truncate">{d.name}</span>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <span className={`text-sm font-bold ${overLimit ? 'text-destructive' : 'text-foreground'}`}>
                                       {formatCurrency(d.value)}
-                                      {currentRevenue > 0 ? ` (${d.pctFat.toFixed(1)}%)` : ''}
-                                    </p>
-                                  </TooltipContent>
-                                </UITooltip>
-                                <span className="text-sm font-semibold text-foreground whitespace-nowrap">
-                                  {d.label}
-                                </span>
+                                    </span>
+                                    {currentRevenue > 0 && (
+                                      <span className={`block text-[11px] font-medium ${overLimit ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                        {d.pctFat.toFixed(1)}% da receita
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className={`w-full rounded-full overflow-hidden bg-muted ${overLimit ? 'h-2.5' : 'h-2'}`}>
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${widthPct}%` }}
+                                    transition={{ duration: 0.5, delay: i * 0.05 }}
+                                    className={`h-full rounded-full ${overLimit ? 'bg-destructive shadow-[0_0_10px_hsl(var(--destructive)/0.35)]' : 'bg-primary'}`}
+                                  />
+                                </div>
                               </div>
-                              <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${widthPct}%` }}
-                                  transition={{ duration: 0.5, delay: i * 0.05 }}
-                                  className={`h-full rounded-full ${overLimit ? 'bg-destructive' : 'bg-primary'}`}
-                                />
-                              </div>
+                            );
+                          })}
+                        </div>
+                        {small.length > 0 && (
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            {small.map(d => {
+                              const overLimit = currentRevenue > 0 && d.pctFat > 30;
+                              const pctTotal = totalAll > 0 ? (d.value / totalAll) * 100 : 0;
+                              return (
+                                <div key={d.name} className="p-3 rounded-xl bg-muted/50 border border-border/60 min-w-0">
+                                  <div className="text-[10px] font-bold uppercase text-muted-foreground truncate">{d.name}</div>
+                                  <div className={`text-xs font-bold mt-1 ${overLimit ? 'text-destructive' : 'text-foreground'}`}>
+                                    {formatCurrency(d.value)}
+                                  </div>
+                                  <div className={`text-[10px] font-semibold ${overLimit ? 'text-destructive' : 'text-primary'}`}>
+                                    {currentRevenue > 0 ? `${d.pctFat.toFixed(1)}% da receita` : `${pctTotal.toFixed(1)}% do total`}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {currentRevenue > 0 && (
+                          <div className="pt-3 border-t border-border/60 flex justify-between items-center">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Total do período</p>
+                              <p className="text-base font-bold text-foreground">{formatCurrency(totalAll)}</p>
                             </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </TooltipProvider>
+                            <div className="text-right">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Margem consumida</p>
+                              <p className={`text-base font-bold ${(totalAll / currentRevenue) * 100 > 100 ? 'text-destructive' : 'text-foreground'}`}>
+                                {((totalAll / currentRevenue) * 100).toFixed(0)}%
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
                 ) : (
                   <ResponsiveContainer key={JSON.stringify(barChartData)} width="100%" height={Math.max(barChartData.length * 48, 140)}>
                     <BarChart data={barChartData} layout="vertical" margin={{ left: 8, right: 200, top: 4, bottom: 4 }}>
