@@ -240,6 +240,42 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return computeSaldoFinalRealizado(selectedMonths[selectedMonths.length - 1], movementCtx, { isInModel });
   }, [selectedMonth, selectedMonths, saldoInicialCalculadoRealizado, monthMovements, movementCtx, isInModel]);
 
+  // Em períodos longos, o saldo é consolidado por mês usando exclusivamente
+  // as funções canônicas de saldo. O primeiro ponto dá contexto ao fechamento.
+  const monthlyBalanceData = useMemo(() => {
+    if (selectedMonths.length < 2) return [];
+    const shortMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const firstMonth = selectedMonths[0];
+    const initial = computeSaldoInicial(firstMonth, movementCtx, { isInModel });
+    let previous = initial;
+    const points = selectedMonths.map(month => {
+      const [year, monthNumber] = month.split('-');
+      const saldo = computeSaldoFinal(month, movementCtx, { isInModel });
+      const point = {
+        key: month,
+        label: `${shortMonths[Number(monthNumber) - 1]}/${year.slice(2)}`,
+        fullLabel: `${shortMonths[Number(monthNumber) - 1]} de ${year}`,
+        saldo,
+        variacao: saldo - previous,
+      };
+      previous = saldo;
+      return point;
+    });
+    return [
+      { key: 'initial', label: 'Início', fullLabel: 'Saldo inicial', saldo: initial, variacao: 0 },
+      ...points,
+    ];
+  }, [selectedMonths, movementCtx, isInModel]);
+
+  const monthlyBalanceSummary = useMemo(() => {
+    const closings = monthlyBalanceData.filter(point => point.key !== 'initial');
+    if (closings.length === 0) return null;
+    return {
+      minimum: closings.reduce((lowest, point) => point.saldo < lowest.saldo ? point : lowest),
+      final: closings[closings.length - 1],
+    };
+  }, [monthlyBalanceData]);
+
   // ─── Bandeiras para condicionar UI ───
   const sourcesUsed = useMemo(() => {
     const set = new Set(Object.values(monthSources));
@@ -1072,14 +1108,36 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         </motion.div>
       )}
 
-      {/* Projeção de Saldo Diário — OCULTO em meses só-histórico */}
-      {!sourcesUsed.onlyHistorico && projectionData.length > 0 && (
+      {/* Saldo adaptativo: diário em um mês, mensal em períodos longos. */}
+      {(monthlyBalanceData.length > 0 || (!sourcesUsed.onlyHistorico && projectionData.length > 0)) && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
           className="glass-card rounded-xl p-3 sm:p-5">
-          <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 sm:mb-4">📈 Projeção de Saldo</h4>
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-3 sm:mb-4">
+            <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              {monthlyBalanceData.length > 0 ? 'Evolução Mensal do Saldo' : 'Projeção de Saldo Diário'}
+            </h4>
+            {monthlyBalanceSummary && (
+              <div className="flex gap-4 text-right">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Menor fechamento</p>
+                  <p className={`text-xs sm:text-sm font-bold ${monthlyBalanceSummary.minimum.saldo < 0 ? 'text-destructive' : 'text-foreground'}`}>
+                    {formatCurrency(monthlyBalanceSummary.minimum.saldo)}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground">{monthlyBalanceSummary.minimum.label}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Saldo final</p>
+                  <p className={`text-xs sm:text-sm font-bold ${monthlyBalanceSummary.final.saldo < 0 ? 'text-destructive' : 'text-success'}`}>
+                    {formatCurrency(monthlyBalanceSummary.final.saldo)}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground">{monthlyBalanceSummary.final.label}</p>
+                </div>
+              </div>
+            )}
+          </div>
           <ChartScroller width={undefined} height={dailyPresets.height}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={projectionData} margin={dailyPresets.margin}>
+              <AreaChart data={monthlyBalanceData.length > 0 ? monthlyBalanceData : projectionData} margin={dailyPresets.margin}>
                 <defs>
                   <linearGradient id="saldoGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
@@ -1087,12 +1145,45 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="data" tick={{ fontSize: dailyPresets.tickFontSize }} interval={dailyPresets.xInterval} stroke="hsl(var(--muted-foreground))" />
+                <XAxis dataKey={monthlyBalanceData.length > 0 ? 'label' : 'data'} tick={{ fontSize: dailyPresets.tickFontSize }} interval={monthlyBalanceData.length > 0 ? 0 : dailyPresets.xInterval} stroke="hsl(var(--muted-foreground))" />
                 <YAxis tick={{ fontSize: dailyPresets.tickFontSize }} width={dailyPresets.isMobile ? 34 : 60} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} labelFormatter={(label) => `Data: ${label}`}
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                {monthlyBalanceData.length > 0 ? (
+                  <Tooltip content={({ active, payload }) => {
+                    const point = payload?.[0]?.payload as typeof monthlyBalanceData[number] | undefined;
+                    if (!active || !point) return null;
+                    return (
+                      <div className="rounded-md border border-border bg-card px-3 py-2 text-xs shadow-md">
+                        <p className="font-semibold text-foreground mb-1">{point.fullLabel}</p>
+                        <p className={point.saldo < 0 ? 'text-destructive' : 'text-success'}>Saldo: {formatCurrency(point.saldo)}</p>
+                        {point.key !== 'initial' && (
+                          <p className="text-muted-foreground">Variação: {point.variacao >= 0 ? '+' : ''}{formatCurrency(point.variacao)}</p>
+                        )}
+                      </div>
+                    );
+                  }} />
+                ) : (
+                  <Tooltip formatter={(value: number) => formatCurrency(value)} labelFormatter={(label) => `Data: ${label}`}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                )}
                 <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeDasharray="3 3" />
-                <Area type="monotone" dataKey="saldo" stroke="hsl(var(--success))" fill="url(#saldoGrad)" strokeWidth={2} name="Saldo" />
+                <Area
+                  type="monotone"
+                  dataKey="saldo"
+                  stroke="hsl(var(--success))"
+                  fill="url(#saldoGrad)"
+                  strokeWidth={2}
+                  name="Saldo"
+                  dot={monthlyBalanceData.length > 0 ? (props: any) => (
+                    <circle
+                      cx={props.cx}
+                      cy={props.cy}
+                      r={props.payload.saldo < 0 ? 5 : 4}
+                      fill={props.payload.saldo < 0 ? 'hsl(var(--destructive))' : 'hsl(var(--success))'}
+                      stroke="hsl(var(--card))"
+                      strokeWidth={2}
+                    />
+                  ) : false}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </ChartScroller>
