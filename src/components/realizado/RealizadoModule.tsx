@@ -32,10 +32,13 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
   schoolId: string;
+  /** Controle externo (navegação mobile) */
+  view?: MainView;
+  onViewChange?: (v: MainView) => void;
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'detalhamento' | 'icones';
-type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento';
+export type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
