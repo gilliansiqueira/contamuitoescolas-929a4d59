@@ -230,6 +230,7 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
           ))}
         </div>
         <motion.div key={configTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
+          <Suspense fallback={<ScreenLoading />}>
           {configTab === 'plano' && <PlanoDeContas schoolId={schoolId} />}
           {configTab === 'importacao' && <ImportacaoRealizado schoolId={schoolId} />}
           {configTab === 'regras' && <RegrasCategorizacao schoolId={schoolId} />}
@@ -243,6 +244,7 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
           {configTab === 'dados' && <ExportacaoDados schoolId={schoolId} />}
           {configTab === 'detalhamento' && <DetalhamentoConfig schoolId={schoolId} />}
           {configTab === 'icones' && isAdmin && <IconLibraryManager />}
+          </Suspense>
         </motion.div>
       </div>
     );

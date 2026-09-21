@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 interface Props {
   /** Monta os dados no momento do clique (evita cálculo desnecessário) */
-  buildData: () => MesCompletoData;
+  buildData: () => MesCompletoData | Promise<MesCompletoData>;
 }
 
 export function ExportMesCompletoPdf({ buildData }: Props) {
@@ -17,7 +17,8 @@ export function ExportMesCompletoPdf({ buildData }: Props) {
     setBusy(true);
     try {
       const { generateMesCompletoPdf } = await import('./pdf/mesCompletoPdf');
-      await generateMesCompletoPdf(buildData());
+      const data = await buildData();
+      await generateMesCompletoPdf(data);
       toast.success('Relatório geral gerado');
     } catch (err) {
       console.error('[ExportMesCompletoPdf]', err);

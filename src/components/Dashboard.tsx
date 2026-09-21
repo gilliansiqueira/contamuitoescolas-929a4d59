@@ -110,59 +110,6 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
   // Dados gerenciais complementares do relatório geral. Os totais financeiros
   // continuam vindo exclusivamente de monthMovements (SSOT).
-  const { data: reportRealizedEntries = [] } = useQuery({
-    queryKey: ['realized_entries', schoolId],
-    queryFn: () => fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId).order('data')),
-    enabled: !!schoolId,
-  });
-  const { data: reportAccounts = [] } = useQuery({
-    queryKey: ['chart_of_accounts', schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('chart_of_accounts').select('*').eq('school_id', schoolId);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!schoolId,
-  });
-  const { data: reportKpiDefinitions = [] } = useQuery({
-    queryKey: ['kpi_definitions', schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('kpi_definitions').select('*').eq('school_id', schoolId).eq('enabled', true).order('sort_order');
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!schoolId,
-  });
-  const { data: reportKpiValues = [] } = useQuery({
-    queryKey: ['kpi_values', schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('kpi_values').select('*').eq('school_id', schoolId).order('month');
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!schoolId,
-  });
-  const { data: reportKpiThresholds = [] } = useQuery({
-    queryKey: ['kpi_thresholds', schoolId],
-    queryFn: async () => {
-      const ids = reportKpiDefinitions.map(d => d.id);
-      if (!ids.length) return [];
-      const { data, error } = await supabase.from('kpi_thresholds').select('*').in('kpi_definition_id', ids).order('sort_order');
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!schoolId && reportKpiDefinitions.length > 0,
-  });
-  const { data: reportConversion = [] } = useQuery({
-    queryKey: ['conversion_data', schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('conversion_data').select('*').eq('school_id', schoolId).order('month');
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!schoolId,
-  });
-
   const selectedMonths = useMemo<string[]>(() => {
     if (selectedMonth === 'all') {
       const fromEntries = activeEntries.map(e => e.data.slice(0, 7));
@@ -650,7 +597,48 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   );
 
   // ─── Dados do PDF nativo "Mês completo" (montado só no clique) ───
-  const buildMesCompletoData = useCallback((): MesCompletoData => {
+  const buildMesCompletoData = useCallback(async (): Promise<MesCompletoData> => {
+    const firstMonth = selectedMonths[0];
+    const lastMonth = selectedMonths[selectedMonths.length - 1];
+    const selectedStart = firstMonth ? `${firstMonth}-01` : undefined;
+    const selectedEnd = lastMonth ? `${lastMonth}-31` : undefined;
+    const previousYear = String(Number((lastMonth || `${new Date().getFullYear()}`).slice(0, 4)) - 1);
+    const comparisonStart = firstMonth ? `${previousYear}-${firstMonth.slice(5, 7)}` : undefined;
+
+    const [reportRealizedEntries, reportAccountsResult, reportKpiDefinitionsResult, reportKpiValuesResult, reportConversionResult] = await Promise.all([
+      fetchAllRows<any>('realized_entries', q => {
+        let query = q.eq('school_id', schoolId);
+        if (selectedStart) query = query.gte('data', selectedStart);
+        if (selectedEnd) query = query.lte('data', selectedEnd);
+        return query.order('data');
+      }),
+      supabase.from('chart_of_accounts').select('id, nome, grupo, pai_id, tipo').eq('school_id', schoolId),
+      supabase.from('kpi_definitions').select('id, name, value_type, direction, decimals, sort_order').eq('school_id', schoolId).eq('enabled', true).order('sort_order'),
+      (() => {
+        let query = supabase.from('kpi_values').select('kpi_definition_id, month, value').eq('school_id', schoolId);
+        if (firstMonth) query = query.gte('month', firstMonth);
+        if (lastMonth) query = query.lte('month', lastMonth);
+        return query.order('month');
+      })(),
+      (() => {
+        let query = supabase.from('conversion_data').select('month, tipo, contatos, matriculas').eq('school_id', schoolId);
+        if (comparisonStart) query = query.gte('month', comparisonStart);
+        if (lastMonth) query = query.lte('month', lastMonth);
+        return query.order('month');
+      })(),
+    ]);
+    if (reportAccountsResult.error) throw reportAccountsResult.error;
+    if (reportKpiDefinitionsResult.error) throw reportKpiDefinitionsResult.error;
+    if (reportKpiValuesResult.error) throw reportKpiValuesResult.error;
+    if (reportConversionResult.error) throw reportConversionResult.error;
+    const reportAccounts = reportAccountsResult.data ?? [];
+    const reportKpiDefinitions = reportKpiDefinitionsResult.data ?? [];
+    const reportKpiValues = reportKpiValuesResult.data ?? [];
+    const reportConversion = reportConversionResult.data ?? [];
+    const kpiIds = reportKpiDefinitions.map(row => row.id);
+    const reportKpiThresholds = kpiIds.length
+      ? (await supabase.from('kpi_thresholds').select('kpi_definition_id, min_value, max_value, color, label, sort_order').in('kpi_definition_id', kpiIds).order('sort_order')).data ?? []
+      : [];
     const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
     const labelOf = (m: string) => {
       const [yy, mm] = m.split('-');
@@ -807,7 +795,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       sources: Array.from(new Set(monthly.map(row => row.source))),
       fileName: `relatorio-geral-${selectedMonths[0] || 'periodo'}-${selectedMonths[selectedMonths.length - 1] || 'completo'}`,
     };
-  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, saldoInicialCalculado, saldoFinal, totals, tipoAggregations, movementCtx, isInModel, monthMovements, reportAccounts, reportRealizedEntries, reportKpiDefinitions, reportKpiValues, reportKpiThresholds, reportConversion]);
+  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, schoolId, saldoInicialCalculado, saldoFinal, totals, tipoAggregations, movementCtx, isInModel, monthMovements]);
 
   return (
     <div className="space-y-3 sm:space-y-6" ref={exportRef}>
