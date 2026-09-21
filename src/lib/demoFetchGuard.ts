@@ -35,6 +35,19 @@ function violatesDemoScope(url: string): string | null {
   }
 }
 
+async function isAllowedReadRpc(input: RequestInfo | URL, init?: RequestInit) {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+  if (!url.includes('/rest/v1/rpc/get_available_financial_months')) return false;
+
+  try {
+    const rawBody = init?.body ?? (input instanceof Request ? await input.clone().text() : null);
+    const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
+    return body?._school_id === DEMO_SCHOOL_ID;
+  } catch {
+    return false;
+  }
+}
+
 export function installDemoFetchGuard() {
   if (installed || typeof window === 'undefined') return;
   installed = true;
@@ -52,7 +65,7 @@ export function installDemoFetchGuard() {
       const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
 
       // Block any write from /demo — read-only mode.
-      if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && !(await isAllowedReadRpc(input, init))) {
         // Allow Supabase auth/storage endpoints (not /rest/v1) — already filtered above.
         console.warn('[DemoGuard] Blocked write request in demo mode:', method, url);
         return new Response(
