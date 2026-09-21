@@ -155,10 +155,13 @@ function IndexBody({
 }: IndexBodyProps) {
   const [appModule, setAppModule] = useState<AppModule>('projecao');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [realizadoView, setRealizadoView] = useState<RealizadoView>('relatorio');
+  const [navOpen, setNavOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [scenario, setScenario] = useState<ScenarioType>('real');
   const period = useGlobalPeriod();
   const selectedMonth = period.value; // fonte única
+  const realizadoViews = useRealizadoViews(school.id);
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
@@ -170,6 +173,43 @@ function IndexBody({
   }
 
   const showScenarioSelector = activeTab === 'scenarios';
+
+  const navSections: NavSheetSection[] = [
+    {
+      title: 'Projeção',
+      items: mainTabs.map(t => ({
+        key: `p-${t.key}`,
+        label: t.label,
+        icon: t.icon,
+        active: appModule === 'projecao' && activeTab === t.key,
+        onSelect: () => { setAppModule('projecao'); setActiveTab(t.key); },
+      })),
+    },
+    {
+      title: 'Relatório Realizado',
+      items: realizadoViews.map(v => ({
+        key: `r-${v.key}`,
+        label: v.label,
+        icon: v.icon,
+        active: appModule === 'realizado' && realizadoView === v.key,
+        onSelect: () => { setAppModule('realizado'); setRealizadoView(v.key); },
+      })),
+    },
+    {
+      title: 'Configurações',
+      items: (!isPresentationMode && isAdmin ? settingsTabs : []).map(t => ({
+        key: `s-${t.key}`,
+        label: t.label,
+        icon: Settings,
+        active: appModule === 'projecao' && activeTab === t.key,
+        onSelect: () => { setAppModule('projecao'); setActiveTab(t.key); },
+      })),
+    },
+  ];
+
+  const currentTabLabel = mainTabs.find(t => t.key === activeTab)?.label
+    ?? settingsTabs.find(t => t.key === activeTab)?.label
+    ?? '';
 
   return (
     <div className="min-h-screen bg-background">
