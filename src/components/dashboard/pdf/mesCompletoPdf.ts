@@ -30,7 +30,7 @@ export interface SalesReportRow { month: string; method: string; brand?: string;
 export interface LegacyKpiReportRow {
   month: string; lucratividade: number | null; inadimplencia: number | null; mediaAlunosTurma: number | null; alunosModalidade: number | null; evasao: number | null;
 }
-export interface ExpenseCeilingReportRow { category: string; ceiling: number; scope: string; parentGroup?: string | null }
+export interface ExpenseCeilingReportRow { category: string; ceiling: number; scope: string; parentGroup?: string | null; semester: string }
 export interface ConversionThresholdReportRow { tipo: string; min: number | null; max: number | null; label: string }
 export interface KpiReportRow {
   id: string; name: string; value: number | null; valueType: string; decimals: number; status?: string; variation?: number | null; history: { label: string; value: number }[];
@@ -62,6 +62,8 @@ export interface MesCompletoData {
   conversion: ConversionReportRow[];
   conversionThresholds: ConversionThresholdReportRow[];
   enrollmentsYoY: { label: string; current: number; previous: number }[];
+  annualEnrollments: AnnualFinancialRow[];
+  annualContacts: AnnualFinancialRow[];
   currentYear: string;
   previousYear: string;
   sources: string[];

@@ -23,10 +23,13 @@ export class PdfEngine {
     this.logoUrl = logoUrl;
   }
 
-  ensureSpace(height: number, nextTitle?: string) {
+  // --- Pagination Safeguards ---
+  ensureSpace(height: number, titleForNewPage?: string) {
     if (this.y + height > this.h - PDF_DIMENSIONS.FOOTER_H) {
-      this.addPage(nextTitle);
+      this.addPage(titleForNewPage);
+      return true;
     }
+    return false;
   }
 
   addPage(title?: string) {
@@ -60,7 +63,7 @@ export class PdfEngine {
   }
 
   sectionTitle(title: string, note?: string) {
-    this.ensureSpace(12);
+    this.ensureSpace(12, title);
     const { ACCENT, TEXT, MUTED } = PDF_COLORS;
     this.pdf.setFillColor(...ACCENT);
     this.pdf.rect(this.marginX, this.y - 3.8, 1.6, 5.5, 'F');
@@ -77,7 +80,8 @@ export class PdfEngine {
     this.y += 8;
   }
 
-  drawSmallMultiples<T>(
+  // --- Small-Multiples Layout ---
+  drawGrid<T>(
     items: T[],
     cols: number,
     rowHeight: number,
@@ -88,43 +92,54 @@ export class PdfEngine {
     
     items.forEach((item, i) => {
       const col = i % cols;
-      if (col === 0 && i > 0) this.y += rowHeight + gap;
-      
-      this.ensureSpace(rowHeight);
+      const row = Math.floor(i / cols);
+      if (col === 0 && i > 0) {
+        this.y += rowHeight + gap;
+        this.ensureSpace(rowHeight);
+      }
       const x = this.marginX + col * (itemW + gap);
       drawFn(item, x, this.y, itemW, rowHeight);
     });
-    
     this.y += rowHeight + gap;
   }
 
-  drawMiniLineChart(
-    values: number[],
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    color = PDF_COLORS.PRIMARY
-  ) {
+  // --- Reusable Charts ---
+  drawMiniLine(values: number[], x: number, y: number, w: number, h: number, color = PDF_COLORS.PRIMARY) {
     const min = Math.min(0, ...values);
     const max = Math.max(1, ...values);
-    const span = max - min;
-    
+    const span = max - min || 1;
     this.pdf.setDrawColor(...PDF_COLORS.BORDER);
     this.pdf.setLineWidth(0.1);
-    this.pdf.line(x, y + height, x + width, y + height);
-    
+    this.pdf.line(x, y + h, x + w, y + h);
     this.pdf.setDrawColor(...color);
-    this.pdf.setLineWidth(0.5);
-    
+    this.pdf.setLineWidth(0.6);
     values.forEach((v, i) => {
-      const px = x + (i * width) / (values.length - 1 || 1);
-      const py = y + height - ((v - min) / span) * height;
+      const px = x + (i * w) / (values.length - 1 || 1);
+      const py = y + h - ((v - min) / span) * h;
       if (i > 0) {
-        const prevX = x + ((i - 1) * width) / (values.length - 1 || 1);
-        const prevY = y + height - ((values[i - 1] - min) / span) * height;
+        const prevX = x + ((i - 1) * w) / (values.length - 1 || 1);
+        const prevY = y + h - ((values[i - 1] - min) / span) * h;
         this.pdf.line(prevX, prevY, px, py);
       }
     });
+  }
+
+  // --- Approved Plan Specific: 3-Column Comparison ---
+  drawPlanComparison(label: string, planned: number, actual: number, x: number, y: number, w: number) {
+    const { TEXT, MUTED, SUCCESS, DANGER } = PDF_COLORS;
+    const diff = actual - planned;
+    const pct = planned ? (diff / planned) * 100 : 0;
+    
+    this.pdf.setFontSize(8);
+    this.pdf.setTextColor(...TEXT);
+    this.pdf.text(label, x, y);
+    
+    this.pdf.setFontSize(7);
+    this.pdf.setTextColor(...MUTED);
+    this.pdf.text(`Prev: ${planned.toLocaleString()}`, x, y + 5);
+    this.pdf.text(`Real: ${actual.toLocaleString()}`, x + (w/3), y + 5);
+    
+    this.pdf.setTextColor(...(diff >= 0 ? SUCCESS : DANGER));
+    this.pdf.text(`${diff >= 0 ? '+' : ''}${pct.toFixed(1)}%`, x + (2*w/3), y + 5, { align: 'right' });
   }
 }
