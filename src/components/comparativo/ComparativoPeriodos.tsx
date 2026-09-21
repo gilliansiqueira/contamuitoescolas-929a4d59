@@ -271,12 +271,16 @@ export function ComparativoPeriodos({ schoolId }: Props) {
 
   const totalCatB = categoryRows.reduce((s, c) => s + c.b, 0);
 
+  const margemA = Math.abs(totA.receitas) > 0.005 ? (totA.resultado / totA.receitas) * 100 : null;
+  const margemB = Math.abs(totB.receitas) > 0.005 ? (totB.resultado / totB.receitas) * 100 : null;
+
   const cards = [
-    { key: 'receita', label: 'Receita', a: totA.receitas, b: totB.receitas, invert: false },
-    { key: 'despesa', label: 'Despesa', a: totA.despesas, b: totB.despesas, invert: true },
-    { key: 'resultado', label: 'Resultado', a: totA.resultado, b: totB.resultado, invert: false },
-    { key: 'caixa', label: 'Saldo de caixa', a: totA.saldoMovimento, b: totB.saldoMovimento, invert: false },
+    { key: 'receita', label: 'Receita', a: totA.receitas, b: totB.receitas, invert: false, isPct: false },
+    { key: 'despesa', label: 'Despesa', a: totA.despesas, b: totB.despesas, invert: true, isPct: false },
+    { key: 'resultado', label: 'Resultado', a: totA.resultado, b: totB.resultado, invert: false, isPct: false },
+    { key: 'margem', label: 'Margem do resultado', a: margemA ?? 0, b: margemB ?? 0, invert: false, isPct: true },
   ];
+
 
   if (isLoading) {
     return (
