@@ -605,7 +605,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const comparisonYear = String(Number((lastMonth || `${new Date().getFullYear()}`).slice(0, 4)) - 1);
     const comparisonStart = firstMonth ? `${comparisonYear}-${firstMonth.slice(5, 7)}` : undefined;
 
-    const [reportRealizedEntries, reportAccountsResult, reportKpiDefinitionsResult, reportKpiValuesResult, reportConversionResult] = await Promise.all([
+    const [reportRealizedEntries, reportAccountsResult, reportKpiDefinitionsResult, reportKpiValuesResult, reportConversionResult, reportSalesResult, reportSalesMethodsResult, reportBrandsResult, reportLegacyKpisResult, reportRevenueResult, reportCeilingsResult, reportConversionThresholdsResult] = await Promise.all([
       fetchAllRows<any>('realized_entries', q => {
         let query = q.eq('school_id', schoolId);
         if (selectedStart) query = query.gte('data', selectedStart);
@@ -626,15 +626,36 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         if (lastMonth) query = query.lte('month', lastMonth);
         return query.order('month');
       })(),
+      supabase.from('sales_data').select('month, method_key, brand_id, value').eq('school_id', schoolId),
+      supabase.from('sales_payment_methods').select('method_key, label, enabled').eq('school_id', schoolId),
+      supabase.from('sales_card_brands').select('id, name'),
+      supabase.from('school_kpis').select('month, lucratividade, inadimplencia, media_alunos_turma, alunos_modalidade, evasao').eq('school_id', schoolId).order('month'),
+      supabase.from('monthly_revenue').select('month, value').eq('school_id', schoolId).order('month'),
+      supabase.from('expense_ceilings').select('category_name, ceiling, scope, parent_group, semester').eq('school_id', schoolId),
+      supabase.from('conversion_thresholds').select('tipo, min_value, max_value, label').eq('school_id', schoolId).order('sort_order'),
     ]);
     if (reportAccountsResult.error) throw reportAccountsResult.error;
     if (reportKpiDefinitionsResult.error) throw reportKpiDefinitionsResult.error;
     if (reportKpiValuesResult.error) throw reportKpiValuesResult.error;
     if (reportConversionResult.error) throw reportConversionResult.error;
+    if (reportSalesResult.error) throw reportSalesResult.error;
+    if (reportSalesMethodsResult.error) throw reportSalesMethodsResult.error;
+    if (reportBrandsResult.error) throw reportBrandsResult.error;
+    if (reportLegacyKpisResult.error) throw reportLegacyKpisResult.error;
+    if (reportRevenueResult.error) throw reportRevenueResult.error;
+    if (reportCeilingsResult.error) throw reportCeilingsResult.error;
+    if (reportConversionThresholdsResult.error) throw reportConversionThresholdsResult.error;
     const reportAccounts = reportAccountsResult.data ?? [];
     const reportKpiDefinitions = reportKpiDefinitionsResult.data ?? [];
     const reportKpiValues = reportKpiValuesResult.data ?? [];
     const reportConversion = reportConversionResult.data ?? [];
+    const reportSales = reportSalesResult.data ?? [];
+    const reportSalesMethods = reportSalesMethodsResult.data ?? [];
+    const reportBrands = reportBrandsResult.data ?? [];
+    const reportLegacyKpis = reportLegacyKpisResult.data ?? [];
+    const reportRevenue = reportRevenueResult.data ?? [];
+    const reportCeilings = reportCeilingsResult.data ?? [];
+    const reportConversionThresholds = reportConversionThresholdsResult.data ?? [];
     const kpiIds = reportKpiDefinitions.map(row => row.id);
     const reportKpiThresholds = kpiIds.length
       ? (await supabase.from('kpi_thresholds').select('kpi_definition_id, min_value, max_value, color, label, sort_order').in('kpi_definition_id', kpiIds).order('sort_order')).data ?? []
@@ -702,7 +723,24 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       receitas: mv.receitas,
       despesas: mv.despesas,
       resultado: mv.receitas - mv.despesas,
+      operacoesIn: mv.operacoesIn,
+      operacoesOut: mv.operacoesOut,
       saldoFinal: computeSaldoFinal(mv.month, movementCtx, { isInModel }),
+    }));
+
+    const availableFinancialMonths = Array.from(new Set([
+      ...movementCtx.entries.map(entry => entry.dataProjetada.slice(0, 7)),
+      ...movementCtx.historicalRows.map(row => row.month),
+      ...Array.from(movementCtx.snapshotMap.keys()),
+    ])).filter(month => /^\d{4}-\d{2}$/.test(month)).sort();
+    const annualYears = Array.from(new Set(availableFinancialMonths.map(month => month.slice(0, 4)))).sort();
+    const buildAnnual = (kind: 'receitas' | 'despesas') => annualYears.map(year => ({
+      year,
+      months: Array.from({ length: 12 }, (_, index) => {
+        const month = `${year}-${String(index + 1).padStart(2, '0')}`;
+        if (!availableFinancialMonths.includes(month)) return null;
+        return buildMonthMovement(month, movementCtx, { isInModel })[kind];
+      }),
     }));
 
     const accountMap = new Map(reportAccounts.map((a: any) => [a.id, a]));
@@ -772,6 +810,22 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       previous: reportConversion.filter((row: any) => row.month === `${previousYear}-${month}`).reduce((sum: number, row: any) => sum + (Number(row.matriculas) || 0), 0),
     }));
 
+    const methodLabels = new Map(reportSalesMethods.filter((row: any) => row.enabled).map((row: any) => [row.method_key, row.label || row.method_key]));
+    const brandLabels = new Map(reportBrands.map((row: any) => [row.id, row.name]));
+    const allowedSalesMethods = new Set(['credito', 'debito', 'pix', 'boleto']);
+    const sales = reportSales
+      .filter((row: any) => selectedSet.has(row.month) && allowedSalesMethods.has(row.method_key))
+      .map((row: any) => ({ month: row.month, method: methodLabels.get(row.method_key) || row.method_key, brand: row.brand_id ? brandLabels.get(row.brand_id) : undefined, value: Number(row.value) || 0 }));
+
+    const legacyKpis = reportLegacyKpis.map((row: any) => ({
+      month: row.month,
+      lucratividade: row.lucratividade == null ? null : Number(row.lucratividade),
+      inadimplencia: row.inadimplencia == null ? null : Number(row.inadimplencia),
+      mediaAlunosTurma: row.media_alunos_turma == null ? null : Number(row.media_alunos_turma),
+      alunosModalidade: row.alunos_modalidade == null ? null : Number(row.alunos_modalidade),
+      evasao: row.evasao == null ? null : Number(row.evasao),
+    }));
+
     return {
       schoolName: school?.nome || 'Empresa',
       periodoLabel,
@@ -785,10 +839,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
       anterior,
       monthly,
+      annualRevenue: buildAnnual('receitas'),
+      annualExpenses: buildAnnual('despesas'),
       expenses,
       expenseDetailTotal,
+      monthlyRevenue: reportRevenue.map((row: any) => ({ month: row.month, value: Number(row.value) || 0 })),
+      expenseCeilings: reportCeilings.map((row: any) => ({ category: row.category_name, ceiling: Number(row.ceiling) || 0, scope: row.scope, parentGroup: row.parent_group })),
+      sales,
+      legacyKpis,
       kpis,
       conversion,
+      conversionThresholds: reportConversionThresholds.map((row: any) => ({ tipo: row.tipo, min: row.min_value == null ? null : Number(row.min_value), max: row.max_value == null ? null : Number(row.max_value), label: row.label })),
       enrollmentsYoY,
       currentYear,
       previousYear,
