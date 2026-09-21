@@ -121,6 +121,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   };
 
   const table = (opts: Parameters<typeof autoTable>[1]) => {
+    const startingPage = pdf.getCurrentPageInfo().pageNumber;
+    const suppliedDidDrawPage = opts.didDrawPage;
     autoTable(pdf, {
       startY: y,
       theme: 'grid',
@@ -129,6 +131,27 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       alternateRowStyles: { fillColor: SURFACE },
       margin: { left: MARGIN_X, right: MARGIN_X, top: 38, bottom: 17 },
       ...opts,
+      didDrawPage: hookData => {
+        if (pdf.getCurrentPageInfo().pageNumber > startingPage) {
+          pdf.setFillColor(...PRIMARY_DARK);
+          pdf.rect(0, 0, PAGE_W, 31, 'F');
+          pdf.setFillColor(...ACCENT);
+          pdf.rect(0, 31, PAGE_W, 1.4, 'F');
+          if (logo) {
+            try { pdf.addImage(logo, 'PNG', MARGIN_X, 7, 34, 16); } catch { /* optional */ }
+          }
+          pdf.setTextColor(...WHITE);
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(12);
+          pdf.text('ANEXO · CONTINUAÇÃO', logo ? 55 : MARGIN_X, 14);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(8);
+          pdf.text(data.schoolName, PAGE_W - MARGIN_X, 12, { align: 'right' });
+          pdf.setTextColor(204, 251, 241);
+          pdf.text(data.periodoLabel, PAGE_W - MARGIN_X, 19, { align: 'right' });
+        }
+        suppliedDidDrawPage?.(hookData);
+      },
     });
     y = (pdf as any).lastAutoTable.finalY + 7;
   };

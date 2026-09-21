@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Consolidar dados financeiros, despesas, indicadores, conversão e matrículas no relatório geral
-- [ ] Aplicar a identidade visual Conta Muito ao PDF executivo e anexos
-- [ ] Integrar a exportação ao período selecionado
-- [ ] Validar cálculos, geração, paginação e todas as páginas do PDF
+- [x] Consolidar dados financeiros, despesas, indicadores, conversão e matrículas no relatório geral
+- [x] Aplicar a identidade visual Conta Muito ao PDF executivo e anexos
+- [x] Integrar a exportação ao período selecionado
+- [x] Validar cálculos, geração, paginação e todas as páginas do PDF
