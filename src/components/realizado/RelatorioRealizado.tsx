@@ -47,17 +47,21 @@ function normalizeStr(s: string) {
 }
 
 function useContainerWidth() {
-  const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
+  const roRef = useRef<ResizeObserver | null>(null);
+  // Callback ref: observa o elemento no momento em que ele é anexado ao DOM.
+  // O gráfico renderiza condicionalmente (após os dados carregarem), então um
+  // efeito de montagem não encontra o elemento e a largura ficaria 0 para sempre.
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
       setWidth(entries[0]?.contentRect.width ?? 0);
     });
     ro.observe(el);
     setWidth(el.getBoundingClientRect().width);
-    return () => ro.disconnect();
+    roRef.current = ro;
   }, []);
   return { ref, width };
 }
