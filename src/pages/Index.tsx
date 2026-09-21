@@ -37,10 +37,12 @@ import { Button } from '@/components/ui/button';
 import { GlobalPeriodProvider, useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 import { SharedMonthProvider } from '@/components/realizado/SharedMonthContext';
 
-import { RealizadoModule } from '@/components/realizado/RealizadoModule';
+import { RealizadoModule, useRealizadoViews, type MainView as RealizadoView } from '@/components/realizado/RealizadoModule';
+import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
+import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/MobileNavSheet';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -153,10 +155,13 @@ function IndexBody({
 }: IndexBodyProps) {
   const [appModule, setAppModule] = useState<AppModule>('projecao');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [realizadoView, setRealizadoView] = useState<RealizadoView>('relatorio');
+  const [navOpen, setNavOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [scenario, setScenario] = useState<ScenarioType>('real');
   const period = useGlobalPeriod();
   const selectedMonth = period.value; // fonte única
+  const realizadoViews = useRealizadoViews(school.id);
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
@@ -168,6 +173,43 @@ function IndexBody({
   }
 
   const showScenarioSelector = activeTab === 'scenarios';
+
+  const navSections: NavSheetSection[] = [
+    {
+      title: 'Projeção',
+      items: mainTabs.map(t => ({
+        key: `p-${t.key}`,
+        label: t.label,
+        icon: t.icon,
+        active: appModule === 'projecao' && activeTab === t.key,
+        onSelect: () => { setAppModule('projecao'); setActiveTab(t.key); },
+      })),
+    },
+    {
+      title: 'Relatório Realizado',
+      items: realizadoViews.map(v => ({
+        key: `r-${v.key}`,
+        label: v.label,
+        icon: v.icon,
+        active: appModule === 'realizado' && realizadoView === v.key,
+        onSelect: () => { setAppModule('realizado'); setRealizadoView(v.key); },
+      })),
+    },
+    {
+      title: 'Configurações',
+      items: (!isPresentationMode && isAdmin ? settingsTabs : []).map(t => ({
+        key: `s-${t.key}`,
+        label: t.label,
+        icon: Settings,
+        active: appModule === 'projecao' && activeTab === t.key,
+        onSelect: () => { setAppModule('projecao'); setActiveTab(t.key); },
+      })),
+    },
+  ];
+
+  const currentTabLabel = mainTabs.find(t => t.key === activeTab)?.label
+    ?? settingsTabs.find(t => t.key === activeTab)?.label
+    ?? '';
 
   return (
     <div className="min-h-screen bg-background">
@@ -293,47 +335,14 @@ function IndexBody({
             </div>
           </nav>
 
-          {/* Navegação mobile — barra inferior tipo app nativo */}
-          <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]">
-            <div className="flex items-stretch justify-around">
-              {mainTabs.slice(0, 4).map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-medium transition-colors ${
-                    activeTab === tab.key ? 'text-primary' : 'text-muted-foreground'
-                  }`}
-                >
-                  <tab.icon className="w-[18px] h-[18px]" />
-                  <span className="truncate max-w-full px-0.5">{tab.label}</span>
-                </button>
-              ))}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-medium ${
-                      mainTabs.slice(4).some(t => t.key === activeTab) || isSettingsTab ? 'text-primary' : 'text-muted-foreground'
-                    }`}
-                  >
-                    <MoreHorizontal className="w-[18px] h-[18px]" />
-                    <span>Mais</span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="top" className="max-h-[60vh] overflow-y-auto">
-                  {mainTabs.slice(4).map(t => (
-                    <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
-                      <t.icon className="w-4 h-4 mr-2" /> {t.label}
-                    </DropdownMenuItem>
-                  ))}
-                  {!isPresentationMode && isAdmin && settingsTabs.map(t => (
-                    <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
-                      <Settings className="w-4 h-4 mr-2" /> {t.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </nav>
+          {/* Mobile: faixa deslizável de subabas da Projeção */}
+          <div className="sm:hidden border-b border-border/60 bg-card">
+            <MobileTabStrip
+              items={mainTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
+              active={activeTab}
+              onChange={(k) => setActiveTab(k as Tab)}
+            />
+          </div>
 
           {/* Filtros específicos (cenário) — o mês agora é global (no header) */}
           {showScenarioSelector && (
@@ -343,7 +352,8 @@ function IndexBody({
           )}
 
           {/* Projeção Content */}
-          <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-24 sm:pb-6">
+          <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-28 sm:pb-6">
+            <h2 className="sm:hidden text-sm font-display font-bold mb-3 truncate">{currentTabLabel}</h2>
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${activeTab}-${refreshKey}-${selectedMonth}-${scenario}`}
@@ -412,10 +422,55 @@ function IndexBody({
         </>
       ) : (
         /* Relatório Realizado */
-        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-24 sm:pb-6">
-          <RealizadoModule schoolId={school.id} />
+        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-28 sm:pb-6">
+          <RealizadoModule schoolId={school.id} view={realizadoView} onViewChange={setRealizadoView} />
         </main>
       )}
+
+      {/* Navegação mobile — barra inferior (vale nos dois módulos) */}
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-stretch justify-around">
+          <button
+            onClick={() => setAppModule('projecao')}
+            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+              appModule === 'projecao' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <TrendingUp className="w-[18px] h-[18px]" />
+            Projeção
+          </button>
+          <button
+            onClick={() => setAppModule('realizado')}
+            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+              appModule === 'realizado' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <FileBarChart className="w-[18px] h-[18px]" />
+            Realizado
+          </button>
+          <button
+            onClick={() => {
+              if (appModule === 'projecao') setActiveTab('dashboard');
+              else setRealizadoView('relatorio');
+            }}
+            className="flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-muted-foreground"
+          >
+            <LayoutDashboard className="w-[18px] h-[18px]" />
+            Início
+          </button>
+          <button
+            onClick={() => setNavOpen(true)}
+            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold ${
+              navOpen ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <MenuIcon className="w-[18px] h-[18px]" />
+            Menu
+          </button>
+        </div>
+      </nav>
+
+      <MobileNavSheet open={navOpen} onOpenChange={setNavOpen} sections={navSections} />
     </div>
   );
 }

@@ -24,6 +24,7 @@ import { ExportPdfSection } from '@/components/ExportPdfSection';
 // global period filter reaches every tab.
 import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,10 +33,13 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface Props {
   schoolId: string;
+  /** Controle externo (navegação mobile) */
+  view?: MainView;
+  onViewChange?: (v: MainView) => void;
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'detalhamento' | 'icones';
-type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento';
+export type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -96,11 +100,36 @@ function useTabVisibility(schoolId: string) {
   return { visibility, toggle };
 }
 
-export function RealizadoModule({ schoolId }: Props) {
+/** Lista de abas visíveis do Realizado (usada aqui e na navegação mobile). */
+export function useRealizadoViews(schoolId: string): { key: MainView; label: string; icon: any }[] {
+  const { visibility } = useTabVisibility(schoolId);
+  const { enabled: detalhamentoEnabled, label: detalhamentoLabel } = useExpenseDetailConfig(schoolId);
+
+  return useMemo(() => {
+    const list: { key: MainView; label: string; icon: any }[] = [
+      { key: 'relatorio', label: 'Análise de Despesas', icon: BarChart3 },
+    ];
+    if (visibility.indicadores) list.push({ key: 'indicadores', label: 'Indicadores', icon: Gauge });
+    if (visibility.conversao) list.push({ key: 'conversao', label: 'Conversão', icon: ArrowRightLeft });
+    if (visibility.vendas) list.push({ key: 'vendas', label: 'Vendas', icon: CreditCard });
+    if (visibility.analise_vendas) list.push({ key: 'analise_vendas', label: 'Análise de Vendas', icon: BarChart3 });
+    if (visibility.recebimento_categoria) list.push({ key: 'recebimento_categoria', label: 'Recebimento por Categoria', icon: Wallet });
+    if (visibility.teto_gastos) list.push({ key: 'teto_gastos', label: 'Teto de Gastos', icon: Target });
+    if (detalhamentoEnabled) list.push({ key: 'detalhamento', label: detalhamentoLabel, icon: Layers });
+    return list;
+  }, [visibility, detalhamentoEnabled, detalhamentoLabel]);
+}
+
+export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
   const { isAdmin } = useAuth();
   const [showConfig, setShowConfig] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>('importacao');
-  const [mainView, setMainView] = useState<MainView>('relatorio');
+  const [internalView, setInternalView] = useState<MainView>('relatorio');
+  const mainView = view ?? internalView;
+  const setMainView = useCallback((v: MainView) => {
+    setInternalView(v);
+    onViewChange?.(v);
+  }, [onViewChange]);
   const [showPdfExport, setShowPdfExport] = useState(false);
 
   // Usa o mês final do filtro global (topo). Fallback: mês atual.
@@ -118,6 +147,7 @@ export function RealizadoModule({ schoolId }: Props) {
   const { visibility, toggle } = useTabVisibility(schoolId);
   const { isPresentationMode } = usePresentation();
   const { enabled: detalhamentoEnabled, label: detalhamentoLabel } = useExpenseDetailConfig(schoolId);
+  const views = useRealizadoViews(schoolId);
 
   // Força sair das configurações se ligar apresentação
   if (isPresentationMode && showConfig) {
@@ -216,109 +246,41 @@ export function RealizadoModule({ schoolId }: Props) {
   return (
     <>
     <div>
-      <div className="flex items-center justify-between mb-5">
+      {/* Mobile: faixa deslizável de subabas */}
+      <div className="sm:hidden -mx-3 mb-3 border-b border-border/60 bg-card">
+        <MobileTabStrip
+          items={views}
+          active={activeView}
+          onChange={(k) => setMainView(k as MainView)}
+        />
+      </div>
+      <div className="sm:hidden flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-sm font-display font-bold truncate">
+          {views.find(v => v.key === activeView)?.label}
+        </h2>
+        {!isPresentationMode && (
+          <Button size="sm" variant="outline" onClick={() => setShowPdfExport(true)} className="rounded-xl shrink-0">
+            <FileDown className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+
+      <div className="hidden sm:flex items-center justify-between mb-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setMainView('relatorio')}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-              activeView === 'relatorio'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-          >
-            Análise de Despesas
-          </button>
-          {visibility.indicadores && (
+          {views.map(v => (
             <button
-              onClick={() => setMainView('indicadores')}
+              key={v.key}
+              onClick={() => setMainView(v.key)}
               className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeView === 'indicadores'
+                activeView === v.key
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
-              <Gauge className="w-4 h-4" />
-              Indicadores
+              <v.icon className="w-4 h-4" />
+              {v.label}
             </button>
-          )}
-          {visibility.conversao && (
-            <button
-              onClick={() => setMainView('conversao')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeView === 'conversao'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              Conversão
-            </button>
-          )}
-          {visibility.vendas && (
-            <button
-              onClick={() => setMainView('vendas')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeView === 'vendas'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-            >
-              <CreditCard className="w-4 h-4" />
-              Vendas
-            </button>
-          )}
-          {visibility.analise_vendas && (
-            <button
-              onClick={() => setMainView('analise_vendas')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeView === 'analise_vendas'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              Análise de Vendas
-            </button>
-          )}
-          {visibility.recebimento_categoria && (
-            <button
-              onClick={() => setMainView('recebimento_categoria')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeView === 'recebimento_categoria'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-            >
-              <Wallet className="w-4 h-4" />
-              Recebimento por Categoria
-            </button>
-          )}
-          {visibility.teto_gastos && (
-            <button
-              onClick={() => setMainView('teto_gastos')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeView === 'teto_gastos'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-            >
-              <Target className="w-4 h-4" />
-              Teto de Gastos
-            </button>
-          )}
-          {detalhamentoEnabled && (
-            <button
-              onClick={() => setMainView('detalhamento')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                activeView === 'detalhamento'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              {detalhamentoLabel}
-            </button>
-          )}
+          ))}
         </div>
         <div className="flex items-center gap-2">
           {!isPresentationMode && (
