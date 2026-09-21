@@ -602,8 +602,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const lastMonth = selectedMonths[selectedMonths.length - 1];
     const selectedStart = firstMonth ? `${firstMonth}-01` : undefined;
     const selectedEnd = lastMonth ? `${lastMonth}-31` : undefined;
-    const previousYear = String(Number((lastMonth || `${new Date().getFullYear()}`).slice(0, 4)) - 1);
-    const comparisonStart = firstMonth ? `${previousYear}-${firstMonth.slice(5, 7)}` : undefined;
+    const comparisonYear = String(Number((lastMonth || `${new Date().getFullYear()}`).slice(0, 4)) - 1);
+    const comparisonStart = firstMonth ? `${comparisonYear}-${firstMonth.slice(5, 7)}` : undefined;
 
     const [reportRealizedEntries, reportAccountsResult, reportKpiDefinitionsResult, reportKpiValuesResult, reportConversionResult] = await Promise.all([
       fetchAllRows<any>('realized_entries', q => {
@@ -729,7 +729,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         .sort((a: any, b: any) => a.month.localeCompare(b.month));
       const values = allValues.filter((value: any) => selectedSet.has(value.month));
       const current = values[values.length - 1];
-      const currentIndex = current ? allValues.findIndex((value: any) => value.id === current.id) : -1;
+      const currentIndex = current ? allValues.findIndex((value: any) => value.month === current.month) : -1;
       const previous = currentIndex > 0 ? allValues[currentIndex - 1] : null;
       const numericValue = current ? Number(current.value) : null;
       const previousValue = previous ? Number(previous.value) : null;
