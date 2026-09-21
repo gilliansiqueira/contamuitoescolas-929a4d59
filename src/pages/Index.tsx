@@ -335,47 +335,14 @@ function IndexBody({
             </div>
           </nav>
 
-          {/* Navegação mobile — barra inferior tipo app nativo */}
-          <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]">
-            <div className="flex items-stretch justify-around">
-              {mainTabs.slice(0, 4).map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-medium transition-colors ${
-                    activeTab === tab.key ? 'text-primary' : 'text-muted-foreground'
-                  }`}
-                >
-                  <tab.icon className="w-[18px] h-[18px]" />
-                  <span className="truncate max-w-full px-0.5">{tab.label}</span>
-                </button>
-              ))}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] font-medium ${
-                      mainTabs.slice(4).some(t => t.key === activeTab) || isSettingsTab ? 'text-primary' : 'text-muted-foreground'
-                    }`}
-                  >
-                    <MoreHorizontal className="w-[18px] h-[18px]" />
-                    <span>Mais</span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="top" className="max-h-[60vh] overflow-y-auto">
-                  {mainTabs.slice(4).map(t => (
-                    <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
-                      <t.icon className="w-4 h-4 mr-2" /> {t.label}
-                    </DropdownMenuItem>
-                  ))}
-                  {!isPresentationMode && isAdmin && settingsTabs.map(t => (
-                    <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
-                      <Settings className="w-4 h-4 mr-2" /> {t.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </nav>
+          {/* Mobile: faixa deslizável de subabas da Projeção */}
+          <div className="sm:hidden border-b border-border/60 bg-card">
+            <MobileTabStrip
+              items={mainTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
+              active={activeTab}
+              onChange={(k) => setActiveTab(k as Tab)}
+            />
+          </div>
 
           {/* Filtros específicos (cenário) — o mês agora é global (no header) */}
           {showScenarioSelector && (
@@ -385,7 +352,8 @@ function IndexBody({
           )}
 
           {/* Projeção Content */}
-          <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-24 sm:pb-6">
+          <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-28 sm:pb-6">
+            <h2 className="sm:hidden text-sm font-display font-bold mb-3 truncate">{currentTabLabel}</h2>
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${activeTab}-${refreshKey}-${selectedMonth}-${scenario}`}
