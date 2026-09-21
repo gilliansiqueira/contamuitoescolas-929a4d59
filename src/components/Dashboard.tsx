@@ -47,6 +47,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileSection } from '@/components/mobile/MobileSection';
 import { CompactStat } from '@/components/mobile/CompactStat';
 import { useChartPresets, ChartScroller } from '@/components/mobile/chartPresets';
+import { fetchAllRows } from '@/lib/fetchAll';
 
 
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
@@ -106,6 +107,61 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     () => hasModel ? historicalRowsRaw.filter(r => isInModel(r.tipo_valor)) : historicalRowsRaw,
     [historicalRowsRaw, hasModel, isInModel]
   );
+
+  // Dados gerenciais complementares do relatório geral. Os totais financeiros
+  // continuam vindo exclusivamente de monthMovements (SSOT).
+  const { data: reportRealizedEntries = [] } = useQuery({
+    queryKey: ['realized_entries', schoolId],
+    queryFn: () => fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId).order('data')),
+    enabled: !!schoolId,
+  });
+  const { data: reportAccounts = [] } = useQuery({
+    queryKey: ['chart_of_accounts', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('chart_of_accounts').select('*').eq('school_id', schoolId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!schoolId,
+  });
+  const { data: reportKpiDefinitions = [] } = useQuery({
+    queryKey: ['kpi_definitions', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('kpi_definitions').select('*').eq('school_id', schoolId).eq('enabled', true).order('sort_order');
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!schoolId,
+  });
+  const { data: reportKpiValues = [] } = useQuery({
+    queryKey: ['kpi_values', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('kpi_values').select('*').eq('school_id', schoolId).order('month');
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!schoolId,
+  });
+  const { data: reportKpiThresholds = [] } = useQuery({
+    queryKey: ['kpi_thresholds', schoolId],
+    queryFn: async () => {
+      const ids = reportKpiDefinitions.map(d => d.id);
+      if (!ids.length) return [];
+      const { data, error } = await supabase.from('kpi_thresholds').select('*').in('kpi_definition_id', ids).order('sort_order');
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!schoolId && reportKpiDefinitions.length > 0,
+  });
+  const { data: reportConversion = [] } = useQuery({
+    queryKey: ['conversion_data', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('conversion_data').select('*').eq('school_id', schoolId).order('month');
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!schoolId,
+  });
 
   const selectedMonths = useMemo<string[]>(() => {
     if (selectedMonth === 'all') {
@@ -647,6 +703,87 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       }
     }
 
+    const sourceLabels: Record<string, string> = {
+      snapshot: 'Fechamento', fluxo: 'Realizado + previsão', historico: 'Histórico', projecao: 'Projeção', vazio: 'Sem dados',
+    };
+    const monthly = monthMovements.map((mv, index) => ({
+      month: mv.month,
+      label: `${monthNames[Number(mv.month.slice(5, 7)) - 1].slice(0, 3)}/${mv.month.slice(2, 4)}`,
+      source: sourceLabels[mv.source] || mv.source,
+      saldoInicial: computeSaldoInicial(mv.month, movementCtx, { isInModel }),
+      receitas: mv.receitas,
+      despesas: mv.despesas,
+      resultado: mv.receitas - mv.despesas,
+      saldoFinal: computeSaldoFinal(mv.month, movementCtx, { isInModel }),
+    }));
+
+    const accountMap = new Map(reportAccounts.map((a: any) => [a.id, a]));
+    const expenseMap = new Map<string, { mae: string; filha: string; valor: number }>();
+    reportRealizedEntries
+      .filter((e: any) => selectedMonths.includes(String(e.data).slice(0, 7)) && e.tipo === 'despesa')
+      .forEach((e: any) => {
+        const account: any = e.conta_id ? accountMap.get(e.conta_id) : null;
+        const parent: any = account?.pai_id ? accountMap.get(account.pai_id) : null;
+        const mae = parent?.nome || (account && !account.pai_id ? account.nome : 'Sem categoria');
+        const filha = parent ? account.nome : (e.conta_nome || e.descricao || '(sem subcategoria)');
+        const key = `${mae}||${filha}`;
+        const current = expenseMap.get(key) || { mae, filha, valor: 0 };
+        current.valor += Math.abs(Number(e.valor) || 0);
+        expenseMap.set(key, current);
+      });
+    const expenses = Array.from(expenseMap.values()).sort((a, b) => b.valor - a.valor);
+    const expenseDetailTotal = expenses.reduce((sum, row) => sum + row.valor, 0);
+
+    const selectedSet = new Set(selectedMonths);
+    const kpis = reportKpiDefinitions.map((definition: any) => {
+      const allValues = reportKpiValues
+        .filter((value: any) => value.kpi_definition_id === definition.id)
+        .sort((a: any, b: any) => a.month.localeCompare(b.month));
+      const values = allValues.filter((value: any) => selectedSet.has(value.month));
+      const current = values[values.length - 1];
+      const currentIndex = current ? allValues.findIndex((value: any) => value.id === current.id) : -1;
+      const previous = currentIndex > 0 ? allValues[currentIndex - 1] : null;
+      const numericValue = current ? Number(current.value) : null;
+      const previousValue = previous ? Number(previous.value) : null;
+      const threshold = numericValue === null ? null : reportKpiThresholds.find((item: any) =>
+        item.kpi_definition_id === definition.id &&
+        (item.min_value === null || numericValue >= Number(item.min_value)) &&
+        (item.max_value === null || numericValue <= Number(item.max_value))
+      );
+      return {
+        id: definition.id,
+        name: definition.name,
+        value: numericValue,
+        valueType: definition.value_type,
+        decimals: Number(definition.decimals ?? 2),
+        status: threshold?.label,
+        variation: numericValue !== null && previousValue !== null && previousValue !== 0 ? (numericValue - previousValue) / Math.abs(previousValue) * 100 : null,
+        history: values.map((value: any) => ({ label: value.month, value: Number(value.value) })),
+      };
+    });
+
+    const conversion = reportConversion
+      .filter((row: any) => selectedSet.has(row.month))
+      .map((row: any) => ({
+        month: row.month,
+        label: `${monthNames[Number(row.month.slice(5, 7)) - 1].slice(0, 3)}/${row.month.slice(2, 4)}`,
+        tipo: row.tipo || 'geral',
+        contatos: Number(row.contatos) || 0,
+        matriculas: Number(row.matriculas) || 0,
+        taxa: Number(row.contatos) ? Number(row.matriculas) / Number(row.contatos) * 100 : 0,
+      }));
+
+    const finalSelectedMonth = selectedMonths[selectedMonths.length - 1] || `${new Date().getFullYear()}-12`;
+    const currentYear = finalSelectedMonth.slice(0, 4);
+    const previousYear = String(Number(currentYear) - 1);
+    const monthIndexes = Array.from(new Set(selectedMonths.filter(month => month.startsWith(currentYear)).map(month => month.slice(5, 7))));
+    const shortMonths = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const enrollmentsYoY = monthIndexes.map(month => ({
+      label: shortMonths[Number(month) - 1],
+      current: reportConversion.filter((row: any) => row.month === `${currentYear}-${month}`).reduce((sum: number, row: any) => sum + (Number(row.matriculas) || 0), 0),
+      previous: reportConversion.filter((row: any) => row.month === `${previousYear}-${month}`).reduce((sum: number, row: any) => sum + (Number(row.matriculas) || 0), 0),
+    }));
+
     return {
       schoolName: school?.nome || 'Empresa',
       periodoLabel,
@@ -659,9 +796,18 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       recebiveis: Object.entries(recMap).map(([label, valor]) => ({ label, valor })).filter(r => r.valor > 0),
       contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
       anterior,
-      fileName: `mes-completo-${selectedMonths[0] || 'periodo'}`,
+      monthly,
+      expenses,
+      expenseDetailTotal,
+      kpis,
+      conversion,
+      enrollmentsYoY,
+      currentYear,
+      previousYear,
+      sources: Array.from(new Set(monthly.map(row => row.source))),
+      fileName: `relatorio-geral-${selectedMonths[0] || 'periodo'}-${selectedMonths[selectedMonths.length - 1] || 'completo'}`,
     };
-  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, saldoInicialCalculado, saldoFinal, totals, tipoAggregations, movementCtx, isInModel]);
+  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, saldoInicialCalculado, saldoFinal, totals, tipoAggregations, movementCtx, isInModel, monthMovements, reportAccounts, reportRealizedEntries, reportKpiDefinitions, reportKpiValues, reportKpiThresholds, reportConversion]);
 
   return (
     <div className="space-y-3 sm:space-y-6" ref={exportRef}>
