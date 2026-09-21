@@ -6,7 +6,7 @@ import { syncWeekendAllowedSchools, setSchoolAllowsWeekend } from '@/lib/dateUti
 
 // Bump when the canonical fetch strategy changes so React Query does not keep
 // totals computed from old, non-deterministic paginated responses in memory.
-const DATA_FETCH_VERSION = 'stable-pagination-v2';
+const DATA_FETCH_VERSION = 'stable-pagination-v3';
 
 // ─── Schools ────────────────────────────────────────
 export function useSchools() {
@@ -511,14 +511,11 @@ export function useAvailableMonths(schoolId: string) {
   return useQuery({
     queryKey: ['availableMonths', schoolId, DATA_FETCH_VERSION],
     queryFn: async (): Promise<string[]> => {
-      const [entries, hist] = await Promise.all([
-        fetchAllRows<any>('financial_entries', q => q.eq('school_id', schoolId), 1000, 'data'),
-        fetchAllRows<any>('historical_monthly', q => q.eq('school_id', schoolId), 1000, 'month'),
-      ]);
-      const set = new Set<string>();
-      entries.forEach((e: any) => { if (e.data) set.add(e.data.slice(0, 7)); });
-      hist.forEach((r: any) => { if (r.month) set.add(r.month); });
-      return Array.from(set).sort();
+      const { data, error } = await (supabase as any).rpc('get_available_financial_months', {
+        _school_id: schoolId,
+      });
+      if (error) throw error;
+      return (data ?? []).map((row: { month: string }) => row.month).filter(Boolean).sort();
     },
     enabled: !!schoolId,
   });

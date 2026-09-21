@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText } from 'lucide-react';
-import { generateFechamentoPdf } from './pdf/fechamentoPdf';
 import { toast } from 'sonner';
 
 interface Props {
@@ -19,6 +18,7 @@ export function ExportPdfDialog({ open, onOpenChange, schoolId, selectedMonth, s
   const handleGenerate = async () => {
     setGenerating(true);
     try {
+      const { generateFechamentoPdf } = await import('./pdf/fechamentoPdf');
       await generateFechamentoPdf({ schoolId, selectedMonth, selectedYear });
       toast.success('Relatório gerado com sucesso');
       onOpenChange(false);
