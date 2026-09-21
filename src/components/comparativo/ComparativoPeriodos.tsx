@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -396,9 +396,8 @@ export function ComparativoPeriodos({ schoolId }: Props) {
                     const pct = Math.abs(row.a) > 0.005 ? (row.diff / Math.abs(row.a)) * 100 : null;
                     const open = !!openGroups[row.name];
                     return (
-                      <>
+                      <Fragment key={row.name}>
                         <tr
-                          key={row.name}
                           className="border-b border-border/30 hover:bg-muted/30 cursor-pointer"
                           onClick={() => setOpenGroups(p => ({ ...p, [row.name]: !p[row.name] }))}
                         >
@@ -429,7 +428,7 @@ export function ComparativoPeriodos({ schoolId }: Props) {
                             </tr>
                           );
                         })}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
