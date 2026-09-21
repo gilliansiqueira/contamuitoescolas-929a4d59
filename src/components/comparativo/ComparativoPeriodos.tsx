@@ -9,8 +9,16 @@ import {
 } from 'recharts';
 import { ArrowUp, ArrowDown, Minus, ChevronDown, ChevronRight, CalendarRange } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
-import { processLedger } from '@/lib/ledgerEngine';
+import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import { buildMonthMovement, type MovementSource } from '@/lib/periodMovement';
+
+const SOURCE_LABEL: Record<string, string> = {
+  snapshot: 'fechamento',
+  fluxo: 'realizado (fluxo)',
+  historico: 'histórico',
+  projecao: 'projeção',
+};
+
 
 interface Props {
   schoolId: string;
@@ -80,24 +88,25 @@ function MonthRangePicker({
   );
 }
 
-function DeltaBadge({ diff, pct, invert }: { diff: number; pct: number | null; invert?: boolean }) {
+function DeltaBadge({ diff, pct, invert, format }: { diff: number; pct: number | null; invert?: boolean; format?: (v: number) => string }) {
   const isFlat = Math.abs(diff) < 0.005;
   const isUp = diff > 0;
   const good = invert ? !isUp : isUp;
   const color = isFlat ? 'text-muted-foreground' : good ? 'text-emerald-600' : 'text-destructive';
   const Icon = isFlat ? Minus : isUp ? ArrowUp : ArrowDown;
+  const fmt = format ?? formatCurrency;
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${color}`}>
       <Icon className="w-3.5 h-3.5" />
-      {formatCurrency(Math.abs(diff))}
+      {fmt(Math.abs(diff))}
       {pct !== null && <span className="opacity-80">({pct > 0 ? '+' : ''}{pct.toFixed(1)}%)</span>}
     </span>
   );
 }
 
+
 export function ComparativoPeriodos({ schoolId }: Props) {
-  const { data: entries = [], isLoading } = useEntries(schoolId);
-  const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const { ctx, isInModel, isLoading } = usePeriodMovementCtx(schoolId);
 
   const { data: realized = [] } = useQuery({
     queryKey: ['realized_entries', schoolId],
@@ -118,12 +127,15 @@ export function ComparativoPeriodos({ schoolId }: Props) {
     enabled: !!schoolId,
   });
 
+  // Meses com qualquer dado: projeção/fluxo, histórico consolidado, fechamento ou realizado.
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
-    entries.forEach(e => { const ym = (e.data || '').slice(0, 7); if (ym) set.add(ym); });
+    ctx.entries.forEach(e => { const ym = (e.dataProjetada || e.data || '').slice(0, 7); if (ym) set.add(ym); });
+    ctx.historicalRows.forEach(r => { if (r.month) set.add(r.month); });
+    ctx.snapshotMap.forEach((_v, k) => set.add(k));
     realized.forEach((e: any) => { const ym = (e.data || '').slice(0, 7); if (ym) set.add(ym); });
     return Array.from(set).sort();
-  }, [entries, realized]);
+  }, [ctx, realized]);
 
   const defaults = useMemo(() => {
     if (availableMonths.length === 0) {
@@ -154,44 +166,70 @@ export function ComparativoPeriodos({ schoolId }: Props) {
   const monthsA = useMemo(() => monthsBetween(r.aStart, r.aEnd), [r]);
   const monthsB = useMemo(() => monthsBetween(r.bStart, r.bEnd), [r]);
 
-  const byMonth = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    entries.forEach(e => {
-      const ym = (e.data || '').slice(0, 7);
-      if (!ym) return;
-      (map[ym] ||= []).push(e);
-    });
+  // SSOT: usa a mesma movimentação canônica do Dashboard (snapshot > fluxo > histórico > projeção).
+  const monthlyTotals = useMemo(() => {
+    const map: Record<string, { receita: number; despesa: number; resultado: number; source: MovementSource }> = {};
+    const all = Array.from(new Set([...monthsA, ...monthsB]));
+    for (const m of all) {
+      const mv = buildMonthMovement(m, ctx, { isInModel });
+      map[m] = {
+        receita: mv.receitas,
+        despesa: mv.despesas,
+        resultado: mv.receitas - mv.despesas,
+        source: mv.source,
+      };
+    }
     return map;
-  }, [entries]);
+  }, [monthsA, monthsB, ctx, isInModel]);
 
   const aggregate = (months: string[]) => {
-    const all = months.flatMap(m => byMonth[m] || []);
-    return processLedger(all as any, classifications as any);
+    let receita = 0, despesa = 0;
+    for (const m of months) {
+      const t = monthlyTotals[m];
+      if (!t) continue;
+      receita += t.receita;
+      despesa += t.despesa;
+    }
+    return { receitas: receita, despesas: despesa, resultado: receita - despesa };
   };
 
-  const totA = useMemo(() => aggregate(monthsA), [monthsA, byMonth, classifications]);
-  const totB = useMemo(() => aggregate(monthsB), [monthsB, byMonth, classifications]);
+  const totA = useMemo(() => aggregate(monthsA), [monthsA, monthlyTotals]);
+  const totB = useMemo(() => aggregate(monthsB), [monthsB, monthlyTotals]);
+
+  const sourceSummary = (months: string[]) => {
+    const labels = new Set<string>();
+    const vazios: string[] = [];
+    for (const m of months) {
+      const src = monthlyTotals[m]?.source ?? 'vazio';
+      if (src === 'vazio') { vazios.push(m); continue; }
+      labels.add(SOURCE_LABEL[src] ?? src);
+    }
+    return { labels: Array.from(labels), vazios };
+  };
+  const srcA = useMemo(() => sourceSummary(monthsA), [monthsA, monthlyTotals]);
+  const srcB = useMemo(() => sourceSummary(monthsB), [monthsB, monthlyTotals]);
 
   const chartData = useMemo(() => {
     const len = Math.max(monthsA.length, monthsB.length);
     return Array.from({ length: len }, (_, i) => {
       const ma = monthsA[i];
       const mb = monthsB[i];
-      const a = ma ? processLedger((byMonth[ma] || []) as any, classifications as any) : null;
-      const b = mb ? processLedger((byMonth[mb] || []) as any, classifications as any) : null;
+      const a = ma ? monthlyTotals[ma] : null;
+      const b = mb ? monthlyTotals[mb] : null;
       return {
         pos: mb ? labelMonth(mb) : ma ? labelMonth(ma) : `${i + 1}º`,
         mesA: ma ? labelMonth(ma) : '—',
         mesB: mb ? labelMonth(mb) : '—',
-        receitaA: a?.receitas ?? null,
-        receitaB: b?.receitas ?? null,
-        despesaA: a?.despesas ?? null,
-        despesaB: b?.despesas ?? null,
+        receitaA: a ? a.receita : null,
+        receitaB: b ? b.receita : null,
+        despesaA: a ? a.despesa : null,
+        despesaB: b ? b.despesa : null,
         resultadoA: a ? a.resultado : null,
         resultadoB: b ? b.resultado : null,
       };
     });
-  }, [monthsA, monthsB, byMonth, classifications]);
+  }, [monthsA, monthsB, monthlyTotals]);
+
 
   const contaGrupoMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -235,12 +273,16 @@ export function ComparativoPeriodos({ schoolId }: Props) {
 
   const totalCatB = categoryRows.reduce((s, c) => s + c.b, 0);
 
+  const margemA = Math.abs(totA.receitas) > 0.005 ? (totA.resultado / totA.receitas) * 100 : null;
+  const margemB = Math.abs(totB.receitas) > 0.005 ? (totB.resultado / totB.receitas) * 100 : null;
+
   const cards = [
-    { key: 'receita', label: 'Receita', a: totA.receitas, b: totB.receitas, invert: false },
-    { key: 'despesa', label: 'Despesa', a: totA.despesas, b: totB.despesas, invert: true },
-    { key: 'resultado', label: 'Resultado', a: totA.resultado, b: totB.resultado, invert: false },
-    { key: 'caixa', label: 'Saldo de caixa', a: totA.saldoMovimento, b: totB.saldoMovimento, invert: false },
+    { key: 'receita', label: 'Receita', a: totA.receitas, b: totB.receitas, invert: false, isPct: false },
+    { key: 'despesa', label: 'Despesa', a: totA.despesas, b: totB.despesas, invert: true, isPct: false },
+    { key: 'resultado', label: 'Resultado', a: totA.resultado, b: totB.resultado, invert: false, isPct: false },
+    { key: 'margem', label: 'Margem do resultado', a: margemA ?? 0, b: margemB ?? 0, invert: false, isPct: true },
   ];
+
 
   if (isLoading) {
     return (
@@ -307,9 +349,16 @@ export function ComparativoPeriodos({ schoolId }: Props) {
           </div>
           <p className="text-xs text-muted-foreground">
             A: {monthsA.length ? `${labelMonth(r.aStart)} – ${labelMonth(r.aEnd)} (${monthsA.length} meses)` : 'período inválido'}
+            {srcA.labels.length > 0 && ` · fonte: ${srcA.labels.join(' + ')}`}
             {' · '}
             B: {monthsB.length ? `${labelMonth(r.bStart)} – ${labelMonth(r.bEnd)} (${monthsB.length} meses)` : 'período inválido'}
+            {srcB.labels.length > 0 && ` · fonte: ${srcB.labels.join(' + ')}`}
           </p>
+          {(srcA.vazios.length > 0 || srcB.vazios.length > 0) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Sem dados em: {[...srcA.vazios, ...srcB.vazios].map(labelMonth).join(', ')}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -317,23 +366,26 @@ export function ComparativoPeriodos({ schoolId }: Props) {
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c, i) => {
           const diff = c.b - c.a;
-          const pct = Math.abs(c.a) > 0.005 ? (diff / Math.abs(c.a)) * 100 : null;
+          const pct = c.isPct ? null : (Math.abs(c.a) > 0.005 ? (diff / Math.abs(c.a)) * 100 : null);
+          const fmt = c.isPct ? (v: number) => `${v.toFixed(1)}%` : formatCurrency;
+          const fmtDiff = c.isPct ? (v: number) => `${v.toFixed(1)} p.p.` : formatCurrency;
           return (
             <motion.div key={c.key} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
               <Card className="rounded-2xl h-full">
                 <CardContent className="p-4 space-y-2">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.label}</p>
                   <div className="space-y-0.5">
-                    <p className="text-lg font-bold tabular-nums text-foreground">{formatCurrency(c.b)}</p>
-                    <p className="text-xs text-muted-foreground tabular-nums">Período A: {formatCurrency(c.a)}</p>
+                    <p className="text-lg font-bold tabular-nums text-foreground">{fmt(c.b)}</p>
+                    <p className="text-xs text-muted-foreground tabular-nums">Período A: {fmt(c.a)}</p>
                   </div>
-                  <DeltaBadge diff={diff} pct={pct} invert={c.invert} />
+                  <DeltaBadge diff={diff} pct={pct} invert={c.invert} format={fmtDiff} />
                 </CardContent>
               </Card>
             </motion.div>
           );
         })}
       </div>
+
 
       {/* Gráficos */}
       <Card className="rounded-2xl">
