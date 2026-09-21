@@ -864,7 +864,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">✔ Realizado</h4>
+            <h4 className="text-xs font-bold text-blue-600 dark:text-blue-300 uppercase tracking-widest mb-3">✔ Realizado</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="text-[10px] text-muted-foreground uppercase">Receitas</span>

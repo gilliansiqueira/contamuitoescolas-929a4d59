@@ -68,7 +68,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div>
             <span className="text-[10px] text-muted-foreground uppercase">Realizado</span>
-            <p className="text-base sm:text-lg font-display font-bold text-blue-600">{formatCurrency(totalRealizado)}</p>
+            <p className="text-base sm:text-lg font-display font-bold text-blue-600 dark:text-blue-300">{formatCurrency(totalRealizado)}</p>
           </div>
           <div>
             <span className="text-[10px] text-muted-foreground uppercase">Projetado</span>
@@ -101,7 +101,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-xs sm:text-sm font-display font-bold text-blue-600">{formatCurrency(realized)}</p>
+                <p className="text-xs sm:text-sm font-display font-bold text-blue-600 dark:text-blue-300">{formatCurrency(realized)}</p>
                 <p className="text-xs sm:text-sm font-display font-bold text-amber-600">{formatCurrency(projected)}</p>
               </div>
             </button>
@@ -118,7 +118,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                       <div className="text-right shrink-0">
                         <p className="text-xs font-semibold text-success">{formatCurrency(e.valor)}</p>
                         <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold ${
-                          e.tipoRegistro === 'realizado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                          e.tipoRegistro === 'realizado' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'bg-amber-100 text-amber-700'
                         }`}>
                           {e.tipoRegistro === 'realizado' ? 'Real.' : 'Proj.'}
                         </span>
@@ -141,7 +141,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                     <td className="px-4 py-2 max-w-[250px] truncate text-muted-foreground">{e.descricao}</td>
                     <td className="px-4 py-2 text-center">
                       <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                        e.tipoRegistro === 'realizado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        e.tipoRegistro === 'realizado' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'bg-amber-100 text-amber-700'
                       }`}>
                         {e.tipoRegistro === 'realizado' ? 'Real.' : 'Proj.'}
                       </span>

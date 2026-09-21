@@ -1141,7 +1141,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
                             </td>
                             <td className="px-3 py-1.5">
                               <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                e.tipoRegistro === 'realizado' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                                e.tipoRegistro === 'realizado' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'bg-amber-100 text-amber-700'
                               }`}>
                                 {e.tipoRegistro === 'realizado' ? 'Realizado' : 'Projetado'}
                               </span>
