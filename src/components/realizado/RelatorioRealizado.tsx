@@ -24,6 +24,7 @@ import { useClosedMonths } from '@/hooks/usePeriodClosures';
 import { useMonthSync, useRangeSync } from './SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { YoYLineChart } from './YoYLineChart';
+import { FiltroLancamentos, type FiltroEntry } from './FiltroLancamentos';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
