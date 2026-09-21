@@ -99,11 +99,36 @@ function useTabVisibility(schoolId: string) {
   return { visibility, toggle };
 }
 
-export function RealizadoModule({ schoolId }: Props) {
+/** Lista de abas visíveis do Realizado (usada aqui e na navegação mobile). */
+export function useRealizadoViews(schoolId: string): { key: MainView; label: string; icon: any }[] {
+  const { visibility } = useTabVisibility(schoolId);
+  const { enabled: detalhamentoEnabled, label: detalhamentoLabel } = useExpenseDetailConfig(schoolId);
+
+  return useMemo(() => {
+    const list: { key: MainView; label: string; icon: any }[] = [
+      { key: 'relatorio', label: 'Análise de Despesas', icon: BarChart3 },
+    ];
+    if (visibility.indicadores) list.push({ key: 'indicadores', label: 'Indicadores', icon: Gauge });
+    if (visibility.conversao) list.push({ key: 'conversao', label: 'Conversão', icon: ArrowRightLeft });
+    if (visibility.vendas) list.push({ key: 'vendas', label: 'Vendas', icon: CreditCard });
+    if (visibility.analise_vendas) list.push({ key: 'analise_vendas', label: 'Análise de Vendas', icon: BarChart3 });
+    if (visibility.recebimento_categoria) list.push({ key: 'recebimento_categoria', label: 'Recebimento por Categoria', icon: Wallet });
+    if (visibility.teto_gastos) list.push({ key: 'teto_gastos', label: 'Teto de Gastos', icon: Target });
+    if (detalhamentoEnabled) list.push({ key: 'detalhamento', label: detalhamentoLabel, icon: Layers });
+    return list;
+  }, [visibility, detalhamentoEnabled, detalhamentoLabel]);
+}
+
+export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
   const { isAdmin } = useAuth();
   const [showConfig, setShowConfig] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>('importacao');
-  const [mainView, setMainView] = useState<MainView>('relatorio');
+  const [internalView, setInternalView] = useState<MainView>('relatorio');
+  const mainView = view ?? internalView;
+  const setMainView = useCallback((v: MainView) => {
+    setInternalView(v);
+    onViewChange?.(v);
+  }, [onViewChange]);
   const [showPdfExport, setShowPdfExport] = useState(false);
 
   // Usa o mês final do filtro global (topo). Fallback: mês atual.
@@ -121,6 +146,7 @@ export function RealizadoModule({ schoolId }: Props) {
   const { visibility, toggle } = useTabVisibility(schoolId);
   const { isPresentationMode } = usePresentation();
   const { enabled: detalhamentoEnabled, label: detalhamentoLabel } = useExpenseDetailConfig(schoolId);
+  const views = useRealizadoViews(schoolId);
 
   // Força sair das configurações se ligar apresentação
   if (isPresentationMode && showConfig) {
