@@ -286,7 +286,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             value={formatCurrency(saldoFinalPeriodo)}
             valueClassName={saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}
           />
-          <CompactStat label="Entrada prevista" value={formatCurrency(totals.entradaPrevista)} valueClassName="text-blue-600" />
+          <CompactStat label="Entrada prevista" value={formatCurrency(totals.entradaPrevista)} valueClassName="text-blue-600 dark:text-blue-300" />
           <CompactStat label="Entrada realizada" value={formatCurrency(totals.entradaRealizada)} valueClassName="text-primary" />
           <CompactStat label="Saída prevista" value={formatCurrency(totals.saidaPrevista)} valueClassName="text-orange-500" />
           <CompactStat label="Saída realizada" value={formatCurrency(totals.saidaRealizada)} valueClassName="text-destructive" />
@@ -317,7 +317,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
                   {day.entradaPrevista > 0 && (
-                    <div className="flex justify-between"><span className="text-muted-foreground">Ent. prev.</span><span className="text-blue-600 font-medium">{formatCurrency(day.entradaPrevista)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Ent. prev.</span><span className="text-blue-600 dark:text-blue-300 font-medium">{formatCurrency(day.entradaPrevista)}</span></div>
                   )}
                   {showReal && day.entradaRealizada > 0 && (
                     <div className="flex justify-between"><span className="text-muted-foreground">Ent. real.</span><span className="text-primary font-medium">{formatCurrency(day.entradaRealizada)}</span></div>
@@ -380,12 +380,12 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
               <tr className="bg-surface">
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Data</th>
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground">Dia</th>
-                <th className="px-3 py-2.5 text-right font-medium text-blue-600">Entrada Prevista</th>
+                <th className="px-3 py-2.5 text-right font-medium text-blue-600 dark:text-blue-300">Entrada Prevista</th>
                 <th className="px-3 py-2.5 text-right font-medium text-primary">Entrada Realizada</th>
                 <th className="px-3 py-2.5 text-right font-medium text-orange-500">Saída Prevista</th>
                 <th className="px-3 py-2.5 text-right font-medium text-destructive">Saída Realizada</th>
                 <th className="px-3 py-2.5 text-right font-medium text-purple-600">Operações</th>
-                <th className="px-3 py-2.5 text-right font-medium text-blue-700">Saldo Final Previsto</th>
+                <th className="px-3 py-2.5 text-right font-medium text-blue-700 dark:text-blue-300">Saldo Final Previsto</th>
                 <th className="px-3 py-2.5 text-right font-medium text-primary">Saldo Final Realizado</th>
                 <th className="px-3 py-2.5 text-right font-medium text-emerald-600" title="Realizado até o último dia com movimento + previsto daí em diante">
                   Saldo Final Projetado
@@ -414,13 +414,13 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                         day.isWeekend ? 'bg-muted/30' : ''
                       } ${day.saldoFinal < 0 ? 'bg-destructive/5' : ''} ${
                         !hasMovement && !day.isWeekend ? 'opacity-60' : ''
-                      } ${day.isAfterCutoff ? 'bg-blue-500/[0.03]' : ''}`}
+                      } ${day.isAfterCutoff ? 'bg-blue-500/[0.03] dark:bg-blue-300/[0.06]' : ''}`}
                     >
                       <td className="px-3 py-2 font-medium text-foreground">{formatDateBR(day.data)}</td>
                       <td className={`px-3 py-2 ${day.isWeekend ? 'text-muted-foreground font-semibold' : 'text-muted-foreground'}`}>
                         {day.dayOfWeek}
                       </td>
-                      <td className="px-3 py-2 text-right text-blue-600">
+                      <td className="px-3 py-2 text-right text-blue-600 dark:text-blue-300">
                         {showPrev && day.entradaPrevista > 0 ? formatCurrency(day.entradaPrevista) : '—'}
                       </td>
                       <td className="px-3 py-2 text-right text-primary">
@@ -435,7 +435,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                       <td className={`px-3 py-2 text-right ${day.operacoes >= 0 ? 'text-purple-600' : 'text-purple-700'}`}>
                         {day.operacoes !== 0 ? formatCurrency(day.operacoes) : '—'}
                       </td>
-                      <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalPrevisto >= 0 ? 'text-blue-700' : 'text-destructive'}`}>
+                      <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalPrevisto >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-destructive'}`}>
                         {showPrev ? formatCurrency(day.saldoFinalPrevisto) : '—'}
                       </td>
                       <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalRealizado >= 0 ? 'text-primary' : 'text-destructive'}`}>
@@ -453,12 +453,12 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             <tfoot className="sticky bottom-0 bg-card z-10">
               <tr className="border-t-2 border-border bg-muted/40 font-semibold">
                 <td className="px-3 py-2.5 text-foreground" colSpan={2}>TOTAIS</td>
-                <td className="px-3 py-2.5 text-right text-blue-600">{formatCurrency(totals.entradaPrevista)}</td>
+                <td className="px-3 py-2.5 text-right text-blue-600 dark:text-blue-300">{formatCurrency(totals.entradaPrevista)}</td>
                 <td className="px-3 py-2.5 text-right text-primary">{formatCurrency(totals.entradaRealizada)}</td>
                 <td className="px-3 py-2.5 text-right text-orange-500">{formatCurrency(totals.saidaPrevista)}</td>
                 <td className="px-3 py-2.5 text-right text-destructive">{formatCurrency(totals.saidaRealizada)}</td>
                 <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}</td>
-                <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo) >= 0 ? 'text-blue-700' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo)}</td>
+                <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo) >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right font-bold ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo)}</td>
               </tr>
