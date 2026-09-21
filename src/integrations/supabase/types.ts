@@ -2208,6 +2208,12 @@ export type Database = {
     Functions: {
       current_user_school_id: { Args: never; Returns: string }
       demo_school_id: { Args: never; Returns: string }
+      get_available_financial_months: {
+        Args: { _school_id: string }
+        Returns: {
+          month: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

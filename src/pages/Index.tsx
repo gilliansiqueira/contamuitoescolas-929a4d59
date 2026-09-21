@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
 import { School } from '@/types/financial';
 import { SchoolSelector } from '@/components/SchoolSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -8,31 +8,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSchools } from '@/hooks/useFinancialData';
 import { useDemoMode } from '@/contexts/DemoModeContext';
 import { DemoBanner } from '@/components/DemoBanner';
-import { Dashboard } from '@/components/Dashboard';
-import { FileUpload } from '@/components/FileUpload';
-import { CashFlow } from '@/components/CashFlow';
-import { Simulation } from '@/components/Simulation';
-import { UploadGuide } from '@/components/UploadGuide';
-import { ProjectedVsReal } from '@/components/ProjectedVsReal';
-import { ExportImport } from '@/components/ExportImport';
-import { Receivables } from '@/components/Receivables';
-import { FinancialCalendar } from '@/components/FinancialCalendar';
-import { DataTable } from '@/components/DataTable';
-import { ComparativoPeriodos } from '@/components/comparativo/ComparativoPeriodos';
-import { ScenarioView } from '@/components/ScenarioView';
 import { MonthSelector } from '@/components/MonthSelector';
-import { ScenarioSelector, ScenarioType } from '@/components/ScenarioSelector';
-import { UploadHistory } from '@/components/UploadHistory';
-import { SaldoInicialConfig } from '@/components/SaldoInicialConfig';
-
-import { PaymentDelayConfig } from '@/components/PaymentDelayConfig';
-import { AuditHistory } from '@/components/AuditHistory';
-import { DailyFlowTable } from '@/components/DailyFlowTable';
+import { ScenarioSelector } from '@/components/ScenarioSelector';
+import type { ScenarioType } from '@/components/ScenarioSelector';
 import { ExportPdfSection } from '@/components/ExportPdfSection';
-import { UsersConfig } from '@/components/UsersConfig';
-import { HistoricoFinanceiroConfig } from '@/components/HistoricoFinanceiroConfig';
-import { ModelosFinanceirosManager } from '@/components/ModelosFinanceirosManager';
-import { EmpresaModeloConfig } from '@/components/EmpresaModeloConfig';
 import { Button } from '@/components/ui/button';
 import { GlobalPeriodProvider, useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 import { SharedMonthProvider } from '@/components/realizado/SharedMonthContext';
@@ -49,6 +28,35 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+const lazyNamed = <T extends Record<string, unknown>, K extends keyof T>(loader: () => Promise<T>, name: K) =>
+  lazy(async () => ({ default: (await loader())[name] as React.ComponentType<any> }));
+
+const Dashboard = lazyNamed(() => import('@/components/Dashboard'), 'Dashboard');
+const FileUpload = lazyNamed(() => import('@/components/FileUpload'), 'FileUpload');
+const CashFlow = lazyNamed(() => import('@/components/CashFlow'), 'CashFlow');
+const Simulation = lazyNamed(() => import('@/components/Simulation'), 'Simulation');
+const UploadGuide = lazyNamed(() => import('@/components/UploadGuide'), 'UploadGuide');
+const ProjectedVsReal = lazyNamed(() => import('@/components/ProjectedVsReal'), 'ProjectedVsReal');
+const ExportImport = lazyNamed(() => import('@/components/ExportImport'), 'ExportImport');
+const Receivables = lazyNamed(() => import('@/components/Receivables'), 'Receivables');
+const FinancialCalendar = lazyNamed(() => import('@/components/FinancialCalendar'), 'FinancialCalendar');
+const DataTable = lazyNamed(() => import('@/components/DataTable'), 'DataTable');
+const ComparativoPeriodos = lazyNamed(() => import('@/components/comparativo/ComparativoPeriodos'), 'ComparativoPeriodos');
+const ScenarioView = lazyNamed(() => import('@/components/ScenarioView'), 'ScenarioView');
+const UploadHistory = lazyNamed(() => import('@/components/UploadHistory'), 'UploadHistory');
+const SaldoInicialConfig = lazyNamed(() => import('@/components/SaldoInicialConfig'), 'SaldoInicialConfig');
+const PaymentDelayConfig = lazyNamed(() => import('@/components/PaymentDelayConfig'), 'PaymentDelayConfig');
+const AuditHistory = lazyNamed(() => import('@/components/AuditHistory'), 'AuditHistory');
+const DailyFlowTable = lazyNamed(() => import('@/components/DailyFlowTable'), 'DailyFlowTable');
+const UsersConfig = lazyNamed(() => import('@/components/UsersConfig'), 'UsersConfig');
+const HistoricoFinanceiroConfig = lazyNamed(() => import('@/components/HistoricoFinanceiroConfig'), 'HistoricoFinanceiroConfig');
+const ModelosFinanceirosManager = lazyNamed(() => import('@/components/ModelosFinanceirosManager'), 'ModelosFinanceirosManager');
+const EmpresaModeloConfig = lazyNamed(() => import('@/components/EmpresaModeloConfig'), 'EmpresaModeloConfig');
+
+const ScreenLoading = () => (
+  <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>
+);
 
 type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo';
 
@@ -362,6 +370,7 @@ function IndexBody({
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
+                <Suspense fallback={<ScreenLoading />}>
                 {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
                 {activeTab === 'daily_flow' && (
                   <ExportPdfSection fileName={`fluxo-diario-${selectedMonth}`}>
@@ -416,6 +425,7 @@ function IndexBody({
                 {activeTab === 'historico_financeiro' && <HistoricoFinanceiroConfig schoolId={school.id} onChanged={refresh} />}
                 {activeTab === 'modelos_financeiros' && <ModelosFinanceirosManager />}
                 {activeTab === 'empresa_modelo' && <EmpresaModeloConfig schoolId={school.id} onChanged={refresh} />}
+                </Suspense>
               </motion.div>
             </AnimatePresence>
           </main>

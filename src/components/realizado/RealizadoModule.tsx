@@ -1,23 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
-import { PlanoDeContas } from './PlanoDeContas';
-import { ImportacaoRealizado } from './ImportacaoRealizado';
-import { RelatorioRealizado } from './RelatorioRealizado';
-import { HistoricoUploads } from './HistoricoUploads';
-import { TiposHistorico } from './TiposHistorico';
-import { ExportacaoDados } from './ExportacaoDados';
-import { RegrasCategorizacao } from './RegrasCategorizacao';
-import { ConversaoDashboard } from './ConversaoDashboard';
-import { IndicadoresDashboard } from '@/components/indicadores/IndicadoresDashboard';
-import { VendasDashboard } from '@/components/vendas/VendasDashboard';
-import { AnaliseVendasDashboard } from '@/components/analise-vendas/AnaliseVendasDashboard';
-import { RecebimentoCategoria } from './RecebimentoCategoria';
-import { ExportPdfDialog } from './ExportPdfDialog';
+import { lazy, Suspense, useState, useCallback, useMemo } from 'react';
 import { useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
-import { IconLibraryManager } from '@/components/icons/IconLibraryManager';
-import { FechamentoMeses } from './FechamentoMeses';
-import { TetoGastos } from './TetoGastos';
-import { DetalhamentoDespesas } from './DetalhamentoDespesas';
-import { DetalhamentoConfig } from './DetalhamentoConfig';
 import { useExpenseDetailConfig } from '@/hooks/useExpenseDetail';
 import { ExportPdfSection } from '@/components/ExportPdfSection';
 // SharedMonthProvider is now provided at the app root (Index.tsx) so the
@@ -30,6 +12,29 @@ import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
+
+const lazyNamed = <T extends Record<string, unknown>, K extends keyof T>(loader: () => Promise<T>, name: K) =>
+  lazy(async () => ({ default: (await loader())[name] as React.ComponentType<any> }));
+const PlanoDeContas = lazyNamed(() => import('./PlanoDeContas'), 'PlanoDeContas');
+const ImportacaoRealizado = lazyNamed(() => import('./ImportacaoRealizado'), 'ImportacaoRealizado');
+const RelatorioRealizado = lazyNamed(() => import('./RelatorioRealizado'), 'RelatorioRealizado');
+const HistoricoUploads = lazyNamed(() => import('./HistoricoUploads'), 'HistoricoUploads');
+const TiposHistorico = lazyNamed(() => import('./TiposHistorico'), 'TiposHistorico');
+const ExportacaoDados = lazyNamed(() => import('./ExportacaoDados'), 'ExportacaoDados');
+const RegrasCategorizacao = lazyNamed(() => import('./RegrasCategorizacao'), 'RegrasCategorizacao');
+const ConversaoDashboard = lazyNamed(() => import('./ConversaoDashboard'), 'ConversaoDashboard');
+const IndicadoresDashboard = lazyNamed(() => import('@/components/indicadores/IndicadoresDashboard'), 'IndicadoresDashboard');
+const VendasDashboard = lazyNamed(() => import('@/components/vendas/VendasDashboard'), 'VendasDashboard');
+const AnaliseVendasDashboard = lazyNamed(() => import('@/components/analise-vendas/AnaliseVendasDashboard'), 'AnaliseVendasDashboard');
+const RecebimentoCategoria = lazyNamed(() => import('./RecebimentoCategoria'), 'RecebimentoCategoria');
+const ExportPdfDialog = lazyNamed(() => import('./ExportPdfDialog'), 'ExportPdfDialog');
+const IconLibraryManager = lazyNamed(() => import('@/components/icons/IconLibraryManager'), 'IconLibraryManager');
+const FechamentoMeses = lazyNamed(() => import('./FechamentoMeses'), 'FechamentoMeses');
+const TetoGastos = lazyNamed(() => import('./TetoGastos'), 'TetoGastos');
+const DetalhamentoDespesas = lazyNamed(() => import('./DetalhamentoDespesas'), 'DetalhamentoDespesas');
+const DetalhamentoConfig = lazyNamed(() => import('./DetalhamentoConfig'), 'DetalhamentoConfig');
+
+const ScreenLoading = () => <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>;
 
 interface Props {
   schoolId: string;
@@ -225,6 +230,7 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
           ))}
         </div>
         <motion.div key={configTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
+          <Suspense fallback={<ScreenLoading />}>
           {configTab === 'plano' && <PlanoDeContas schoolId={schoolId} />}
           {configTab === 'importacao' && <ImportacaoRealizado schoolId={schoolId} />}
           {configTab === 'regras' && <RegrasCategorizacao schoolId={schoolId} />}
@@ -238,6 +244,7 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
           {configTab === 'dados' && <ExportacaoDados schoolId={schoolId} />}
           {configTab === 'detalhamento' && <DetalhamentoConfig schoolId={schoolId} />}
           {configTab === 'icones' && isAdmin && <IconLibraryManager />}
+          </Suspense>
         </motion.div>
       </div>
     );
@@ -296,6 +303,7 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
         </div>
       </div>
       <motion.div key={activeView} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}>
+        <Suspense fallback={<ScreenLoading />}>
         {activeView === 'relatorio' && <RelatorioRealizado schoolId={schoolId} />}
         {activeView === 'indicadores' && (
           <ExportPdfSection fileName="indicadores"><IndicadoresDashboard schoolId={schoolId} /></ExportPdfSection>
@@ -318,15 +326,16 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
         {activeView === 'detalhamento' && (
           <ExportPdfSection fileName="detalhamento-despesas"><DetalhamentoDespesas schoolId={schoolId} /></ExportPdfSection>
         )}
+        </Suspense>
       </motion.div>
 
-      <ExportPdfDialog 
+      {showPdfExport && <Suspense fallback={null}><ExportPdfDialog 
         open={showPdfExport} 
         onOpenChange={setShowPdfExport} 
         schoolId={schoolId} 
         selectedMonth={exportMonth}
         selectedYear={exportYear}
-      />
+      /></Suspense>}
     </div>
     </>
   );

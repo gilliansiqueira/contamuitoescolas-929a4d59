@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { generateMesCompletoPdf, type MesCompletoData } from './pdf/mesCompletoPdf';
+import type { MesCompletoData } from './pdf/mesCompletoPdf';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface Props {
   /** Monta os dados no momento do clique (evita cálculo desnecessário) */
-  buildData: () => MesCompletoData;
+  buildData: () => MesCompletoData | Promise<MesCompletoData>;
 }
 
 export function ExportMesCompletoPdf({ buildData }: Props) {
@@ -16,7 +16,9 @@ export function ExportMesCompletoPdf({ buildData }: Props) {
   const handleClick = async () => {
     setBusy(true);
     try {
-      await generateMesCompletoPdf(buildData());
+      const { generateMesCompletoPdf } = await import('./pdf/mesCompletoPdf');
+      const data = await buildData();
+      await generateMesCompletoPdf(data);
       toast.success('Relatório geral gerado');
     } catch (err) {
       console.error('[ExportMesCompletoPdf]', err);
