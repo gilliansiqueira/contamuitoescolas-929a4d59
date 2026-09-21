@@ -19,6 +19,7 @@
 - Configurar o cache dos dados por empresa, evitando novas leituras ao alternar abas ou retornar à janela.
 - Manter atualização explícita após importações, edições, exclusões e fechamentos para nunca exibir números antigos.
 - Eliminar consultas duplicadas com chaves padronizadas e dados compartilhados entre Dashboard, Comparativo e Realizado.
+- Paginar ou virtualizar tabelas extensas, para que o navegador não tente desenhar milhares de linhas ao mesmo tempo.
 
 ## Etapa 2 — buscar somente o período necessário
 
@@ -28,6 +29,7 @@
   - seletores de mês recebem apenas uma lista leve de meses disponíveis, sem baixar lançamentos completos.
 - Para relatórios amplos e exportações, buscar o intervalo completo somente no momento da solicitação.
 - Selecionar apenas as colunas usadas por cada tela, em vez de carregar registros completos indiscriminadamente.
+- Agrupar os lançamentos por mês uma única vez antes das comparações, evitando percorrer todo o histórico novamente para cada mês.
 - Preservar integralmente a fonte única dos cálculos: os mesmos motores oficiais continuarão classificando e consolidando os dados.
 
 ## Etapa 3 — banco de dados e escalabilidade
