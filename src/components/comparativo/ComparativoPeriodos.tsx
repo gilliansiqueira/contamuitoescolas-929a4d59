@@ -88,20 +88,22 @@ function MonthRangePicker({
   );
 }
 
-function DeltaBadge({ diff, pct, invert }: { diff: number; pct: number | null; invert?: boolean }) {
+function DeltaBadge({ diff, pct, invert, format }: { diff: number; pct: number | null; invert?: boolean; format?: (v: number) => string }) {
   const isFlat = Math.abs(diff) < 0.005;
   const isUp = diff > 0;
   const good = invert ? !isUp : isUp;
   const color = isFlat ? 'text-muted-foreground' : good ? 'text-emerald-600' : 'text-destructive';
   const Icon = isFlat ? Minus : isUp ? ArrowUp : ArrowDown;
+  const fmt = format ?? formatCurrency;
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${color}`}>
       <Icon className="w-3.5 h-3.5" />
-      {formatCurrency(Math.abs(diff))}
+      {fmt(Math.abs(diff))}
       {pct !== null && <span className="opacity-80">({pct > 0 ? '+' : ''}{pct.toFixed(1)}%)</span>}
     </span>
   );
 }
+
 
 export function ComparativoPeriodos({ schoolId }: Props) {
   const { ctx, isInModel, isLoading } = usePeriodMovementCtx(schoolId);
@@ -347,9 +349,16 @@ export function ComparativoPeriodos({ schoolId }: Props) {
           </div>
           <p className="text-xs text-muted-foreground">
             A: {monthsA.length ? `${labelMonth(r.aStart)} – ${labelMonth(r.aEnd)} (${monthsA.length} meses)` : 'período inválido'}
+            {srcA.labels.length > 0 && ` · fonte: ${srcA.labels.join(' + ')}`}
             {' · '}
             B: {monthsB.length ? `${labelMonth(r.bStart)} – ${labelMonth(r.bEnd)} (${monthsB.length} meses)` : 'período inválido'}
+            {srcB.labels.length > 0 && ` · fonte: ${srcB.labels.join(' + ')}`}
           </p>
+          {(srcA.vazios.length > 0 || srcB.vazios.length > 0) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Sem dados em: {[...srcA.vazios, ...srcB.vazios].map(labelMonth).join(', ')}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -357,23 +366,26 @@ export function ComparativoPeriodos({ schoolId }: Props) {
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c, i) => {
           const diff = c.b - c.a;
-          const pct = Math.abs(c.a) > 0.005 ? (diff / Math.abs(c.a)) * 100 : null;
+          const pct = c.isPct ? null : (Math.abs(c.a) > 0.005 ? (diff / Math.abs(c.a)) * 100 : null);
+          const fmt = c.isPct ? (v: number) => `${v.toFixed(1)}%` : formatCurrency;
+          const fmtDiff = c.isPct ? (v: number) => `${v.toFixed(1)} p.p.` : formatCurrency;
           return (
             <motion.div key={c.key} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
               <Card className="rounded-2xl h-full">
                 <CardContent className="p-4 space-y-2">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{c.label}</p>
                   <div className="space-y-0.5">
-                    <p className="text-lg font-bold tabular-nums text-foreground">{formatCurrency(c.b)}</p>
-                    <p className="text-xs text-muted-foreground tabular-nums">Período A: {formatCurrency(c.a)}</p>
+                    <p className="text-lg font-bold tabular-nums text-foreground">{fmt(c.b)}</p>
+                    <p className="text-xs text-muted-foreground tabular-nums">Período A: {fmt(c.a)}</p>
                   </div>
-                  <DeltaBadge diff={diff} pct={pct} invert={c.invert} />
+                  <DeltaBadge diff={diff} pct={pct} invert={c.invert} format={fmtDiff} />
                 </CardContent>
               </Card>
             </motion.div>
           );
         })}
       </div>
+
 
       {/* Gráficos */}
       <Card className="rounded-2xl">
