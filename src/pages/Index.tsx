@@ -422,10 +422,55 @@ function IndexBody({
         </>
       ) : (
         /* Relatório Realizado */
-        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-24 sm:pb-6">
-          <RealizadoModule schoolId={school.id} />
+        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-28 sm:pb-6">
+          <RealizadoModule schoolId={school.id} view={realizadoView} onViewChange={setRealizadoView} />
         </main>
       )}
+
+      {/* Navegação mobile — barra inferior (vale nos dois módulos) */}
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-stretch justify-around">
+          <button
+            onClick={() => setAppModule('projecao')}
+            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+              appModule === 'projecao' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <TrendingUp className="w-[18px] h-[18px]" />
+            Projeção
+          </button>
+          <button
+            onClick={() => setAppModule('realizado')}
+            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+              appModule === 'realizado' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <FileBarChart className="w-[18px] h-[18px]" />
+            Realizado
+          </button>
+          <button
+            onClick={() => {
+              if (appModule === 'projecao') setActiveTab('dashboard');
+              else setRealizadoView('relatorio');
+            }}
+            className="flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-muted-foreground"
+          >
+            <LayoutDashboard className="w-[18px] h-[18px]" />
+            Início
+          </button>
+          <button
+            onClick={() => setNavOpen(true)}
+            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold ${
+              navOpen ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <MenuIcon className="w-[18px] h-[18px]" />
+            Menu
+          </button>
+        </div>
+      </nav>
+
+      <MobileNavSheet open={navOpen} onOpenChange={setNavOpen} sections={navSections} />
     </div>
   );
 }
