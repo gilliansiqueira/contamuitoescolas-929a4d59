@@ -793,12 +793,21 @@ export function RelatorioRealizado({ schoolId }: Props) {
           <Card className="rounded-2xl">
             <CardContent className="p-5">
               {entriesForFiltro.length > 0 ? (
-                <YoYLineChart
-                  title={`${filtroLabel} — comparativo anual`}
-                  activeMonth={activeMes}
-                  entries={entriesForFiltro}
-                  invertColors={true}
-                />
+                <div className="space-y-5">
+                  <YoYLineChart
+                    title={`${filtroLabel} — comparativo anual`}
+                    activeMonth={activeMes}
+                    entries={entriesForFiltro.map(e => ({ data: e.data, valor: e.valor }))}
+                    invertColors={true}
+                  />
+                  <div className="pt-4 border-t border-border/60">
+                    <FiltroLancamentos
+                      label={filtroLabel}
+                      entries={entriesForFiltro}
+                      activeMonth={activeMes}
+                    />
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado para "{filtroLabel}".</p>
               )}
