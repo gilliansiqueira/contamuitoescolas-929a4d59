@@ -37,10 +37,12 @@ import { Button } from '@/components/ui/button';
 import { GlobalPeriodProvider, useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 import { SharedMonthProvider } from '@/components/realizado/SharedMonthContext';
 
-import { RealizadoModule } from '@/components/realizado/RealizadoModule';
+import { RealizadoModule, useRealizadoViews, type MainView as RealizadoView } from '@/components/realizado/RealizadoModule';
+import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
+import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/MobileNavSheet';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
