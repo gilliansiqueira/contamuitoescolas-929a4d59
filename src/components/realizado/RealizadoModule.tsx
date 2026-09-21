@@ -24,6 +24,7 @@ import { ExportPdfSection } from '@/components/ExportPdfSection';
 // global period filter reaches every tab.
 import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
 import { motion } from 'framer-motion';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
