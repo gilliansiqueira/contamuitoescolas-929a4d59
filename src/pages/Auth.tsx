@@ -40,12 +40,8 @@ export default function AuthPage() {
   return (
     <main className="auth-report min-h-screen bg-background p-3 sm:p-5 lg:p-7">
       <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1440px] overflow-hidden rounded-lg border border-border/70 bg-card shadow-xl sm:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.08fr_0.92fr]">
-        <section className="auth-report-visual relative hidden overflow-hidden bg-foreground px-10 py-10 text-background lg:flex lg:flex-col lg:justify-between xl:px-16 xl:py-14">
-          <div className="relative z-10">
-            <div className="inline-flex w-fit rounded-md bg-background px-4 py-3">
-              <img src={contaMuitoLogo} alt="Conta Muito" className="h-14 w-auto object-contain" />
-            </div>
-          </div>
+        <section className="auth-report-visual relative hidden overflow-hidden bg-primary px-10 py-10 text-foreground lg:flex lg:flex-col lg:justify-between xl:px-16 xl:py-14">
+          <div className="relative z-10 h-20" aria-hidden="true" />
 
           <motion.div
             initial={{ opacity: 0, y: 18 }}
@@ -53,14 +49,14 @@ export default function AuthPage() {
             transition={{ duration: 0.6 }}
             className="relative z-10 max-w-2xl"
           >
-            <p className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-secondary">
+            <p className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-foreground/75">
               <BarChart3 className="h-4 w-4" /> Gestão financeira
             </p>
-            <h1 className="font-editorial text-5xl leading-[1.02] text-background xl:text-7xl">
-              Decisões claras.<br />Resultados fortes.
+            <h1 className="font-editorial text-5xl leading-[1.02] text-foreground xl:text-7xl">
+              Dados claros.<br />Decisões certas.
             </h1>
-            <p className="mt-6 max-w-lg text-base leading-relaxed text-background/65 xl:text-lg">
-              Projeções, realizado e indicadores em uma única visão confiável.
+            <p className="mt-6 max-w-xl text-base leading-relaxed text-foreground/75 xl:text-lg">
+              Uma visão única e personalizada do financeiro da sua empresa.
             </p>
           </motion.div>
 
@@ -72,7 +68,7 @@ export default function AuthPage() {
                   initial={{ height: 0 }}
                   animate={{ height: `${height}%` }}
                   transition={{ duration: 0.8, delay: 0.12 * index }}
-                  className={index > 2 ? 'bg-primary' : 'bg-secondary'}
+                  className={index > 2 ? 'bg-foreground' : 'bg-secondary'}
                 />
               ))}
             </div>
@@ -96,7 +92,7 @@ export default function AuthPage() {
             transition={{ duration: 0.45 }}
             className="w-full max-w-md"
           >
-            <img src={contaMuitoLogo} alt="Conta Muito" className="mb-12 h-16 w-auto object-contain lg:hidden" />
+            <img src={contaMuitoLogo} alt="Conta Muito" className="mx-auto mb-10 h-auto w-56 object-contain sm:w-64 lg:mb-12 lg:w-72" />
             <div className="mb-9 border-l-4 border-primary pl-5">
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">Área do cliente</p>
               <h2 className="font-editorial text-4xl text-foreground sm:text-5xl">Acesse sua conta</h2>
