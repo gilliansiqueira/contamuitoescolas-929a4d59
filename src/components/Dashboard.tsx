@@ -781,7 +781,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         description: entry.descricao,
         account: entry.conta_nome || 'Sem conta',
         value: Math.abs(Number(entry.valor) || 0),
-        reason: 'Não compõe a despesa oficial do período',
+    reason: 'Sem correspondência inequívoca com a despesa oficial',
       }))
       .sort((a: any, b: any) => b.value - a.value);
 
