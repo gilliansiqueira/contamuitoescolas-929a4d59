@@ -144,7 +144,7 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       headStyles: { fillColor: ORANGE, textColor: WHITE, fontStyle: 'bold', fontSize: 7.4 },
       bodyStyles: { fillColor: GRAPHITE_2, textColor: WHITE, lineColor: GRID, fontSize: 7, cellPadding: 2 },
       alternateRowStyles: { fillColor: [43, 61, 69] }, margin: { left: MX, right: MX, top: 40, bottom: 14 }, columnStyles,
-      didDrawPage: hook => {
+      willDrawPage: hook => {
         if (hook.pageNumber > 1) {
           background();
           text(title.toUpperCase(), MX, 22, 20, WHITE, 'bold');
