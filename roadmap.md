@@ -15,3 +15,4 @@
 - [x] Substituir anexos tabulares pelo detalhamento visual de despesas
 - [x] Replicar no PDF a análise de despesas por categoria e categoria-mãe
 - [x] Exibir matrículas e contatos como quantidades, sem formato monetário
+- [ ] Criar e aprovar três direções visuais para acesso, área interna e ícone do app
