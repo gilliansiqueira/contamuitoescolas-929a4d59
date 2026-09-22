@@ -4,16 +4,33 @@ import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { motion, useReducedMotion } from 'framer-motion';
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion';
 import { toast } from 'sonner';
 import { ArrowRight, BarChart3, CreditCard, Eye, EyeOff, Lock, Mail, CircleDollarSign } from 'lucide-react';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 
 const DEMO_INDICATORS = [
-  { label: 'Receitas', value: 'R$ 48.500', variation: '+12%', icon: BarChart3, tone: 'positive' },
-  { label: 'Despesas', value: 'R$ 32.200', variation: '-8%', icon: CreditCard, tone: 'expense' },
-  { label: 'Resultado', value: 'R$ 16.300', variation: '+28%', icon: CircleDollarSign, tone: 'positive' },
+  { label: 'Receitas', value: 48500, variation: '+12%', icon: BarChart3, tone: 'positive' },
+  { label: 'Despesas', value: 32200, variation: '-8%', icon: CreditCard, tone: 'expense' },
+  { label: 'Resultado', value: 16300, variation: '+28%', icon: CircleDollarSign, tone: 'positive' },
 ] as const;
+
+function AnimatedCurrency({ value, delay }: { value: number; delay: number }) {
+  const reduceMotion = useReducedMotion();
+  const current = useMotionValue(reduceMotion ? value : 0);
+  const formatted = useTransform(current, latest => `R$ ${Math.round(latest).toLocaleString('pt-BR')}`);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      current.set(value);
+      return;
+    }
+    const controls = animate(current, value, { duration: 1.15, delay, ease: 'easeOut' });
+    return () => controls.stop();
+  }, [current, delay, reduceMotion, value]);
+
+  return <motion.span>{formatted}</motion.span>;
+}
 
 export default function AuthPage() {
   const navigate = useNavigate();
@@ -99,7 +116,7 @@ export default function AuthPage() {
                       transition={{ duration: 0.5, delay: 0.65 + index * 0.14 }}
                       className="mt-0.5 text-xl font-bold text-foreground"
                     >
-                      {indicator.value}
+                      <AnimatedCurrency value={indicator.value} delay={0.55 + index * 0.14} />
                     </motion.p>
                     <p className="mt-0.5 text-sm font-bold text-secondary">↗ {indicator.variation}</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">em relação ao período anterior</p>

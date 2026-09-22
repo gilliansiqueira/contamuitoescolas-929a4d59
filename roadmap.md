@@ -18,3 +18,4 @@
 - [x] Criar e aprovar três direções visuais para acesso, área interna e ícone do app
 
 - [x] Renovar somente a aparência do acesso, navegação e ícone; preservar integralmente dados, gráficos, páginas e cálculos atuais
+- [x] Reproduzir a referência final da página de acesso com indicadores ilustrativos em movimento
