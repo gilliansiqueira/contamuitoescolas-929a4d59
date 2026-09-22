@@ -93,7 +93,7 @@ const Index = () => {
   const { isDemo, demoSchoolId } = useDemoMode();
   const { isAdmin: realIsAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
   const isAdmin = isDemo ? false : realIsAdmin;
-  const { data: allSchools = [] } = useSchools();
+  const { data: allSchools = [], isError: schoolsError, isFetching: schoolsFetching, refetch: refetchSchools } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
 
   // Auto-select demo school
@@ -117,8 +117,19 @@ const Index = () => {
       <div className="min-h-screen bg-background">
         {isDemo && <DemoBanner />}
         {isDemo ? (
-          <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
-            Carregando demonstração...
+          <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center text-muted-foreground">
+            {schoolsError || (!schoolsFetching && allSchools.length === 0) ? (
+              <>
+                <p className="max-w-md text-sm">
+                  Não conseguimos carregar a demonstração agora. Verifique sua conexão e tente novamente.
+                </p>
+                <Button onClick={() => refetchSchools()} disabled={schoolsFetching}>
+                  {schoolsFetching ? 'Tentando…' : 'Tentar novamente'}
+                </Button>
+              </>
+            ) : (
+              <span>Carregando demonstração...</span>
+            )}
           </div>
         ) : (
           <SchoolSelector selectedSchool={null} onSelect={setSchool} />
