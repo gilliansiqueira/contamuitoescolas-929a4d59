@@ -223,11 +223,14 @@ function IndexBody({
     <div className="min-h-screen bg-background">
       {isDemo && <DemoBanner />}
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-card/90 backdrop-blur-md border-b border-border">
+      <header className="app-shell-header sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <img src={contaMuitoLogo} alt="Conta Muito" className="h-7 sm:h-10 w-auto object-contain" />
-            <h1 className="font-display font-bold text-lg hidden sm:block text-foreground">Relatório Financeiro</h1>
+            <div className="hidden border-l border-border pl-3 sm:block">
+              <p className="font-editorial text-xl leading-none text-foreground">Visão financeira</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Decisões claras</p>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {isDemo ? (
@@ -270,14 +273,14 @@ function IndexBody({
       </header>
 
       {/* Module Selector */}
-      <div className="sticky top-[49px] sm:top-[57px] z-45 bg-card border-b border-border">
+      <div className="app-module-rail sticky top-[49px] z-45 border-b border-border sm:top-[57px]">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 flex">
           <button
             onClick={() => setAppModule('projecao')}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition-colors border-b-3 ${
               appModule === 'projecao'
-                ? 'border-primary text-primary bg-primary/5'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'border-primary text-primary bg-primary/10'
+                : 'app-module-button-inactive border-transparent hover:text-background'
             }`}
           >
             <TrendingUp className="w-4 h-4" />
@@ -287,8 +290,8 @@ function IndexBody({
             onClick={() => setAppModule('realizado')}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition-colors border-b-3 ${
               appModule === 'realizado'
-                ? 'border-primary text-primary bg-primary/5'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'border-primary text-primary bg-primary/10'
+                : 'app-module-button-inactive border-transparent hover:text-background'
             }`}
           >
             <FileBarChart className="w-4 h-4" />
@@ -301,7 +304,7 @@ function IndexBody({
       {appModule === 'projecao' ? (
         <>
           {/* Projeção Tabs */}
-          <nav className="hidden sm:block sticky top-[105px] z-40 bg-card/80 backdrop-blur-md border-b border-border/50 overflow-x-auto">
+          <nav className="sticky top-[105px] z-40 hidden overflow-x-auto border-b border-border/50 bg-card/95 backdrop-blur-md sm:block">
             <div className="max-w-7xl mx-auto px-4 flex gap-1 items-center">
               {mainTabs.map(tab => (
                 <button
