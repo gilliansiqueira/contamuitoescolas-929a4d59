@@ -705,13 +705,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const sourceLabels: Record<string, string> = {
       snapshot: 'Fechamento', fluxo: 'Realizado + previsão', historico: 'Histórico', projecao: 'Projeção', vazio: 'Sem dados',
     };
-    const monthly = monthMovements.map((mv, index) => ({
+    const monthly = monthMovements.map((mv) => ({
       month: mv.month,
       label: `${monthNames[Number(mv.month.slice(5, 7)) - 1].slice(0, 3)}/${mv.month.slice(2, 4)}`,
       source: sourceLabels[mv.source] || mv.source,
       saldoInicial: computeSaldoInicial(mv.month, movementCtx, { isInModel }),
       receitas: mv.receitas,
       despesas: mv.despesas,
+      receitasRealizadas: mv.receitasRealizadas,
+      despesasRealizadas: mv.despesasRealizadas,
+      receitasPrevistas: Math.max(0, mv.receitas - mv.receitasRealizadas),
+      despesasPrevistas: Math.max(0, mv.despesas - mv.despesasRealizadas),
       resultado: mv.receitas - mv.despesas,
       operacoesIn: mv.operacoesIn,
       operacoesOut: mv.operacoesOut,
@@ -729,26 +733,57 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       months: Array.from({ length: 12 }, (_, index) => {
         const month = `${year}-${String(index + 1).padStart(2, '0')}`;
         if (!availableFinancialMonths.includes(month)) return null;
-        return buildMonthMovement(month, movementCtx, { isInModel })[kind];
+        const value = buildMonthMovement(month, movementCtx, { isInModel })[kind];
+        return value === 0 ? null : value;
       }),
     }));
 
     const accountMap = new Map(reportAccounts.map((a: any) => [a.id, a]));
-    const expenseMap = new Map<string, { mae: string; filha: string; valor: number }>();
+    const accountByName = new Map(reportAccounts.map((a: any) => [normalizeTipo(a.nome), a]));
+    const realizedByKey = new Map<string, any[]>();
     reportRealizedEntries
-      .filter((e: any) => selectedMonths.includes(String(e.data).slice(0, 7)) && e.tipo === 'despesa')
-      .forEach((e: any) => {
-        const account: any = e.conta_id ? accountMap.get(e.conta_id) : null;
+      .filter((entry: any) => selectedMonths.includes(String(entry.data).slice(0, 7)) && entry.tipo === 'despesa')
+      .forEach((entry: any) => {
+        const key = `${entry.data}|${normalizeTipo(entry.descricao)}|${Number(entry.valor).toFixed(2)}`;
+        const rows = realizedByKey.get(key) ?? [];
+        rows.push(entry);
+        realizedByKey.set(key, rows);
+      });
+    const expenseMap = new Map<string, { mae: string; filha: string; valor: number }>();
+    const matchedRealizedIds = new Set<string>();
+    periodEntries
+      .filter(entry => getEffectiveClassification(entry as any, classifications) === 'despesa')
+      .forEach(entry => {
+        const matchKey = `${entry.data}|${normalizeTipo(entry.descricao)}|${Number(entry.valor).toFixed(2)}`;
+        const candidates = realizedByKey.get(matchKey) ?? [];
+        const realized = candidates.find(candidate => !matchedRealizedIds.has(candidate.id));
+        if (realized) matchedRealizedIds.add(realized.id);
+        const account: any = realized?.conta_id
+          ? accountMap.get(realized.conta_id)
+          : accountByName.get(normalizeTipo(realized?.conta_nome || ''));
         const parent: any = account?.pai_id ? accountMap.get(account.pai_id) : null;
-        const mae = parent?.nome || (account && !account.pai_id ? account.nome : 'Sem categoria');
-        const filha = parent ? account.nome : (e.conta_nome || e.descricao || '(sem subcategoria)');
+        const mae = parent?.nome || account?.grupo || (account && !account.pai_id ? account.nome : 'Pendente de classificação');
+        const filha = parent ? account.nome : (account?.nome || realized?.conta_nome || entry.categoria || entry.descricao || '(sem subcategoria)');
         const key = `${mae}||${filha}`;
         const current = expenseMap.get(key) || { mae, filha, valor: 0 };
-        current.valor += Math.abs(Number(e.valor) || 0);
+        current.valor += Math.abs(Number(entry.valor) || 0);
         expenseMap.set(key, current);
       });
     const expenses = Array.from(expenseMap.values()).sort((a, b) => b.valor - a.valor);
     const expenseDetailTotal = expenses.reduce((sum, row) => sum + row.valor, 0);
+    const rawExpenseTotal = reportRealizedEntries
+      .filter((entry: any) => selectedMonths.includes(String(entry.data).slice(0, 7)) && entry.tipo === 'despesa')
+      .reduce((sum: number, entry: any) => sum + Math.abs(Number(entry.valor) || 0), 0);
+    const excludedExpenseRows = reportRealizedEntries
+      .filter((entry: any) => selectedMonths.includes(String(entry.data).slice(0, 7)) && entry.tipo === 'despesa' && !matchedRealizedIds.has(entry.id))
+      .map((entry: any) => ({
+        date: entry.data,
+        description: entry.descricao,
+        account: entry.conta_nome || 'Sem conta',
+        value: Math.abs(Number(entry.valor) || 0),
+        reason: 'Não compõe a despesa oficial do período',
+      }))
+      .sort((a: any, b: any) => b.value - a.value);
 
     const selectedSet = new Set(selectedMonths);
     const kpis = reportKpiDefinitions.map((definition: any) => {
@@ -771,10 +806,13 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         name: definition.name,
         value: numericValue,
         valueType: definition.value_type,
+        direction: definition.direction,
         decimals: Number(definition.decimals ?? 2),
         status: threshold?.label,
+        previousValue,
+        previousMonth: previous?.month,
         variation: numericValue !== null && previousValue !== null && previousValue !== 0 ? (numericValue - previousValue) / Math.abs(previousValue) * 100 : null,
-        history: values.map((value: any) => ({ label: value.month, value: Number(value.value) })),
+        history: allValues.map((value: any) => ({ label: value.month, value: Number(value.value) })),
       };
     });
 
@@ -838,6 +876,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       annualExpenses: buildAnnual('despesas'),
       expenses,
       expenseDetailTotal,
+      rawExpenseTotal,
+      excludedExpenseRows,
       monthlyRevenue: reportRevenue.map((row: any) => ({ month: row.month, value: Number(row.value) || 0 })),
       expenseCeilings: reportCeilings.map((row: any) => ({ category: row.category_name, ceiling: Number(row.ceiling) || 0, scope: row.scope, parentGroup: row.parent_group, semester: row.semester })),
       sales,
