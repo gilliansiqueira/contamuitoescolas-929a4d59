@@ -604,11 +604,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     const selectedEnd = lastMonth ? `${lastMonth}-31` : undefined;
     const comparisonYear = String(Number((lastMonth || `${new Date().getFullYear()}`).slice(0, 4)) - 1);
     const comparisonStart = firstMonth ? `${comparisonYear}-${firstMonth.slice(5, 7)}` : undefined;
+    const expenseHistoryStart = `${comparisonYear}-01-01`;
 
     const [reportRealizedEntries, reportAccountsResult, reportKpiDefinitionsResult, reportKpiValuesResult, reportConversionResult, reportSalesResult, reportSalesMethodsResult, reportBrandsResult, reportLegacyKpisResult, reportRevenueResult, reportCeilingsResult, reportConversionThresholdsResult] = await Promise.all([
       fetchAllRows<any>('realized_entries', q => {
         let query = q.eq('school_id', schoolId);
-        if (selectedStart) query = query.gte('data', selectedStart);
+        query = query.gte('data', expenseHistoryStart);
         if (selectedEnd) query = query.lte('data', selectedEnd);
         return query.order('data');
       }),
@@ -784,6 +785,31 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     reason: 'Sem correspondência inequívoca com a despesa oficial',
       }))
       .sort((a: any, b: any) => b.value - a.value);
+    const expenseHistoryMap = new Map<string, { category: string; year: string; months: number[] }>();
+    reportRealizedEntries
+      .filter((entry: any) => entry.tipo === 'despesa')
+      .forEach((entry: any) => {
+        const account: any = entry.conta_id
+          ? accountMap.get(entry.conta_id)
+          : accountByName.get(normalizeTipo(entry.conta_nome || ''));
+        const parent: any = account?.pai_id ? accountMap.get(account.pai_id) : null;
+        const category = parent?.nome || account?.grupo || (account && !account.pai_id ? account.nome : 'Pendente de classificação');
+        const month = String(entry.data).slice(0, 7);
+        if (!/^\d{4}-\d{2}$/.test(month)) return;
+        const year = month.slice(0, 4);
+        const monthIndex = Number(month.slice(5, 7)) - 1;
+        const key = `${category}||${year}`;
+        const row = expenseHistoryMap.get(key) ?? { category, year, months: Array(12).fill(0) };
+        row.months[monthIndex] += Math.abs(Number(entry.valor) || 0);
+        expenseHistoryMap.set(key, row);
+      });
+    const expenseHistory = Array.from(expenseHistoryMap.values()).map(row => ({
+      ...row,
+      months: row.months.map((value, index) => {
+        const month = `${row.year}-${String(index + 1).padStart(2, '0')}`;
+        return month > String(selectedEnd || '').slice(0, 7) || value === 0 ? null : value;
+      }),
+    }));
 
     const selectedSet = new Set(selectedMonths);
     const kpis = reportKpiDefinitions.map((definition: any) => {
@@ -813,6 +839,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         previousMonth: previous?.month,
         variation: numericValue !== null && previousValue !== null && previousValue !== 0 ? (numericValue - previousValue) / Math.abs(previousValue) * 100 : null,
         history: allValues.map((value: any) => ({ label: value.month, value: Number(value.value) })),
+        thresholds: reportKpiThresholds
+          .filter((item: any) => item.kpi_definition_id === definition.id)
+          .map((item: any) => ({ min: item.min_value == null ? null : Number(item.min_value), max: item.max_value == null ? null : Number(item.max_value), label: item.label })),
       };
     });
 
@@ -878,6 +907,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       expenseDetailTotal,
       rawExpenseTotal,
       excludedExpenseRows,
+      expenseHistory,
       monthlyRevenue: reportRevenue.map((row: any) => ({ month: row.month, value: Number(row.value) || 0 })),
       expenseCeilings: reportCeilings.map((row: any) => ({ category: row.category_name, ceiling: Number(row.ceiling) || 0, scope: row.scope, parentGroup: row.parent_group, semester: row.semester })),
       sales,

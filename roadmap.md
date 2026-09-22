@@ -11,3 +11,5 @@
 - [x] Conciliar despesas oficiais e detalhadas no relatório geral
 - [x] Redesenhar o relatório geral em apresentação 16:9 Conta Muito
 - [ ] Validar o PDF final em Dourados e em uma segunda empresa
+- [x] Comparar anos no mesmo gráfico e ampliar indicadores no PDF
+- [x] Substituir anexos tabulares pelo detalhamento visual de despesas

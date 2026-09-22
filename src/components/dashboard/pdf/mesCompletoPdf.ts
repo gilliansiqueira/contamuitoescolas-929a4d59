@@ -1,5 +1,4 @@
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
@@ -34,6 +33,7 @@ export interface MonthlyReportRow {
 }
 export interface ExpenseReportRow { mae: string; filha: string; valor: number }
 export interface ExpenseExcludedRow { date: string; description: string; account: string; value: number; reason: string }
+export interface ExpenseHistoryRow { category: string; year: string; months: (number | null)[] }
 export interface AnnualFinancialRow { year: string; months: (number | null)[] }
 export interface SalesReportRow { month: string; method: string; brand?: string; value: number }
 export interface LegacyKpiReportRow { month: string; lucratividade: number | null; inadimplencia: number | null; mediaAlunosTurma: number | null; alunosModalidade: number | null; evasao: number | null }
@@ -42,6 +42,7 @@ export interface ConversionThresholdReportRow { tipo: string; min: number | null
 export interface KpiReportRow {
   id: string; name: string; value: number | null; valueType: string; direction: 'higher_is_better' | 'lower_is_better'; decimals: number;
   status?: string; previousValue?: number | null; previousMonth?: string; variation?: number | null; history: { label: string; value: number }[];
+  thresholds: { min: number | null; max: number | null; label: string }[];
 }
 export interface ConversionReportRow { month: string; label: string; tipo: string; contatos: number; matriculas: number; taxa: number }
 export interface MesCompletoData {
@@ -50,6 +51,7 @@ export interface MesCompletoData {
   anterior?: { label: string; receitas: number; despesas: number; resultado: number; saldoFinal: number };
   monthly: MonthlyReportRow[]; annualRevenue: AnnualFinancialRow[]; annualExpenses: AnnualFinancialRow[];
   expenses: ExpenseReportRow[]; expenseDetailTotal: number; rawExpenseTotal: number; excludedExpenseRows: ExpenseExcludedRow[];
+  expenseHistory: ExpenseHistoryRow[];
   monthlyRevenue: { month: string; value: number }[]; expenseCeilings: ExpenseCeilingReportRow[]; sales: SalesReportRow[];
   legacyKpis: LegacyKpiReportRow[]; kpis: KpiReportRow[]; conversion: ConversionReportRow[];
   conversionThresholds: ConversionThresholdReportRow[]; enrollmentsYoY: { label: string; current: number; previous: number }[];
@@ -119,7 +121,7 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   };
   const lineChart = (series: { values: (number | null)[]; color: RGB }[], labels: string[], x: number, y: number, width: number, height: number, zeroBase = false) => {
     const points = series.flatMap(item => item.values).filter((value): value is number => value !== null);
-    if (points.length < 2 || labels.length < 2) return false;
+    if (!series.some(item => item.values.filter(value => value !== null).length >= 2) || points.length < 2 || labels.length < 2) return false;
     const min = zeroBase ? Math.min(0, ...points) : Math.min(...points);
     const max = Math.max(...points); const pad = Math.max((max - min) * .12, 1); const low = zeroBase ? min : min - pad; const high = max + pad; const span = high - low || 1;
     pdf.setDrawColor(...GRID); pdf.setLineWidth(.25);
@@ -137,38 +139,24 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     });
     return true;
   };
-  const darkTable = (title: string, subtitle: string, head: string[][], body: (string | number)[][], columnStyles: Record<number, object> = {}) => {
-    addPage(title, subtitle);
-    autoTable(pdf, {
-      startY: 43, head, body, theme: 'grid',
-      headStyles: { fillColor: ORANGE, textColor: WHITE, fontStyle: 'bold', fontSize: 7.4 },
-      bodyStyles: { fillColor: GRAPHITE_2, textColor: WHITE, lineColor: GRID, fontSize: 7, cellPadding: 2 },
-      alternateRowStyles: { fillColor: [43, 61, 69] }, margin: { left: MX, right: MX, top: 40, bottom: 14 }, columnStyles,
-      willDrawPage: hook => {
-        if (hook.pageNumber > 1) {
-          background();
-          text(title.toUpperCase(), MX, 22, 20, WHITE, 'bold');
-          pdf.setFillColor(...ORANGE); pdf.rect(MX, 28, PAGE_W - MX * 2, 1.5, 'F');
-        }
-      },
+  const legend = (items: { label: string; color: RGB }[], x: number, y: number) => {
+    items.forEach((item, index) => {
+      const xx = x + index * 34;
+      pdf.setDrawColor(...item.color); pdf.setLineWidth(1.2); pdf.line(xx, y, xx + 8, y);
+      text(item.label, xx + 11, y + 1.5, 7, MUTED);
     });
-    pageCount = pdf.getNumberOfPages();
   };
-  const annualPages = (title: string, rows: AnnualFinancialRow[]) => {
-    const validRows = rows.filter(row => row.months.filter(value => value !== null).length >= 2);
-    for (let offset = 0; offset < validRows.length; offset += 4) {
-      addPage(title, 'Comparação anual · meses sem informação permanecem vazios');
-      const pageRows = validRows.slice(offset, offset + 4);
-      pageRows.forEach((row, index) => {
-        const single = pageRows.length === 1;
-        const col = index % 2; const line = Math.floor(index / 2); const x = single ? MX : MX + col * 157; const y = 43 + line * 67;
-        const cardWidth = single ? PAGE_W - MX * 2 : 145; const cardHeight = single ? 105 : 57;
-        const values = row.months.filter((value): value is number => value !== null); const total = values.reduce((sum, value) => sum + value, 0);
-        pdf.setFillColor(...GRAPHITE_2); pdf.roundedRect(x, y, cardWidth, cardHeight, 2, 2, 'F');
-        text(row.year, x + 6, y + 10, 13, WHITE, 'bold'); text(`Total ${compactMoney(total)} · Média ${compactMoney(values.length ? total / values.length : 0)}`, x + 30, y + 10, 7, MUTED);
-        lineChart([{ values: row.months, color: index === pageRows.length - 1 ? ORANGE : TEAL }], MONTHS, x + 7, y + 18, cardWidth - 14, cardHeight - 28, true);
-      });
-    }
+  const annualComparisonPage = (title: string, rows: AnnualFinancialRow[]) => {
+    const validRows = rows.filter(row => row.months.filter(value => value !== null).length >= 2).slice(-2);
+    if (!validRows.length) return;
+    addPage(title, 'Comparativo mensal entre anos · meses sem informação permanecem vazios');
+    validRows.forEach((row, index) => {
+      const values = row.months.filter((value): value is number => value !== null);
+      const total = values.reduce((sum, value) => sum + value, 0);
+      metric(MX + index * 105, 43, 94, row.year, compactMoney(total), index === validRows.length - 1 ? ORANGE : TEAL, `Média mensal ${compactMoney(total / values.length)}`);
+    });
+    legend(validRows.map((row, index) => ({ label: row.year, color: index === validRows.length - 1 ? ORANGE : TEAL })), PAGE_W - 95, 58);
+    lineChart(validRows.map((row, index) => ({ values: row.months, color: index === validRows.length - 1 ? ORANGE : TEAL })), MONTHS, MX + 8, 88, PAGE_W - MX * 2 - 16, 64, true);
   };
 
   // Capa e conciliação principal
@@ -205,37 +193,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   text('PRINCIPAL PONTO DE ATENÇÃO', MX, 137, 10, ORANGE, 'bold');
   text(topExpense ? `${topExpense.mae} concentra ${fmtBRL(topExpense.valor)} no período.` : 'Não há despesas detalhadas conciliadas para o período.', MX, 150, 13, WHITE, 'bold');
 
-  annualPages('Evolução de receitas', data.annualRevenue);
-  annualPages('Evolução de despesas', data.annualExpenses);
-
-  addPage('Resultado e caixa', 'A diferença entre resultado e caixa está explicitada pelas operações');
-  if (!lineChart([
-    { values: data.monthly.map(row => row.resultado), color: ORANGE },
-    { values: data.monthly.map(row => row.saldoFinal), color: TEAL },
-  ], data.monthly.map(row => row.label), MX + 8, 53, 205, 75, true)) {
-    const row = data.monthly[data.monthly.length - 1];
-    metric(MX, 58, 92, 'Resultado do período', fmtBRL(row?.resultado ?? data.resultado), data.resultado >= 0 ? GREEN : PINK);
-    metric(MX + 104, 58, 92, 'Saldo de fechamento', fmtBRL(row?.saldoFinal ?? data.saldoFinal), data.saldoFinal >= 0 ? TEAL : PINK);
-  }
-  metric(246, 52, 72, 'Operações de entrada', fmtBRL(operationsIn), GREEN);
-  metric(246, 88, 72, 'Operações de saída', fmtBRL(operationsOut), PINK);
-  metric(246, 124, 72, 'Impacto líquido', fmtBRL(operationsIn - operationsOut), ORANGE);
-
-  const hasActualAndForecast = data.monthly.some(row => row.receitasRealizadas > 0 && row.receitasPrevistas > 0 || row.despesasRealizadas > 0 && row.despesasPrevistas > 0);
-  if (hasActualAndForecast) {
-    addPage('Realizado x previsto', 'Valores mantidos separados; nenhuma soma usa rótulo ambíguo');
-    const latest = data.monthly[data.monthly.length - 1];
-    metric(MX, 47, 68, 'Receita realizada', fmtBRL(latest.receitasRealizadas), GREEN);
-    metric(MX + 76, 47, 68, 'Receita prevista', fmtBRL(latest.receitasPrevistas), TEAL);
-    metric(MX + 152, 47, 68, 'Despesa realizada', fmtBRL(latest.despesasRealizadas), PINK);
-    metric(MX + 228, 47, 68, 'Despesa prevista', fmtBRL(latest.despesasPrevistas), ORANGE);
-    lineChart([
-      { values: data.monthly.map(row => row.receitasRealizadas), color: GREEN },
-      { values: data.monthly.map(row => row.receitasPrevistas), color: TEAL },
-      { values: data.monthly.map(row => row.despesasRealizadas), color: PINK },
-      { values: data.monthly.map(row => row.despesasPrevistas), color: ORANGE },
-    ], data.monthly.map(row => row.label), MX + 6, 95, PAGE_W - MX * 2 - 12, 55, true);
-  }
+  annualComparisonPage('Evolução de receitas', data.annualRevenue);
+  annualComparisonPage('Evolução de despesas', data.annualExpenses);
 
   const salesMethods = new Map<string, number>(); data.sales.forEach(row => salesMethods.set(row.method, (salesMethods.get(row.method) ?? 0) + row.value));
   if (data.porTipo.some(row => row.classificacao === 'receita') || salesMethods.size) {
@@ -256,27 +215,48 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     metric(MX + 198, 43, 88, 'Sobre faturamento', revenueTotal ? `${fmtNumber(data.expenseDetailTotal / revenueTotal * 100, 1)}%` : '—', ORANGE);
     bars(mothers.map((row, index) => ({ ...row, color: index === 0 ? ORANGE : TEAL })), MX, 87, PAGE_W - MX * 2, 7);
 
-    mothers.slice(0, 8).forEach(mother => {
+    mothers.forEach(mother => {
       const rows = data.expenses.filter(row => row.mae === mother.label).sort((a, b) => b.valor - a.valor);
-      addPage(`Despesas · ${mother.label}`, 'Principais subcategorias do período');
-      metric(MX, 43, 88, 'Total da categoria', fmtBRL(mother.value), PINK);
-      metric(MX + 99, 43, 88, 'Participação', data.expenseDetailTotal ? `${fmtNumber(mother.value / data.expenseDetailTotal * 100, 1)}%` : '—', ORANGE);
-      metric(MX + 198, 43, 88, 'Subcategorias', fmtNumber(rows.length), TEAL);
-      bars(rows.map(row => ({ label: row.filha, value: row.valor })), MX, 88, PAGE_W - MX * 2, 7);
+      const history = data.expenseHistory.filter(row => row.category === mother.label && row.months.some(value => value !== null)).slice(-2);
+      addPage(`Despesas · ${mother.label}`, 'Subcategorias do período e evolução mensal comparada');
+      metric(MX, 42, 88, 'Total da categoria', fmtBRL(mother.value), PINK);
+      metric(MX + 99, 42, 88, 'Participação', data.expenseDetailTotal ? `${fmtNumber(mother.value / data.expenseDetailTotal * 100, 1)}%` : '—', ORANGE);
+      metric(MX + 198, 42, 88, 'Maior gasto', rows[0] ? compactMoney(rows[0].valor) : '—', TEAL, rows[0]?.filha);
+      text('CATEGORIAS FILHAS', MX, 82, 9, ORANGE, 'bold');
+      bars(rows.map(row => ({ label: row.filha, value: row.valor, color: ORANGE })), MX, 94, 137, 6);
+      text('EVOLUÇÃO MENSAL · COMPARATIVO ANUAL', 178, 82, 9, ORANGE, 'bold');
+      if (history.length && lineChart(history.map((row, index) => ({ values: row.months, color: index === history.length - 1 ? ORANGE : MUTED })), MONTHS, 178, 98, 141, 52, true)) {
+        legend(history.map((row, index) => ({ label: row.year, color: index === history.length - 1 ? ORANGE : MUTED })), 247, 89);
+      } else {
+        text('Histórico anual insuficiente para comparação.', 178, 116, 9, MUTED);
+      }
     });
   }
 
   if (data.kpis.some(item => item.value !== null)) {
     const activeKpis = data.kpis.filter(item => item.value !== null);
-    for (let offset = 0; offset < activeKpis.length; offset += 8) {
-      addPage('Indicadores de gestão', 'Valor atual, faixa e leitura da evolução');
-      activeKpis.slice(offset, offset + 8).forEach((item, index) => {
-        const col = index % 4; const row = Math.floor(index / 4); const x = MX + col * 76; const y = 45 + row * 59;
+    for (let offset = 0; offset < activeKpis.length; offset += 3) {
+      addPage('Indicadores de gestão', 'Valor atual, comparação e histórico anual no mesmo padrão do relatório online');
+      activeKpis.slice(offset, offset + 3).forEach((item, index) => {
+        const x = MX + index * 101; const y = 43; const width = 92;
         const delta = item.value !== null && item.previousValue != null ? item.value - item.previousValue : null;
         const improved = delta === null ? null : item.direction === 'higher_is_better' ? delta > 0 : delta < 0;
-        const note = [item.status, delta === null ? '' : `${delta > 0 ? '↑' : delta < 0 ? '↓' : '→'} ${improved ? 'melhora' : delta === 0 ? 'estável' : 'atenção'} vs ${item.previousMonth ?? 'anterior'}`].filter(Boolean).join(' · ');
-        metric(x, y, 68, item.name, formatKpi(item.value, item.valueType, item.decimals), improved === false ? PINK : improved === true ? GREEN : TEAL, note);
-        if (item.history.length > 1) lineChart([{ values: item.history.slice(-6).map(point => point.value), color: ORANGE }], item.history.slice(-6).map(point => point.label.slice(5)), x + 2, y + 34, 64, 15, false);
+        const color = improved === false ? PINK : improved === true ? GREEN : TEAL;
+        pdf.setFillColor(...GRAPHITE_2); pdf.roundedRect(x, y, width, 118, 2, 2, 'F');
+        text(item.name.toUpperCase(), x + width / 2, y + 12, 9, MUTED, 'bold', { align: 'center', maxWidth: width - 10 });
+        text(formatKpi(item.value, item.valueType, item.decimals), x + width / 2, y + 28, 20, color, 'bold', { align: 'center' });
+        if (item.status) {
+          pdf.setFillColor(...color); pdf.roundedRect(x + width / 2 - 12, y + 33, 24, 7, 3, 3, 'F');
+          text(item.status, x + width / 2, y + 38, 6, WHITE, 'bold', { align: 'center' });
+        }
+        if (delta !== null) text(`${delta > 0 ? '↑' : delta < 0 ? '↓' : '→'} ${formatKpi(delta, item.valueType, item.decimals)} vs mês anterior · ${improved ? 'melhora' : delta === 0 ? 'estável' : 'atenção'}`, x + width / 2, y + 48, 6.5, color, 'bold', { align: 'center', maxWidth: width - 8 });
+        const years = Array.from(new Set(item.history.map(point => point.label.slice(0, 4)))).sort().slice(-2);
+        const series = years.map((year, yearIndex) => ({
+          values: MONTHS.map((_, monthIndex) => item.history.find(point => point.label === `${year}-${String(monthIndex + 1).padStart(2, '0')}`)?.value ?? null),
+          color: yearIndex === years.length - 1 ? TEAL : [67, 139, 246] as RGB,
+        }));
+        if (lineChart(series, MONTHS, x + 8, y + 65, width - 16, 35, false)) legend(years.map((year, yearIndex) => ({ label: year, color: yearIndex === years.length - 1 ? TEAL : [67, 139, 246] as RGB })), x + 18, y + 110);
+        else text('Histórico insuficiente', x + width / 2, y + 84, 7, MUTED, 'normal', { align: 'center' });
       });
     }
   }
@@ -292,12 +272,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     });
   }
 
-  annualPages('Matrículas por ano', data.annualEnrollments);
-  annualPages('Contatos por ano', data.annualContacts);
-
-  if (data.expenses.length) darkTable('Conferência de despesas', 'Categorias e subcategorias que compõem a despesa oficial', [['Categoria-mãe', 'Subcategoria', 'Valor', '%']], data.expenses.map(row => [row.mae, row.filha, fmtBRL(row.valor), data.expenseDetailTotal ? `${fmtNumber(row.valor / data.expenseDetailTotal * 100, 1)}%` : '—']), { 2: { halign: 'right' }, 3: { halign: 'right' } });
-  if (data.excludedExpenseRows.length) darkTable('Pendências de conciliação', `${fmtBRL(Math.abs(data.rawExpenseTotal - data.expenseDetailTotal))} de diferença entre o arquivo realizado e a despesa oficial; linhas sem correspondência inequívoca abaixo`, [['Data', 'Descrição', 'Conta', 'Valor', 'Motivo']], data.excludedExpenseRows.map(row => [row.date.split('-').reverse().join('/'), row.description, row.account, fmtBRL(row.value), row.reason]), { 3: { halign: 'right' } });
-  if (data.monthly.length) darkTable('Conferência financeira mensal', 'Valores preparados pelos motores financeiros oficiais', [['Mês', 'Fonte', 'Saldo inicial', 'Receitas', 'Despesas', 'Oper. entrada', 'Oper. saída', 'Resultado', 'Saldo final']], data.monthly.map(row => [row.label, row.source, fmtBRL(row.saldoInicial), fmtBRL(row.receitas), fmtBRL(row.despesas), fmtBRL(row.operacoesIn), fmtBRL(row.operacoesOut), fmtBRL(row.resultado), fmtBRL(row.saldoFinal)]), { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' } });
+  annualComparisonPage('Matrículas por ano', data.annualEnrollments);
+  annualComparisonPage('Contatos por ano', data.annualContacts);
 
   const totalPages = pdf.getNumberOfPages();
   for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
