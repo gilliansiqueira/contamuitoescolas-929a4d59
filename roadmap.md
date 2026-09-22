@@ -16,3 +16,5 @@
 - [x] Replicar no PDF a análise de despesas por categoria e categoria-mãe
 - [x] Exibir matrículas e contatos como quantidades, sem formato monetário
 - [ ] Criar e aprovar três direções visuais para acesso, área interna e ícone do app
+
+- [ ] Renovar somente a aparência do acesso, navegação, resumo e ícone; preservar integralmente dados, gráficos, páginas e cálculos atuais
