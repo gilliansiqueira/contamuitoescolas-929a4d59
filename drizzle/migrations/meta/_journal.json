@@ -29,6 +29,13 @@
       "when": 1790086896291,
       "tag": "0003_harden_templates_icons_roles_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790104673980,
+      "tag": "0004_schools_policies_authenticated_only",
+      "breakpoints": true
     }
   ]
 }
