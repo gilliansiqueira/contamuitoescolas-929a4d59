@@ -50,12 +50,13 @@ export interface MesCompletoData {
   porTipo: { label: string; valor: number; classificacao: string }[]; recebiveis: MesCompletoRow[]; contasPagar: MesCompletoRow[];
   anterior?: { label: string; receitas: number; despesas: number; resultado: number; saldoFinal: number };
   monthly: MonthlyReportRow[]; annualRevenue: AnnualFinancialRow[]; annualExpenses: AnnualFinancialRow[];
-  expenses: ExpenseReportRow[]; expenseDetailTotal: number; rawExpenseTotal: number; excludedExpenseRows: ExpenseExcludedRow[];
+  expenses: ExpenseReportRow[]; expenseDetailTotal: number; analysisExpenses: ExpenseReportRow[]; analysisExpenseTotal: number;
+  rawExpenseTotal: number; excludedExpenseRows: ExpenseExcludedRow[];
   expenseHistory: ExpenseHistoryRow[];
   monthlyRevenue: { month: string; value: number }[]; expenseCeilings: ExpenseCeilingReportRow[]; sales: SalesReportRow[];
   legacyKpis: LegacyKpiReportRow[]; kpis: KpiReportRow[]; conversion: ConversionReportRow[];
   conversionThresholds: ConversionThresholdReportRow[]; enrollmentsYoY: { label: string; current: number; previous: number }[];
-  annualEnrollments: AnnualFinancialRow[]; annualContacts: AnnualFinancialRow[]; currentYear: string; previousYear: string;
+  annualEnrollments: AnnualFinancialRow[]; annualContacts: AnnualFinancialRow[]; currentYear: string; previousYear: string; referenceMonth: string;
   sources: string[]; fileName?: string;
 }
 
@@ -119,6 +120,27 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       pdf.setFillColor(...(row.color ?? TEAL)); pdf.roundedRect(x, yy + 3, Math.max(1, width * row.value / max), 3.5, 1.5, 1.5, 'F');
     });
   };
+  const horizontalBars = (
+    items: { label: string; value: number; detail?: string; color?: RGB }[],
+    x: number, y: number, width: number, height: number,
+  ) => {
+    const rows = items.filter(item => item.value > 0);
+    if (!rows.length) return;
+    const max = Math.max(...rows.map(row => row.value), 1);
+    const labelWidth = Math.min(70, width * .27);
+    const valueWidth = 43;
+    const barWidth = width - labelWidth - valueWidth;
+    const rowHeight = Math.min(13, height / rows.length);
+    rows.forEach((row, index) => {
+      const yy = y + index * rowHeight + rowHeight * .5;
+      const fontSize = rows.length > 10 ? 6.2 : 7.2;
+      text(row.label.slice(0, 38), x + labelWidth - 3, yy + 1.5, fontSize, WHITE, 'bold', { align: 'right', maxWidth: labelWidth - 4 });
+      pdf.setFillColor(...GRID); pdf.roundedRect(x + labelWidth, yy - 2.3, barWidth, 4.6, 1.7, 1.7, 'F');
+      pdf.setFillColor(...(row.color ?? ORANGE));
+      pdf.roundedRect(x + labelWidth, yy - 2.3, Math.max(1.2, barWidth * row.value / max), 4.6, 1.7, 1.7, 'F');
+      text(row.detail ?? fmtBRL(row.value), x + labelWidth + barWidth + 4, yy + 1.5, fontSize, MUTED, 'bold', { maxWidth: valueWidth - 4 });
+    });
+  };
   const lineChart = (series: { values: (number | null)[]; color: RGB }[], labels: string[], x: number, y: number, width: number, height: number, zeroBase = false) => {
     const points = series.flatMap(item => item.values).filter((value): value is number => value !== null);
     if (!series.some(item => item.values.filter(value => value !== null).length >= 2) || points.length < 2 || labels.length < 2) return false;
@@ -146,14 +168,16 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       text(item.label, xx + 11, y + 1.5, 7, MUTED);
     });
   };
-  const annualComparisonPage = (title: string, rows: AnnualFinancialRow[]) => {
+  const annualComparisonPage = (title: string, rows: AnnualFinancialRow[], valueKind: 'money' | 'count' = 'money') => {
     const validRows = rows.filter(row => row.months.filter(value => value !== null).length >= 2).slice(-2);
     if (!validRows.length) return;
     addPage(title, 'Comparativo mensal entre anos · meses sem informação permanecem vazios');
     validRows.forEach((row, index) => {
       const values = row.months.filter((value): value is number => value !== null);
       const total = values.reduce((sum, value) => sum + value, 0);
-      metric(MX + index * 105, 43, 94, row.year, compactMoney(total), index === validRows.length - 1 ? ORANGE : TEAL, `Média mensal ${compactMoney(total / values.length)}`);
+      const value = valueKind === 'money' ? compactMoney(total) : fmtNumber(total);
+      const average = valueKind === 'money' ? compactMoney(total / values.length) : fmtNumber(total / values.length, 1);
+      metric(MX + index * 105, 43, 94, row.year, value, index === validRows.length - 1 ? ORANGE : TEAL, `Média mensal ${average}`);
     });
     legend(validRows.map((row, index) => ({ label: row.year, color: index === validRows.length - 1 ? ORANGE : TEAL })), PAGE_W - 95, 58);
     lineChart(validRows.map((row, index) => ({ values: row.months, color: index === validRows.length - 1 ? ORANGE : TEAL })), MONTHS, MX + 8, 88, PAGE_W - MX * 2 - 16, 64, true);
@@ -189,46 +213,53 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     text('COMPARAÇÃO COM O PERÍODO ANTERIOR', MX, 98, 10, ORANGE, 'bold');
     text(`${data.anterior.label}: resultado ${fmtBRL(data.anterior.resultado)}. Variação atual: ${delta >= 0 ? '+' : ''}${fmtBRL(delta)}.`, MX, 111, 13, WHITE, 'bold');
   }
-  const topExpense = [...data.expenses].sort((a, b) => b.valor - a.valor)[0];
+  const topExpense = [...(data.analysisExpenses.length ? data.analysisExpenses : data.expenses)].sort((a, b) => b.valor - a.valor)[0];
   text('PRINCIPAL PONTO DE ATENÇÃO', MX, 137, 10, ORANGE, 'bold');
   text(topExpense ? `${topExpense.mae} concentra ${fmtBRL(topExpense.valor)} no período.` : 'Não há despesas detalhadas conciliadas para o período.', MX, 150, 13, WHITE, 'bold');
 
   annualComparisonPage('Evolução de receitas', data.annualRevenue);
-  annualComparisonPage('Evolução de despesas', data.annualExpenses);
 
-  const salesMethods = new Map<string, number>(); data.sales.forEach(row => salesMethods.set(row.method, (salesMethods.get(row.method) ?? 0) + row.value));
-  if (data.porTipo.some(row => row.classificacao === 'receita') || salesMethods.size) {
-    addPage('Receitas recebidas e vendas', 'São medidas distintas e não são somadas entre si');
-    text('RECEITAS RECEBIDAS POR TIPO', MX, 47, 10, ORANGE, 'bold');
-    bars(data.porTipo.filter(row => row.classificacao === 'receita').map(row => ({ label: row.label, value: row.valor, color: GREEN })).sort((a, b) => b.value - a.value), MX, 60, 138, 7);
-    text('VENDAS POR MEIO DE PAGAMENTO', 181, 47, 10, ORANGE, 'bold');
-    bars([...salesMethods.entries()].map(([label, value]) => ({ label, value, color: TEAL })).sort((a, b) => b.value - a.value), 181, 60, 138, 7);
-  }
-
-  const motherMap = new Map<string, number>(); data.expenses.forEach(row => motherMap.set(row.mae, (motherMap.get(row.mae) ?? 0) + row.valor));
+  const analysisExpenses = data.analysisExpenses.length ? data.analysisExpenses : data.expenses;
+  const analysisTotal = data.analysisExpenseTotal || data.expenseDetailTotal;
+  const motherMap = new Map<string, number>(); analysisExpenses.forEach(row => motherMap.set(row.mae, (motherMap.get(row.mae) ?? 0) + row.valor));
   const mothers = [...motherMap.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
   const revenueTotal = data.monthlyRevenue.filter(row => data.monthly.some(month => month.month === row.month)).reduce((sum, row) => sum + row.value, 0);
   if (mothers.length) {
-    addPage('Saídas por categoria', 'Detalhamento conciliado com a despesa oficial do relatório');
-    metric(MX, 43, 88, 'Despesa oficial', fmtBRL(data.despesas), PINK);
-    metric(MX + 99, 43, 88, 'Detalhamento conciliado', fmtBRL(data.expenseDetailTotal), TEAL);
-    metric(MX + 198, 43, 88, 'Sobre faturamento', revenueTotal ? `${fmtNumber(data.expenseDetailTotal / revenueTotal * 100, 1)}%` : '—', ORANGE);
-    bars(mothers.map((row, index) => ({ ...row, color: index === 0 ? ORANGE : TEAL })), MX, 87, PAGE_W - MX * 2, 7);
+    addPage('Despesas por categoria', `Análise das despesas realizadas · faturamento ${fmtBRL(revenueTotal)}`);
+    metric(MX, 41, 88, 'Despesas analisadas', fmtBRL(analysisTotal), PINK);
+    metric(MX + 99, 41, 88, 'Faturamento', revenueTotal ? fmtBRL(revenueTotal) : '—', TEAL);
+    metric(MX + 198, 41, 88, 'Margem consumida', revenueTotal ? `${fmtNumber(analysisTotal / revenueTotal * 100, 1)}%` : '—', ORANGE);
+    horizontalBars(
+      [...mothers].sort((a, b) => a.value - b.value).map(row => {
+        const pct = revenueTotal ? row.value / revenueTotal * 100 : 0;
+        return { ...row, detail: revenueTotal ? `${fmtBRL(row.value)}  (${fmtNumber(pct, 1)}%)` : fmtBRL(row.value), color: pct > 30 ? PINK : ORANGE };
+      }),
+      MX, 78, PAGE_W - MX * 2, 82,
+    );
 
     mothers.forEach(mother => {
-      const rows = data.expenses.filter(row => row.mae === mother.label).sort((a, b) => b.valor - a.valor);
-      const history = data.expenseHistory.filter(row => row.category === mother.label && row.months.some(value => value !== null)).slice(-2);
-      addPage(`Despesas · ${mother.label}`, 'Subcategorias do período e evolução mensal comparada');
-      metric(MX, 42, 88, 'Total da categoria', fmtBRL(mother.value), PINK);
-      metric(MX + 99, 42, 88, 'Participação', data.expenseDetailTotal ? `${fmtNumber(mother.value / data.expenseDetailTotal * 100, 1)}%` : '—', ORANGE);
-      metric(MX + 198, 42, 88, 'Maior gasto', rows[0] ? compactMoney(rows[0].valor) : '—', TEAL, rows[0]?.filha);
-      text('CATEGORIAS FILHAS', MX, 82, 9, ORANGE, 'bold');
-      bars(rows.map(row => ({ label: row.filha, value: row.valor, color: ORANGE })), MX, 94, 137, 6);
-      text('EVOLUÇÃO MENSAL · COMPARATIVO ANUAL', 178, 82, 9, ORANGE, 'bold');
-      if (history.length && lineChart(history.map((row, index) => ({ values: row.months, color: index === history.length - 1 ? ORANGE : MUTED })), MONTHS, 178, 98, 141, 52, true)) {
-        legend(history.map((row, index) => ({ label: row.year, color: index === history.length - 1 ? ORANGE : MUTED })), 247, 89);
+      const rows = analysisExpenses.filter(row => row.mae === mother.label).sort((a, b) => a.valor - b.valor);
+      const history = data.expenseHistory.filter(row => row.category === mother.label && row.months.some(value => value !== null)).sort((a, b) => a.year.localeCompare(b.year)).slice(-2);
+      const current = history.find(row => row.year === data.currentYear);
+      const previous = history.find(row => row.year === data.previousYear);
+      const cutoff = Math.max(0, Math.min(11, Number(data.referenceMonth.slice(5, 7)) - 1));
+      const accumulated = (row?: ExpenseHistoryRow) => row?.months.slice(0, cutoff + 1).reduce<number>((sum, value) => sum + (value ?? 0), 0) ?? 0;
+      const currentAccumulated = accumulated(current);
+      const previousAccumulated = accumulated(previous);
+      const delta = previousAccumulated ? (currentAccumulated - previousAccumulated) / previousAccumulated * 100 : null;
+      const largest = [...rows].sort((a, b) => b.valor - a.valor)[0];
+      addPage(mother.label, largest ? `Maior gasto: ${largest.filha} (${fmtBRL(largest.valor)})` : 'Análise da categoria');
+      metric(MX, 40, 69, 'Total da categoria', fmtBRL(mother.value), PINK);
+      metric(MX + 77, 40, 69, 'Participação', analysisTotal ? `${fmtNumber(mother.value / analysisTotal * 100, 1)}%` : '—', ORANGE);
+      metric(MX + 154, 40, 69, 'Do faturamento', revenueTotal ? `${fmtNumber(mother.value / revenueTotal * 100, 1)}%` : '—', TEAL);
+      metric(MX + 231, 40, 70, `Acumulado ${data.currentYear}`, fmtBRL(currentAccumulated), delta === null || delta <= 0 ? GREEN : PINK, delta === null ? `Sem histórico de ${data.previousYear}` : `vs ${data.previousYear}: ${delta > 0 ? '+' : ''}${fmtNumber(delta, 1)}%`);
+      text('CATEGORIAS FILHAS', MX, 76, 8.5, MUTED, 'bold');
+      horizontalBars(rows.map(row => ({ label: row.filha, value: row.valor, color: ORANGE })), MX, 82, PAGE_W - MX * 2, 48);
+      text('EVOLUÇÃO MENSAL · COMPARATIVO ANUAL', MX, 138, 8.5, WHITE, 'bold');
+      if (history.length && lineChart(history.map(row => ({ values: row.months, color: row.year === data.currentYear ? ORANGE : MUTED })), MONTHS, MX + 20, 144, PAGE_W - MX * 2 - 32, 24, true)) {
+        legend(history.map(row => ({ label: row.year, color: row.year === data.currentYear ? ORANGE : MUTED })), PAGE_W - 92, 137);
       } else {
-        text('Histórico anual insuficiente para comparação.', 178, 116, 9, MUTED);
+        text('Histórico anual insuficiente para comparação.', MX, 153, 9, MUTED);
       }
     });
   }
@@ -272,8 +303,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     });
   }
 
-  annualComparisonPage('Matrículas por ano', data.annualEnrollments);
-  annualComparisonPage('Contatos por ano', data.annualContacts);
+  annualComparisonPage('Matrículas por ano', data.annualEnrollments, 'count');
+  annualComparisonPage('Contatos por ano', data.annualContacts, 'count');
 
   const totalPages = pdf.getNumberOfPages();
   for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {

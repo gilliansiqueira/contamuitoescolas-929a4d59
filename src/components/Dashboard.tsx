@@ -772,6 +772,25 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       });
     const expenses = Array.from(expenseMap.values()).sort((a, b) => b.valor - a.valor);
     const expenseDetailTotal = expenses.reduce((sum, row) => sum + row.valor, 0);
+    // Mesma composição exibida em Relatório Realizado > Análise de Despesas:
+    // todos os lançamentos realizados do período, agrupados pelo grupo da conta.
+    const analysisExpenseMap = new Map<string, { mae: string; filha: string; valor: number }>();
+    reportRealizedEntries
+      .filter((entry: any) => selectedMonths.includes(String(entry.data).slice(0, 7)) && entry.tipo === 'despesa')
+      .forEach((entry: any) => {
+        const account: any = entry.conta_id
+          ? accountMap.get(entry.conta_id)
+          : accountByName.get(normalizeTipo(entry.conta_nome || ''));
+        const parent: any = account?.pai_id ? accountMap.get(account.pai_id) : null;
+        const mae = parent?.nome || account?.grupo || 'Outros';
+        const filha = parent ? account.nome : (account?.nome || entry.conta_nome || 'Sem categoria');
+        const key = `${mae}||${filha}`;
+        const current = analysisExpenseMap.get(key) ?? { mae, filha, valor: 0 };
+        current.valor += Math.abs(Number(entry.valor) || 0);
+        analysisExpenseMap.set(key, current);
+      });
+    const analysisExpenses = Array.from(analysisExpenseMap.values()).sort((a, b) => b.valor - a.valor);
+    const analysisExpenseTotal = analysisExpenses.reduce((sum, row) => sum + row.valor, 0);
     const rawExpenseTotal = reportRealizedEntries
       .filter((entry: any) => selectedMonths.includes(String(entry.data).slice(0, 7)) && entry.tipo === 'despesa')
       .reduce((sum: number, entry: any) => sum + Math.abs(Number(entry.valor) || 0), 0);
@@ -905,6 +924,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       annualExpenses: buildAnnual('despesas'),
       expenses,
       expenseDetailTotal,
+      analysisExpenses,
+      analysisExpenseTotal,
       rawExpenseTotal,
       excludedExpenseRows,
       expenseHistory,
@@ -932,6 +953,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       })),
       currentYear,
       previousYear,
+      referenceMonth: finalSelectedMonth,
       sources: Array.from(new Set(monthly.map(row => row.source))),
       fileName: `relatorio-geral-${selectedMonths[0] || 'periodo'}-${selectedMonths[selectedMonths.length - 1] || 'completo'}`,
     };
