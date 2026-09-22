@@ -42,7 +42,9 @@ export default function AuthPage() {
       <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1440px] overflow-hidden rounded-lg border border-border/70 bg-card shadow-xl sm:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.08fr_0.92fr]">
         <section className="auth-report-visual relative hidden overflow-hidden bg-foreground px-10 py-10 text-background lg:flex lg:flex-col lg:justify-between xl:px-16 xl:py-14">
           <div className="relative z-10">
-            <img src={contaMuitoLogo} alt="Conta Muito" className="h-16 w-auto object-contain brightness-0 invert" />
+            <div className="inline-flex w-fit rounded-md bg-background px-4 py-3">
+              <img src={contaMuitoLogo} alt="Conta Muito" className="h-14 w-auto object-contain" />
+            </div>
           </div>
 
           <motion.div
