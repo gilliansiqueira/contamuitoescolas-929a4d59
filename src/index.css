@@ -2,7 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('./assets/InstrumentSerif-Regular.ttf') format('truetype');
+  font-display: swap;
+}
 
 @layer base {
   :root {
@@ -25,7 +29,7 @@
     --border: 210 15% 88%;
     --input: 210 15% 88%;
     --ring: 174 55% 40%;
-    --radius: 0.75rem;
+    --radius: 0.5rem;
     --sidebar-background: 180 10% 95%;
     --sidebar-foreground: 210 25% 15%;
     --sidebar-primary: 26 87% 54%;
@@ -65,7 +69,7 @@
     --border: 200 20% 30%;
     --input: 200 20% 30%;
     --ring: 174 55% 40%;
-    --radius: 0.75rem;
+    --radius: 0.5rem;
     --sidebar-background: 200 20% 21%;
     --sidebar-foreground: 0 0% 95%;
     --sidebar-primary: 26 87% 54%;
@@ -96,6 +100,64 @@
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-editorial {
+    font-family: 'Instrument Serif', Georgia, serif;
+    letter-spacing: 0;
+  }
+
+  .auth-report-visual::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.38;
+    background-image:
+      linear-gradient(hsl(var(--background) / 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--background) / 0.07) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  .auth-bars span {
+    display: block;
+    width: 28px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .auth-chart-grid {
+    stroke: hsl(var(--background) / 0.15);
+    stroke-width: 1;
+  }
+
+  .auth-chart-line {
+    fill: none;
+    stroke: hsl(var(--primary));
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .app-shell-header {
+    box-shadow: 0 1px 0 hsl(var(--border)), 0 10px 30px hsl(var(--foreground) / 0.04);
+  }
+
+  .app-module-rail {
+    background: hsl(var(--foreground));
+    color: hsl(var(--background));
+  }
+
+  .app-module-rail .app-module-button-inactive {
+    color: hsl(var(--background) / 0.65);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-report *, .auth-report *::before, .auth-report *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
