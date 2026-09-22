@@ -22,6 +22,13 @@
       "when": 1790023368705,
       "tag": "0002_add_available_financial_months_function",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790086896291,
+      "tag": "0003_harden_templates_icons_roles_functions",
+      "breakpoints": true
     }
   ]
 }
