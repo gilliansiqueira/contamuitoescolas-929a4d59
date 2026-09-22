@@ -109,34 +109,30 @@
     letter-spacing: 0;
   }
 
-  .auth-report-visual::before {
-    content: '';
+  .auth-orb {
     position: absolute;
-    inset: 0;
-    opacity: 0.28;
-    background-image:
-      linear-gradient(hsl(var(--foreground) / 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--foreground) / 0.1) 1px, transparent 1px);
-    background-size: 56px 56px;
+    width: 25rem;
+    height: 25rem;
+    border-radius: 9999px;
+    pointer-events: none;
   }
 
-  .auth-bars span {
-    display: block;
-    width: 28px;
-    border-radius: 3px 3px 0 0;
+  .auth-orb-top {
+    right: -9rem;
+    top: -13rem;
+    background: hsl(var(--secondary) / 0.13);
+    box-shadow: -8rem 5rem 0 hsl(var(--secondary) / 0.07);
   }
 
-  .auth-chart-grid {
-    stroke: hsl(var(--foreground) / 0.2);
-    stroke-width: 1;
+  .auth-orb-bottom {
+    left: -13rem;
+    bottom: -16rem;
+    background: hsl(var(--primary) / 0.11);
+    box-shadow: 8rem 5rem 0 hsl(var(--primary) / 0.07);
   }
 
-  .auth-chart-line {
-    fill: none;
-    stroke: hsl(var(--foreground));
-    stroke-width: 4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  .auth-main-logo {
+    filter: saturate(1.08) contrast(1.03);
   }
 
   .app-shell-header {
