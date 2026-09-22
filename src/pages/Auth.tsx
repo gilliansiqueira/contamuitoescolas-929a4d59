@@ -167,7 +167,14 @@ export default function AuthPage() {
             </form>
 
             <div className="mt-7 border-t border-border pt-5 text-center">
-              <span className="text-xs text-muted-foreground">Não possui acesso? Fale com o administrador.</span>
+              <a
+                href="https://form.respondi.app/jshTVcft"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                Não possui acesso? Fale com o administrador.
+              </a>
             </div>
           </motion.div>
         </section>
