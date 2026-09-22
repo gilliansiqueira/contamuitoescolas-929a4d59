@@ -155,15 +155,18 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     pageCount = pdf.getNumberOfPages();
   };
   const annualPages = (title: string, rows: AnnualFinancialRow[]) => {
-    const validRows = rows.filter(row => row.months.some(value => value !== null));
+    const validRows = rows.filter(row => row.months.filter(value => value !== null).length >= 2);
     for (let offset = 0; offset < validRows.length; offset += 4) {
       addPage(title, 'Comparação anual · meses sem informação permanecem vazios');
-      validRows.slice(offset, offset + 4).forEach((row, index) => {
-        const col = index % 2; const line = Math.floor(index / 2); const x = MX + col * 157; const y = 43 + line * 67;
+      const pageRows = validRows.slice(offset, offset + 4);
+      pageRows.forEach((row, index) => {
+        const single = pageRows.length === 1;
+        const col = index % 2; const line = Math.floor(index / 2); const x = single ? MX : MX + col * 157; const y = 43 + line * 67;
+        const cardWidth = single ? PAGE_W - MX * 2 : 145; const cardHeight = single ? 105 : 57;
         const values = row.months.filter((value): value is number => value !== null); const total = values.reduce((sum, value) => sum + value, 0);
-        pdf.setFillColor(...GRAPHITE_2); pdf.roundedRect(x, y, 145, 57, 2, 2, 'F');
+        pdf.setFillColor(...GRAPHITE_2); pdf.roundedRect(x, y, cardWidth, cardHeight, 2, 2, 'F');
         text(row.year, x + 6, y + 10, 13, WHITE, 'bold'); text(`Total ${compactMoney(total)} · Média ${compactMoney(values.length ? total / values.length : 0)}`, x + 30, y + 10, 7, MUTED);
-        lineChart([{ values: row.months, color: index === validRows.slice(offset, offset + 4).length - 1 ? ORANGE : TEAL }], MONTHS, x + 7, y + 18, 131, 29, true);
+        lineChart([{ values: row.months, color: index === pageRows.length - 1 ? ORANGE : TEAL }], MONTHS, x + 7, y + 18, cardWidth - 14, cardHeight - 28, true);
       });
     }
   };
