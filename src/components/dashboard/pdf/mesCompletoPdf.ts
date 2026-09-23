@@ -41,9 +41,11 @@ export interface ExpenseCeilingReportRow { category: string; ceiling: number; sc
 export interface ConversionThresholdReportRow { tipo: string; min: number | null; max: number | null; label: string }
 export interface KpiReportRow {
   id: string; name: string; value: number | null; valueType: string; direction: 'higher_is_better' | 'lower_is_better'; decimals: number;
-  status?: string; previousValue?: number | null; previousMonth?: string; variation?: number | null; history: { label: string; value: number }[];
+  status?: string; statusColor?: string; previousValue?: number | null; previousMonth?: string; variation?: number | null; history: { label: string; value: number }[];
+  yoy?: { avgCurrent: number; avgPrevious: number; delta: number; relPct: number | null; improvement: boolean; previousYear: string; monthLabel: string } | null;
   thresholds: { min: number | null; max: number | null; label: string }[];
 }
+
 export interface ConversionReportRow { month: string; label: string; tipo: string; contatos: number; matriculas: number; taxa: number }
 export interface MesCompletoData {
   schoolName: string; periodoLabel: string; saldoInicial: number; saldoFinal: number; receitas: number; despesas: number; resultado: number;
