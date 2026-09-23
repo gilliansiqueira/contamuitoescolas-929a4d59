@@ -352,8 +352,9 @@ export function buildMonthMovement(
     if (valor === 0) continue;
     const isRealizado = (e as any).tipoRegistro === 'realizado';
 
-    // Origens nativas de upload: classificação fixa pelo tipo, bucket próprio.
-    if (ORIGENS_NATIVAS.has(e.origem)) {
+    // Origens nativas de upload: classificação fixa pelo tipo, bucket próprio —
+    // exceto categorias que são exatamente Operações (seguem o caminho abaixo).
+    if (ORIGENS_NATIVAS.has(e.origem) && !resolveNativeOperationRule(e.categoria, ctx.classifications)) {
       const isEntrada = e.tipo === 'entrada';
       const cls: Classificacao = isEntrada ? 'receita' : 'despesa';
       const sinal: Sinal = isEntrada ? 'somar' : 'subtrair';
