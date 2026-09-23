@@ -41,6 +41,7 @@ const App = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
+              <UpdateBanner />
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />
