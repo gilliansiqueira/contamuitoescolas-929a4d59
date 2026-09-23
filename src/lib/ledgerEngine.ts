@@ -207,14 +207,52 @@ function defaultRuleForTipo(tipo: 'entrada' | 'saida'): LedgerRule {
     : { impactaCaixa: true, entraNoResultado: true, operacaoSinal: 'subtrair' };
 }
 
+/**
+ * Normaliza o nome de categoria de uploads nativos para comparação exata:
+ * remove código contábil inicial ("8.01 ") e marcadores finais ("*", "(*)", "(DL)").
+ * Não faz busca por "contém" — nomes diferentes continuam sem classificação.
+ */
+export function normalizeNativeCategoria(s: string): string {
+  return normalizeTipo(s)
+    .replace(/^\d+(\.\d+)*\s+/, '')
+    .replace(/\s*\((\*|dl)\)\s*$/, '')
+    .replace(/\s*\*+\s*$/, '')
+    .trim();
+}
+
+/**
+ * Para uploads nativos: quando a categoria corresponde EXATAMENTE a um tipo
+ * classificado como Operação (impacta caixa, fora do resultado), retorna essa
+ * regra. Caso contrário, undefined (mantém receita/despesa pelo tipo nativo).
+ * "Ignorar" nunca é aplicado a uploads nativos.
+ */
+export function resolveNativeOperationRule(
+  categoria: string | undefined,
+  classifications: TypeClassification[]
+): LedgerRule | undefined {
+  if (!categoria) return undefined;
+  const keys = Array.from(new Set([normalizeTipo(categoria), normalizeNativeCategoria(categoria)])).filter(Boolean);
+  for (const key of keys) {
+    const rule = resolveLedgerRule(key, classifications);
+    if (rule.unclassified) continue;
+    if (rule.impactaCaixa && !rule.entraNoResultado) {
+      return { ...rule, label: rule.label && normalizeTipo(rule.label) !== key ? rule.label : categoria.trim() };
+    }
+    return undefined;
+  }
+  return undefined;
+}
+
 export function resolveEntryLedgerRule(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): LedgerRule {
-  // Origens projetadas (sponte, cheque, cartao, contas_pagar) sempre usam
-  // o default por tipo — a classificação do usuário só se aplica ao Realizado
-  // e ao Histórico Financeiro digitado.
+  // Origens projetadas (sponte, cheque, cartao, contas_pagar) usam o tipo
+  // nativo — exceto quando a categoria é exatamente uma Operação (empréstimo,
+  // distribuição de lucros, aplicação...), que nunca entra em Despesa/Receita.
   if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
+    const op = resolveNativeOperationRule(entry.categoria, classifications);
+    if (op) return op;
     return defaultRuleForTipo(entry.tipo);
   }
   const rule = resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
