@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useIsFetching } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { FinancialEntry, TypeClassification } from '@/types/financial';
 import { useSchool, useTypeClassifications, usePaymentDelayRules } from '@/hooks/useFinancialData';
@@ -82,7 +82,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { data: delayRules = [] } = usePaymentDelayRules(schoolId);
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
   const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
-  const { ctx: movementCtx } = usePeriodMovementCtx(schoolId);
+  const { ctx: movementCtx, isLoading: movementLoading } = usePeriodMovementCtx(schoolId);
+  // O PDF só pode ser gerado quando TODOS os dados da tela terminaram de
+  // carregar; caso contrário ele sairia com meses/operações parciais.
+  const fetchingCount = useIsFetching();
+  const reportDataReady = !!school && !movementLoading && fetchingCount === 0;
   const [showInsights, setShowInsights] = useState(true);
 
   const activeEntries = useMemo(
@@ -1009,7 +1013,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   return (
     <div className="space-y-3 sm:space-y-6" ref={exportRef}>
       <div className="flex flex-wrap items-center justify-end gap-2" data-export-hide>
-        <ExportMesCompletoPdf buildData={buildMesCompletoData} />
+        <ExportMesCompletoPdf buildData={buildMesCompletoData} ready={reportDataReady} />
         <ResumoMensalImagem schoolId={schoolId} selectedMonth={selectedMonth} />
         <ExportProjecaoPdf targetRef={exportRef} fileName={`projecao-${selectedMonth === 'all' ? 'periodo' : selectedMonth.replace(/,/g, '_')}`} />
 
