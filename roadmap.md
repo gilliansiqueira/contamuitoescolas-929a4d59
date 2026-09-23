@@ -7,10 +7,10 @@
 - [x] Carregar telas e relatórios pesados somente quando forem abertos
 - [x] Evitar atualizações e leituras repetidas durante a navegação
 - [x] Reduzir os dados buscados ao período selecionado sem alterar a SSOT
-- [ ] Validar desempenho e igualdade dos resultados financeiros
+- [x] Validar desempenho e igualdade dos resultados financeiros
 - [x] Conciliar despesas oficiais e detalhadas no relatório geral
 - [x] Redesenhar o relatório geral em apresentação 16:9 Conta Muito
-- [ ] Validar o PDF final em Dourados e em uma segunda empresa
+- [ ] Validar o PDF final em Dourados e em uma segunda empresa — bloqueado por falta de sessão autorizada para gerar os PDFs reais
 - [x] Comparar anos no mesmo gráfico e ampliar indicadores no PDF
 - [x] Substituir anexos tabulares pelo detalhamento visual de despesas
 - [x] Replicar no PDF a análise de despesas por categoria e categoria-mãe
@@ -20,4 +20,4 @@
 - [x] Renovar somente a aparência do acesso, navegação e ícone; preservar integralmente dados, gráficos, páginas e cálculos atuais
 - [x] Reproduzir a referência final da página de acesso com indicadores ilustrativos em movimento
 - [x] Corrigir resumo, operações, séries anuais e totais Jan–mês do PDF geral
-- [ ] Validar os valores finais do PDF de Dourados/agosto de 2026 e de uma segunda empresa
+- [ ] Validar os valores finais do PDF de Dourados/agosto de 2026 e de uma segunda empresa — bloqueado por falta de sessão autorizada
