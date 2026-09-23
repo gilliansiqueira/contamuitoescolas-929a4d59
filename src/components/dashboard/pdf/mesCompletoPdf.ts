@@ -317,12 +317,12 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
           text(item.status, x + width / 2, y + 34.6, 6, GRAPHITE, 'bold', { align: 'center' });
         }
         if (delta !== null) {
-          text(`${improved ? '↑' : delta === 0 ? '→' : '↓'} ${formatKpi(delta, item.valueType, item.decimals)} vs mês anterior`, x + width / 2, y + 45, 6.8, deltaColor, 'bold', { align: 'center', maxWidth: width - 8 });
+          text(`${delta > 0 ? '+' : ''}${formatKpi(delta, item.valueType, item.decimals)} vs mês anterior · ${improved ? 'melhora' : delta === 0 ? 'estável' : 'atenção'}`, x + width / 2, y + 45, 6.8, deltaColor, 'bold', { align: 'center', maxWidth: width - 8 });
         }
         if (item.yoy) {
           const yoyColor = item.yoy.improvement ? GREEN : PINK;
           const relative = item.yoy.relPct === null ? '' : ` (${item.yoy.relPct > 0 ? '+' : ''}${fmtNumber(item.yoy.relPct, 1)}%)`;
-          text(`${item.yoy.improvement ? '↑' : '↓'} ${item.yoy.delta > 0 ? '+' : ''}${formatKpi(item.yoy.delta, item.valueType, item.decimals)}${relative} vs ${item.yoy.previousYear}`, x + width / 2, y + 52, 6.8, yoyColor, 'bold', { align: 'center', maxWidth: width - 8 });
+          text(`${item.yoy.delta > 0 ? '+' : ''}${formatKpi(item.yoy.delta, item.valueType, item.decimals)}${relative} vs ${item.yoy.previousYear}`, x + width / 2, y + 52, 6.8, yoyColor, 'bold', { align: 'center', maxWidth: width - 8 });
           text('Comparado ao acumulado do ano passado (mesmo período)', x + width / 2, y + 57.5, 5.2, MUTED, 'normal', { align: 'center', maxWidth: width - 8 });
           text(`Média Jan–${item.yoy.monthLabel}: ${formatKpi(item.yoy.avgCurrent, item.valueType, item.decimals)} · ${item.yoy.previousYear}: ${formatKpi(item.yoy.avgPrevious, item.valueType, item.decimals)}`, x + width / 2, y + 62.5, 5.6, MUTED, 'normal', { align: 'center', maxWidth: width - 8 });
         }
