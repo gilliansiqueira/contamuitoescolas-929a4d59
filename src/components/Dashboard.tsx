@@ -958,6 +958,8 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       monthly,
       annualRevenue: buildAnnual('receitas'),
       annualExpenses: buildAnnual('despesas'),
+      annualResult: buildAnnual('resultado'),
+
       expenses,
       expenseDetailTotal,
       analysisExpenses,
