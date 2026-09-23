@@ -21,3 +21,9 @@
 - [x] Reproduzir a referência final da página de acesso com indicadores ilustrativos em movimento
 - [x] Corrigir resumo, operações, séries anuais e totais Jan–mês do PDF geral
 - [ ] Validar os valores finais do PDF de Dourados/agosto de 2026 e de uma segunda empresa — bloqueado por falta de sessão autorizada
+
+## Operações de caixa (set/2026)
+- [x] Contas a Pagar/Sponte/Cheque/Cartão: categorias exatas de Operação saem de Despesa e entram só no Caixa
+- [ ] Validar PDFs reais com login de administrador (bloqueado: sessão)
+- [ ] Decidir: Manaus Laranjeiras ago/2026 Distribuição de Lucros 100.000 no histórico x 50.000 no extrato
+- [ ] Decidir: nomes sem regra (ex.: "Parcela do Empréstimo", "8.01 Pagamento de Empréstimo Bancário", "Aporte") seguem como despesa
