@@ -94,6 +94,28 @@ describe('periodMovement — SSOT única de movimentação', () => {
     expect(mv.saldoMovimento).toBe(5000);
   });
 
+  it('inclui ajuste manual realizado no resultado de um mês com fluxo', () => {
+    const classifications: TypeClassification[] = [
+      { id: '1', school_id: schoolId, tipoValor: 'Receita', classificacao: 'receita', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar', label: 'Receita' } as any,
+      { id: '2', school_id: schoolId, tipoValor: 'Despesa', classificacao: 'despesa', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Despesa' } as any,
+      { id: '3', school_id: schoolId, tipoValor: 'Pró-Labore', classificacao: 'despesa', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Pró-Labore' } as any,
+    ];
+    const ctx = emptyCtx({
+      classifications,
+      entries: [
+        e({ data: '2026-07-01', valor: 386_756.01, tipo: 'entrada', origem: 'fluxo', tipoOriginal: 'Receita' }),
+        e({ data: '2026-07-02', valor: 262_182.78, tipo: 'saida', origem: 'fluxo', tipoOriginal: 'Despesa' }),
+        e({ data: '2026-07-03', valor: 20_500, tipo: 'saida', origem: 'fluxo', tipoOriginal: 'Pró-Labore' }),
+        e({ data: '2026-07-13', valor: 36.12, tipo: 'saida', origem: 'manual', categoria: 'Despesa' }),
+      ],
+    });
+
+    const movement = buildMonthMovement('2026-07', ctx);
+    expect(movement.receitas).toBeCloseTo(386_756.01, 2);
+    expect(movement.despesas).toBeCloseTo(282_718.90, 2);
+    expect(movement.receitas - movement.despesas).toBeCloseTo(104_037.11, 2);
+  });
+
   it('mês em aberto: realizado até o corte + projeção depois (saldo projetado)', () => {
     const classifications: TypeClassification[] = [
       { id: '1', school_id: schoolId, tipoValor: 'Receita', classificacao: 'receita', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'somar', label: 'Receita' } as any,
