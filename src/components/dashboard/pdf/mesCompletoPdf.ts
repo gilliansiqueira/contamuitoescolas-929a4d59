@@ -247,6 +247,9 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   text(topExpense ? `${topExpense.mae} concentra ${fmtBRL(topExpense.valor)} no período.` : 'Não há despesas detalhadas conciliadas para o período.', MX, 150, 13, WHITE, 'bold');
 
   annualComparisonPage('Evolução de receitas', data.annualRevenue);
+  annualComparisonPage('Evolução de despesas', data.annualExpenses);
+  if (data.annualResult?.length) annualComparisonPage('Evolução do resultado', data.annualResult);
+
 
   const analysisExpenses = data.analysisExpenses.length ? data.analysisExpenses : data.expenses;
   const analysisTotal = data.analysisExpenseTotal || data.expenseDetailTotal;
@@ -302,7 +305,7 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
         const delta = item.value !== null && item.previousValue != null ? item.value - item.previousValue : null;
         const improved = delta === null ? null : item.direction === 'higher_is_better' ? delta > 0 : delta < 0;
         // Cor do valor e do selo segue a faixa configurada (igual à plataforma), não a variação.
-        const statusColor = hexToRgb(item.statusColor) ?? TEAL;
+        const statusColor: RGB = hexToRgb(item.statusColor) ?? TEAL;
         const deltaColor = improved === false ? PINK : improved === true ? GREEN : MUTED;
         pdf.setFillColor(...GRAPHITE_2); pdf.roundedRect(x, y, width, 124, 2, 2, 'F');
         text(item.name.toUpperCase(), x + width / 2, y + 11, 8.5, MUTED, 'bold', { align: 'center', maxWidth: width - 10 });
