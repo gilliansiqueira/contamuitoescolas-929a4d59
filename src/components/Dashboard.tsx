@@ -729,15 +729,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       ...Array.from(movementCtx.snapshotMap.keys()),
     ])).filter(month => /^\d{4}-\d{2}$/.test(month)).sort();
     const annualYears = Array.from(new Set(availableFinancialMonths.map(month => month.slice(0, 4)))).sort();
-    const buildAnnual = (kind: 'receitas' | 'despesas') => annualYears.map(year => ({
+    const buildAnnual = (kind: 'receitas' | 'despesas' | 'resultado') => annualYears.map(year => ({
       year,
       months: Array.from({ length: 12 }, (_, index) => {
         const month = `${year}-${String(index + 1).padStart(2, '0')}`;
         if (!availableFinancialMonths.includes(month)) return null;
-        const value = buildMonthMovement(month, movementCtx, { isInModel })[kind];
+        const movement = buildMonthMovement(month, movementCtx, { isInModel });
+        const value = kind === 'resultado' ? movement.receitas - movement.despesas : movement[kind];
         return value === 0 ? null : value;
       }),
     }));
+
 
     const accountMap = new Map(reportAccounts.map((a: any) => [a.id, a]));
     const accountByName = new Map(reportAccounts.map((a: any) => [normalizeTipo(a.nome), a]));
