@@ -36,6 +36,7 @@ import type { FinancialEntry, TypeClassification } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
 import type { PeriodClosureSnapshot, SnapshotPorTipo } from '@/hooks/usePeriodSnapshots';
 import type { ModelItemRule } from '@/lib/ledgerEngine';
+import { resolveNativeOperationRule } from '@/lib/ledgerEngine';
 import {
   resolveEntryLedgerRule,
   resolveEntryTipoKey,
