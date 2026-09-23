@@ -21,7 +21,7 @@ import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
 import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/MobileNavSheet';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon, Database,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
