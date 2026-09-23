@@ -62,7 +62,7 @@ type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' 
 
 type AppModule = 'projecao' | 'realizado';
 
-const mainTabs: { key: Tab; label: string; icon: any }[] = [
+const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'daily_flow', label: 'Fluxo Diário', icon: Table2 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
