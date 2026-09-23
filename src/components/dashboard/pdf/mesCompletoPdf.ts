@@ -73,6 +73,16 @@ async function loadLogo(): Promise<string | null> {
   } catch { return null; }
 }
 
+/** Converte a cor da faixa configurada (hex) para RGB do jsPDF. */
+function hexToRgb(hex?: string): RGB | null {
+  if (!hex) return null;
+  const clean = hex.replace('#', '').trim();
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
+  return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)];
+}
+
+
 function formatKpi(value: number | null, type: string, decimals: number) {
   if (value === null) return '—';
   if (type === 'currency') return fmtBRL(value);
