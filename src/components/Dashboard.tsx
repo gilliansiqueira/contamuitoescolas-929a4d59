@@ -843,11 +843,43 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       const previous = currentIndex > 0 ? allValues[currentIndex - 1] : null;
       const numericValue = current ? Number(current.value) : null;
       const previousValue = previous ? Number(previous.value) : null;
-      const threshold = numericValue === null ? null : reportKpiThresholds.find((item: any) =>
-        item.kpi_definition_id === definition.id &&
-        (item.min_value === null || numericValue >= Number(item.min_value)) &&
-        (item.max_value === null || numericValue <= Number(item.max_value))
+      // Mesma regra de faixa do KpiCard online: [min, max) com fallback na última faixa.
+      const definitionThresholds = reportKpiThresholds.filter((item: any) => item.kpi_definition_id === definition.id);
+      const threshold = numericValue === null || !definitionThresholds.length ? null : (
+        definitionThresholds.find((item: any) =>
+          numericValue >= (item.min_value == null ? -Infinity : Number(item.min_value)) &&
+          numericValue < (item.max_value == null ? Infinity : Number(item.max_value))
+        ) ?? definitionThresholds[definitionThresholds.length - 1]
       );
+      // Comparação com o ano anterior: média Jan→mês de referência (mesma regra do relatório online).
+      const referenceKpiMonth = current?.month ?? selectedMonths[selectedMonths.length - 1];
+      let yoy: any = null;
+      if (referenceKpiMonth) {
+        const year = Number(referenceKpiMonth.slice(0, 4));
+        const monthIdx = Number(referenceKpiMonth.slice(5, 7));
+        let sumCur = 0, cntCur = 0, sumPrev = 0, cntPrev = 0;
+        for (let i = 1; i <= monthIdx; i += 1) {
+          const mm = String(i).padStart(2, '0');
+          const cur = allValues.find((v: any) => v.month === `${year}-${mm}`);
+          const prev = allValues.find((v: any) => v.month === `${year - 1}-${mm}`);
+          if (cur) { sumCur += Number(cur.value); cntCur += 1; }
+          if (prev) { sumPrev += Number(prev.value); cntPrev += 1; }
+        }
+        if (cntCur && cntPrev) {
+          const avgCurrent = sumCur / cntCur;
+          const avgPrevious = sumPrev / cntPrev;
+          const delta = avgCurrent - avgPrevious;
+          yoy = {
+            avgCurrent,
+            avgPrevious,
+            delta,
+            relPct: avgPrevious !== 0 ? delta / Math.abs(avgPrevious) * 100 : null,
+            improvement: definition.direction === 'higher_is_better' ? delta > 0 : delta < 0,
+            previousYear: String(year - 1),
+            monthLabel: monthNames[monthIdx - 1].slice(0, 3),
+          };
+        }
+      }
       return {
         id: definition.id,
         name: definition.name,
@@ -856,14 +888,16 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         direction: definition.direction,
         decimals: Number(definition.decimals ?? 2),
         status: threshold?.label,
+        statusColor: threshold?.color,
         previousValue,
         previousMonth: previous?.month,
         variation: numericValue !== null && previousValue !== null && previousValue !== 0 ? (numericValue - previousValue) / Math.abs(previousValue) * 100 : null,
         history: allValues.map((value: any) => ({ label: value.month, value: Number(value.value) })),
-        thresholds: reportKpiThresholds
-          .filter((item: any) => item.kpi_definition_id === definition.id)
+        yoy,
+        thresholds: definitionThresholds
           .map((item: any) => ({ min: item.min_value == null ? null : Number(item.min_value), max: item.max_value == null ? null : Number(item.max_value), label: item.label })),
       };
+
     });
 
     const conversion = reportConversion
