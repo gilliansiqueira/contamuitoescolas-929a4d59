@@ -956,7 +956,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
       anterior,
       monthly,
-      annualRevenue: buildAnnual('receitas'),
+      annualRevenue: (console.info("[DBG]", JSON.stringify({r:buildAnnual("receitas"),d:buildAnnual("despesas"),src:["2026-05","2026-06","2026-07"].map(m=>resolveMonthSource(m,movementCtx)),n:movementCtx.entries.filter(e=>e.origem==="fluxo"&&e.dataProjetada.startsWith("2026-06")).length})), buildAnnual("receitas")),
       annualExpenses: buildAnnual('despesas'),
       annualResult: buildAnnual('resultado'),
 
