@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aggregateExpensesByMother, sumAnnualThroughReference } from '@/components/dashboard/pdf/mesCompletoPdf';
+import { aggregateExpensesByMother, sumAnnualThroughReference, summarizeOperations } from '@/components/dashboard/pdf/mesCompletoPdf';
 
 describe('relatório geral em PDF', () => {
   it('soma o cartão anual somente até o mês de referência', () => {
@@ -19,5 +19,16 @@ describe('relatório geral em PDF', () => {
     ];
 
     expect(aggregateExpensesByMother(rows)[0]).toEqual({ mae: 'FRANQUEADORA', valor: 76_173.88 });
+  });
+
+  it('resume as mesmas operações detalhadas pelo Dashboard', () => {
+    const rows = [
+      { label: 'Antecipação', valor: 25_000, isEntrada: true },
+      { label: 'Aporte', valor: 8_500, isEntrada: true },
+      { label: 'Distribuição de lucros', valor: 12_300, isEntrada: false },
+      { label: 'Aplicação', valor: 4_200, isEntrada: false },
+    ];
+
+    expect(summarizeOperations(rows)).toEqual({ entradas: 33_500, saidas: 16_500, liquido: 17_000 });
   });
 });

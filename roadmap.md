@@ -27,3 +27,4 @@
 - [ ] Validar PDFs reais com login de administrador (bloqueado: sessão)
 - [ ] Decidir: Manaus Laranjeiras ago/2026 Distribuição de Lucros 100.000 no histórico x 50.000 no extrato
 - [ ] Decidir: nomes sem regra (ex.: "Parcela do Empréstimo", "8.01 Pagamento de Empréstimo Bancário", "Aporte") seguem como despesa
+- [x] Fazer o PDF espelhar os mesmos itens, sentidos e totais de Operações Financeiras do Dashboard

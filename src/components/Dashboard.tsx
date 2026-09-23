@@ -942,6 +942,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       evasao: row.evasao == null ? null : Number(row.evasao),
     }));
 
+    // Espelha exatamente os mesmos itens exibidos em "Operações Financeiras"
+    // no Dashboard; o PDF não reclassifica nem reconstrói esses valores.
+    const reportOperations = tipoAggregations
+      .filter(item => !item.entraNoResultado && item.impactaCaixa)
+      .map(item => ({ label: item.label, valor: item.valor, isEntrada: item.isEntrada }));
+
     return {
       schoolName: school?.nome || 'Empresa',
       periodoLabel,
@@ -953,6 +959,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       resultado: totalsRealizado.resultado,
       operacoesIn: totals.operacoesIn,
       operacoesOut: totals.operacoesOut,
+      operations: reportOperations,
       porTipo: tipoAggregations.map(t => ({ label: t.label, valor: t.valor, classificacao: t.classificacao })),
       recebiveis: Object.entries(recMap).map(([label, valor]) => ({ label, valor })).filter(r => r.valor > 0),
       contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
