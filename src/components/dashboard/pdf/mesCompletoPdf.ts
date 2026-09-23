@@ -169,19 +169,36 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     });
   };
   const annualComparisonPage = (title: string, rows: AnnualFinancialRow[], valueKind: 'money' | 'count' = 'money') => {
-    const validRows = rows.filter(row => row.months.filter(value => value !== null).length >= 2).slice(-2);
+    // Compara sempre o ano do período selecionado com o ano anterior — nunca anos futuros.
+    const pick = (year: string) => rows.find(row => row.year === year && row.months.some(value => value !== null));
+    const previous = pick(data.previousYear);
+    const current = pick(data.currentYear);
+    const validRows = [previous, current].filter((row): row is AnnualFinancialRow => !!row);
     if (!validRows.length) return;
-    addPage(title, 'Comparativo mensal entre anos · meses sem informação permanecem vazios');
+    const subtitle = previous
+      ? `${data.previousYear} x ${data.currentYear} · meses sem informação permanecem vazios`
+      : `${data.currentYear} · sem histórico de ${data.previousYear} para comparação`;
+    addPage(title, subtitle);
+    const colorOf = (row: AnnualFinancialRow) => (row.year === data.currentYear ? ORANGE : TEAL);
     validRows.forEach((row, index) => {
       const values = row.months.filter((value): value is number => value !== null);
       const total = values.reduce((sum, value) => sum + value, 0);
       const value = valueKind === 'money' ? compactMoney(total) : fmtNumber(total);
       const average = valueKind === 'money' ? compactMoney(total / values.length) : fmtNumber(total / values.length, 1);
-      metric(MX + index * 105, 43, 94, row.year, value, index === validRows.length - 1 ? ORANGE : TEAL, `Média mensal ${average}`);
+      metric(MX + index * 105, 43, 94, row.year, value, colorOf(row), `Média mensal ${average}`);
     });
-    legend(validRows.map((row, index) => ({ label: row.year, color: index === validRows.length - 1 ? ORANGE : TEAL })), PAGE_W - 95, 58);
-    lineChart(validRows.map((row, index) => ({ values: row.months, color: index === validRows.length - 1 ? ORANGE : TEAL })), MONTHS, MX + 8, 88, PAGE_W - MX * 2 - 16, 64, true);
+    if (previous && current) {
+      const sum = (row: AnnualFinancialRow) => row.months.reduce<number>((acc, value) => acc + (value ?? 0), 0);
+      const base = sum(previous);
+      const delta = base ? (sum(current) - base) / Math.abs(base) * 100 : null;
+      metric(MX + 210, 43, 94, `${data.currentYear} vs ${data.previousYear}`,
+        delta === null ? '—' : `${delta > 0 ? '+' : ''}${fmtNumber(delta, 1)}%`,
+        delta === null ? MUTED : delta >= 0 ? GREEN : PINK, 'Variação do total do ano');
+    }
+    legend(validRows.map(row => ({ label: row.year, color: colorOf(row) })), PAGE_W - 95, 80);
+    lineChart(validRows.map(row => ({ values: row.months, color: colorOf(row) })), MONTHS, MX + 8, 90, PAGE_W - MX * 2 - 16, 62, true);
   };
+
 
   // Capa e conciliação principal
   addPage();
