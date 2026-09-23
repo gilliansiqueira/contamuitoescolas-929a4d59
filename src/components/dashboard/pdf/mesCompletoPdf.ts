@@ -47,9 +47,11 @@ export interface KpiReportRow {
 }
 
 export interface ConversionReportRow { month: string; label: string; tipo: string; contatos: number; matriculas: number; taxa: number }
+export interface OperationReportRow { label: string; valor: number; isEntrada: boolean }
 export interface MesCompletoData {
   schoolName: string; periodoLabel: string; saldoInicial: number; saldoFinal: number; receitas: number; despesas: number; resultado: number;
   operacoesIn: number; operacoesOut: number;
+  operations: OperationReportRow[];
   porTipo: { label: string; valor: number; classificacao: string }[]; recebiveis: MesCompletoRow[]; contasPagar: MesCompletoRow[];
   anterior?: { label: string; receitas: number; despesas: number; resultado: number; saldoFinal: number };
   monthly: MonthlyReportRow[]; annualRevenue: AnnualFinancialRow[]; annualExpenses: AnnualFinancialRow[]; annualResult?: AnnualFinancialRow[];
@@ -72,6 +74,12 @@ export function aggregateExpensesByMother(rows: ExpenseReportRow[]): { mae: stri
   const totals = new Map<string, number>();
   rows.forEach(row => totals.set(row.mae, (totals.get(row.mae) ?? 0) + row.valor));
   return [...totals.entries()].map(([mae, valor]) => ({ mae, valor })).sort((a, b) => b.valor - a.valor);
+}
+
+export function summarizeOperations(rows: OperationReportRow[]) {
+  const entradas = rows.filter(row => row.isEntrada).reduce((sum, row) => sum + row.valor, 0);
+  const saidas = rows.filter(row => !row.isEntrada).reduce((sum, row) => sum + row.valor, 0);
+  return { entradas, saidas, liquido: entradas - saidas };
 }
 
 async function loadLogo(): Promise<string | null> {
@@ -235,6 +243,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   text(`RELATÓRIO · ${data.periodoLabel.toUpperCase()}`, PAGE_W / 2, 34, 15, WHITE, 'bold', { align: 'center' });
   pdf.setFillColor(...ORANGE); pdf.rect(90, 42, PAGE_W - 180, 1.5, 'F');
   text(`SALDO INICIAL: ${fmtBRL(data.saldoInicial)}`, PAGE_W / 2, 58, 17, WHITE, 'bold', { align: 'center' });
+  // O detalhamento já vem do mesmo `tipoAggregations` exibido no Dashboard.
+  // Os totais continuam explícitos para preservar exatamente os cartões da tela.
   const operationsIn = data.operacoesIn;
   const operationsOut = data.operacoesOut;
   const coverItems = [
@@ -246,6 +256,24 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   pdf.setDrawColor(...ORANGE); pdf.setLineWidth(1.2); pdf.roundedRect(113, 125, 113, 28, 1, 1, 'S');
   text(`SALDO FINAL: ${fmtBRL(data.saldoFinal)}`, PAGE_W / 2, 143, 16, WHITE, 'bold', { align: 'center' });
   text(`Resultado ${fmtBRL(data.resultado)} · impacto líquido das operações ${fmtBRL(operationsIn - operationsOut)}`, PAGE_W / 2, 164, 8, MUTED, 'normal', { align: 'center' });
+
+  if (data.operations.length) {
+    addPage('Operações financeiras', 'Mesmos itens e valores exibidos na aba Projeção/Dashboard · não entram no resultado');
+    metric(MX, 41, 88, 'Entradas', fmtBRL(operationsIn), GREEN);
+    metric(MX + 99, 41, 88, 'Saídas', fmtBRL(operationsOut), PINK);
+    metric(MX + 198, 41, 88, 'Impacto líquido', fmtBRL(operationsIn - operationsOut), operationsIn - operationsOut >= 0 ? TEAL : PINK);
+    horizontalBars(
+      [...data.operations]
+        .sort((a, b) => a.valor - b.valor)
+        .map(row => ({
+          label: row.label,
+          value: row.valor,
+          detail: `${row.isEntrada ? 'Entrada' : 'Saída'} · ${fmtBRL(row.valor)}`,
+          color: row.isEntrada ? GREEN : PINK,
+        })),
+      MX, 84, PAGE_W - MX * 2, 72,
+    );
+  }
 
   addPage('Leitura gerencial', 'Resumo objetivo para decisão');
   const margin = data.receitas ? data.resultado / data.receitas * 100 : 0;
