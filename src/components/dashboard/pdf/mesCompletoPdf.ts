@@ -286,29 +286,49 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   if (data.kpis.some(item => item.value !== null)) {
     const activeKpis = data.kpis.filter(item => item.value !== null);
     for (let offset = 0; offset < activeKpis.length; offset += 3) {
-      addPage('Indicadores de gestão', 'Valor atual, comparação e histórico anual no mesmo padrão do relatório online');
+      addPage('Indicadores de gestão', 'Valor atual, comparação com o mês anterior e com o ano passado · mesmo padrão do relatório online');
       activeKpis.slice(offset, offset + 3).forEach((item, index) => {
-        const x = MX + index * 101; const y = 43; const width = 92;
+        const x = MX + index * 101; const y = 41; const width = 92;
         const delta = item.value !== null && item.previousValue != null ? item.value - item.previousValue : null;
         const improved = delta === null ? null : item.direction === 'higher_is_better' ? delta > 0 : delta < 0;
-        const color = improved === false ? PINK : improved === true ? GREEN : TEAL;
-        pdf.setFillColor(...GRAPHITE_2); pdf.roundedRect(x, y, width, 118, 2, 2, 'F');
-        text(item.name.toUpperCase(), x + width / 2, y + 12, 9, MUTED, 'bold', { align: 'center', maxWidth: width - 10 });
-        text(formatKpi(item.value, item.valueType, item.decimals), x + width / 2, y + 28, 20, color, 'bold', { align: 'center' });
+        // Cor do valor e do selo segue a faixa configurada (igual à plataforma), não a variação.
+        const statusColor = hexToRgb(item.statusColor) ?? TEAL;
+        const deltaColor = improved === false ? PINK : improved === true ? GREEN : MUTED;
+        pdf.setFillColor(...GRAPHITE_2); pdf.roundedRect(x, y, width, 124, 2, 2, 'F');
+        text(item.name.toUpperCase(), x + width / 2, y + 11, 8.5, MUTED, 'bold', { align: 'center', maxWidth: width - 10 });
+        text(formatKpi(item.value, item.valueType, item.decimals), x + width / 2, y + 26, 19, statusColor, 'bold', { align: 'center' });
         if (item.status) {
-          pdf.setFillColor(...color); pdf.roundedRect(x + width / 2 - 12, y + 33, 24, 7, 3, 3, 'F');
-          text(item.status, x + width / 2, y + 38, 6, WHITE, 'bold', { align: 'center' });
+          pdf.setFont('helvetica', 'bold'); pdf.setFontSize(6);
+          const badgeWidth = pdf.getTextWidth(item.status) + 8;
+          pdf.setFillColor(...statusColor); pdf.roundedRect(x + width / 2 - badgeWidth / 2, y + 30, badgeWidth, 7, 3.5, 3.5, 'F');
+          text(item.status, x + width / 2, y + 34.6, 6, GRAPHITE, 'bold', { align: 'center' });
         }
-        if (delta !== null) text(`${delta > 0 ? '↑' : delta < 0 ? '↓' : '→'} ${formatKpi(delta, item.valueType, item.decimals)} vs mês anterior · ${improved ? 'melhora' : delta === 0 ? 'estável' : 'atenção'}`, x + width / 2, y + 48, 6.5, color, 'bold', { align: 'center', maxWidth: width - 8 });
-        const years = Array.from(new Set(item.history.map(point => point.label.slice(0, 4)))).sort().slice(-2);
-        const series = years.map((year, yearIndex) => ({
+        if (delta !== null) {
+          text(`${improved ? '↑' : delta === 0 ? '→' : '↓'} ${formatKpi(delta, item.valueType, item.decimals)} vs mês anterior`, x + width / 2, y + 45, 6.8, deltaColor, 'bold', { align: 'center', maxWidth: width - 8 });
+        }
+        if (item.yoy) {
+          const yoyColor = item.yoy.improvement ? GREEN : PINK;
+          const relative = item.yoy.relPct === null ? '' : ` (${item.yoy.relPct > 0 ? '+' : ''}${fmtNumber(item.yoy.relPct, 1)}%)`;
+          text(`${item.yoy.improvement ? '↑' : '↓'} ${item.yoy.delta > 0 ? '+' : ''}${formatKpi(item.yoy.delta, item.valueType, item.decimals)}${relative} vs ${item.yoy.previousYear}`, x + width / 2, y + 52, 6.8, yoyColor, 'bold', { align: 'center', maxWidth: width - 8 });
+          text('Comparado ao acumulado do ano passado (mesmo período)', x + width / 2, y + 57.5, 5.2, MUTED, 'normal', { align: 'center', maxWidth: width - 8 });
+          text(`Média Jan–${item.yoy.monthLabel}: ${formatKpi(item.yoy.avgCurrent, item.valueType, item.decimals)} · ${item.yoy.previousYear}: ${formatKpi(item.yoy.avgPrevious, item.valueType, item.decimals)}`, x + width / 2, y + 62.5, 5.6, MUTED, 'normal', { align: 'center', maxWidth: width - 8 });
+        }
+        const years = Array.from(new Set(item.history.map(point => point.label.slice(0, 4))))
+          .filter(year => year === data.currentYear || year === data.previousYear)
+          .sort();
+        const colorOfYear = (year: string): RGB => (year === data.currentYear ? TEAL : [67, 139, 246]);
+        const series = years.map(year => ({
           values: MONTHS.map((_, monthIndex) => item.history.find(point => point.label === `${year}-${String(monthIndex + 1).padStart(2, '0')}`)?.value ?? null),
-          color: yearIndex === years.length - 1 ? TEAL : [67, 139, 246] as RGB,
+          color: colorOfYear(year),
         }));
-        if (lineChart(series, MONTHS, x + 8, y + 65, width - 16, 35, false)) legend(years.map((year, yearIndex) => ({ label: year, color: yearIndex === years.length - 1 ? TEAL : [67, 139, 246] as RGB })), x + 18, y + 110);
-        else text('Histórico insuficiente', x + width / 2, y + 84, 7, MUTED, 'normal', { align: 'center' });
+        if (lineChart(series, MONTHS, x + 8, y + 70, width - 16, 38, false)) {
+          legend(years.map(year => ({ label: year, color: colorOfYear(year) })), x + width / 2 - years.length * 17 + 3, y + 119);
+        } else {
+          text('Histórico insuficiente para o gráfico anual', x + width / 2, y + 92, 6.5, MUTED, 'normal', { align: 'center', maxWidth: width - 10 });
+        }
       });
     }
+
   }
 
   const conversionGroups = ['ativo', 'receptivo'].map(tipo => ({ tipo, rows: data.conversion.filter(row => normalized(row.tipo) === tipo) })).filter(group => group.rows.length);
