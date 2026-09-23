@@ -63,6 +63,17 @@ export interface MesCompletoData {
   sources: string[]; fileName?: string;
 }
 
+export function sumAnnualThroughReference(row: AnnualFinancialRow, referenceMonth: string): number {
+  const cutoff = Math.max(0, Math.min(11, Number(referenceMonth.slice(5, 7)) - 1));
+  return row.months.slice(0, cutoff + 1).reduce<number>((sum, value) => sum + (value ?? 0), 0);
+}
+
+export function aggregateExpensesByMother(rows: ExpenseReportRow[]): { mae: string; valor: number }[] {
+  const totals = new Map<string, number>();
+  rows.forEach(row => totals.set(row.mae, (totals.get(row.mae) ?? 0) + row.valor));
+  return [...totals.entries()].map(([mae, valor]) => ({ mae, valor })).sort((a, b) => b.valor - a.valor);
+}
+
 async function loadLogo(): Promise<string | null> {
   try {
     const blob = await fetch(contaMuitoLogo).then(response => response.blob());
@@ -197,7 +208,7 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     validRows.forEach((row, index) => {
       // Os gráficos mantêm o ano completo; os cartões comparam sempre Jan→mês de referência.
       const values = row.months.slice(0, cutoff + 1).filter((value): value is number => value !== null);
-      const total = values.reduce((sum, value) => sum + value, 0);
+      const total = sumAnnualThroughReference(row, data.referenceMonth);
       const value = valueKind === 'money' ? compactMoney(total) : fmtNumber(total);
       const averageValue = values.length ? total / values.length : 0;
       const average = valueKind === 'money' ? compactMoney(averageValue) : fmtNumber(averageValue, 1);
@@ -205,9 +216,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     });
     if (previous && current) {
       // Comparação justa: acumulado de janeiro até o mês de referência nos dois anos.
-      const sum = (row: AnnualFinancialRow) => row.months.slice(0, cutoff + 1).reduce<number>((acc, value) => acc + (value ?? 0), 0);
-      const base = sum(previous);
-      const delta = base ? (sum(current) - base) / Math.abs(base) * 100 : null;
+      const base = sumAnnualThroughReference(previous, data.referenceMonth);
+      const delta = base ? (sumAnnualThroughReference(current, data.referenceMonth) - base) / Math.abs(base) * 100 : null;
       metric(MX + 210, 43, 94, `${data.currentYear} vs ${data.previousYear}`,
         delta === null ? '—' : `${delta > 0 ? '+' : ''}${fmtNumber(delta, 1)}%`,
         delta === null ? MUTED : delta >= 0 ? GREEN : PINK, `Acumulado Jan–${MONTHS[cutoff]} nos dois anos`);
@@ -232,6 +242,7 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     ['Resultado', data.resultado, data.resultado >= 0 ? TEAL : PINK], ['Operações de caixa', operationsIn - operationsOut, ORANGE],
   ] as const;
   coverItems.forEach((item, index) => metric(22 + index * 78, 76, 68, item[0], fmtBRL(item[1]), item[2]));
+  text(`Entradas ${fmtBRL(operationsIn)} · Saídas ${fmtBRL(operationsOut)}`, 22 + 3 * 78 + 34, 108, 6.5, MUTED, 'normal', { align: 'center', maxWidth: 64 });
   pdf.setDrawColor(...ORANGE); pdf.setLineWidth(1.2); pdf.roundedRect(113, 125, 113, 28, 1, 1, 'S');
   text(`SALDO FINAL: ${fmtBRL(data.saldoFinal)}`, PAGE_W / 2, 143, 16, WHITE, 'bold', { align: 'center' });
   text(`Resultado ${fmtBRL(data.resultado)} · impacto líquido das operações ${fmtBRL(operationsIn - operationsOut)}`, PAGE_W / 2, 164, 8, MUTED, 'normal', { align: 'center' });
@@ -249,11 +260,7 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     text(`${data.anterior.label}: resultado ${fmtBRL(data.anterior.resultado)}. Variação atual: ${delta >= 0 ? '+' : ''}${fmtBRL(delta)}.`, MX, 111, 13, WHITE, 'bold');
   }
   const attentionExpenses = data.analysisExpenses.length ? data.analysisExpenses : data.expenses;
-  const attentionByMother = new Map<string, number>();
-  attentionExpenses.forEach(row => attentionByMother.set(row.mae, (attentionByMother.get(row.mae) ?? 0) + row.valor));
-  const topExpense = [...attentionByMother.entries()]
-    .map(([mae, valor]) => ({ mae, valor }))
-    .sort((a, b) => b.valor - a.valor)[0];
+  const topExpense = aggregateExpensesByMother(attentionExpenses)[0];
   text('PRINCIPAL PONTO DE ATENÇÃO', MX, 137, 10, ORANGE, 'bold');
   text(topExpense ? `${topExpense.mae} concentra ${fmtBRL(topExpense.valor)} no período.` : 'Não há despesas detalhadas conciliadas para o período.', MX, 150, 13, WHITE, 'bold');
 
@@ -264,8 +271,7 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
 
   const analysisExpenses = data.analysisExpenses.length ? data.analysisExpenses : data.expenses;
   const analysisTotal = data.analysisExpenseTotal || data.expenseDetailTotal;
-  const motherMap = new Map<string, number>(); analysisExpenses.forEach(row => motherMap.set(row.mae, (motherMap.get(row.mae) ?? 0) + row.valor));
-  const mothers = [...motherMap.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  const mothers = aggregateExpensesByMother(analysisExpenses).map(row => ({ label: row.mae, value: row.valor }));
   const revenueTotal = data.monthlyRevenue.filter(row => data.monthly.some(month => month.month === row.month)).reduce((sum, row) => sum + row.value, 0);
   if (mothers.length) {
     addPage('Despesas por categoria', `Análise das despesas realizadas · faturamento ${fmtBRL(revenueTotal)}`);
