@@ -36,6 +36,13 @@
       "when": 1790104673980,
       "tag": "0004_schools_policies_authenticated_only",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790182315205,
+      "tag": "0005_tighten_shared_library_and_icon_storage_policies",
+      "breakpoints": true
     }
   ]
 }

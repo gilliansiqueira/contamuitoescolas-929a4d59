@@ -2239,6 +2239,7 @@ export type Database = {
         Args: { _module: string; _month: string; _school_id: string }
         Returns: boolean
       }
+      is_platform_member: { Args: never; Returns: boolean }
       user_has_school_access: {
         Args: { _school_id: string; _user_id: string }
         Returns: boolean
