@@ -19,3 +19,5 @@
 
 - [x] Renovar somente a aparência do acesso, navegação e ícone; preservar integralmente dados, gráficos, páginas e cálculos atuais
 - [x] Reproduzir a referência final da página de acesso com indicadores ilustrativos em movimento
+- [x] Corrigir resumo, operações, séries anuais e totais Jan–mês do PDF geral
+- [ ] Validar os valores finais do PDF de Dourados/agosto de 2026 e de uma segunda empresa
