@@ -200,12 +200,15 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       metric(MX + index * 105, 43, 94, row.year, value, colorOf(row), `Média mensal ${average}`);
     });
     if (previous && current) {
-      const sum = (row: AnnualFinancialRow) => row.months.reduce<number>((acc, value) => acc + (value ?? 0), 0);
+      // Comparação justa: acumulado de janeiro até o mês de referência nos dois anos.
+      const cutoff = Math.max(0, Math.min(11, Number(data.referenceMonth.slice(5, 7)) - 1));
+      const sum = (row: AnnualFinancialRow) => row.months.slice(0, cutoff + 1).reduce<number>((acc, value) => acc + (value ?? 0), 0);
       const base = sum(previous);
       const delta = base ? (sum(current) - base) / Math.abs(base) * 100 : null;
       metric(MX + 210, 43, 94, `${data.currentYear} vs ${data.previousYear}`,
         delta === null ? '—' : `${delta > 0 ? '+' : ''}${fmtNumber(delta, 1)}%`,
-        delta === null ? MUTED : delta >= 0 ? GREEN : PINK, 'Variação do total do ano');
+        delta === null ? MUTED : delta >= 0 ? GREEN : PINK, `Acumulado Jan–${MONTHS[cutoff]} nos dois anos`);
+
     }
     legend(validRows.map(row => ({ label: row.year, color: colorOf(row) })), PAGE_W - 95, 80);
     lineChart(validRows.map(row => ({ values: row.months, color: colorOf(row) })), MONTHS, MX + 8, 90, PAGE_W - MX * 2 - 16, 62, true);
