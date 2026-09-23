@@ -946,11 +946,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return {
       schoolName: school?.nome || 'Empresa',
       periodoLabel,
-      saldoInicial: saldoInicialCalculado,
-      saldoFinal,
+      // O resumo do PDF espelha os cartões principais do Dashboard: visão realizada.
+      saldoInicial: saldoInicialCalculadoRealizado,
+      saldoFinal: saldoFinalRealizado,
       receitas: totals.receitas,
       despesas: totals.despesas,
       resultado: totals.resultado,
+      operacoesIn: totals.operacoesIn,
+      operacoesOut: totals.operacoesOut,
       porTipo: tipoAggregations.map(t => ({ label: t.label, valor: t.valor, classificacao: t.classificacao })),
       recebiveis: Object.entries(recMap).map(([label, valor]) => ({ label, valor })).filter(r => r.valor > 0),
       contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
@@ -995,7 +998,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       sources: Array.from(new Set(monthly.map(row => row.source))),
       fileName: `relatorio-geral-${selectedMonths[0] || 'periodo'}-${selectedMonths[selectedMonths.length - 1] || 'completo'}`,
     };
-  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, schoolId, saldoInicialCalculado, saldoFinal, totals, tipoAggregations, movementCtx, isInModel, monthMovements]);
+  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, schoolId, saldoInicialCalculadoRealizado, saldoFinalRealizado, totals, tipoAggregations, movementCtx, isInModel, monthMovements]);
 
   return (
     <div className="space-y-3 sm:space-y-6" ref={exportRef}>

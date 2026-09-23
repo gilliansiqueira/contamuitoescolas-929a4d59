@@ -49,6 +49,7 @@ export interface KpiReportRow {
 export interface ConversionReportRow { month: string; label: string; tipo: string; contatos: number; matriculas: number; taxa: number }
 export interface MesCompletoData {
   schoolName: string; periodoLabel: string; saldoInicial: number; saldoFinal: number; receitas: number; despesas: number; resultado: number;
+  operacoesIn: number; operacoesOut: number;
   porTipo: { label: string; valor: number; classificacao: string }[]; recebiveis: MesCompletoRow[]; contasPagar: MesCompletoRow[];
   anterior?: { label: string; receitas: number; despesas: number; resultado: number; saldoFinal: number };
   monthly: MonthlyReportRow[]; annualRevenue: AnnualFinancialRow[]; annualExpenses: AnnualFinancialRow[]; annualResult?: AnnualFinancialRow[];
@@ -192,16 +193,18 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       : `${data.currentYear} · sem histórico de ${data.previousYear} para comparação`;
     addPage(title, subtitle);
     const colorOf = (row: AnnualFinancialRow) => (row.year === data.currentYear ? ORANGE : TEAL);
+    const cutoff = Math.max(0, Math.min(11, Number(data.referenceMonth.slice(5, 7)) - 1));
     validRows.forEach((row, index) => {
-      const values = row.months.filter((value): value is number => value !== null);
+      // Os gráficos mantêm o ano completo; os cartões comparam sempre Jan→mês de referência.
+      const values = row.months.slice(0, cutoff + 1).filter((value): value is number => value !== null);
       const total = values.reduce((sum, value) => sum + value, 0);
       const value = valueKind === 'money' ? compactMoney(total) : fmtNumber(total);
-      const average = valueKind === 'money' ? compactMoney(total / values.length) : fmtNumber(total / values.length, 1);
+      const averageValue = values.length ? total / values.length : 0;
+      const average = valueKind === 'money' ? compactMoney(averageValue) : fmtNumber(averageValue, 1);
       metric(MX + index * 105, 43, 94, row.year, value, colorOf(row), `Média mensal ${average}`);
     });
     if (previous && current) {
       // Comparação justa: acumulado de janeiro até o mês de referência nos dois anos.
-      const cutoff = Math.max(0, Math.min(11, Number(data.referenceMonth.slice(5, 7)) - 1));
       const sum = (row: AnnualFinancialRow) => row.months.slice(0, cutoff + 1).reduce<number>((acc, value) => acc + (value ?? 0), 0);
       const base = sum(previous);
       const delta = base ? (sum(current) - base) / Math.abs(base) * 100 : null;
@@ -222,8 +225,8 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   text(`RELATÓRIO · ${data.periodoLabel.toUpperCase()}`, PAGE_W / 2, 34, 15, WHITE, 'bold', { align: 'center' });
   pdf.setFillColor(...ORANGE); pdf.rect(90, 42, PAGE_W - 180, 1.5, 'F');
   text(`SALDO INICIAL: ${fmtBRL(data.saldoInicial)}`, PAGE_W / 2, 58, 17, WHITE, 'bold', { align: 'center' });
-  const operationsIn = data.monthly.reduce((sum, row) => sum + row.operacoesIn, 0);
-  const operationsOut = data.monthly.reduce((sum, row) => sum + row.operacoesOut, 0);
+  const operationsIn = data.operacoesIn;
+  const operationsOut = data.operacoesOut;
   const coverItems = [
     ['Receitas', data.receitas, GREEN], ['Despesas', data.despesas, PINK],
     ['Resultado', data.resultado, data.resultado >= 0 ? TEAL : PINK], ['Operações de caixa', operationsIn - operationsOut, ORANGE],
@@ -245,7 +248,12 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
     text('COMPARAÇÃO COM O PERÍODO ANTERIOR', MX, 98, 10, ORANGE, 'bold');
     text(`${data.anterior.label}: resultado ${fmtBRL(data.anterior.resultado)}. Variação atual: ${delta >= 0 ? '+' : ''}${fmtBRL(delta)}.`, MX, 111, 13, WHITE, 'bold');
   }
-  const topExpense = [...(data.analysisExpenses.length ? data.analysisExpenses : data.expenses)].sort((a, b) => b.valor - a.valor)[0];
+  const attentionExpenses = data.analysisExpenses.length ? data.analysisExpenses : data.expenses;
+  const attentionByMother = new Map<string, number>();
+  attentionExpenses.forEach(row => attentionByMother.set(row.mae, (attentionByMother.get(row.mae) ?? 0) + row.valor));
+  const topExpense = [...attentionByMother.entries()]
+    .map(([mae, valor]) => ({ mae, valor }))
+    .sort((a, b) => b.valor - a.valor)[0];
   text('PRINCIPAL PONTO DE ATENÇÃO', MX, 137, 10, ORANGE, 'bold');
   text(topExpense ? `${topExpense.mae} concentra ${fmtBRL(topExpense.valor)} no período.` : 'Não há despesas detalhadas conciliadas para o período.', MX, 150, 13, WHITE, 'bold');
 
