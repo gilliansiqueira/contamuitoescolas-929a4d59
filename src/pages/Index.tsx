@@ -324,7 +324,7 @@ function IndexBody({
           {/* Projeção Tabs */}
           <nav className="sticky top-[105px] z-40 hidden overflow-x-auto border-b border-border/50 bg-card/95 backdrop-blur-md sm:block">
             <div className="max-w-7xl mx-auto px-4 flex gap-1 items-center">
-              {mainTabs.map(tab => (
+              {visibleMainTabs.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
