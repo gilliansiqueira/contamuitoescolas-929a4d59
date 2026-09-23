@@ -51,7 +51,7 @@ export interface MesCompletoData {
   schoolName: string; periodoLabel: string; saldoInicial: number; saldoFinal: number; receitas: number; despesas: number; resultado: number;
   porTipo: { label: string; valor: number; classificacao: string }[]; recebiveis: MesCompletoRow[]; contasPagar: MesCompletoRow[];
   anterior?: { label: string; receitas: number; despesas: number; resultado: number; saldoFinal: number };
-  monthly: MonthlyReportRow[]; annualRevenue: AnnualFinancialRow[]; annualExpenses: AnnualFinancialRow[];
+  monthly: MonthlyReportRow[]; annualRevenue: AnnualFinancialRow[]; annualExpenses: AnnualFinancialRow[]; annualResult?: AnnualFinancialRow[];
   expenses: ExpenseReportRow[]; expenseDetailTotal: number; analysisExpenses: ExpenseReportRow[]; analysisExpenseTotal: number;
   rawExpenseTotal: number; excludedExpenseRows: ExpenseExcludedRow[];
   expenseHistory: ExpenseHistoryRow[];
