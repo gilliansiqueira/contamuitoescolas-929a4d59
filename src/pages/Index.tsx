@@ -367,7 +367,7 @@ function IndexBody({
           {/* Mobile: faixa deslizável de subabas da Projeção */}
           <div className="sm:hidden border-b border-border/60 bg-card">
             <MobileTabStrip
-              items={mainTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
+              items={visibleMainTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
               active={activeTab}
               onChange={(k) => setActiveTab(k as Tab)}
             />
