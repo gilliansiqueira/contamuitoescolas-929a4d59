@@ -977,14 +977,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       conversion,
       conversionThresholds: reportConversionThresholds.map((row: any) => ({ tipo: row.tipo, min: row.min_value == null ? null : Number(row.min_value), max: row.max_value == null ? null : Number(row.max_value), label: row.label })),
       enrollmentsYoY,
-      annualEnrollments: Array.from(new Set(reportConversion.map((row: any) => row.month.slice(0, 4)))).sort().map(year => ({
+      annualEnrollments: [previousYear, currentYear].map(year => ({
         year,
         months: Array.from({ length: 12 }, (_, index) => {
           const rows = reportConversion.filter((row: any) => row.month === `${year}-${String(index + 1).padStart(2, '0')}`);
           return rows.length ? rows.reduce((sum: number, row: any) => sum + (Number(row.matriculas) || 0), 0) : null;
         }),
       })),
-      annualContacts: Array.from(new Set(reportConversion.map((row: any) => row.month.slice(0, 4)))).sort().map(year => ({
+      annualContacts: [previousYear, currentYear].map(year => ({
         year,
         months: Array.from({ length: 12 }, (_, index) => {
           const rows = reportConversion.filter((row: any) => row.month === `${year}-${String(index + 1).padStart(2, '0')}`);
