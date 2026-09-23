@@ -203,7 +203,7 @@ function IndexBody({
   const navSections: NavSheetSection[] = [
     {
       title: 'Projeção',
-      items: mainTabs.map(t => ({
+      items: visibleMainTabs.map(t => ({
         key: `p-${t.key}`,
         label: t.label,
         icon: t.icon,
