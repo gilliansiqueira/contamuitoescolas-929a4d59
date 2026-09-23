@@ -252,7 +252,7 @@ export function resolveEntryLedgerRule(
   // distribuição de lucros, aplicação...), que nunca entra em Despesa/Receita.
   if (entry.origem && ORIGENS_SEMPRE_CLASSIFICADAS.has(entry.origem)) {
     const op = resolveNativeOperationRule(entry.categoria, classifications);
-    if (op) return op;
+    if (op) return { ...op, operacaoSinal: entry.tipo === 'entrada' ? 'somar' : 'subtrair' };
     return defaultRuleForTipo(entry.tipo);
   }
   const rule = resolveLedgerRule(resolveEntryTipoKey(entry, classifications), classifications);
