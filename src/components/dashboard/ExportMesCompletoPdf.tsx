@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,12 +9,21 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 interface Props {
   /** Monta os dados no momento do clique (evita cálculo desnecessário) */
   buildData: () => MesCompletoData | Promise<MesCompletoData>;
+  /** Todos os dados da tela terminaram de carregar */
+  ready?: boolean;
 }
 
-export function ExportMesCompletoPdf({ buildData }: Props) {
+export function ExportMesCompletoPdf({ buildData, ready = true }: Props) {
   const [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
+  const loading = !ready;
 
   const handleClick = async () => {
+    // Checagem final: nenhum dado pode estar chegando no momento da geração.
+    if (!ready || queryClient.isFetching() > 0) {
+      toast.error('Os dados ainda estão carregando. Aguarde alguns segundos e tente novamente.');
+      return;
+    }
     setBusy(true);
     try {
       const { generateMesCompletoPdf } = await import('./pdf/mesCompletoPdf');
@@ -31,9 +41,9 @@ export function ExportMesCompletoPdf({ buildData }: Props) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" disabled={busy} className="gap-1.5 shadow-sm">
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-          Relatório geral (PDF)
+        <Button size="sm" disabled={busy || loading} className="gap-1.5 shadow-sm">
+          {busy || loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+          {loading ? 'Carregando dados…' : 'Relatório geral (PDF)'}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
