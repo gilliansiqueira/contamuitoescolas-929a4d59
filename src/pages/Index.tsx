@@ -187,8 +187,14 @@ function IndexBody({
 
   const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
+  const canSeeAdminTabs = isAdmin && !isPresentationMode && !isDemo;
+  const visibleMainTabs = mainTabs.filter(t => !t.adminOnly || canSeeAdminTabs);
 
   if ((isPresentationMode || isDemo) && isSettingsTab) {
+    setActiveTab('dashboard');
+  }
+
+  if (!canSeeAdminTabs && mainTabs.some(t => t.key === activeTab && t.adminOnly)) {
     setActiveTab('dashboard');
   }
 
