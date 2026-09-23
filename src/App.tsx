@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PresentationProvider } from "@/components/presentation-provider";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -40,6 +41,7 @@ const App = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
+              <UpdateBanner />
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />
