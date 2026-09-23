@@ -21,7 +21,7 @@ import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
 import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/MobileNavSheet';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon, Database,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -62,7 +62,7 @@ type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' 
 
 type AppModule = 'projecao' | 'realizado';
 
-const mainTabs: { key: Tab; label: string; icon: any }[] = [
+const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'daily_flow', label: 'Fluxo Diário', icon: Table2 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
@@ -70,6 +70,7 @@ const mainTabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'comparativo_periodos', label: 'Comparativo', icon: TableProperties },
   { key: 'scenarios', label: 'Cenários', icon: TrendingUp },
   { key: 'simulation', label: 'Simulação', icon: Calculator },
+  { key: 'datatable', label: 'Dados', icon: Database, adminOnly: true },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
@@ -186,8 +187,14 @@ function IndexBody({
 
   const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
+  const canSeeAdminTabs = isAdmin && !isPresentationMode && !isDemo;
+  const visibleMainTabs = mainTabs.filter(t => !t.adminOnly || canSeeAdminTabs);
 
   if ((isPresentationMode || isDemo) && isSettingsTab) {
+    setActiveTab('dashboard');
+  }
+
+  if (!canSeeAdminTabs && mainTabs.some(t => t.key === activeTab && t.adminOnly)) {
     setActiveTab('dashboard');
   }
 
@@ -196,7 +203,7 @@ function IndexBody({
   const navSections: NavSheetSection[] = [
     {
       title: 'Projeção',
-      items: mainTabs.map(t => ({
+      items: visibleMainTabs.map(t => ({
         key: `p-${t.key}`,
         label: t.label,
         icon: t.icon,
@@ -317,7 +324,7 @@ function IndexBody({
           {/* Projeção Tabs */}
           <nav className="sticky top-[105px] z-40 hidden overflow-x-auto border-b border-border/50 bg-card/95 backdrop-blur-md sm:block">
             <div className="max-w-7xl mx-auto px-4 flex gap-1 items-center">
-              {mainTabs.map(tab => (
+              {visibleMainTabs.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
@@ -360,7 +367,7 @@ function IndexBody({
           {/* Mobile: faixa deslizável de subabas da Projeção */}
           <div className="sm:hidden border-b border-border/60 bg-card">
             <MobileTabStrip
-              items={mainTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
+              items={visibleMainTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
               active={activeTab}
               onChange={(k) => setActiveTab(k as Tab)}
             />
