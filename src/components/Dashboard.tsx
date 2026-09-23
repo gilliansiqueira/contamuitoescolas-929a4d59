@@ -733,7 +733,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       year,
       months: Array.from({ length: 12 }, (_, index) => {
         const month = `${year}-${String(index + 1).padStart(2, '0')}`;
-        if (!availableFinancialMonths.includes(month)) return null;
+        if (!availableFinancialMonths.includes(month) || month > (selectedMonths[selectedMonths.length - 1] || `${new Date().getFullYear()}-12`)) return null;
         const movement = buildMonthMovement(month, movementCtx, { isInModel });
         const value = kind === 'resultado' ? movement.receitas - movement.despesas : movement[kind];
         return value === 0 ? null : value;
