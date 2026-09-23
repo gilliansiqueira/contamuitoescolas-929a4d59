@@ -723,20 +723,19 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       saldoFinal: computeSaldoFinal(mv.month, movementCtx, { isInModel }),
     }));
 
-    const availableFinancialMonths = Array.from(new Set([
-      ...movementCtx.entries.map(entry => entry.dataProjetada.slice(0, 7)),
-      ...movementCtx.historicalRows.map(row => row.month),
-      ...Array.from(movementCtx.snapshotMap.keys()),
-    ])).filter(month => /^\d{4}-\d{2}$/.test(month)).sort();
-    const annualYears = Array.from(new Set(availableFinancialMonths.map(month => month.slice(0, 4)))).sort();
+    const reportReferenceMonth = selectedMonths[selectedMonths.length - 1] || `${new Date().getFullYear()}-12`;
+    const reportCurrentYear = reportReferenceMonth.slice(0, 4);
+    const reportPreviousYear = String(Number(reportCurrentYear) - 1);
+    const annualYears = [reportPreviousYear, reportCurrentYear];
     const buildAnnual = (kind: 'receitas' | 'despesas' | 'resultado') => annualYears.map(year => ({
       year,
       months: Array.from({ length: 12 }, (_, index) => {
         const month = `${year}-${String(index + 1).padStart(2, '0')}`;
-        if (!availableFinancialMonths.includes(month) || month > (selectedMonths[selectedMonths.length - 1] || `${new Date().getFullYear()}-12`)) return null;
+        if (month > reportReferenceMonth) return null;
         const movement = buildMonthMovement(month, movementCtx, { isInModel });
+        if (movement.source === 'vazio') return null;
         const value = kind === 'resultado' ? movement.receitas - movement.despesas : movement[kind];
-        return value === 0 ? null : value;
+        return value;
       }),
     }));
 
@@ -911,7 +910,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         taxa: Number(row.contatos) ? Number(row.matriculas) / Number(row.contatos) * 100 : 0,
       }));
 
-    const finalSelectedMonth = selectedMonths[selectedMonths.length - 1] || `${new Date().getFullYear()}-12`;
+    const finalSelectedMonth = reportReferenceMonth;
     const currentYear = finalSelectedMonth.slice(0, 4);
     const previousYear = String(Number(currentYear) - 1);
     const monthIndexes = Array.from(new Set(selectedMonths.filter(month => month.startsWith(currentYear)).map(month => month.slice(5, 7))));
@@ -946,11 +945,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     return {
       schoolName: school?.nome || 'Empresa',
       periodoLabel,
-      saldoInicial: saldoInicialCalculado,
-      saldoFinal,
-      receitas: totals.receitas,
-      despesas: totals.despesas,
-      resultado: totals.resultado,
+      // O resumo do PDF espelha os cartões principais do Dashboard: visão realizada.
+      saldoInicial: saldoInicialCalculadoRealizado,
+      saldoFinal: saldoFinalRealizado,
+      receitas: totalsRealizado.receitas,
+      despesas: totalsRealizado.despesas,
+      resultado: totalsRealizado.resultado,
+      operacoesIn: totals.operacoesIn,
+      operacoesOut: totals.operacoesOut,
       porTipo: tipoAggregations.map(t => ({ label: t.label, valor: t.valor, classificacao: t.classificacao })),
       recebiveis: Object.entries(recMap).map(([label, valor]) => ({ label, valor })).filter(r => r.valor > 0),
       contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
@@ -975,14 +977,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       conversion,
       conversionThresholds: reportConversionThresholds.map((row: any) => ({ tipo: row.tipo, min: row.min_value == null ? null : Number(row.min_value), max: row.max_value == null ? null : Number(row.max_value), label: row.label })),
       enrollmentsYoY,
-      annualEnrollments: Array.from(new Set(reportConversion.map((row: any) => row.month.slice(0, 4)))).sort().map(year => ({
+      annualEnrollments: [previousYear, currentYear].map(year => ({
         year,
         months: Array.from({ length: 12 }, (_, index) => {
           const rows = reportConversion.filter((row: any) => row.month === `${year}-${String(index + 1).padStart(2, '0')}`);
           return rows.length ? rows.reduce((sum: number, row: any) => sum + (Number(row.matriculas) || 0), 0) : null;
         }),
       })),
-      annualContacts: Array.from(new Set(reportConversion.map((row: any) => row.month.slice(0, 4)))).sort().map(year => ({
+      annualContacts: [previousYear, currentYear].map(year => ({
         year,
         months: Array.from({ length: 12 }, (_, index) => {
           const rows = reportConversion.filter((row: any) => row.month === `${year}-${String(index + 1).padStart(2, '0')}`);
@@ -995,7 +997,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       sources: Array.from(new Set(monthly.map(row => row.source))),
       fileName: `relatorio-geral-${selectedMonths[0] || 'periodo'}-${selectedMonths[selectedMonths.length - 1] || 'completo'}`,
     };
-  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, schoolId, saldoInicialCalculado, saldoFinal, totals, tipoAggregations, movementCtx, isInModel, monthMovements]);
+  }, [activeEntries, classifications, includeEntry, monthSources, selectedMonth, selectedMonths, school, schoolId, saldoInicialCalculadoRealizado, saldoFinalRealizado, totals, totalsRealizado, tipoAggregations, movementCtx, isInModel, monthMovements]);
 
   return (
     <div className="space-y-3 sm:space-y-6" ref={exportRef}>
