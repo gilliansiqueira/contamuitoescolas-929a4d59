@@ -70,6 +70,7 @@ const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean }[] = 
   { key: 'comparativo_periodos', label: 'Comparativo', icon: TableProperties },
   { key: 'scenarios', label: 'Cenários', icon: TrendingUp },
   { key: 'simulation', label: 'Simulação', icon: Calculator },
+  { key: 'datatable', label: 'Dados', icon: Database, adminOnly: true },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
