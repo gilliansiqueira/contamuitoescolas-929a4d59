@@ -1197,18 +1197,29 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       )}
 
 
-      {/* Operações */}
-      {(totals.operacoesIn > 0 || totals.operacoesOut > 0) && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="glass-card rounded-xl p-3 sm:p-4">
-          <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">💼 Operações (não entram no resultado)</h4>
-          <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:gap-6 gap-2 text-[11px] sm:text-sm">
-            <span className="text-success truncate">Entradas: {formatCurrency(totals.operacoesIn)}</span>
-            <span className="text-destructive truncate">Saídas: {formatCurrency(totals.operacoesOut)}</span>
-            <span className="text-muted-foreground truncate">Líquido: {formatCurrency(totals.operacoesIn - totals.operacoesOut)}</span>
-          </div>
-        </motion.div>
-      )}
+      {/* Operações (Ignorados do banco ficam fora: contam só no saldo) */}
+      {(() => {
+        const ign = tipoAggregations.filter(a => /^movimenta[çc][õo]es ignoradas \(banco\)/i.test(a.label));
+        const ignIn = ign.filter(a => a.isEntrada).reduce((s, a) => s + a.valor, 0);
+        const ignOut = ign.filter(a => !a.isEntrada).reduce((s, a) => s + a.valor, 0);
+        const opIn = totals.operacoesIn - ignIn;
+        const opOut = totals.operacoesOut - ignOut;
+        if (opIn <= 0.004 && opOut <= 0.004 && ign.length === 0) return null;
+        return (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+            className="glass-card rounded-xl p-3 sm:p-4">
+            <h4 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">💼 Operações (não entram no resultado)</h4>
+            <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:gap-6 gap-2 text-[11px] sm:text-sm">
+              <span className="text-success truncate">Entradas: {formatCurrency(opIn)}</span>
+              <span className="text-destructive truncate">Saídas: {formatCurrency(opOut)}</span>
+              <span className="text-muted-foreground truncate">Líquido: {formatCurrency(opIn - opOut)}</span>
+            </div>
+            {ign.length > 0 && (
+              <p className="mt-1.5 text-[10px] sm:text-xs text-muted-foreground">Ignorados (banco), só no saldo: {formatCurrency(ignIn - ignOut)}</p>
+            )}
+          </motion.div>
+        );
+      })()}
 
       {/* Cards manuais (admin) — informativos, não afetam saldo/resultado */}
       <ManualCardsSection schoolId={schoolId} selectedMonth={selectedMonth} />
