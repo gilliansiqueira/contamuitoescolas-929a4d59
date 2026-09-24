@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
@@ -60,7 +60,7 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
 
   const renderGroup = (group: SidebarGroup) => {
     if (group.items.length === 0) return null;
-    const isOpen = collapsed || openGroups[group.key] !== false;
+    const isOpen = collapsed || openGroups[group.key] === true;
     const hasActive = group.items.some(i => i.active);
     return (
       <div key={group.key}>
@@ -102,6 +102,9 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
 
       {footerGroup && footerGroup.items.length > 0 && (
         <div className={`app-sidebar-divider border-t p-3 ${collapsed ? 'px-2' : ''}`}>
+          {!settingsOpen && footerGroup.items.some(i => i.active) && (
+            <div className="space-y-0.5 mb-1">{footerGroup.items.filter(i => i.active).map(renderItem)}</div>
+          )}
           {settingsOpen && (
             <div className="space-y-0.5 mb-1">{footerGroup.items.map(renderItem)}</div>
           )}
