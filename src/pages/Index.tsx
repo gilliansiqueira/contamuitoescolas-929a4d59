@@ -418,6 +418,9 @@ function IndexBody({
                     <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />
                   </ExportPdfSection>
                 )}
+                {activeTab === 'bank_flow' && bankPilotEnabled && canSeeAdminTabs && (
+                  <FluxoBancario schoolId={school.id} selectedMonth={selectedMonth} />
+                )}
                 {activeTab === 'datatable' && (
                   <ExportPdfSection fileName={`dados-${selectedMonth}`}>
                     <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />
