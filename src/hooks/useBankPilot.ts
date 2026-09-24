@@ -35,9 +35,9 @@ export function useBankTransactions(schoolId: string) {
     queryFn: async () => {
       const [txs, splits] = await Promise.all([
         fetchAllRows<BankTx>('bank_transactions', q => q.eq('school_id', schoolId),
-          1000, 'id, account_id, import_id, data, descricao, descricao_editada, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind'),
+          1000, 'id, account_id, import_id, data, descricao, descricao_editada, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind, model_item_id'),
         fetchAllRows<BankSplit & { transaction_id: string }>('bank_transaction_splits', q => q.eq('school_id', schoolId),
-          1000, 'id, transaction_id, valor, categoria, descricao, note, sort_order'),
+          1000, 'id, transaction_id, valor, categoria, descricao, note, sort_order, model_item_id'),
       ]);
       const byTx = new Map<string, BankSplit[]>();
       for (const s of splits) { const l = byTx.get(s.transaction_id) ?? []; l.push(s); byTx.set(s.transaction_id, l); }
@@ -73,6 +73,7 @@ export function useInvalidateBank(schoolId: string) {
     qc.invalidateQueries({ queryKey: ['bankAccounts', schoolId] });
     qc.invalidateQueries({ queryKey: ['autoInvestPatterns', schoolId] });
     qc.invalidateQueries({ queryKey: ['ownTransferNames', schoolId] });
+    qc.invalidateQueries({ queryKey: ['bankCashflow', schoolId] });
   };
 }
 
@@ -182,4 +183,99 @@ export async function autoPairTransfers(schoolId: string): Promise<number> {
     if (error) throw error;
   }
   return pairs.length;
+}
+
+// ─── Integração Fluxo de Caixa → Dashboard / Fluxo Diário ───
+export interface ModelItem { id: string; name: string; tipo: string; impacta_caixa: boolean; entra_no_resultado: boolean }
+export function useSchoolModelItems(schoolId: string) {
+  return useQuery({
+    queryKey: ['schoolModelItems', schoolId],
+    queryFn: async (): Promise<ModelItem[]> => {
+      const { data: school } = await db.from('schools').select('financial_model_template_id').eq('id', schoolId).maybeSingle();
+      if (!school?.financial_model_template_id) return [];
+      const { data, error } = await db.from('financial_model_template_items')
+        .select('id, name, tipo, impacta_caixa, entra_no_resultado, sort_order').eq('template_id', school.financial_model_template_id).order('sort_order');
+      if (error) throw error;
+      return (data ?? []).map((i: any) => ({ ...i, name: String(i.name).trim() }));
+    },
+    enabled: !!schoolId,
+  });
+}
+
+export function useSetModelItem(schoolId: string) {
+  const inv = useInvalidateBank(schoolId);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, itemId }: { ids: string[]; itemId: string | null }) => {
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await db.from('bank_transactions').update({ model_item_id: itemId }).in('id', ids.slice(i, i + 200));
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { inv(); qc.invalidateQueries({ queryKey: ['bankCashflow', schoolId] }); },
+  });
+}
+
+export function useSetSplitModelItem(schoolId: string) {
+  const inv = useInvalidateBank(schoolId);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ splitId, itemId }: { splitId: string; itemId: string | null }) => {
+      const { error } = await db.rpc('set_bank_split_model_item', { _split_id: splitId, _item_id: itemId });
+      if (error) throw error;
+    },
+    onSuccess: () => { inv(); qc.invalidateQueries({ queryKey: ['bankCashflow', schoolId] }); },
+  });
+}
+
+export interface DataSourceConfig {
+  school_id: string; status: 'rascunho' | 'em_conferencia' | 'ativo' | 'pausado';
+  dashboard_source: string; daily_flow_source: string; start_month: string;
+  synced_through: string | null; last_synced_at: string | null; last_error: string | null;
+}
+export function useDataSource(schoolId: string) {
+  return useQuery({
+    queryKey: ['bankCashflow', schoolId, 'source'],
+    queryFn: async (): Promise<DataSourceConfig | null> => {
+      const { data, error } = await db.from('school_data_sources').select('*').eq('school_id', schoolId).maybeSingle();
+      if (error) throw error;
+      return data ?? null;
+    },
+    enabled: !!schoolId,
+  });
+}
+
+export interface CashflowEntry {
+  id: string; bank_transaction_id: string; bank_split_id: string | null; account_id: string; data: string;
+  descricao: string; valor: number; tipo: 'entrada' | 'saida'; model_item_id: string | null; tipo_nome: string; recon_status: string;
+}
+export function useCashflowEntries(schoolId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['bankCashflow', schoolId, 'entries'],
+    queryFn: () => fetchAllRows<CashflowEntry>('bank_cashflow_entries', q => q.eq('school_id', schoolId).order('data'),
+      1000, 'id, bank_transaction_id, bank_split_id, account_id, data, descricao, valor, tipo, model_item_id, tipo_nome, recon_status'),
+    enabled: !!schoolId && enabled,
+  });
+}
+
+export function useResyncCashflow(schoolId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc('sync_bank_cashflow_school', { _school_id: schoolId });
+      if (error) throw error;
+      return data as number;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bankCashflow', schoolId] }),
+  });
+}
+
+export function useSheetFluxoEntries(schoolId: string, from: string, to: string, enabled = true) {
+  return useQuery({
+    queryKey: ['bankCashflow', schoolId, 'sheet', from, to],
+    queryFn: () => fetchAllRows<{ id: string; data: string; descricao: string; valor: number; tipo: string; tipo_original: string | null; source_kind: string }>(
+      'financial_entries', q => q.eq('school_id', schoolId).eq('origem', 'fluxo').gte('data', from).lte('data', to).order('data'),
+      1000, 'id, data, descricao, valor, tipo, tipo_original, source_kind'),
+    enabled: !!schoolId && enabled,
+  });
 }

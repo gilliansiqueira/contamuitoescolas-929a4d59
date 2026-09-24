@@ -46,6 +46,54 @@ export type Database = {
           },
         ]
       }
+      bank_account_balances: {
+        Row: {
+          account_id: string
+          created_at: string
+          data: string
+          id: string
+          origem: string
+          saldo_aplicado: number
+          saldo_conta: number
+          school_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          data: string
+          id?: string
+          origem?: string
+          saldo_aplicado?: number
+          saldo_conta?: number
+          school_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          data?: string
+          id?: string
+          origem?: string
+          saldo_aplicado?: number
+          saldo_conta?: number
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_account_balances_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_account_balances_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           agencia: string | null
@@ -127,6 +175,76 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "bank_auto_invest_patterns_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_cashflow_entries: {
+        Row: {
+          account_id: string
+          bank_split_id: string | null
+          bank_transaction_id: string
+          data: string
+          descricao: string
+          id: string
+          model_item_id: string | null
+          recon_status: string
+          school_id: string
+          synced_at: string
+          tipo: string
+          tipo_nome: string
+          valor: number
+        }
+        Insert: {
+          account_id: string
+          bank_split_id?: string | null
+          bank_transaction_id: string
+          data: string
+          descricao: string
+          id?: string
+          model_item_id?: string | null
+          recon_status: string
+          school_id: string
+          synced_at?: string
+          tipo: string
+          tipo_nome: string
+          valor: number
+        }
+        Update: {
+          account_id?: string
+          bank_split_id?: string | null
+          bank_transaction_id?: string
+          data?: string
+          descricao?: string
+          id?: string
+          model_item_id?: string | null
+          recon_status?: string
+          school_id?: string
+          synced_at?: string
+          tipo?: string
+          tipo_nome?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_cashflow_entries_bank_split_id_fkey"
+            columns: ["bank_split_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transaction_splits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_cashflow_entries_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_cashflow_entries_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
@@ -299,6 +417,7 @@ export type Database = {
           created_by: string | null
           descricao: string | null
           id: string
+          model_item_id: string | null
           note: string | null
           school_id: string
           sort_order: number
@@ -311,6 +430,7 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           id?: string
+          model_item_id?: string | null
           note?: string | null
           school_id: string
           sort_order?: number
@@ -323,6 +443,7 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           id?: string
+          model_item_id?: string | null
           note?: string | null
           school_id?: string
           sort_order?: number
@@ -330,6 +451,13 @@ export type Database = {
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "bank_transaction_splits_model_item_id_fkey"
+            columns: ["model_item_id"]
+            isOneToOne: false
+            referencedRelation: "financial_model_template_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bank_transaction_splits_school_id_fkey"
             columns: ["school_id"]
@@ -357,6 +485,7 @@ export type Database = {
           descricao_editada: string | null
           id: string
           import_id: string
+          model_item_id: string | null
           movement_kind: string
           recon_at: string | null
           recon_by: string | null
@@ -378,6 +507,7 @@ export type Database = {
           descricao_editada?: string | null
           id?: string
           import_id: string
+          model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null
           recon_by?: string | null
@@ -399,6 +529,7 @@ export type Database = {
           descricao_editada?: string | null
           id?: string
           import_id?: string
+          model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null
           recon_by?: string | null
@@ -423,6 +554,13 @@ export type Database = {
             columns: ["import_id"]
             isOneToOne: false
             referencedRelation: "bank_statement_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_model_item_id_fkey"
+            columns: ["model_item_id"]
+            isOneToOne: false
+            referencedRelation: "financial_model_template_items"
             referencedColumns: ["id"]
           },
           {
@@ -2459,6 +2597,53 @@ export type Database = {
         }
         Relationships: []
       }
+      school_data_sources: {
+        Row: {
+          created_at: string
+          daily_flow_source: string
+          dashboard_source: string
+          last_error: string | null
+          last_synced_at: string | null
+          school_id: string
+          start_month: string
+          status: string
+          synced_through: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_flow_source?: string
+          dashboard_source?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          school_id: string
+          start_month: string
+          status?: string
+          synced_through?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_flow_source?: string
+          dashboard_source?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          school_id?: string
+          start_month?: string
+          status?: string
+          synced_through?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_data_sources_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: true
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       school_features: {
         Row: {
           created_at: string
@@ -2946,6 +3131,14 @@ export type Database = {
       }
       is_platform_member: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      refresh_bank_cashflow_status: {
+        Args: { _school_id: string }
+        Returns: undefined
+      }
+      set_bank_split_model_item: {
+        Args: { _item_id: string; _split_id: string }
+        Returns: undefined
+      }
       set_bank_tx_splits: {
         Args: { _parts: Json; _tx_id: string }
         Returns: undefined
@@ -2958,6 +3151,11 @@ export type Database = {
         Args: { _display_name: string; _user_id: string }
         Returns: undefined
       }
+      sync_bank_cashflow_school: {
+        Args: { _school_id: string }
+        Returns: number
+      }
+      sync_bank_cashflow_tx: { Args: { _tx_id: string }; Returns: undefined }
       sync_school_management_responsible: {
         Args: { _school_id: string }
         Returns: undefined

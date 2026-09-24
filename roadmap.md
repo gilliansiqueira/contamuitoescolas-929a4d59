@@ -42,3 +42,11 @@
 
 ## Central compacta (set/2026)
 - [x] Reproduzir a Central de Clientes compacta para proprietária e equipe, preservando acessos e dados reais
+
+## Fluxo de Caixa → Dashboard e Fluxo Diário (piloto: Dourados, Uberlândia Centro e Santa Mônica)
+- [x] Estrutura: configuração por escola com status, saldos por conta e data, tipo financeiro ligado ao modelo, linhas geradas em tabela própria (histórico intacto; nada antes de 01/09/2026)
+- [x] Sincronização automática e segura para repetir; testes em transação desfeita
+- [x] Tipo financeiro por linha, por parte da divisão e em lote no Fluxo Bancário; filtro "A classificar"
+- [x] Tela "Conferência Dashboard" (por conta, dia, tipo, divergências linha a linha)
+- [ ] Equipe classificar os lançamentos de setembro e corrigir as divergências — aguardando equipe
+- [ ] Ativação (após aprovação): ler as linhas no Dashboard/Fluxo Diário, linha "Movimentações em classificação", selo "Atualizado automaticamente" — aguardando aprovação dos números
