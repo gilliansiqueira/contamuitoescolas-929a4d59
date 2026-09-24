@@ -113,7 +113,7 @@ interface SchoolStepsDialogProps {
   canEditTemplates: boolean;
 }
 
-export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, month, canEditTemplates }: SchoolStepsDialogProps) {
+export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, month, canEditTemplates, onOpenTemplates }: SchoolStepsDialogProps & { onOpenTemplates?: () => void }) {
   const { data: templates = [] } = useClosingStepTemplates(open);
   const { data: overrides = [] } = useSchoolStepOverrides(open ? schoolId : null);
   const { data: checklist = [], isLoading: checklistLoading } = useMonthlyChecklist(open ? schoolId : null, month);
@@ -171,7 +171,15 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
 
         <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Etapas desta empresa</h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Etapas desta empresa</h3>
+              {canEditTemplates && onOpenTemplates && (
+                <Button size="sm" variant={activeTemplates.length === 0 ? 'default' : 'outline'} className="h-7 gap-1 text-[11px]" onClick={onOpenTemplates}>
+                  <ListChecks className="h-3 w-3" />{activeTemplates.length === 0 ? 'Cadastrar etapas padrão' : 'Editar etapas padrão'}
+                </Button>
+              )}
+            </div>
+            <p className="mb-2 text-[11px] text-muted-foreground">As etapas padrão valem para todas as empresas. Aqui você pode desativar ou renomear cada uma só para esta empresa, ou adicionar etapas extras abaixo.</p>
             <div className="space-y-1.5">
               {activeTemplates.map(template => {
                 const override = overrideByTemplate.get(template.id);
