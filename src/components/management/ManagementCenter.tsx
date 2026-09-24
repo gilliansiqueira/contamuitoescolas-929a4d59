@@ -404,7 +404,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               </>
             )}
           </section>
-        </main>
+          )}
+          </main>
       </div>
     </div>
   );
