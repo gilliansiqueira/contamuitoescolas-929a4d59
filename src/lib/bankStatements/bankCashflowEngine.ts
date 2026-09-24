@@ -18,7 +18,9 @@ export interface BankAccount {
   auto_invest_saldo_data?: string | null;
 }
 
-export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao';
+export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar';
+export type SplitCategoria = 'normal' | 'operacao' | 'ignorar';
+export interface BankSplit { id: string; valor: number; categoria: SplitCategoria; descricao: string | null; note: string | null; sort_order: number }
 export const isAutoInvest = (t: Pick<BankTx, 'movement_kind'>) => t.movement_kind === 'auto_aplicacao' || t.movement_kind === 'auto_resgate';
 /** Operação: fora de entradas/saídas realizadas, mas continua no saldo (igual às Operações do Dashboard). */
 export const isOperacao = (t: Pick<BankTx, 'movement_kind'>) => t.movement_kind === 'operacao';
@@ -41,6 +43,7 @@ export interface BankTx {
   recon_note: string | null;
   created_at: string;
   movement_kind?: MovementKind;
+  splits?: BankSplit[];
 }
 
 export const signed = (t: Pick<BankTx, 'valor' | 'tipo'>) => (t.tipo === 'entrada' ? Number(t.valor) : -Number(t.valor));
@@ -97,12 +100,13 @@ export interface PilotSummary {
   percentConciliado: number;
   operacoesIn: number;
   operacoesOut: number;
+  ignorados: number;
 }
 
 /** Transferências entre contas próprias (par confirmado) e Operações ficam fora de entradas/saídas. */
 export function summarize(accounts: BankAccount[], txs: BankTx[], from: string, to: string, today: string): PilotSummary {
   const accMap = new Map(accounts.map(a => [a.id, a]));
-  let entradas = 0, saidas = 0, transf = 0, auto = 0, pendQ = 0, pendV = 0, resolved = 0, total = 0, opIn = 0, opOut = 0;
+  let entradas = 0, saidas = 0, transf = 0, auto = 0, pendQ = 0, pendV = 0, resolved = 0, total = 0, opIn = 0, opOut = 0, ign = 0;
   for (const t of txs) {
     const acc = accMap.get(t.account_id);
     if (!acc || t.data < from || t.data > to) continue;
@@ -111,14 +115,20 @@ export function summarize(accounts: BankAccount[], txs: BankTx[], from: string, 
     if (!countsForAccount(acc, t)) continue;
     if (isAutoInvest(t)) { auto += signed(t) * -1; continue; }
     if (t.transfer_pair_id) { transf += Number(t.valor); continue; }
-    if (isOperacao(t)) { if (t.tipo === 'entrada') opIn += Number(t.valor); else opOut += Number(t.valor); continue; }
-    if (t.tipo === 'entrada') entradas += Number(t.valor); else saidas += Number(t.valor);
+    const parts: { valor: number; cat: string }[] = t.splits?.length
+      ? t.splits.map(s => ({ valor: Number(s.valor), cat: s.categoria }))
+      : [{ valor: Number(t.valor), cat: t.movement_kind === 'operacao' || t.movement_kind === 'ignorar' ? t.movement_kind : 'normal' }];
+    for (const p of parts) {
+      if (p.cat === 'ignorar') { ign += p.valor; continue; }
+      if (p.cat === 'operacao') { if (t.tipo === 'entrada') opIn += p.valor; else opOut += p.valor; continue; }
+      if (t.tipo === 'entrada') entradas += p.valor; else saidas += p.valor;
+    }
   }
   const saldoAtual = accounts.reduce((s, a) => s + accountBalance(a, txs, today), 0);
   return {
     saldoAtual: Math.round(saldoAtual * 100) / 100,
-    entradasRealizadas: entradas,
-    saidasRealizadas: saidas,
+    entradasRealizadas: r2(entradas),
+    saidasRealizadas: r2(saidas),
     transferenciasInternas: transf / 2,
     aplicacoesAutomaticas: r2(auto),
     pendentesQtd: pendQ,
@@ -126,6 +136,7 @@ export function summarize(accounts: BankAccount[], txs: BankTx[], from: string, 
     percentConciliado: total ? (resolved / total) * 100 : 0,
     operacoesIn: r2(opIn),
     operacoesOut: r2(opOut),
+    ignorados: r2(ign),
   };
 }
 

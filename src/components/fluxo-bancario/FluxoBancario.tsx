@@ -45,6 +45,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
     { label: 'Entradas realizadas', value: fmtBRL(summary.entradasRealizadas), hint: 'no mês, sem transferências internas' },
     { label: 'Saídas realizadas', value: fmtBRL(summary.saidasRealizadas), hint: 'no mês, sem transferências internas' },
     { label: 'Operações', value: `+${fmtBRL(summary.operacoesIn)} / −${fmtBRL(summary.operacoesOut)}`, hint: 'fora de entradas e saídas; contam no saldo' },
+    { label: 'Ignorados', value: fmtBRL(summary.ignorados), hint: 'fora de todos os totais; só no saldo' },
     { label: 'Saldo projetado', value: fmtBRL(saldoProjetado), hint: `até ${fmtDate(horizon)}` },
     { label: 'Última atualização', value: fmtDate(ultimaAtualizacao), hint: 'último lançamento importado' },
     { label: 'Conciliado', value: `${summary.percentConciliado.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`, hint: 'dos lançamentos do mês' },

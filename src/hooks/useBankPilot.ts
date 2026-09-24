@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllRows } from '@/lib/fetchAll';
-import { DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type ReconStatus, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
+import { DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type ReconStatus, type MovementKind, type BankSplit, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 
 export const BANK_PILOT_FEATURE = 'cashflow_bank_pilot';
 const db = supabase as any;
@@ -32,9 +32,18 @@ export function useBankAccounts(schoolId: string) {
 export function useBankTransactions(schoolId: string) {
   return useQuery({
     queryKey: ['bankTransactions', schoolId],
-    queryFn: async () =>
-      fetchAllRows<BankTx>('bank_transactions', q => q.eq('school_id', schoolId),
-        1000, 'id, account_id, import_id, data, descricao, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind'),
+    queryFn: async () => {
+      const [txs, splits] = await Promise.all([
+        fetchAllRows<BankTx>('bank_transactions', q => q.eq('school_id', schoolId),
+          1000, 'id, account_id, import_id, data, descricao, descricao_editada, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind'),
+        fetchAllRows<BankSplit & { transaction_id: string }>('bank_transaction_splits', q => q.eq('school_id', schoolId),
+          1000, 'id, transaction_id, valor, categoria, descricao, note, sort_order'),
+      ]);
+      const byTx = new Map<string, BankSplit[]>();
+      for (const s of splits) { const l = byTx.get(s.transaction_id) ?? []; l.push(s); byTx.set(s.transaction_id, l); }
+      for (const l of byTx.values()) l.sort((a, b) => a.sort_order - b.sort_order);
+      return txs.map(t => ({ ...t, splits: byTx.get(t.id) }));
+    },
   });
 }
 
@@ -133,6 +142,18 @@ export function useUpdateTxText(schoolId: string) {
       if (descricao_editada !== undefined) patch.descricao_editada = descricao_editada?.trim() || null;
       if (recon_note !== undefined) patch.recon_note = recon_note?.trim() || null;
       const { error } = await db.from('bank_transactions').update(patch).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/** Divide (ou desfaz, com lista vazia) um lançamento. Soma validada no banco; valor/saldo do extrato não mudam. */
+export function useSetSplits(schoolId: string) {
+  const invalidate = useInvalidateBank(schoolId);
+  return useMutation({
+    mutationFn: async ({ txId, parts }: { txId: string; parts: { valor: number; categoria: SplitCategoria; descricao?: string; note?: string }[] }) => {
+      const { error } = await db.rpc('set_bank_tx_splits', { _tx_id: txId, _parts: parts });
       if (error) throw error;
     },
     onSuccess: invalidate,
