@@ -16,6 +16,8 @@ export default {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
         display: ['Space Grotesk', 'sans-serif'],
+        team: ['Figtree', 'sans-serif'],
+        'team-display': ['Outfit', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
