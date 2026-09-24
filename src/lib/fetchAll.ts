@@ -18,7 +18,7 @@ export async function fetchAllRows<T = any>(
   pageSize = 1000,
   selectCols = '*',
 ): Promise<T[]> {
-  const all: T[] = [];
+  const all: any[] = [];
   const orders: OrderSpec[] = [];
   let captured = false;
   // Make sure `id` is available for the cursor.
