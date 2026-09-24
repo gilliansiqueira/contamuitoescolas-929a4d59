@@ -271,6 +271,7 @@ export type Database = {
           data: string
           dedup_hash: string
           descricao: string
+          descricao_editada: string | null
           id: string
           import_id: string
           movement_kind: string
@@ -291,6 +292,7 @@ export type Database = {
           data: string
           dedup_hash: string
           descricao: string
+          descricao_editada?: string | null
           id?: string
           import_id: string
           movement_kind?: string
@@ -311,6 +313,7 @@ export type Database = {
           data?: string
           dedup_hash?: string
           descricao?: string
+          descricao_editada?: string | null
           id?: string
           import_id?: string
           movement_kind?: string
