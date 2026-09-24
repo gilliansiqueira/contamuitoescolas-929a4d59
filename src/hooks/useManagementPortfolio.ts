@@ -25,6 +25,11 @@ export interface ResponsibleCandidate {
   email: string;
 }
 
+export interface ResponsibleDisplayName {
+  user_id: string;
+  display_name: string;
+}
+
 export function useManagementPortfolio(month: string, enabled: boolean) {
   return useQuery({
     queryKey: ['management-portfolio', month],
@@ -67,5 +72,31 @@ export function useSetManagementResponsible(month: string) {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] }),
+  });
+}
+
+export function useManagementResponsibleDisplayNames(enabled: boolean) {
+  return useQuery({
+    queryKey: ['management-responsible-display-names'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_management_responsible_display_names');
+      if (error) throw error;
+      return (data ?? []) as ResponsibleDisplayName[];
+    },
+  });
+}
+
+export function useSetManagementResponsibleDisplayName() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, displayName }: { userId: string; displayName: string }) => {
+      const { error } = await supabase.rpc('set_management_responsible_display_name', {
+        _user_id: userId,
+        _display_name: displayName,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['management-responsible-display-names'] }),
   });
 }
