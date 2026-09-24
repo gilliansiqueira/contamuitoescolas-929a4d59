@@ -53,16 +53,17 @@ const UsersConfig = lazyNamed(() => import('@/components/UsersConfig'), 'UsersCo
 const HistoricoFinanceiroConfig = lazyNamed(() => import('@/components/HistoricoFinanceiroConfig'), 'HistoricoFinanceiroConfig');
 const ModelosFinanceirosManager = lazyNamed(() => import('@/components/ModelosFinanceirosManager'), 'ModelosFinanceirosManager');
 const EmpresaModeloConfig = lazyNamed(() => import('@/components/EmpresaModeloConfig'), 'EmpresaModeloConfig');
+const FluxoBancario = lazyNamed(() => import('@/components/fluxo-bancario/FluxoBancario'), 'FluxoBancario');
 
 const ScreenLoading = () => (
   <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>
 );
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow';
 
 type AppModule = 'projecao' | 'realizado';
 
-const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean }[] = [
+const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean; pilotOnly?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'daily_flow', label: 'Fluxo Diário', icon: Table2 },
   { key: 'receivables', label: 'Recebíveis', icon: CreditCard },
@@ -71,6 +72,7 @@ const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean }[] = 
   { key: 'scenarios', label: 'Cenários', icon: TrendingUp },
   { key: 'simulation', label: 'Simulação', icon: Calculator },
   { key: 'datatable', label: 'Dados', icon: Database, adminOnly: true },
+  { key: 'bank_flow', label: 'Fluxo Bancário', icon: Landmark, adminOnly: true, pilotOnly: true },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
@@ -188,13 +190,18 @@ function IndexBody({
   const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
   const canSeeAdminTabs = isAdmin && !isPresentationMode && !isDemo;
-  const visibleMainTabs = mainTabs.filter(t => !t.adminOnly || canSeeAdminTabs);
+  const { data: bankPilotEnabled = false } = useSchoolFeature(school.id, BANK_PILOT_FEATURE, canSeeAdminTabs);
+  const visibleMainTabs = mainTabs.filter(t => (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled));
 
   if ((isPresentationMode || isDemo) && isSettingsTab) {
     setActiveTab('dashboard');
   }
 
   if (!canSeeAdminTabs && mainTabs.some(t => t.key === activeTab && t.adminOnly)) {
+    setActiveTab('dashboard');
+  }
+
+  if (activeTab === 'bank_flow' && !bankPilotEnabled) {
     setActiveTab('dashboard');
   }
 
