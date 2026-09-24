@@ -18,8 +18,9 @@ interface Props {
 
 type Situation = 'all' | 'finalizado' | 'bloqueado' | 'atrasado' | 'atencao' | 'em_dia' | 'sem_acompanhamento';
 type ManagementView = 'overview' | 'closing' | 'responsible' | 'alerts';
+type RowStatus = Exclude<Situation, 'all'>;
 
-function statusOf(row: PortfolioRow, month: string) {
+function statusOf(row: PortfolioRow, month: string): RowStatus {
   if (row.period_closed && row.report_delivered && row.checklist_pending === 0) return 'finalizado';
   if (row.waiting_for_client) return 'bloqueado';
   if (row.data_updated_through == null && row.reconciliation_percent == null && row.closing_percent == null && !row.report_delivered && !row.period_closed) return 'sem_acompanhamento';
@@ -31,6 +32,7 @@ function statusOf(row: PortfolioRow, month: string) {
 
 const statusLabels = { finalizado: 'Finalizado', bloqueado: 'Aguardando cliente', atrasado: 'Atrasada', atencao: 'Atenção', em_dia: 'Em dia', sem_acompanhamento: 'Sem acompanhamento' };
 const statusStyles = { finalizado: 'bg-success/10 text-success', bloqueado: 'bg-info/10 text-info', atrasado: 'bg-destructive/10 text-destructive', atencao: 'bg-warning/10 text-warning', em_dia: 'bg-secondary/15 text-secondary', sem_acompanhamento: 'bg-muted text-muted-foreground' };
+const viewLabels: Record<ManagementView, string> = { overview: 'Central de Gestão', closing: 'Fechamento Mensal', responsible: 'Por Responsável', alerts: 'Alertas e Pendências' };
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { isSuperAdmin, profile } = useAuth();
@@ -84,7 +86,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">Conta Muito</p>
-              <p className="text-xs text-muted-foreground">{isSuperAdmin ? statusLabels[view === 'overview' ? 'em_dia' : view === 'alerts' ? 'atencao' : 'sem_acompanhamento'].replace('Em dia', 'Central de Gestão').replace('Atenção', 'Alertas e Pendências').replace('Sem acompanhamento', view === 'closing' ? 'Fechamento Mensal' : 'Por Responsável') : 'Carteira de Clientes'}</p>
+              <p className="text-xs text-muted-foreground">{isSuperAdmin ? viewLabels[view] : 'Carteira de Clientes'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
