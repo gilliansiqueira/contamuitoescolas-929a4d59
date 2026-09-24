@@ -19,6 +19,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { CompactStat } from '@/components/mobile/CompactStat';
 import type { FinancialEntry } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
+import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
+const IGNORADOS_BANCO = new Set([IGNORADO_ENTRADA, IGNORADO_SAIDA]);
 
 interface DailyFlowTableProps {
   schoolId: string;
@@ -180,7 +182,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       ensureDay(data);
       const impact = e.impacto;
       if (impact === 0) return;
-      if (IGNORADOS_BANCO.has(e.tipo_original ?? '') || IGNORADOS_BANCO.has((e as any).categoria ?? '')) {
+      if (IGNORADOS_BANCO.has((e as any).tipoOriginal ?? '')) {
         byDate[data].ignorados += impact;
         return;
       }
