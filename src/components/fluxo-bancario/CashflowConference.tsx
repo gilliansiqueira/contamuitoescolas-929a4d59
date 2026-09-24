@@ -169,14 +169,6 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         bankIni={active.reduce((s, a) => s + accountBalances(a, txs, dayBefore(`${cfg.start_month}-01`)).total, 0)}
         bankFim={active.reduce((s, a) => s + accountBalances(a, txs, cfg.synced_through!).total, 0)} />}
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <section className="rounded-xl border border-border bg-card p-4 text-sm"><div className="mb-2 flex items-center gap-2"><CalendarRange className="h-4 w-4 text-primary" /><h3 className="font-semibold">Período comparado com a planilha</h3></div>
-          <p className="font-medium">{data.sheetMax ? `${fmtDate(from)} a ${fmtDate(data.cmpTo)}` : 'Sem planilha neste período'}</p>
-          {data.sheetMax && <p className="mt-1 text-xs text-muted-foreground">Diferença: entradas {fmtBRL(data.cmp.bIn - data.cmp.sIn)} · saídas {fmtBRL(data.cmp.bOut - data.cmp.sOut)}</p>}</section>
-        <section className="rounded-xl border border-border bg-card p-4 text-sm"><div className="mb-2 flex items-center gap-2"><CalendarRange className="h-4 w-4 text-muted-foreground" /><h3 className="font-semibold">Depois do fechamento da planilha</h3></div>
-          <p className="font-medium">{data.txPost.length} movimentações — não são divergência</p>
-          <p className="mt-1 text-xs text-muted-foreground">Entradas {fmtBRL(data.txPost.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0))} · saídas {fmtBRL(data.txPost.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0))}</p></section>
-      </div>
 
       {(data.dups.length > 0 || data.splitDiff.length > 0 || data.semPar.length + data.pairOut.length > 0) && (
         <section className="rounded-xl border border-warning bg-card p-3 text-sm">
@@ -187,6 +179,17 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         </section>
       )}
 
+
+      <Accordion type="multiple" className="rounded-xl border border-border bg-card px-4">
+        <AccordionItem value="sheet"><AccordionTrigger className="text-sm">Comparação com planilhas antigas (só consulta, não é alerta)</AccordionTrigger><AccordionContent><div className="space-y-3">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="rounded-xl border border-border bg-card p-4 text-sm"><div className="mb-2 flex items-center gap-2"><CalendarRange className="h-4 w-4 text-primary" /><h3 className="font-semibold">Período comparado com a planilha</h3></div>
+          <p className="font-medium">{data.sheetMax ? `${fmtDate(from)} a ${fmtDate(data.cmpTo)}` : 'Sem planilha neste período'}</p>
+          {data.sheetMax && <p className="mt-1 text-xs text-muted-foreground">Diferença: entradas {fmtBRL(data.cmp.bIn - data.cmp.sIn)} · saídas {fmtBRL(data.cmp.bOut - data.cmp.sOut)}</p>}</section>
+        <section className="rounded-xl border border-border bg-card p-4 text-sm"><div className="mb-2 flex items-center gap-2"><CalendarRange className="h-4 w-4 text-muted-foreground" /><h3 className="font-semibold">Depois do fechamento da planilha</h3></div>
+          <p className="font-medium">{data.txPost.length} movimentações — não são divergência</p>
+          <p className="mt-1 text-xs text-muted-foreground">Entradas {fmtBRL(data.txPost.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0))} · saídas {fmtBRL(data.txPost.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0))}</p></section>
+      </div>
       <section className="rounded-xl border border-border bg-card p-3">
         <h3 className="mb-2 text-sm font-semibold">Divergências no período comparado ({data.divergencias.length})</h3>
         {data.divergencias.length === 0 ? <p className="text-sm text-success">Extrato e planilha batem linha a linha.</p> : (
@@ -194,8 +197,8 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
             <tbody>{data.divergencias.map((d, i) => <tr key={i} className="border-t border-border"><td className="py-1 text-xs font-semibold">{d.tipo}</td><td>{fmtDate(d.data)}</td><td className="text-xs">{d.conta}</td><td className="max-w-80 truncate" title={d.descricao}>{d.descricao}</td><td className={`text-right tabular-nums ${d.sentido === 'entrada' ? 'text-success' : 'text-destructive'}`}>{d.sentido === 'entrada' ? '' : '−'}{fmtBRL(d.valor)}</td><td className="text-xs text-muted-foreground">{d.detalhe}</td></tr>)}</tbody></table></div>
         )}
       </section>
+        </div></AccordionContent></AccordionItem>
 
-      <Accordion type="multiple" className="rounded-xl border border-border bg-card px-4">
         <AccordionItem value="operational"><AccordionTrigger className="text-sm">Detalhes operacionais</AccordionTrigger><AccordionContent><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {card('Pendentes de conciliação', String(data.pend.length), `${fmtBRL(sum(data.pend))} · já entram nos totais`)}
           {card('A classificar', `${data.aClass.length} · ${fmtBRL(sum(data.aClass))}`, 'somente exceções pendentes', data.aClass.length > 0)}
