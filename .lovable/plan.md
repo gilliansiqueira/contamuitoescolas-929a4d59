@@ -61,6 +61,13 @@ A partir desse ponto, o saldo de cada dia e de cada mês sai da abertura mais as
    - lançamentos pendentes de conciliação;
    - lista detalhada das divergências, linha a linha: o que existe só na planilha, só no extrato, com valor ou data diferente, ou em duplicidade.
 
+## Proteção do histórico
+- Nenhum lançamento já importado é apagado, editado, sobrescrito ou reprocessado.
+- Junho, julho e agosto de 2026 ficam totalmente congelados.
+- A sincronização só cria, altera ou exclui as próprias linhas do Fluxo de Caixa, sempre com data a partir de 01/09/2026. O banco recusa qualquer outra operação, mesmo que alguém tente.
+- Em setembro, as linhas antigas da planilha continuam intactas. Após a aprovação, muda só a fonte usada no cálculo.
+- A troca é reversível. Voltar o status para "Pausado" faz o cálculo usar a planilha anterior de novo, sem perder dados.
+
 ## Testes sem afetar dados reais
 - Os testes de inclusão, edição, divisão, conciliação, previsão virando realizado, exclusão e troca de escola rodam **dentro de uma transação que é desfeita no final**. Nenhum lançamento de teste fica gravado.
 - Depois, é feita só a leitura com os dados reais das três escolas.
@@ -80,6 +87,6 @@ A ativação fica fora desta entrega. Ela só acontece depois que vocês aprovar
 - Nova tabela `bank_account_balances(account_id, school_id, data, saldo_conta, saldo_aplicado, origem)`, com unique `(account_id, data)` e seed a partir de `bank_accounts.saldo_inicial*`.
 - `bank_transactions.model_item_id uuid null` e `bank_transaction_splits.model_item_id uuid null`, com FK para `financial_model_template_items`. Um trigger valida que o item pertence a `schools.financial_model_template_id`.
 - `financial_entries`: novas colunas `bank_transaction_id uuid null` e `bank_split_id uuid null`. Índices únicos parciais: `(bank_transaction_id) where bank_split_id is null` e `(bank_split_id) where bank_split_id is not null`. Linhas geradas com `origem='fluxo'`, `source_kind='bank_cashflow'`, `tipo_registro='realizado'`, `tipo_original` igual ao nome do item ou "A classificar".
-- Função `sync_bank_cashflow_entries(_school_id, _date)`, security definer e idempotente, com delete e reinsert por movimentação. Chamada por triggers AFTER em transações e splits, roda para os status em_conferencia e ativo; atualiza `synced_through` e `last_synced_at`, e grava erros em `last_error`.
+- Função `sync_bank_cashflow_entries(_school_id, _date)`, security definer e idempotente, com delete e reinsert por movimentação. Chamada por triggers AFTER em transações e splits, roda para os status em_conferencia e ativo; atualiza `synced_through` e `last_synced_at`, e grava erros em `last_error`. A função só toca linhas `source_kind='bank_cashflow'` com `data >= start_month` (piso fixo `2026-09-01`). Um trigger de guarda em `financial_entries` bloqueia a gravação de `bank_cashflow` antes de 2026-09-01 e bloqueia qualquer update ou delete de linhas não `bank_cashflow` feito por essa função.
 - Quando o status não é ativo, as linhas `bank_cashflow` são ignoradas pelo carregamento. Quando é ativo, nos meses a partir de `start_month`, o carregamento ignora `origem='fluxo'` com `source_kind<>'bank_cashflow'` e usa `synced_through` no lugar de hoje como corte de projeção em `periodMovement`. Os motores oficiais continuam sem duplicação.
 - "A classificar" entra no `tipoMeta` como classificação própria que impacta caixa e fica fora do resultado. O sinal vem do sentido bancário. O item aparece no Dashboard e no PDF como linha de ajuste.
