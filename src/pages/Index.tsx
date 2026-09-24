@@ -1,34 +1,28 @@
 import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
 import { School } from '@/types/financial';
-import { SchoolSelector } from '@/components/SchoolSelector';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { PresentationToggle } from '@/components/PresentationToggle';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
 import { useSchoolFeature, BANK_PILOT_FEATURE } from '@/hooks/useBankPilot';
 import { useSchools } from '@/hooks/useFinancialData';
 import { useDemoMode } from '@/contexts/DemoModeContext';
 import { DemoBanner } from '@/components/DemoBanner';
-import { MonthSelector } from '@/components/MonthSelector';
 import { ScenarioSelector } from '@/components/ScenarioSelector';
 import type { ScenarioType } from '@/components/ScenarioSelector';
 import { ExportPdfSection } from '@/components/ExportPdfSection';
-import { Button } from '@/components/ui/button';
 import { GlobalPeriodProvider, useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 import { SharedMonthProvider } from '@/components/realizado/SharedMonthContext';
 
 import { RealizadoModule, useRealizadoViews, type MainView as RealizadoView } from '@/components/realizado/RealizadoModule';
-import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
 import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/MobileNavSheet';
+import { AppSidebar, type SidebarGroup } from '@/components/app-shell/AppSidebar';
+import { AppHeader } from '@/components/app-shell/AppHeader';
+import { SchoolSelector } from '@/components/SchoolSelector';
+import { Button } from '@/components/ui/button';
 import {
-  LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon, Database, Landmark,
+  LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
+  CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark,
 } from 'lucide-react';
-import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 const lazyNamed = <T extends Record<string, unknown>, K extends keyof T>(loader: () => Promise<T>, name: K) =>
   lazy(async () => ({ default: (await loader())[name] as React.ComponentType<any> }));
@@ -91,6 +85,8 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
   { key: 'comparison', label: 'Projetado vs Real' },
   { key: 'datatable', label: 'Dados (tabela bruta)', adminOnly: true },
 ];
+
+const SIDEBAR_COLLAPSED_KEY = 'cm-sidebar-collapsed';
 
 const Index = () => {
   const { isPresentationMode } = usePresentation();
@@ -182,11 +178,22 @@ function IndexBody({
   const [navOpen, setNavOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [scenario, setScenario] = useState<ScenarioType>('real');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch { return false; }
+  });
   const period = useGlobalPeriod();
   const selectedMonth = period.value; // fonte única
   const realizadoViews = useRealizadoViews(school.id);
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
@@ -208,309 +215,232 @@ function IndexBody({
 
   const showScenarioSelector = activeTab === 'scenarios';
 
+  const goProjecao = (tab: Tab) => { setAppModule('projecao'); setActiveTab(tab); };
+  const goRealizado = (view: RealizadoView) => { setAppModule('realizado'); setRealizadoView(view); };
+
+  const projItem = (tab: Tab) => {
+    const def = mainTabs.find(t => t.key === tab)!;
+    return {
+      key: `p-${tab}`,
+      label: def.label,
+      icon: def.icon,
+      active: appModule === 'projecao' && activeTab === tab,
+      onSelect: () => goProjecao(tab),
+    };
+  };
+  const settingsItem = (tab: Tab) => {
+    const def = settingsTabsBase.find(t => t.key === tab)!;
+    return {
+      key: `s-${tab}`,
+      label: def.label,
+      icon: Settings,
+      active: appModule === 'projecao' && activeTab === tab,
+      onSelect: () => goProjecao(tab),
+    };
+  };
+  const realItem = (view: RealizadoView) => {
+    const def = realizadoViews.find(v => v.key === view);
+    if (!def) return null;
+    return {
+      key: `r-${view}`,
+      label: def.label,
+      icon: def.icon,
+      active: appModule === 'realizado' && realizadoView === view,
+      onSelect: () => goRealizado(view),
+    };
+  };
+
+  // ===== Agrupamento do novo menu lateral =====
+  const sidebarGroups: SidebarGroup[] = [
+    {
+      key: 'visao-geral',
+      title: 'Visão Geral',
+      items: [projItem('dashboard')],
+    },
+    {
+      key: 'caixa-projecao',
+      title: 'Caixa e Projeção',
+      items: (['daily_flow', 'receivables', 'calendar', 'comparativo_periodos', 'scenarios', 'simulation'] as Tab[])
+        .filter(t => visibleMainTabs.some(v => v.key === t))
+        .map(projItem),
+    },
+    {
+      key: 'resultados',
+      title: 'Resultados',
+      items: (['relatorio', 'indicadores', 'recebimento_categoria', 'teto_gastos', 'detalhamento'] as RealizadoView[])
+        .map(realItem)
+        .filter(Boolean) as SidebarGroup['items'],
+    },
+    {
+      key: 'comercial',
+      title: 'Comercial',
+      items: (['conversao', 'vendas', 'analise_vendas'] as RealizadoView[])
+        .map(realItem)
+        .filter(Boolean) as SidebarGroup['items'],
+    },
+    {
+      key: 'relatorios',
+      title: 'Relatórios',
+      items: (['export', 'comparison'] as Tab[])
+        .filter(t => settingsTabs.some(s => s.key === t))
+        .map(settingsItem),
+    },
+    {
+      key: 'operacao',
+      title: 'Operação',
+      items: canSeeAdminTabs
+        ? [
+            ...(['datatable'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
+            ...(['bank_flow'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
+            ...(['upload', 'uploads_history', 'audit_history'] as Tab[])
+              .filter(t => settingsTabs.some(s => s.key === t))
+              .map(settingsItem),
+          ]
+        : [],
+    },
+  ].filter(g => g.items.length > 0);
+
+  const configKeys: Tab[] = ['users', 'saldo_inicial', 'empresa_modelo', 'modelos_financeiros', 'historico_financeiro', 'payment_delays', 'guide'];
+  const footerGroup: SidebarGroup | null = (!isPresentationMode && isAdmin)
+    ? {
+        key: 'configuracoes',
+        title: 'Configurações',
+        items: configKeys.filter(t => settingsTabs.some(s => s.key === t)).map(settingsItem),
+      }
+    : null;
+
+  // Navegação mobile (folha inferior) — mesmos grupos do menu lateral
   const navSections: NavSheetSection[] = [
-    {
-      title: 'Projeção',
-      items: visibleMainTabs.map(t => ({
-        key: `p-${t.key}`,
-        label: t.label,
-        icon: t.icon,
-        active: appModule === 'projecao' && activeTab === t.key,
-        onSelect: () => { setAppModule('projecao'); setActiveTab(t.key); },
-      })),
-    },
-    {
-      title: 'Relatório Realizado',
-      items: realizadoViews.map(v => ({
-        key: `r-${v.key}`,
-        label: v.label,
-        icon: v.icon,
-        active: appModule === 'realizado' && realizadoView === v.key,
-        onSelect: () => { setAppModule('realizado'); setRealizadoView(v.key); },
-      })),
-    },
-    {
-      title: 'Configurações',
-      items: (!isPresentationMode && isAdmin ? settingsTabs : []).map(t => ({
-        key: `s-${t.key}`,
-        label: t.label,
-        icon: Settings,
-        active: appModule === 'projecao' && activeTab === t.key,
-        onSelect: () => { setAppModule('projecao'); setActiveTab(t.key); },
-      })),
-    },
+    ...sidebarGroups.map(g => ({
+      title: g.title,
+      items: g.items.map(i => ({ key: i.key, label: i.label, icon: i.icon, active: i.active, onSelect: i.onSelect })),
+    })),
+    ...(footerGroup ? [{
+      title: footerGroup.title,
+      items: footerGroup.items.map(i => ({ key: i.key, label: i.label, icon: i.icon, active: i.active, onSelect: i.onSelect })),
+    }] : []),
   ];
 
-  const currentTabLabel = mainTabs.find(t => t.key === activeTab)?.label
-    ?? settingsTabs.find(t => t.key === activeTab)?.label
-    ?? '';
+  const currentTabLabel = appModule === 'realizado'
+    ? (realizadoViews.find(v => v.key === realizadoView)?.label ?? '')
+    : (mainTabs.find(t => t.key === activeTab)?.label
+      ?? settingsTabs.find(t => t.key === activeTab)?.label
+      ?? '');
 
   return (
-    <div className="min-h-screen bg-background">
-      {isDemo && <DemoBanner />}
-      {/* Header */}
-      <header className="app-shell-header sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <img src={contaMuitoLogo} alt="Conta Muito" className="h-7 sm:h-10 w-auto object-contain" />
-            <div className="hidden border-l border-border pl-3 sm:block">
-              <p className="font-editorial text-xl leading-none text-foreground">Visão financeira</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Decisões claras</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            {isDemo ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium">
-                {school.nome}
+    <div className="min-h-screen bg-background flex">
+      <AppSidebar groups={sidebarGroups} collapsed={sidebarCollapsed} footerGroup={footerGroup} />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {isDemo && <DemoBanner />}
+        <AppHeader
+          school={school}
+          isDemo={isDemo}
+          isAdminAll={isAdminAll}
+          accessibleSchoolIds={accessibleSchoolIds}
+          profileEmail={profile?.email}
+          onSelectSchool={(s) => {
+            if (s?.id === school.id) setSchool(null);
+            else setSchool(s);
+          }}
+          onSignOut={signOut}
+          periodValue={period.value}
+          onPeriodChange={period.setValue}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={toggleSidebar}
+          onOpenMobileNav={() => setNavOpen(true)}
+        />
+
+        {appModule === 'projecao' ? (
+          <>
+            {/* Filtros específicos (cenário) — o mês agora é global (no header) */}
+            {showScenarioSelector && (
+              <div className="max-w-7xl w-full mx-auto px-4 py-3 flex flex-wrap items-center gap-3 border-b border-border/30">
+                <ScenarioSelector value={scenario} onChange={setScenario} />
               </div>
-            ) : (
-              <SchoolSelector selectedSchool={school} onSelect={(s) => {
-                if (!isAdminAll && accessibleSchoolIds.length < 2) return;
-                if (s?.id === school.id) setSchool(null);
-                else setSchool(s);
-              }} />
             )}
-            {/* Filtro GLOBAL de período — controla todas as abas */}
-            <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/5 border border-primary/20" title="Período aplicado em todas as abas">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Período</span>
-              <MonthSelector schoolId={school.id} value={period.value} onChange={period.setValue} />
-            </div>
-            <PresentationToggle />
-            <ThemeToggle />
-            {!isDemo && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={signOut}
-                title={profile?.email}
-                className="text-muted-foreground hover:text-destructive"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden md:inline ml-1">Sair</span>
-              </Button>
-            )}
-          </div>
-        </div>
-        {/* Filtro global mobile */}
-        <div className="sm:hidden px-4 pb-2 flex items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Período</span>
-          <MonthSelector schoolId={school.id} value={period.value} onChange={period.setValue} />
-        </div>
-      </header>
 
-      {/* Module Selector */}
-      <div className="app-module-rail sticky top-[49px] z-45 border-b border-border sm:top-[57px]">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 flex">
-          <button
-            onClick={() => setAppModule('projecao')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition-colors border-b-3 ${
-              appModule === 'projecao'
-                ? 'border-primary text-primary bg-primary/10'
-                : 'app-module-button-inactive border-transparent hover:text-background'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            Projeção
-          </button>
-          <button
-            onClick={() => setAppModule('realizado')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition-colors border-b-3 ${
-              appModule === 'realizado'
-                ? 'border-primary text-primary bg-primary/10'
-                : 'app-module-button-inactive border-transparent hover:text-background'
-            }`}
-          >
-            <FileBarChart className="w-4 h-4" />
-            <span className="sm:hidden">Realizado</span>
-            <span className="hidden sm:inline">Relatório Realizado</span>
-          </button>
-        </div>
-      </div>
-
-      {appModule === 'projecao' ? (
-        <>
-          {/* Projeção Tabs */}
-          <nav className="sticky top-[105px] z-40 hidden overflow-x-auto border-b border-border/50 bg-card/95 backdrop-blur-md sm:block">
-            <div className="max-w-7xl mx-auto px-4 flex gap-1 items-center">
-              {visibleMainTabs.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ${
-                    activeTab === tab.key
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  }`}
+            {/* Projeção Content */}
+            <main className="max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-6">
+              <h2 className="sm:hidden text-sm font-display font-bold mb-3 truncate">{currentTabLabel}</h2>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`${activeTab}-${refreshKey}-${selectedMonth}-${scenario}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <tab.icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              ))}
+                  <Suspense fallback={<ScreenLoading />}>
+                  {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
+                  {activeTab === 'daily_flow' && (
+                    <ExportPdfSection fileName={`fluxo-diario-${selectedMonth}`}>
+                      <DailyFlowTable schoolId={school.id} selectedMonth={selectedMonth} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'upload' && <FileUpload schoolId={school.id} onImported={refresh} />}
+                  {activeTab === 'cashflow' && <CashFlow schoolId={school.id} selectedMonth={selectedMonth} />}
+                  {activeTab === 'receivables' && (
+                    <ExportPdfSection fileName={`recebiveis-${selectedMonth}`}>
+                      <Receivables schoolId={school.id} selectedMonth={selectedMonth} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'calendar' && (
+                    <ExportPdfSection fileName={`calendario-${selectedMonth}`}>
+                      <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'bank_flow' && bankPilotEnabled && canSeeAdminTabs && (
+                    <FluxoBancario schoolId={school.id} selectedMonth={selectedMonth} />
+                  )}
+                  {activeTab === 'datatable' && (
+                    <ExportPdfSection fileName={`dados-${selectedMonth}`}>
+                      <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'comparativo_periodos' && (
+                    <ExportPdfSection fileName="comparativo-periodos">
+                      <ComparativoPeriodos schoolId={school.id} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'scenarios' && (
+                    <ExportPdfSection fileName={`cenarios-${selectedMonth}`}>
+                      <ScenarioView schoolId={school.id} scenario={scenario} selectedMonth={selectedMonth} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'simulation' && (
+                    <ExportPdfSection fileName="simulacao">
+                      <Simulation schoolId={school.id} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'guide' && <UploadGuide schoolId={school.id} />}
+                  {activeTab === 'comparison' && (
+                    <ExportPdfSection fileName="projetado-vs-real">
+                      <ProjectedVsReal schoolId={school.id} />
+                    </ExportPdfSection>
+                  )}
+                  {activeTab === 'export' && <ExportImport schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
+                  {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
+                  {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
 
-              {!isPresentationMode && isAdmin && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap border-b-2 ml-auto ${
-                      isSettingsTab
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}>
-                      <Settings className="w-4 h-4" />
-                      <span className="hidden sm:inline">Config</span>
-                      <ChevronDown className="w-3 h-3" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {settingsTabs.map(t => (
-                      <DropdownMenuItem key={t.key} onClick={() => setActiveTab(t.key)}>
-                        {t.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </nav>
-
-          {/* Mobile: faixa deslizável de subabas da Projeção */}
-          <div className="sm:hidden border-b border-border/60 bg-card">
-            <MobileTabStrip
-              items={visibleMainTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon }))}
-              active={activeTab}
-              onChange={(k) => setActiveTab(k as Tab)}
-            />
-          </div>
-
-          {/* Filtros específicos (cenário) — o mês agora é global (no header) */}
-          {showScenarioSelector && (
-            <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3 border-b border-border/30">
-              <ScenarioSelector value={scenario} onChange={setScenario} />
-            </div>
-          )}
-
-          {/* Projeção Content */}
-          <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-28 sm:pb-6">
-            <h2 className="sm:hidden text-sm font-display font-bold mb-3 truncate">{currentTabLabel}</h2>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={`${activeTab}-${refreshKey}-${selectedMonth}-${scenario}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Suspense fallback={<ScreenLoading />}>
-                {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
-                {activeTab === 'daily_flow' && (
-                  <ExportPdfSection fileName={`fluxo-diario-${selectedMonth}`}>
-                    <DailyFlowTable schoolId={school.id} selectedMonth={selectedMonth} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'upload' && <FileUpload schoolId={school.id} onImported={refresh} />}
-                {activeTab === 'cashflow' && <CashFlow schoolId={school.id} selectedMonth={selectedMonth} />}
-                {activeTab === 'receivables' && (
-                  <ExportPdfSection fileName={`recebiveis-${selectedMonth}`}>
-                    <Receivables schoolId={school.id} selectedMonth={selectedMonth} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'calendar' && (
-                  <ExportPdfSection fileName={`calendario-${selectedMonth}`}>
-                    <FinancialCalendar schoolId={school.id} selectedMonth={selectedMonth} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'bank_flow' && bankPilotEnabled && canSeeAdminTabs && (
-                  <FluxoBancario schoolId={school.id} selectedMonth={selectedMonth} />
-                )}
-                {activeTab === 'datatable' && (
-                  <ExportPdfSection fileName={`dados-${selectedMonth}`}>
-                    <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'comparativo_periodos' && (
-                  <ExportPdfSection fileName="comparativo-periodos">
-                    <ComparativoPeriodos schoolId={school.id} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'scenarios' && (
-                  <ExportPdfSection fileName={`cenarios-${selectedMonth}`}>
-                    <ScenarioView schoolId={school.id} scenario={scenario} selectedMonth={selectedMonth} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'simulation' && (
-                  <ExportPdfSection fileName="simulacao">
-                    <Simulation schoolId={school.id} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'guide' && <UploadGuide schoolId={school.id} />}
-                {activeTab === 'comparison' && (
-                  <ExportPdfSection fileName="projetado-vs-real">
-                    <ProjectedVsReal schoolId={school.id} />
-                  </ExportPdfSection>
-                )}
-                {activeTab === 'export' && <ExportImport schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
-                {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
-                {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
-                
-                {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
-                {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
-                {activeTab === 'users' && <UsersConfig />}
-                {activeTab === 'historico_financeiro' && <HistoricoFinanceiroConfig schoolId={school.id} onChanged={refresh} />}
-                {activeTab === 'modelos_financeiros' && <ModelosFinanceirosManager />}
-                {activeTab === 'empresa_modelo' && <EmpresaModeloConfig schoolId={school.id} onChanged={refresh} />}
-                </Suspense>
-              </motion.div>
-            </AnimatePresence>
+                  {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
+                  {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
+                  {activeTab === 'users' && <UsersConfig />}
+                  {activeTab === 'historico_financeiro' && <HistoricoFinanceiroConfig schoolId={school.id} onChanged={refresh} />}
+                  {activeTab === 'modelos_financeiros' && <ModelosFinanceirosManager />}
+                  {activeTab === 'empresa_modelo' && <EmpresaModeloConfig schoolId={school.id} onChanged={refresh} />}
+                  </Suspense>
+                </motion.div>
+              </AnimatePresence>
+            </main>
+          </>
+        ) : (
+          /* Relatório Realizado */
+          <main className="max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-6">
+            <RealizadoModule schoolId={school.id} view={realizadoView} onViewChange={setRealizadoView} />
           </main>
-        </>
-      ) : (
-        /* Relatório Realizado */
-        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6 pb-28 sm:pb-6">
-          <RealizadoModule schoolId={school.id} view={realizadoView} onViewChange={setRealizadoView} />
-        </main>
-      )}
-
-      {/* Navegação mobile — barra inferior (vale nos dois módulos) */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-card/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-stretch justify-around">
-          <button
-            onClick={() => setAppModule('projecao')}
-            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
-              appModule === 'projecao' ? 'text-primary' : 'text-muted-foreground'
-            }`}
-          >
-            <TrendingUp className="w-[18px] h-[18px]" />
-            Projeção
-          </button>
-          <button
-            onClick={() => setAppModule('realizado')}
-            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
-              appModule === 'realizado' ? 'text-primary' : 'text-muted-foreground'
-            }`}
-          >
-            <FileBarChart className="w-[18px] h-[18px]" />
-            Realizado
-          </button>
-          <button
-            onClick={() => {
-              if (appModule === 'projecao') setActiveTab('dashboard');
-              else setRealizadoView('relatorio');
-            }}
-            className="flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-muted-foreground"
-          >
-            <LayoutDashboard className="w-[18px] h-[18px]" />
-            Início
-          </button>
-          <button
-            onClick={() => setNavOpen(true)}
-            className={`flex-1 min-h-[52px] flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold ${
-              navOpen ? 'text-primary' : 'text-muted-foreground'
-            }`}
-          >
-            <MenuIcon className="w-[18px] h-[18px]" />
-            Menu
-          </button>
-        </div>
-      </nav>
+        )}
+      </div>
 
       <MobileNavSheet open={navOpen} onOpenChange={setNavOpen} sections={navSections} />
     </div>

@@ -147,6 +147,41 @@
   .app-module-rail .app-module-button-inactive {
     color: hsl(var(--background) / 0.65);
   }
+
+  /* Menu lateral laranja — moldura da plataforma (Etapa 1) */
+  .app-sidebar {
+    background: linear-gradient(180deg, #F47A1F 0%, #E66910 100%);
+    color: #ffffff;
+  }
+  .dark .app-sidebar {
+    background: #9A3412;
+  }
+  .app-sidebar-group-label {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .dark .app-sidebar-group-label {
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .app-sidebar-item {
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .app-sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+  }
+  .app-sidebar-item-active,
+  .app-sidebar-item-active:hover {
+    background: #FEF3C7;
+    color: #B45309;
+  }
+  .dark .app-sidebar-item-active,
+  .dark .app-sidebar-item-active:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+  .app-sidebar-divider {
+    border-color: rgba(255, 255, 255, 0.15);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
