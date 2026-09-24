@@ -71,6 +71,8 @@ export const DEFAULT_MAPPINGS: Record<string, LedgerRule> = {
   // mas o dinheiro passou pela conta — mexe só no saldo (usado apenas pelas linhas bcf-*).
   'movimentacoes ignoradas (banco) - entrada': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar', label: 'Movimentações ignoradas (banco) - entrada' },
   'movimentacoes ignoradas (banco) - saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Movimentações ignoradas (banco) - saída' },
+  'ajuste de saldo inicial (banco) - entrada': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar', label: 'Ajuste de saldo inicial (banco) - entrada' },
+  'ajuste de saldo inicial (banco) - saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Ajuste de saldo inicial (banco) - saída' },
 };
 
 /**

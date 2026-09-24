@@ -120,11 +120,11 @@ function mapEntry(e: any): FinancialEntry {
 async function withCashflowSource(schoolId: string, entries: FinancialEntry[]): Promise<FinancialEntry[]> {
   const db = supabase as any;
   const { data: cfg } = await db.from('school_data_sources')
-    .select('status, dashboard_source, daily_flow_source, start_month').eq('school_id', schoolId).maybeSingle();
+    .select('status, dashboard_source, daily_flow_source, start_month, opening_adjustment').eq('school_id', schoolId).maybeSingle();
   if (!cfg || cfg.status !== 'ativo' || cfg.dashboard_source !== 'fluxo_caixa') return entries;
   const rows = await fetchAllRows<CashflowOverlayRow>('bank_cashflow_entries', q => q.eq('school_id', schoolId).order('data'),
     1000, 'id, data, descricao, valor, tipo, tipo_nome');
-  return applyCashflowOverlay(entries, rows, `${cfg.start_month}-01`, schoolId);
+  return applyCashflowOverlay(entries, rows, `${cfg.start_month}-01`, schoolId, Number(cfg.opening_adjustment) || 0);
 }
 
 export function useEntries(schoolId: string) {

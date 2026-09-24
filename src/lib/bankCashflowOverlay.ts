@@ -2,6 +2,14 @@ import type { FinancialEntry } from '@/types/financial';
 
 export const IGNORADO_ENTRADA = 'Movimentações ignoradas (banco) - entrada';
 export const IGNORADO_SAIDA = 'Movimentações ignoradas (banco) - saída';
+export const AJUSTE_ENTRADA = 'Ajuste de saldo inicial (banco) - entrada';
+export const AJUSTE_SAIDA = 'Ajuste de saldo inicial (banco) - saída';
+
+/** Dia anterior a 'YYYY-MM-DD'. */
+export function dayBefore(d: string): string {
+  const dt = new Date(`${d}T12:00:00Z`); dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
 
 export interface CashflowOverlayRow {
   id: string; data: string; descricao: string; valor: number; tipo: 'entrada' | 'saida'; tipo_nome: string;
@@ -16,8 +24,10 @@ export interface CashflowOverlayRow {
  */
 export function applyCashflowOverlay(
   entries: FinancialEntry[], cashflow: CashflowOverlayRow[], startDate: string, schoolId: string,
+  openingAdjustment = 0,
 ): FinancialEntry[] {
-  const kept = entries.filter(e => !(e.origem === 'fluxo' && e.data >= startDate));
+  // Todo realizado antigo (planilha e lançamentos manuais) sai do cálculo a partir do corte.
+  const kept = entries.filter(e => !((e.tipoRegistro ?? 'realizado') === 'realizado' && e.data >= startDate));
   const added: FinancialEntry[] = cashflow.filter(c => c.data >= startDate).map(c => ({
     id: `bcf-${c.id}`,
     data: c.data,
@@ -32,5 +42,17 @@ export function applyCashflowOverlay(
     tipoRegistro: 'realizado',
     editadoManualmente: false,
   } as FinancialEntry));
+  const adj = Math.round(openingAdjustment * 100) / 100;
+  if (adj !== 0) {
+    // Leva o saldo inicial da competência ao saldo do banco: operação só de caixa, fora do Resultado,
+    // no dia anterior ao corte. Nenhum dado é gravado.
+    added.push({
+      id: 'bcf-ajuste-saldo-inicial', data: dayBefore(startDate),
+      descricao: 'Ajuste para o saldo do banco (início do Fluxo de Caixa)', valor: Math.abs(adj),
+      tipo: adj > 0 ? 'entrada' : 'saida', categoria: 'fluxo_realizado', origem: 'fluxo' as FinancialEntry['origem'],
+      school_id: schoolId, tipoOriginal: adj > 0 ? AJUSTE_ENTRADA : AJUSTE_SAIDA,
+      tipoRegistro: 'realizado', editadoManualmente: false,
+    } as FinancialEntry);
+  }
   return [...kept, ...added].sort((a, b) => a.data.localeCompare(b.data));
 }
