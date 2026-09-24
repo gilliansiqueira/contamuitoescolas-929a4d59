@@ -117,7 +117,9 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const { error } = await db.from('bank_transactions').upsert(chunk, { onConflict: 'account_id,dedup_hash', ignoreDuplicates: true });
         if (error) { await db.from('bank_statement_imports').delete().eq('id', imp.id); throw error; }
       }
-      toast.success(`${novos.length} lançamentos importados · ${result.transactions.length - novos.length} já existiam`);
+      { const autoN = novos.filter(n => n.k === 'auto_aplicacao' || n.k === 'auto_resgate').length;
+        toast.success(`${novos.length} lançamentos importados · ${result.transactions.length - novos.length} já existiam${autoN ? ` · ${autoN} pré-marcados como aplicação automática` : ''}`,
+          autoN && onViewAuto ? { duration: 10000, action: { label: 'Ver', onClick: () => onViewAuto(imp.id, result.transactions.reduce((m, t) => t.data < m ? t.data : m, '9999-12-31'), result.transactions.reduce((m, t) => t.data > m ? t.data : m, '0000-01-01')) } } : undefined); }
       setPreview(null); invalidate();
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao importar');
