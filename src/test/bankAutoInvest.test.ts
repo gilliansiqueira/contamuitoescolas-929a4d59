@@ -35,3 +35,20 @@ describe('acentos do extrato', () => {
     expect(detectMovementKind('BB RENDE F\uFFFDCIL', 'saida', DEFAULT_AUTO_INVEST_PATTERNS)).toBe('auto_aplicacao');
   });
 });
+
+import { summarize as _sum } from '@/lib/bankStatements/bankCashflowEngine';
+describe('categoria Operação', () => {
+  it('sai de entradas/saídas mas continua no saldo', () => {
+    const acc: any = { id: 'a', nome: 'A', banco: 'X', agencia: null, conta: null, saldo_inicial: 100, saldo_inicial_data: '2026-08-31', ativa: true };
+    const base: any = { account_id: 'a', import_id: 'i', transfer_pair_id: null, recon_status: 'pendente', recon_by_email: null, recon_at: null, recon_note: null, created_at: 'x' };
+    const txs: any[] = [
+      { ...base, id: '1', data: '2026-09-02', descricao: 'Venda', valor: 50, tipo: 'entrada', movement_kind: 'normal' },
+      { ...base, id: '2', data: '2026-09-03', descricao: 'Distribuição de lucros', valor: 30, tipo: 'saida', movement_kind: 'operacao' },
+    ];
+    const s = _sum([acc], txs, '2026-09-01', '2026-09-30', '2026-09-30');
+    expect(s.entradasRealizadas).toBe(50);
+    expect(s.saidasRealizadas).toBe(0);
+    expect(s.operacoesOut).toBe(30);
+    expect(s.saldoAtual).toBe(120);
+  });
+});

@@ -6,10 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight, PiggyBank } from 'lucide-react';
+import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight, PiggyBank, Pencil, Layers } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSetReconStatus, useSetTransferPair, useSetMovementKind, fetchReconHistory } from '@/hooks/useBankPilot';
-import { runningBalances, suggestTransferPairs, isAutoInvest, type BankAccount, type BankTx, type ReconStatus } from '@/lib/bankStatements/bankCashflowEngine';
+import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxText, fetchReconHistory } from '@/hooks/useBankPilot';
+import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, displayDesc, type BankAccount, type BankTx, type ReconStatus } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
 
 interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string }
@@ -28,6 +28,18 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [history, setHistory] = useState<{ tx: BankTx; rows: Awaited<ReturnType<typeof fetchReconHistory>> } | null>(null);
   const [showPairs, setShowPairs] = useState(false);
   const [showAuto, setShowAuto] = useState(false);
+  const [cat, setCat] = useState<'all' | 'mov' | 'operacao' | 'transf' | 'auto'>('all');
+  const [descTx, setDescTx] = useState<BankTx | null>(null);
+  const [descText, setDescText] = useState('');
+  const updText = useUpdateTxText(schoolId);
+  const catOf = (t: BankTx) => isAutoInvest(t) ? 'auto' : t.transfer_pair_id ? 'transf' : isOperacao(t) ? 'operacao' : 'mov';
+  const saveText = async (id: string, patch: { descricao_editada?: string | null; recon_note?: string | null }) => {
+    try { await updText.mutateAsync({ id, ...patch }); toast.success('Salvo'); } catch (e: any) { toast.error(e.message ?? 'Erro ao salvar'); }
+  };
+  const setCategory = async (ids: string[], kind: 'normal' | 'operacao') => {
+    if (!ids.length) return;
+    try { await setKind.mutateAsync({ ids, kind }); toast.success(`${ids.length} lançamento(s): ${kind === 'operacao' ? 'Operação' : 'Entrada/Saída'}`); setSelected(new Set()); } catch (e: any) { toast.error(e.message ?? 'Erro'); }
+  };
   const setKind = useSetMovementKind(schoolId);
   const setRecon = useSetReconStatus(schoolId);
   const setPair = useSetTransferPair(schoolId);
@@ -38,9 +50,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return txs
-      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || t.descricao.toLowerCase().includes(q)) && (showAuto || !isAutoInvest(t)))
+      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || catOf(t) === cat))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-  }, [txs, accountId, from, to, status, search, showAuto]);
+  }, [txs, accountId, from, to, status, search, showAuto, cat]);
   const autoCount = txs.filter(t => isAutoInvest(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to).length;
 
   const pend = rows.filter(r => r.recon_status === 'pendente');
@@ -77,6 +89,12 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
             <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="pendente">Só pendentes</SelectItem><SelectItem value="conciliado">Conciliados</SelectItem><SelectItem value="nao_se_aplica">Não se aplica</SelectItem></SelectContent>
           </Select>
         </div>
+        <div className="w-44"><label className="text-xs text-muted-foreground">Categoria</label>
+          <Select value={cat} onValueChange={v => setCat(v as any)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="mov">Entrada / Saída</SelectItem><SelectItem value="operacao">Operações</SelectItem><SelectItem value="transf">Transferências internas</SelectItem><SelectItem value="auto">Aplicação automática</SelectItem></SelectContent>
+          </Select>
+        </div>
         <div><label className="text-xs text-muted-foreground">De</label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
         <div><label className="text-xs text-muted-foreground">Até</label><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
         <div className="min-w-40 flex-1"><label className="text-xs text-muted-foreground">Buscar descrição</label><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Ex.: PIX, tarifa…" /></div>
@@ -92,6 +110,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <Button size="sm" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar selecionados ({selected.size})</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'nao_se_aplica')}><Ban className="mr-1 h-4 w-4" />Não se aplica</Button>
           <Button size="sm" variant="ghost" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'pendente')}><Undo2 className="mr-1 h-4 w-4" />Voltar a pendente</Button>
+          <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !t.transfer_pair_id && !isAutoInvest(t); }), 'operacao')}><Layers className="mr-1 h-4 w-4" />Marcar como Operação</Button>
+          <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => txs.find(x => x.id === id)?.movement_kind === 'operacao'), 'normal')}>Tirar de Operação</Button>
         </div>
       </div>
 
@@ -100,13 +120,13 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>
               <th className="p-2"><Checkbox checked={rows.length > 0 && selected.size === rows.length} onCheckedChange={toggleAll} aria-label="Selecionar todos" /></th>
-              <th className="p-2">Data</th><th className="p-2">Conta</th><th className="p-2">Descrição original</th>
+              <th className="p-2">Data</th><th className="p-2">Conta</th><th className="p-2">Descrição</th><th className="p-2">Categoria</th>
               <th className="p-2 text-right">Entrada</th><th className="p-2 text-right">Saída</th><th className="p-2 text-right">Saldo</th>
               <th className="p-2">Origem</th><th className="p-2">Situação</th><th className="p-2">Conciliado por</th><th className="p-2">Em</th><th className="p-2">Observação</th><th className="p-2">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={13} className="p-6 text-center text-muted-foreground">
+            {rows.length === 0 && <tr><td colSpan={14} className="p-6 text-center text-muted-foreground">
               Nenhum lançamento de {fmtDate(from)} a {fmtDate(to)}.
               {lastTx && (lastTx < from || lastTx > to) && <Button size="sm" variant="link" onClick={() => { setFrom(`${lastTx.slice(0, 7)}-01`); setTo(lastTx); }}>Ver último extrato</Button>}
             </td></tr>}
@@ -115,7 +135,12 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} /></td>
                 <td className="p-2 whitespace-nowrap">{fmtDate(t.data)}</td>
                 <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
-                <td className="p-2">{t.descricao}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}{isAutoInvest(t) && <span className="ml-1 rounded bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">{t.movement_kind === 'auto_aplicacao' ? 'Aplicação automática' : 'Resgate automático'}</span>}</td>
+                <td className="p-2"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
+                <td className="p-2 whitespace-nowrap">{isAutoInvest(t) || t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
+                  <Select value={isOperacao(t) ? 'operacao' : 'normal'} onValueChange={v => setCategory([t.id], v as any)}>
+                    <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem></SelectContent>
+                  </Select>)}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}{isAutoInvest(t) && <span className="ml-1 rounded bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">{t.movement_kind === 'auto_aplicacao' ? 'Aplicação automática' : 'Resgate automático'}</span>}</td>
                 <td className="p-2 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums">{fmtBRL(balances.get(t.id) ?? 0)}</td>
@@ -123,7 +148,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2"><StatusBadge status={t.recon_status} /></td>
                 <td className="p-2 text-xs">{t.recon_by_email ?? '—'}</td>
                 <td className="p-2 text-xs whitespace-nowrap">{fmtDateTime(t.recon_at)}</td>
-                <td className="p-2 max-w-48 truncate text-xs" title={t.recon_note ?? ''}>{t.recon_note ?? ''}</td>
+                <td className="p-2 max-w-48 text-xs"><button type="button" className="w-full truncate text-left hover:underline" title={t.recon_note || 'Adicionar observação'} onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}>{t.recon_note || <span className="text-muted-foreground">+ observação</span>}</button></td>
                 <td className="p-2">
                   <div className="flex items-center gap-1">
                     {t.recon_status !== 'conciliado' && <Button size="sm" variant="ghost" className="h-7 px-2 text-success" onClick={() => apply([t.id], 'conciliado')} title="Conciliar"><Check className="h-4 w-4" /></Button>}
@@ -133,6 +158,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                         {t.recon_status !== 'nao_se_aplica' && <DropdownMenuItem onClick={() => apply([t.id], 'nao_se_aplica')}><Ban className="mr-2 h-4 w-4" />Não se aplica</DropdownMenuItem>}
                         {t.recon_status !== 'pendente' && <DropdownMenuItem onClick={() => apply([t.id], 'pendente')}><Undo2 className="mr-2 h-4 w-4" />Desfazer (pendente)</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className="mr-2 h-4 w-4" />Observação</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="mr-2 h-4 w-4" />Editar descrição</DropdownMenuItem>
                         {t.transfer_pair_id && <DropdownMenuItem onClick={() => setPair.mutate({ ids: txs.filter(x => x.transfer_pair_id === t.transfer_pair_id).map(x => x.id), pairId: null })}><ArrowLeftRight className="mr-2 h-4 w-4" />Desfazer transferência interna</DropdownMenuItem>}
                         {isAutoInvest(t)
                           ? <DropdownMenuItem onClick={() => setKind.mutate({ ids: [t.id], kind: 'normal' })}><PiggyBank className="mr-2 h-4 w-4" />Não é aplicação automática</DropdownMenuItem>
@@ -152,23 +178,35 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
       <Dialog open={!!noteTx} onOpenChange={o => !o && setNoteTx(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Observação</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">{noteTx?.descricao}</p>
+          <p className="text-sm text-muted-foreground">{noteTx && displayDesc(noteTx)}</p>
           <Textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={3} />
           <DialogFooter>
-            <Button onClick={async () => { if (noteTx) { await apply([noteTx.id], noteTx.recon_status, noteText.trim() || null); setNoteTx(null); } }}>Salvar</Button>
+            <Button onClick={async () => { if (noteTx) { await saveText(noteTx.id, { recon_note: noteText }); setNoteTx(null); } }}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!descTx} onOpenChange={o => !o && setDescTx(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar descrição</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">Original do banco (não muda): {descTx?.descricao}</p>
+          <Input value={descText} onChange={e => setDescText(e.target.value)} />
+          <DialogFooter className="gap-2">
+            {descTx?.descricao_editada && <Button variant="ghost" onClick={async () => { await saveText(descTx.id, { descricao_editada: null }); setDescTx(null); }}>Voltar ao original</Button>}
+            <Button onClick={async () => { if (descTx) { await saveText(descTx.id, { descricao_editada: descText.trim() === descTx.descricao ? null : descText }); setDescTx(null); } }}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!history} onOpenChange={o => !o && setHistory(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Histórico de conciliação</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">{history?.tx.descricao}</p>
+          <DialogHeader><DialogTitle>Histórico de alterações</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{history && displayDesc(history.tx)}</p>
           {history?.rows.length === 0 ? <p className="text-sm">Sem alterações registradas.</p> : (
             <ul className="space-y-2 text-sm">
               {history?.rows.map(h => (
                 <li key={h.id} className="rounded-lg border border-border p-2">
-                  <p><strong>{STATUS_LABEL[(h.old_status ?? 'pendente') as ReconStatus]}</strong> → <strong>{STATUS_LABEL[h.new_status as ReconStatus]}</strong></p>
+                  {h.old_status !== h.new_status && <p><strong>{STATUS_LABEL[(h.old_status ?? 'pendente') as ReconStatus]}</strong> → <strong>{STATUS_LABEL[h.new_status as ReconStatus]}</strong></p>}
                   <p className="text-xs text-muted-foreground">{h.changed_by_email ?? '—'} · {fmtDateTime(h.changed_at)}</p>
                   {h.note && <p className="text-xs">{h.note}</p>}
                 </li>
