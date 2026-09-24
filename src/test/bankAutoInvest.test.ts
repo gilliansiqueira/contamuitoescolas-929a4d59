@@ -64,3 +64,19 @@ describe('divisão com Ignorar', () => {
     expect(s.saldoAtual).toBe(-1000);
   });
 });
+
+import { detectOwnTransfer } from '@/lib/bankStatements/bankCashflowEngine';
+describe('transferência entre contas próprias', () => {
+  it('reconhece razão social e não pega sobrenome', () => {
+    expect(detectOwnTransfer('Pix enviado: "Cp :01181521-Pegorer Idiomas LTDA"', ['pegorer idiomas'])).toBe(true);
+    expect(detectOwnTransfer('Pix enviado: "Cp :03042597-Camila Kussakari Pegorer"', ['pegorer idiomas'])).toBe(false);
+  });
+  it('fica fora de entradas/saídas, mas no saldo', () => {
+    const acc: any = { id: 'a', nome: 'A', banco: 'X', agencia: null, conta: null, saldo_inicial: 1000, saldo_inicial_data: '2026-08-31', ativa: true };
+    const t: any = { id: '1', account_id: 'a', import_id: 'i', transfer_pair_id: null, recon_status: 'pendente', recon_by_email: null, recon_at: null, recon_note: null, created_at: 'x', data: '2026-09-02', descricao: 'Pegorer Idiomas', valor: 300, tipo: 'saida', movement_kind: 'transferencia' };
+    const s = _sum([acc], [t], '2026-09-01', '2026-09-30', '2026-09-30');
+    expect(s.saidasRealizadas).toBe(0);
+    expect(s.transferenciasInternas).toBe(300);
+    expect(s.saldoAtual).toBe(700);
+  });
+});

@@ -137,6 +137,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         if (error) { await db.from('bank_statement_imports').delete().eq('id', imp.id); throw error; }
       }
       { const autoN = novos.filter(n => n.k === 'auto_aplicacao' || n.k === 'auto_resgate').length;
+        const trN = novos.filter(n => n.k === 'transferencia').length; if (trN) toast.info(`${trN} lançamento(s) pré-marcados como transferência entre contas`);
         toast.success(`${novos.length} lançamentos importados · ${result.transactions.length - novos.length} já existiam${autoN ? ` · ${autoN} pré-marcados como aplicação automática` : ''}`,
           autoN && onViewAuto ? { duration: 10000, action: { label: 'Ver', onClick: () => onViewAuto(imp.id, result.transactions.reduce((m, t) => t.data < m ? t.data : m, '9999-12-31'), result.transactions.reduce((m, t) => t.data > m ? t.data : m, '0000-01-01')) } } : undefined); }
       setPreview(null); invalidate();
@@ -308,7 +309,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
                       <tr key={i} className={`border-t border-border ${preview.existing.has(preview.hashes[i]) ? 'opacity-40' : ''}`}>
                         <td className="p-1.5">{fmtDate(t.data)}</td><td className="p-1.5">{t.descricao}</td>
                         <td className="p-1.5 text-right">{t.tipo === 'entrada' ? fmtBRL(t.valor) : ''}</td><td className="p-1.5 text-right">{t.tipo === 'saida' ? fmtBRL(t.valor) : ''}</td>
-                        <td className="p-1.5"><Checkbox checked={preview.kinds[i] !== 'normal'} onCheckedChange={v => { const k = [...preview.kinds]; k[i] = v ? (t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate') : 'normal'; setPreview({ ...preview, kinds: k }); }} /></td>
+                        <td className="p-1.5">{preview.kinds[i] === 'transferencia' && <span className="mr-1 rounded bg-info/15 px-1 text-[10px] text-info">Transf.</span>}<Checkbox checked={preview.kinds[i] === 'auto_aplicacao' || preview.kinds[i] === 'auto_resgate'} onCheckedChange={v => { const k = [...preview.kinds]; k[i] = v ? (t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate') : 'normal'; setPreview({ ...preview, kinds: k }); }} /></td>
                         <td className="p-1.5 text-muted-foreground">{preview.existing.has(preview.hashes[i]) ? 'já existe' : ''}</td>
                       </tr>
                     ))}
