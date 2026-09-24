@@ -127,12 +127,17 @@ async function withCashflowSource(schoolId: string, entries: FinancialEntry[]): 
   return applyCashflowOverlay(entries, rows, `${cfg.start_month}-01`, schoolId);
 }
 
+// Colunas realmente usadas pelas telas (mapEntry). Buscar só estas reduz o
+// tráfego e o tempo de carregamento sem alterar nenhum cálculo.
+const ENTRY_COLS = 'id, data, descricao, valor, tipo, categoria, origem, school_id, origem_upload_id, tipo_original, tipo_registro, editado_manualmente, data_original, delay_rule_applied';
+
 export function useEntries(schoolId: string) {
   return useQuery({
     queryKey: ['entries', schoolId, DATA_FETCH_VERSION],
     queryFn: async (): Promise<FinancialEntry[]> => {
       const data = await fetchAllRows<any>('financial_entries', q =>
         q.eq('school_id', schoolId).order('data'),
+        1000, ENTRY_COLS,
       );
       return withCashflowSource(schoolId, data.map(mapEntry));
     },
@@ -149,7 +154,7 @@ export function useRawEntriesFromBaseDate(schoolId: string, baseDate?: string, e
         let qq = q.eq('school_id', schoolId);
         if (baseDate) qq = qq.gte('data', baseDate);
         return qq.order('data');
-      });
+      }, 1000, ENTRY_COLS);
       return data.map(mapEntry);
     },
     enabled: !!schoolId && enabled,
@@ -166,7 +171,7 @@ export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
         let qq = q.eq('school_id', schoolId);
         if (baseDate) qq = qq.gte('data', baseDate);
         return qq.order('data');
-      });
+      }, 1000, ENTRY_COLS);
       return withCashflowSource(schoolId, data.map(mapEntry));
     },
     enabled: !!schoolId,

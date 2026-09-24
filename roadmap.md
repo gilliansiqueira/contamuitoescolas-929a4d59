@@ -58,3 +58,10 @@
 - [ ] Santa Mônica: equipe revisar prévia e clicar em Aprovar e ativar
 - [ ] Centro e Dourados: terminar divergências e repetir
 - [x] Fluxo Diário Santa Mônica: saldo inicial da tabela diferente do cartão (âncora do banco)
+
+## Fluxo de Caixa em todas as empresas (set/2026)
+- [x] Atalhos no banco e carregamento em partes
+- [x] Buscar só as colunas usadas pelas telas (lançamentos)
+- [x] Memória entre abas já estava ativa (5 min fresca / 30 min guardada)
+- [x] Configuração de fonte criada como "Rascunho" para 50 empresas (fonte planilha, nada muda)
+- [ ] Conferência por empresa e ativação em grupos de ~10 — depende das meninas importarem extratos e aprovarem cada conferência
