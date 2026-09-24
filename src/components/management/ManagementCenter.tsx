@@ -342,6 +342,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
+      <ClosingStepTemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
+      <SchoolStepsDialog open={stepsSchool !== null} onOpenChange={open => { if (!open) setStepsSchool(null); }} schoolId={stepsSchool?.id ?? null} schoolName={stepsSchool?.name ?? ''} month={month} canEditTemplates={isSuperAdmin} />
     </div>
   );
 }
