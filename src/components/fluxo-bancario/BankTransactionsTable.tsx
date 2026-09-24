@@ -178,47 +178,35 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full min-w-[1100px] text-sm">
-          <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+      <div ref={topScrollRef} className="overflow-x-auto" onScroll={e => { if (tableScrollRef.current) tableScrollRef.current.scrollLeft = e.currentTarget.scrollLeft; }} aria-hidden>
+        <div style={{ width: tableWidth, height: 1 }} />
+      </div>
+      <div ref={tableScrollRef} className="max-h-[75vh] overflow-auto rounded-xl border border-border bg-card" onScroll={e => { if (topScrollRef.current) topScrollRef.current.scrollLeft = e.currentTarget.scrollLeft; }}>
+        <table ref={tableRef} className="w-full min-w-[980px] text-sm">
+          <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
             <tr>
-              <th className="p-2"><Checkbox checked={rows.length > 0 && selected.size === rows.length} onCheckedChange={toggleAll} aria-label="Selecionar todos" /></th>
+              <th className="sticky left-0 z-30 w-[132px] bg-muted p-2"><div className="flex items-center gap-2"><Checkbox checked={rows.length > 0 && selected.size === rows.length} onCheckedChange={toggleAll} aria-label="Selecionar todos" />Ações</div></th>
               <th className="p-2">Data</th><th className="p-2">Conta</th><th className="p-2">Descrição</th><th className="p-2">Categoria</th>
               <th className="p-2 text-right">Entrada</th><th className="p-2 text-right">Saída</th><th className="p-2 text-right">Saldo</th>
-              <th className="p-2">Origem</th><th className="p-2">Situação</th><th className="p-2">Conciliado por</th><th className="p-2">Em</th><th className="p-2">Observação</th><th className="p-2">Ações</th>
+              <th className="p-2">Situação</th><th className="p-2">Conferência</th><th className="p-2" title="Observação">Obs.</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={14} className="p-6 text-center text-muted-foreground">
+            {rows.length === 0 && <tr><td colSpan={11} className="p-6 text-center text-muted-foreground">
               Nenhum lançamento de {fmtDate(from)} a {fmtDate(to)}.
               {lastTx && (lastTx < from || lastTx > to) && <Button size="sm" variant="link" onClick={() => { setFrom(`${lastTx.slice(0, 7)}-01`); setTo(lastTx); }}>Ver último extrato</Button>}
             </td></tr>}
             {rows.map(t => (
               <Fragment key={t.id}>
-              <tr className={`border-t border-border hover:bg-muted/20 ${isAutoInvest(t) ? 'opacity-70' : ''}`}>
-                <td className="p-2"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} /></td>
-                <td className="p-2 whitespace-nowrap">{fmtDate(t.data)}</td>
-                <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
-                <td className="p-2"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
-                <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
-                  t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
-                    <SelectTrigger className="h-7 w-44 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value="transferencia">Transferência entre contas</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
-                  </Select>)}{t.transfer_pair_id && (() => { const o = txs.find(x => x.transfer_pair_id === t.transfer_pair_id && x.id !== t.id); const me = accName.get(t.account_id) ?? '?'; const other = o ? accName.get(o.account_id) ?? '?' : '?'; return <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência {t.tipo === 'saida' ? `${me} → ${other}` : `${other} → ${me}`}</span>; })()}</td>
-                <td className="p-2 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
-                <td className="p-2 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
-                <td className="p-2 text-right tabular-nums">{fmtBRL(balances.get(t.id) ?? 0)}</td>
-                <td className="p-2 text-xs text-muted-foreground">Extrato</td>
-                <td className="p-2"><StatusBadge status={t.recon_status} /></td>
-                <td className="p-2 text-xs">{t.recon_by_email ?? '—'}</td>
-                <td className="p-2 text-xs whitespace-nowrap">{fmtDateTime(t.recon_at)}</td>
-                <td className="p-2 max-w-48 text-xs"><button type="button" className="w-full truncate text-left hover:underline" title={t.recon_note || 'Adicionar observação'} onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}>{t.recon_note || <span className="text-muted-foreground">+ observação</span>}</button></td>
-                <td className="p-2">
+              <tr className={`group border-t border-border hover:bg-muted/20 ${isAutoInvest(t) ? 'opacity-70' : ''}`}>
+                <td className="sticky left-0 z-10 bg-card p-2 group-hover:bg-muted">
                   <div className="flex items-center gap-1">
-                    {t.recon_status !== 'conciliado' && <Button size="sm" variant="ghost" className="h-7 px-2 text-success" onClick={() => apply([t.id], 'conciliado')} title="Conciliar"><Check className="h-4 w-4" /></Button>}
+                    <Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} />
+                    {t.recon_status !== 'conciliado' && <Button size="sm" variant="ghost" className="h-7 px-1.5 text-success" onClick={() => apply([t.id], 'conciliado')} title="Conciliar"><Check className="h-4 w-4" /></Button>}
+                    {!isAutoInvest(t) && !t.transfer_pair_id && <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => openSplit(t)} title={t.splits?.length ? 'Editar divisão' : 'Dividir valor'} aria-label="Dividir valor"><Split className="h-4 w-4" /></Button>}
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button size="sm" variant="ghost" className="h-7 px-2" aria-label="Mais ações"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuTrigger asChild><Button size="sm" variant="ghost" className="h-7 px-1.5" aria-label="Mais ações"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
                         {t.recon_status !== 'nao_se_aplica' && <DropdownMenuItem onClick={() => apply([t.id], 'nao_se_aplica')}><Ban className="mr-2 h-4 w-4" />Não se aplica</DropdownMenuItem>}
                         {t.recon_status !== 'pendente' && <DropdownMenuItem onClick={() => apply([t.id], 'pendente')}><Undo2 className="mr-2 h-4 w-4" />Desfazer (pendente)</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className="mr-2 h-4 w-4" />Observação</DropdownMenuItem>
@@ -234,16 +222,30 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                     </DropdownMenu>
                   </div>
                 </td>
+                <td className="p-2 whitespace-nowrap">{fmtDate(t.data)}</td>
+                <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
+                <td className="p-2 min-w-52" title="Origem: Extrato"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
+                <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
+                  t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
+                    <SelectTrigger className="h-7 w-40 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value="transferencia">Transferência entre contas</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
+                  </Select>)}{t.transfer_pair_id && (() => { const o = txs.find(x => x.transfer_pair_id === t.transfer_pair_id && x.id !== t.id); const me = accName.get(t.account_id) ?? '?'; const other = o ? accName.get(o.account_id) ?? '?' : '?'; return <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência {t.tipo === 'saida' ? `${me} → ${other}` : `${other} → ${me}`}</span>; })()}</td>
+                <td className="p-2 text-right tabular-nums text-success whitespace-nowrap">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
+                <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
+                <td className="p-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(balances.get(t.id) ?? 0)}</td>
+                <td className="p-2"><StatusBadge status={t.recon_status} /></td>
+                <td className="p-2 text-[11px] leading-tight">{t.recon_by_email ? <><div className="max-w-36 truncate" title={t.recon_by_email}>{t.recon_by_email}</div><div className="text-muted-foreground whitespace-nowrap">{fmtDateTime(t.recon_at)}</div></> : <span className="text-muted-foreground">—</span>}</td>
+                <td className="p-2"><Button size="sm" variant="ghost" className={`h-7 px-1.5 ${t.recon_note ? 'text-primary' : 'text-muted-foreground'}`} title={t.recon_note || 'Adicionar observação'} aria-label="Observação" onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className={`h-4 w-4 ${t.recon_note ? 'fill-primary/20' : ''}`} /></Button></td>
               </tr>
               {expanded.has(t.id) && t.splits?.map(sp => (
                 <tr key={sp.id} className="bg-muted/20 text-xs">
-                  <td /><td /><td />
+                  <td className="sticky left-0 bg-card" /><td /><td />
                   <td className="p-1.5 pl-6">↳ {sp.descricao || displayDesc(t)}</td>
                   <td className="p-1.5">{CAT_LABEL[sp.categoria]}</td>
                   <td className="p-1.5 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(sp.valor)) : ''}</td>
                   <td className="p-1.5 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(sp.valor)) : ''}</td>
-                  <td colSpan={5} />
-                  <td className="p-1.5 text-muted-foreground" colSpan={2}>{sp.note}</td>
+                  <td colSpan={3} />
+                  <td className="p-1.5 text-muted-foreground">{sp.note}</td>
                 </tr>
               ))}
               </Fragment>
