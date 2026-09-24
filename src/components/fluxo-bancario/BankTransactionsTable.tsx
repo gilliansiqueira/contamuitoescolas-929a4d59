@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,6 +19,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [status, setStatus] = useState<'all' | ReconStatus>('all');
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
+  useEffect(() => { setFrom(defaultFrom); setTo(defaultTo); }, [defaultFrom, defaultTo]);
+  const lastTx = useMemo(() => txs.reduce((m, t) => (t.data > m ? t.data : m), ''), [txs]);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noteTx, setNoteTx] = useState<BankTx | null>(null);
@@ -104,7 +106,10 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={13} className="p-6 text-center text-muted-foreground">Nenhum lançamento no filtro.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={13} className="p-6 text-center text-muted-foreground">
+              Nenhum lançamento de {fmtDate(from)} a {fmtDate(to)}.
+              {lastTx && (lastTx < from || lastTx > to) && <Button size="sm" variant="link" onClick={() => { setFrom(`${lastTx.slice(0, 7)}-01`); setTo(lastTx); }}>Ver último extrato</Button>}
+            </td></tr>}
             {rows.map(t => (
               <tr key={t.id} className="border-t border-border hover:bg-muted/20">
                 <td className="p-2"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} /></td>
