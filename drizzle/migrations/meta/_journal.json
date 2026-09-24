@@ -176,6 +176,13 @@
       "when": 1790278363473,
       "tag": "0024_responsible_include_linked_global_admins",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790279331827,
+      "tag": "0025_closing_step_templates",
+      "breakpoints": true
     }
   ]
 }

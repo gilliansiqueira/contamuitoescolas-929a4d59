@@ -659,6 +659,36 @@ export type Database = {
           },
         ]
       }
+      closing_step_templates: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+          step_key: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+          step_key: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          step_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversion_data: {
         Row: {
           contatos: number
@@ -2597,6 +2627,57 @@ export type Database = {
         }
         Relationships: []
       }
+      school_closing_step_overrides: {
+        Row: {
+          created_at: string
+          disabled: boolean
+          id: string
+          label: string | null
+          school_id: string
+          sort_order: number
+          step_key: string
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          disabled?: boolean
+          id?: string
+          label?: string | null
+          school_id: string
+          sort_order?: number
+          step_key: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          disabled?: boolean
+          id?: string
+          label?: string | null
+          school_id?: string
+          sort_order?: number
+          step_key?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_closing_step_overrides_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "school_closing_step_overrides_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "closing_step_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       school_data_sources: {
         Row: {
           created_at: string
@@ -3069,6 +3150,10 @@ export type Database = {
     Functions: {
       current_user_school_id: { Args: never; Returns: string }
       demo_school_id: { Args: never; Returns: string }
+      ensure_monthly_checklist: {
+        Args: { _month: string; _school_id: string }
+        Returns: number
+      }
       get_available_financial_months: {
         Args: { _school_id: string }
         Returns: {
