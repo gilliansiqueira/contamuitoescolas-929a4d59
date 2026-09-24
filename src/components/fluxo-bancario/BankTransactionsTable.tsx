@@ -94,7 +94,6 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const { data: modelItems = [] } = useSchoolModelItems(schoolId);
   const setItem = useSetModelItem(schoolId);
   const setSplitItem = useSetSplitModelItem(schoolId);
-  const [batchItem, setBatchItem] = useState<string>('');
   const itemName = useMemo(() => new Map(modelItems.map(i => [i.id, i.name])), [modelItems]);
   const itemsFor = (tipo: string) => modelItems.filter(i => i.tipo === tipo);
   const operationItemsFor = (tipo: string) => itemsFor(tipo).filter(i => !['receita', 'despesa'].includes(i.name.trim().toLowerCase()));
@@ -204,18 +203,6 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => txs.find(x => x.id === id)?.movement_kind === 'operacao'), 'normal')}>Tirar de Operação</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !isAutoInvest(t) && !t.splits?.length && t.movement_kind !== 'transferencia'; }), 'transferencia')}><ArrowLeftRight className="mr-1 h-4 w-4" />Marcar como transferência</Button>
           <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && isOwnTransfer(t); }), 'normal')}>Tirar de transferência</Button>
-          <div className="flex items-center gap-1">
-            <Select value={batchItem} onValueChange={setBatchItem}>
-              <SelectTrigger className="h-9 w-48 text-xs"><SelectValue placeholder="Tipo financeiro…" /></SelectTrigger>
-              <SelectContent>{modelItems.map(i => <SelectItem key={i.id} value={i.id}>{i.name} <span className="text-muted-foreground">({i.tipo === 'entrada' ? 'entrada' : 'saída'})</span></SelectItem>)}</SelectContent>
-            </Select>
-            <Button size="sm" variant="outline" disabled={!selected.size || !batchItem || setItem.isPending} onClick={() => {
-              const it = modelItems.find(i => i.id === batchItem); if (!it) return;
-              const ids = [...selected].filter(id => { const t = txs.find(x => x.id === id); return t && needsItem(t) && !t.splits?.length && t.tipo === it.tipo; });
-              const skipped = selected.size - ids.length;
-              applyItem(ids, batchItem).then(() => { if (skipped) toast.info(`${skipped} lançamento(s) não receberam: sentido diferente, divididos ou neutros.`); });
-            }}>Aplicar tipo</Button>
-          </div>
         </div>
       </div>
 
