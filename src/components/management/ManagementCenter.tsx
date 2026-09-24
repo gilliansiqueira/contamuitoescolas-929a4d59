@@ -160,6 +160,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const finalized = rows.filter(row => statusOf(row, month) === 'finalizado').length;
   const pendingClosing = rows.filter(row => !row.period_closed || !row.report_delivered).length;
   const pendingReconciliationCompanies = rows.filter(row => row.reconciliation_pending > 0).length;
+  const completedReconciliation = rows.filter(row => row.reconciliation_percent === 100).length;
   const updatedToday = rows.filter(row => row.data_updated_through === new Date().toISOString().slice(0, 10)).length;
   const displayName = profile?.email?.split('@')[0] || 'Equipe';
 
@@ -243,6 +244,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               { label: 'Empresas ativas', value: rows.length, icon: Building2, tone: 'bg-success/10 text-success' },
               { label: 'Atualizadas hoje', value: updatedToday, icon: CalendarDays, tone: 'bg-info/10 text-info' },
               { label: 'Conciliação pendente', value: pendingReconciliationCompanies, icon: Clock3, tone: 'bg-warning/10 text-warning' },
+              { label: 'Conciliação concluída', value: completedReconciliation, icon: CheckCircle2, tone: 'bg-success/10 text-success' },
               { label: 'Fechamento pendente', value: pendingClosing, icon: FileCheck2, tone: 'bg-destructive/10 text-destructive' },
               { label: 'Fechamentos concluídos', value: finalized, icon: CheckCircle2, tone: 'bg-success/10 text-success' },
             ].map(card => (
