@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Download, RefreshCw, AlertTriangle, CheckCircle2, CalendarRange } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCashflowEntries, useDataSource, useResyncCashflow, useSheetFluxoEntries } from '@/hooks/useBankPilot';
 import { accountBalances, isAutoInvest, type BankAccount, type BankTx } from '@/lib/bankStatements/bankCashflowEngine';
@@ -127,9 +128,21 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       <p className="text-xs text-muted-foreground">{label}</p><p className="font-display text-lg font-bold">{value}</p>{hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
+  const attentionCount = data.dups.length + data.splitDiff.length + data.semPar.length + data.pairOut.length;
+  const closes = data.diffSaldo === 0;
 
   return (
     <div className="space-y-4">
+      <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${closes ? 'border-success/40 bg-success/10' : 'border-warning bg-warning/10'}`}>
+        <div className="flex items-start gap-3">
+          {closes ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" /> : <AlertTriangle className="mt-0.5 h-5 w-5 text-warning" />}
+          <div><p className="font-display text-lg font-bold">{closes ? 'O saldo bancário fecha' : `Há uma diferença de ${fmtBRL(data.diffSaldo)}`}</p>
+            <p className="text-xs text-muted-foreground">{data.aClass.length ? `${data.aClass.length} movimentações ainda precisam de classificação.` : 'As movimentações geradas já estão classificadas.'}{attentionCount ? ` ${attentionCount} pontos precisam de revisão.` : ''}</p></div>
+        </div>
+        <div className="flex gap-2"><Button size="sm" variant="outline" onClick={exportXlsx}><Download className="mr-1 h-4 w-4" />Baixar Excel</Button>
+          <Button size="sm" disabled={resync.isPending} onClick={() => resync.mutate(undefined, { onSuccess: n => toast.success(`${n} movimentações sincronizadas`), onError: (e: any) => toast.error(e.message ?? 'Erro') })}><RefreshCw className={`mr-1 h-4 w-4 ${resync.isPending ? 'animate-spin' : ''}`} />Sincronizar</Button></div>
+      </div>
+
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-border bg-card p-3">
         <div className="space-y-0.5 text-sm">
           <p><strong>Situação:</strong> <span className="rounded bg-accent px-1.5 py-0.5 text-xs font-bold text-accent-foreground">{STATUS_LABEL[cfg.status]}</span> · competência inicial {cfg.start_month.split('-').reverse().join('/')}</p>
@@ -140,35 +153,54 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         <div className="flex items-end gap-2">
           <div><label className="text-xs text-muted-foreground">De</label><Input type="date" value={from} min="2026-09-01" onChange={e => setFrom(e.target.value < '2026-09-01' ? '2026-09-01' : e.target.value)} /></div>
           <div><label className="text-xs text-muted-foreground">Até</label><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
-          <Button variant="outline" disabled={resync.isPending} onClick={() => resync.mutate(undefined, { onSuccess: n => toast.success(`${n} movimentações sincronizadas`), onError: (e: any) => toast.error(e.message ?? 'Erro') })}>
-            <RefreshCw className={`mr-1 h-4 w-4 ${resync.isPending ? 'animate-spin' : ''}`} />Sincronizar
-          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {card('Saldo inicial (histórico)', fmtBRL(data.ini), `posição de ${fmtDate(dayBefore(from))}, em conta + aplicado`)}
         {card('Entradas geradas', fmtBRL(data.genIn), `${data.g.filter(e => e.tipo === 'entrada').length} linhas`)}
         {card('Saídas geradas', fmtBRL(data.genOut), `${data.g.filter(e => e.tipo === 'saida').length} linhas`)}
         {card('Saldo final', fmtBRL(data.fim), `bancário em ${fmtDate(to)}`)}
         {card('Fechamento do saldo', data.diffSaldo === 0 ? 'Fecha' : fmtBRL(data.diffSaldo), 'inicial + entradas − saídas = final', data.diffSaldo !== 0)}
-        {card('Realizados / projetados', `${data.tx.length} / 0`, 'extrato é só realizado; previsões seguem dos uploads')}
-        {card('Pendentes de conciliação', String(data.pend.length), `${fmtBRL(sum(data.pend))} · entram normalmente nos totais`)}
-        {card('A classificar', `${data.aClass.length} · ${fmtBRL(sum(data.aClass))}`, 'entram no saldo; ficarão em "Movimentações em classificação"', data.aClass.length > 0)}
-        {card('Transferências internas', `${data.transf.length} · ${fmtBRL(sum(data.transf.map(t => ({ valor: Number(t.valor) }))))}`, 'neutras no consolidado')}
-        {card('Aplicações e resgates automáticos', `${data.auto.length}`, 'neutros; só movem entre conta e aplicação')}
-        {card('Transferências sem par', String(data.semPar.length + data.pairOut.length), 'contam no saldo até achar a outra ponta', data.semPar.length + data.pairOut.length > 0)}
-        {card('Duplicidades / divisões com diferença', `${data.dups.length} / ${data.splitDiff.length}`, 'divisão com diferença não sincroniza', data.dups.length + data.splitDiff.length > 0)}
-        {card('Contas sem movimentação', String(data.semMov.length), data.semMov.length ? data.semMov.map(c => c.a.nome).join(', ') : 'normal: o banco pode não ter movimento no mês')}
       </div>
 
-      <section className="rounded-xl border border-border bg-card p-3 text-sm">
-        <p className="font-semibold">{data.sheetMax ? <>Comparando extrato x planilha de {fmtDate(from)} a {fmtDate(data.cmpTo)}{data.cmpTo < to && ' (último dia lançado na planilha)'}</> : 'Não há planilha de fluxo no período para comparar.'}</p>
-        {data.sheetMax && <p className="text-xs text-muted-foreground">Extrato: entradas {fmtBRL(data.cmp.bIn)} · saídas {fmtBRL(data.cmp.bOut)} — Planilha: entradas {fmtBRL(data.cmp.sIn)} · saídas {fmtBRL(data.cmp.sOut)} — Diferença: entradas {fmtBRL(data.cmp.bIn - data.cmp.sIn)} · saídas {fmtBRL(data.cmp.bOut - data.cmp.sOut)}</p>}
-        {data.txPost.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Movimentações posteriores à planilha (não contam como divergência): {data.txPost.length} lançamentos · entradas {fmtBRL(data.txPost.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0))} · saídas {fmtBRL(data.txPost.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0))}</p>}
-      </section>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="rounded-xl border border-border bg-card p-4 text-sm"><div className="mb-2 flex items-center gap-2"><CalendarRange className="h-4 w-4 text-primary" /><h3 className="font-semibold">Período comparado com a planilha</h3></div>
+          <p className="font-medium">{data.sheetMax ? `${fmtDate(from)} a ${fmtDate(data.cmpTo)}` : 'Sem planilha neste período'}</p>
+          {data.sheetMax && <p className="mt-1 text-xs text-muted-foreground">Diferença: entradas {fmtBRL(data.cmp.bIn - data.cmp.sIn)} · saídas {fmtBRL(data.cmp.bOut - data.cmp.sOut)}</p>}</section>
+        <section className="rounded-xl border border-border bg-card p-4 text-sm"><div className="mb-2 flex items-center gap-2"><CalendarRange className="h-4 w-4 text-muted-foreground" /><h3 className="font-semibold">Depois do fechamento da planilha</h3></div>
+          <p className="font-medium">{data.txPost.length} movimentações — não são divergência</p>
+          <p className="mt-1 text-xs text-muted-foreground">Entradas {fmtBRL(data.txPost.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0))} · saídas {fmtBRL(data.txPost.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0))}</p></section>
+      </div>
+
+      {(data.dups.length > 0 || data.splitDiff.length > 0 || data.semPar.length + data.pairOut.length > 0) && (
+        <section className="rounded-xl border border-warning bg-card p-3 text-sm">
+          <h3 className="mb-2 font-semibold">Para revisar</h3>
+          {data.dups.map((l, i) => <p key={`d${i}`}>Possível duplicidade: {l.length}× {fmtBRL(Number(l[0].valor))} em {fmtDate(l[0].data)}, {accName.get(l[0].account_id)}: {l[0].descricao}</p>)}
+          {data.splitDiff.map(t => <p key={t.id}>Divisão com diferença: {t.descricao} ({fmtDate(t.data)}): banco {fmtBRL(Number(t.valor))}, partes {fmtBRL(t.splits!.reduce((s, p) => s + Number(p.valor), 0))}</p>)}
+          {[...data.semPar, ...data.pairOut].map(t => <p key={`t${t.id}`}>Transferência sem a outra ponta: {fmtBRL(Number(t.valor))} em {fmtDate(t.data)}, {accName.get(t.account_id)}: {t.descricao}</p>)}
+        </section>
+      )}
 
       <section className="rounded-xl border border-border bg-card p-3">
+        <h3 className="mb-2 text-sm font-semibold">Divergências no período comparado ({data.divergencias.length})</h3>
+        {data.divergencias.length === 0 ? <p className="text-sm text-success">Extrato e planilha batem linha a linha.</p> : (
+          <div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead className="sticky top-0 bg-card text-left text-xs text-muted-foreground"><tr><th>Situação</th><th>Data</th><th>Conta</th><th>Descrição</th><th className="text-right">Valor</th><th>Detalhe</th></tr></thead>
+            <tbody>{data.divergencias.map((d, i) => <tr key={i} className="border-t border-border"><td className="py-1 text-xs font-semibold">{d.tipo}</td><td>{fmtDate(d.data)}</td><td className="text-xs">{d.conta}</td><td className="max-w-80 truncate" title={d.descricao}>{d.descricao}</td><td className={`text-right tabular-nums ${d.sentido === 'entrada' ? 'text-success' : 'text-destructive'}`}>{d.sentido === 'entrada' ? '' : '−'}{fmtBRL(d.valor)}</td><td className="text-xs text-muted-foreground">{d.detalhe}</td></tr>)}</tbody></table></div>
+        )}
+      </section>
+
+      <Accordion type="multiple" className="rounded-xl border border-border bg-card px-4">
+        <AccordionItem value="operational"><AccordionTrigger className="text-sm">Detalhes operacionais</AccordionTrigger><AccordionContent><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {card('Pendentes de conciliação', String(data.pend.length), `${fmtBRL(sum(data.pend))} · já entram nos totais`)}
+          {card('A classificar', `${data.aClass.length} · ${fmtBRL(sum(data.aClass))}`, 'somente exceções pendentes', data.aClass.length > 0)}
+          {card('Transferências internas', `${data.transf.length}`, 'neutras no consolidado')}
+          {card('Aplicações e resgates', `${data.auto.length}`, 'neutros no caixa total')}
+          {card('Contas sem movimentação', String(data.semMov.length), data.semMov.length ? data.semMov.map(c => c.a.nome).join(', ') : 'nenhuma')}
+        </div></AccordionContent></AccordionItem>
+
+        <AccordionItem value="accounts"><AccordionTrigger className="text-sm">Saldos por conta</AccordionTrigger><AccordionContent>
+      <section>
         <h3 className="mb-2 text-sm font-semibold">Por conta</h3>
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground"><tr><th>Conta</th><th>Atualizada até</th><th className="text-right">Saldo inicial</th><th className="text-right">Entradas</th><th className="text-right">Saídas</th><th className="text-right">Saldo final</th><th className="text-right">Lançamentos</th></tr></thead>
@@ -180,9 +212,10 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
               <td className="text-right tabular-nums">{fmtBRL(c.ini)}</td><td className="text-right tabular-nums text-success">{fmtBRL(c.ent)}</td><td className="text-right tabular-nums text-destructive">{fmtBRL(c.sai)}</td><td className="text-right tabular-nums font-semibold">{fmtBRL(c.fim)}</td><td className="text-right">{c.n}</td></tr>
           ))}</tbody>
         </table>
-      </section>
+      </section></AccordionContent></AccordionItem>
 
-      <section className="rounded-xl border border-border bg-card p-3">
+        <AccordionItem value="types"><AccordionTrigger className="text-sm">Comparação por tipo financeiro</AccordionTrigger><AccordionContent>
+      <section>
         <h3 className="mb-2 text-sm font-semibold">Por tipo financeiro: Fluxo de Caixa x planilha ({fmtDate(from)} a {fmtDate(data.cmpTo)})</h3>
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground"><tr><th>Tipo</th><th className="text-right">Fluxo: entradas</th><th className="text-right">Fluxo: saídas</th><th className="text-right">Fluxo: qtd.</th><th className="text-right">Planilha: entradas</th><th className="text-right">Planilha: saídas</th><th className="text-right">Planilha: qtd.</th><th /></tr></thead>
@@ -190,9 +223,10 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
             <tr key={t.label} className="border-t border-border"><td className="py-1.5">{t.label}</td><td className="text-right tabular-nums">{fmtBRL(t.gIn)}</td><td className="text-right tabular-nums">{fmtBRL(t.gOut)}</td><td className="text-right">{t.gN}</td>
               <td className="text-right tabular-nums">{fmtBRL(t.sIn)}</td><td className="text-right tabular-nums">{fmtBRL(t.sOut)}</td><td className="text-right">{t.sN}</td><td className="pl-2"><Ok ok={ok} /></td></tr>); })}</tbody>
         </table>
-      </section>
+      </section></AccordionContent></AccordionItem>
 
-      <section className="rounded-xl border border-border bg-card p-3">
+        <AccordionItem value="days"><AccordionTrigger className="text-sm">Comparação por dia</AccordionTrigger><AccordionContent>
+      <section>
         <h3 className="mb-2 text-sm font-semibold">Por dia</h3>
         <div className="max-h-96 overflow-auto">
           <table className="w-full text-sm">
@@ -202,32 +236,8 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
           </table>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">"Geradas" excluem transferências internas e aplicações automáticas (neutras). A comparação com a planilha vai só até o último dia lançado nela.</p>
-      </section>
-
-      <section className="rounded-xl border border-border bg-card p-3">
-        <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Divergências linha a linha até {fmtDate(data.cmpTo)} ({data.divergencias.filter(d => d.tipo === 'Falta na planilha').length} faltam na planilha · {data.divergencias.filter(d => d.tipo === 'Só na planilha').length} só na planilha · {data.divergencias.filter(d => d.tipo === 'Data diferente').length} com data diferente)</h3>
-          <Button size="sm" variant="outline" onClick={exportXlsx}><Download className="mr-1 h-4 w-4" />Baixar Excel</Button></div>
-        {data.divergencias.length === 0 ? <p className="text-sm text-success">Extrato e planilha batem linha a linha no período.</p> : (
-          <div className="max-h-96 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-card text-left text-xs text-muted-foreground"><tr><th>Situação</th><th>Data</th><th>Conta</th><th>Descrição</th><th className="text-right">Valor</th><th>Detalhe</th></tr></thead>
-              <tbody>{data.divergencias.map((d, i) => (
-                <tr key={i} className="border-t border-border"><td className="py-1 text-xs font-semibold">{d.tipo}</td><td>{fmtDate(d.data)}</td><td className="text-xs">{d.conta}</td><td className="max-w-80 truncate" title={d.descricao}>{d.descricao}</td>
-                  <td className={`text-right tabular-nums ${d.sentido === 'entrada' ? 'text-success' : 'text-destructive'}`}>{d.sentido === 'entrada' ? '' : '−'}{fmtBRL(d.valor)}</td><td className="text-xs text-muted-foreground">{d.detalhe}</td></tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {(data.dups.length > 0 || data.splitDiff.length > 0 || data.semPar.length + data.pairOut.length > 0) && (
-        <section className="rounded-xl border border-warning bg-card p-3 text-sm">
-          <h3 className="mb-2 font-semibold">Pontos de atenção</h3>
-          {data.dups.map((l, i) => <p key={`d${i}`}>Possível duplicidade: {l.length}× {fmtBRL(Number(l[0].valor))} em {fmtDate(l[0].data)}, {accName.get(l[0].account_id)}: {l[0].descricao}</p>)}
-          {data.splitDiff.map(t => <p key={t.id}>Divisão com diferença: {t.descricao} ({fmtDate(t.data)}): banco {fmtBRL(Number(t.valor))}, partes {fmtBRL(t.splits!.reduce((s, p) => s + Number(p.valor), 0))}</p>)}
-          {[...data.semPar, ...data.pairOut].map(t => <p key={`t${t.id}`}>Transferência sem a outra ponta no período: {fmtBRL(Number(t.valor))} em {fmtDate(t.data)}, {accName.get(t.account_id)}: {t.descricao}</p>)}
-        </section>
-      )}
+      </section></AccordionContent></AccordionItem>
+      </Accordion>
     </div>
   );
 }
