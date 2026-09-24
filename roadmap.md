@@ -48,5 +48,7 @@
 - [x] Sincronização automática e segura para repetir; testes em transação desfeita
 - [x] Tipo financeiro por linha, por parte da divisão e em lote no Fluxo Bancário; filtro "A classificar"
 - [x] Tela "Conferência Dashboard" (por conta, dia, tipo, divergências linha a linha)
-- [ ] Equipe classificar os lançamentos de setembro e corrigir as divergências — aguardando equipe
+- [x] Classificar automaticamente entradas e saídas comuns como Receita/Despesa desde setembro, mantendo apenas operações e exceções para revisão
+- [x] Simplificar Movimentações e Conferência Dashboard, com veredito, períodos separados e detalhes recolhidos
+- [ ] Equipe detalhar as operações de setembro e corrigir as divergências — aguardando equipe
 - [ ] Ativação (após aprovação): ler as linhas no Dashboard/Fluxo Diário, linha "Movimentações em classificação", selo "Atualizado automaticamente" — aguardando aprovação dos números

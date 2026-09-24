@@ -148,6 +148,13 @@
       "when": 1790273340166,
       "tag": "0020_bank_split_model_item_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790275191324,
+      "tag": "0021_auto_classify_common_bank_movements",
+      "breakpoints": true
     }
   ]
 }

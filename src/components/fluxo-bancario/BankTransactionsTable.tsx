@@ -94,12 +94,15 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const { data: modelItems = [] } = useSchoolModelItems(schoolId);
   const setItem = useSetModelItem(schoolId);
   const setSplitItem = useSetSplitModelItem(schoolId);
-  const [batchItem, setBatchItem] = useState<string>('');
   const itemName = useMemo(() => new Map(modelItems.map(i => [i.id, i.name])), [modelItems]);
   const itemsFor = (tipo: string) => modelItems.filter(i => i.tipo === tipo);
+  const operationItemsFor = (tipo: string) => itemsFor(tipo).filter(i => !['receita', 'despesa'].includes(i.name.trim().toLowerCase()));
   /** Neutros no consolidado não precisam de tipo financeiro. */
   const needsItem = (t: BankTx) => !isAutoInvest(t) && !t.transfer_pair_id && t.movement_kind !== 'ignorar';
   const unclassified = (t: BankTx) => needsItem(t) && (t.splits?.length ? t.splits.some(sp => sp.categoria !== 'ignorar' && !sp.model_item_id) : !t.model_item_id);
+  const operationPending = txs.filter(t => t.movement_kind === 'operacao' && !t.model_item_id).length;
+  const transferPending = txs.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id).length;
+  const splitPending = txs.filter(t => t.splits?.some(sp => sp.categoria === 'operacao' && !sp.model_item_id)).length;
   const applyItem = async (ids: string[], itemId: string | null) => {
     if (!ids.length) return;
     try { await setItem.mutateAsync({ ids, itemId }); toast.success(`${ids.length} lançamento(s): ${itemId ? itemName.get(itemId) : 'A classificar'}`); setSelected(new Set()); }
@@ -200,20 +203,17 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => txs.find(x => x.id === id)?.movement_kind === 'operacao'), 'normal')}>Tirar de Operação</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !isAutoInvest(t) && !t.splits?.length && t.movement_kind !== 'transferencia'; }), 'transferencia')}><ArrowLeftRight className="mr-1 h-4 w-4" />Marcar como transferência</Button>
           <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && isOwnTransfer(t); }), 'normal')}>Tirar de transferência</Button>
-          <div className="flex items-center gap-1">
-            <Select value={batchItem} onValueChange={setBatchItem}>
-              <SelectTrigger className="h-9 w-48 text-xs"><SelectValue placeholder="Tipo financeiro…" /></SelectTrigger>
-              <SelectContent>{modelItems.map(i => <SelectItem key={i.id} value={i.id}>{i.name} <span className="text-muted-foreground">({i.tipo === 'entrada' ? 'entrada' : 'saída'})</span></SelectItem>)}</SelectContent>
-            </Select>
-            <Button size="sm" variant="outline" disabled={!selected.size || !batchItem || setItem.isPending} onClick={() => {
-              const it = modelItems.find(i => i.id === batchItem); if (!it) return;
-              const ids = [...selected].filter(id => { const t = txs.find(x => x.id === id); return t && needsItem(t) && !t.splits?.length && t.tipo === it.tipo; });
-              const skipped = selected.size - ids.length;
-              applyItem(ids, batchItem).then(() => { if (skipped) toast.info(`${skipped} lançamento(s) não receberam: sentido diferente, divididos ou neutros.`); });
-            }}>Aplicar tipo</Button>
-          </div>
         </div>
       </div>
+
+      {(operationPending > 0 || transferPending > 0 || splitPending > 0) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm">
+          <span className="font-semibold text-foreground">Para revisar:</span>
+          {operationPending > 0 && <Button size="sm" variant="outline" onClick={() => setCat('operacao')}>Detalhar operações ({operationPending})</Button>}
+          {transferPending > 0 && <Button size="sm" variant="outline" onClick={() => setCat('transf')}>Transferências sem par ({transferPending})</Button>}
+          {splitPending > 0 && <Button size="sm" variant="outline" onClick={() => setCat('dividido')}>Partes de operação ({splitPending})</Button>}
+        </div>
+      )}
 
       <div ref={topScrollRef} className="overflow-x-auto" onScroll={e => { if (tableScrollRef.current) tableScrollRef.current.scrollLeft = e.currentTarget.scrollLeft; }} aria-hidden>
         <div style={{ width: tableWidth, height: 1 }} />
@@ -223,13 +223,13 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <thead className="sticky top-0 z-20 bg-muted text-left text-xs text-muted-foreground">
             <tr>
               <th className="sticky left-0 z-30 w-[132px] bg-muted p-2"><div className="flex items-center gap-2"><Checkbox checked={rows.length > 0 && selected.size === rows.length} onCheckedChange={toggleAll} aria-label="Selecionar todos" />Ações</div></th>
-              <th className="p-2">Data</th><th className="p-2">Conta</th><th className="p-2">Descrição</th><th className="p-2">Categoria</th><th className="p-2">Tipo financeiro</th>
+              <th className="p-2">Data</th><th className="p-2">Conta</th><th className="p-2">Descrição</th><th className="p-2">Classificação</th>
               <th className="p-2 text-right">Entrada</th><th className="p-2 text-right">Saída</th><th className="p-2 text-right">Saldo</th>
               <th className="p-2">Situação</th><th className="p-2">Conferência</th><th className="p-2" title="Observação">Obs.</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={12} className="p-6 text-center text-muted-foreground">
+            {rows.length === 0 && <tr><td colSpan={11} className="p-6 text-center text-muted-foreground">
               Nenhum lançamento de {fmtDate(from)} a {fmtDate(to)}.
               {lastTx && (lastTx < from || lastTx > to) && <Button size="sm" variant="link" onClick={() => { setFrom(`${lastTx.slice(0, 7)}-01`); setTo(lastTx); }}>Ver último extrato</Button>}
             </td></tr>}
@@ -262,16 +262,17 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2 whitespace-nowrap">{fmtDate(t.data)}</td>
                 <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
                 <td className="p-2 min-w-52" title="Origem: Extrato"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
-                <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
+                <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="rounded bg-info/15 px-1.5 py-0.5 text-xs font-semibold text-info">Transferência interna</span> : (
                   t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
                     <SelectTrigger className="h-7 w-40 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value="transferencia">Transferência entre contas</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
-                  </Select>)}{t.transfer_pair_id && (() => { const o = txs.find(x => x.transfer_pair_id === t.transfer_pair_id && x.id !== t.id); const me = accName.get(t.account_id) ?? '?'; const other = o ? accName.get(o.account_id) ?? '?' : '?'; return <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência {t.tipo === 'saida' ? `${me} → ${other}` : `${other} → ${me}`}</span>; })()}</td>
-                <td className="p-2 whitespace-nowrap">{!needsItem(t) ? <span className="text-xs text-muted-foreground">Neutro</span> : t.splits?.length ? <span className={`text-xs ${unclassified(t) ? 'font-semibold text-warning' : 'text-muted-foreground'}`}>{unclassified(t) ? 'Partes a classificar' : 'Por parte'}</span> : (
-                  <Select value={t.model_item_id ?? 'none'} onValueChange={v => applyItem([t.id], v === 'none' ? null : v)}>
-                    <SelectTrigger className={`h-7 w-44 text-xs ${!t.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="none">A classificar</SelectItem>{itemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
-                  </Select>)}</td>
+                   </Select>)}
+                  {!t.splits?.length && t.movement_kind === 'normal' && <span className="ml-2 text-xs font-semibold text-foreground">{t.tipo === 'entrada' ? 'Receita' : 'Despesa'}</span>}
+                  {!t.splits?.length && t.movement_kind === 'operacao' && <Select value={t.model_item_id ?? 'none'} onValueChange={v => applyItem([t.id], v === 'none' ? null : v)}>
+                    <SelectTrigger className={`mt-1 h-7 w-48 text-xs ${!t.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Detalhar operação" /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">Detalhar operação</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
+                  </Select>}
+                  {t.transfer_pair_id && (() => { const o = txs.find(x => x.transfer_pair_id === t.transfer_pair_id && x.id !== t.id); const me = accName.get(t.account_id) ?? '?'; const other = o ? accName.get(o.account_id) ?? '?' : '?'; return <span className="ml-1 text-[10px] text-muted-foreground">{t.tipo === 'saida' ? `${me} → ${other}` : `${other} → ${me}`}</span>; })()}</td>
                 <td className="p-2 text-right tabular-nums text-success whitespace-nowrap">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(balances.get(t.id) ?? 0)}</td>
@@ -283,11 +284,11 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <tr key={sp.id} className="bg-muted/20 text-xs">
                   <td className="sticky left-0 bg-card" /><td /><td />
                   <td className="p-1.5 pl-6">↳ {sp.descricao || displayDesc(t)}</td>
-                  <td className="p-1.5">{CAT_LABEL[sp.categoria]}</td>
-                  <td className="p-1.5">{sp.categoria === 'ignorar' ? <span className="text-muted-foreground">—</span> : (
+                  <td className="p-1.5">{sp.categoria === 'normal' ? (t.tipo === 'entrada' ? 'Receita' : 'Despesa') : CAT_LABEL[sp.categoria]}
+                    {sp.categoria === 'operacao' && (
                     <Select value={sp.model_item_id ?? 'none'} onValueChange={v => setSplitItem.mutate({ splitId: sp.id, itemId: v === 'none' ? null : v }, { onError: (e: any) => toast.error(e.message ?? 'Erro') })}>
-                      <SelectTrigger className={`h-7 w-44 text-xs ${!sp.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="none">A classificar</SelectItem>{itemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
+                      <SelectTrigger className={`mt-1 h-7 w-44 text-xs ${!sp.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Detalhar operação" /></SelectTrigger>
+                      <SelectContent><SelectItem value="none">Detalhar operação</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
                     </Select>)}</td>
                   <td className="p-1.5 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(sp.valor)) : ''}</td>
                   <td className="p-1.5 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(sp.valor)) : ''}</td>
