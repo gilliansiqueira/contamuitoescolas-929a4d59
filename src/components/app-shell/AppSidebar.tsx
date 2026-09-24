@@ -26,17 +26,10 @@ interface Props {
 
 /** Menu lateral laranja da plataforma. Apenas apresentação/navegação. */
 export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
-  const activeGroupKey = groups.find(g => g.items.some(i => i.active))?.key
-    ?? (footerGroup?.items.some(i => i.active) ? footerGroup.key : null);
+  // Grupos e Configurações começam fechados; a pessoa abre o que precisar.
+  // Quando um grupo está fechado mas contém o item ativo, o item ativo continua visível.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    if (activeGroupKey) {
-      setOpenGroups(prev => ({ ...prev, [activeGroupKey]: true }));
-      if (footerGroup?.key === activeGroupKey) setSettingsOpen(true);
-    }
-  }, [activeGroupKey, footerGroup?.key]);
 
   const toggleGroup = (key: string) =>
     setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
