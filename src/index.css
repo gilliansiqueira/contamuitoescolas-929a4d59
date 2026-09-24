@@ -45,6 +45,8 @@
     --warning-foreground: 0 0% 100%;
     --info: 210 80% 55%;
     --info-foreground: 0 0% 100%;
+    --progress: 38 92% 46%;
+    --progress-foreground: 0 0% 100%;
     --surface: 180 8% 95%;
     --surface-foreground: 210 25% 15%;
   }
@@ -85,6 +87,8 @@
     --warning-foreground: 0 0% 100%;
     --info: 210 80% 55%;
     --info-foreground: 0 0% 100%;
+    --progress: 40 92% 58%;
+    --progress-foreground: 200 20% 15%;
     --surface: 200 20% 23%;
     --surface-foreground: 0 0% 95%;
   }
