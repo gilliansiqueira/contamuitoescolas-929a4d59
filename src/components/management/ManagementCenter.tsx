@@ -113,6 +113,50 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     return matchesSearch && matchesView && (situation === 'all' || status === situation);
   }), [month, rows, search, situation, view]);
 
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  const responsibleGroups = useMemo(() => {
+    if (view !== 'responsible') return [];
+    const map = new Map<string, PortfolioRow[]>();
+    filtered.forEach(row => {
+      const key = row.responsible_user_id ?? '__none';
+      map.set(key, [...(map.get(key) ?? []), row]);
+    });
+    const avg = (values: number[]) => values.length === 0
+      ? null
+      : Math.round(values.reduce((total, value) => total + value, 0) / values.length);
+    const groups = [...map.entries()].map(([key, groupRows]) => {
+      const statusCounts = { finalizado: 0, atrasado: 0, bloqueado: 0 };
+      let pending = 0;
+      groupRows.forEach(row => {
+        const status = statusOf(row, month);
+        if (status === 'finalizado' || status === 'atrasado' || status === 'bloqueado') statusCounts[status] += 1;
+        pending += row.reconciliation_pending + row.checklist_pending;
+      });
+      return {
+        key,
+        label: key === '__none'
+          ? 'Não definida'
+          : (groupRows.find(row => row.responsible_user_id === key)?.responsible_email ?? 'Não definida'),
+        rows: [...groupRows].sort((a, b) => a.school_name.localeCompare(b.school_name, 'pt-BR')),
+        reconciliationPercent: avg(groupRows.map(row => row.reconciliation_percent).filter((value): value is number => value != null)),
+        closingPercent: avg(groupRows.map(row => row.closing_percent).filter((value): value is number => value != null)),
+        statusCounts,
+        pending,
+      };
+    });
+    return groups.sort((a, b) => {
+      if (a.key === '__none') return 1;
+      if (b.key === '__none') return -1;
+      return a.label.localeCompare(b.label, 'pt-BR');
+    });
+  }, [filtered, month, view]);
+
   const finalized = rows.filter(row => statusOf(row, month) === 'finalizado').length;
   const pendingClosing = rows.filter(row => !row.period_closed || !row.report_delivered).length;
   const pendingReconciliationCompanies = rows.filter(row => row.reconciliation_pending > 0).length;
