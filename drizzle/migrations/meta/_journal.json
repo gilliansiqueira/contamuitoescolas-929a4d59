@@ -92,6 +92,13 @@
       "when": 1790266501763,
       "tag": "0012_add_super_admin_role",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790266535710,
+      "tag": "0013_create_management_center",
+      "breakpoints": true
     }
   ]
 }

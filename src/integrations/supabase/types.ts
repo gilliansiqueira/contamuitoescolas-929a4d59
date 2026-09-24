@@ -1428,6 +1428,53 @@ export type Database = {
           },
         ]
       }
+      management_activity_history: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          month: string | null
+          new_data: Json | null
+          old_data: Json | null
+          school_id: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          month?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          school_id: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          month?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "management_activity_history_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       module_tabs: {
         Row: {
           created_at: string
@@ -1451,6 +1498,106 @@ export type Database = {
           tab_key?: string
         }
         Relationships: []
+      }
+      monthly_closing_checklist: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          id: string
+          label: string
+          month: string
+          note: string | null
+          school_id: string
+          source: string
+          status: string
+          step_key: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          month: string
+          note?: string | null
+          school_id: string
+          source?: string
+          status?: string
+          step_key: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          month?: string
+          note?: string | null
+          school_id?: string
+          source?: string
+          status?: string
+          step_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_closing_checklist_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_closing_cycles: {
+        Row: {
+          created_at: string
+          id: string
+          internal_notes: string | null
+          month: string
+          next_action: string | null
+          review_complete: boolean
+          school_id: string
+          updated_at: string
+          updated_by: string | null
+          waiting_for_client: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          internal_notes?: string | null
+          month: string
+          next_action?: string | null
+          review_complete?: boolean
+          school_id: string
+          updated_at?: string
+          updated_by?: string | null
+          waiting_for_client?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          internal_notes?: string | null
+          month?: string
+          next_action?: string | null
+          review_complete?: boolean
+          school_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          waiting_for_client?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_closing_cycles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       monthly_revenue: {
         Row: {
@@ -1839,6 +1986,47 @@ export type Database = {
           },
           {
             foreignKeyName: "receivable_category_values_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_deliveries: {
+        Row: {
+          channel: string | null
+          created_at: string
+          delivered_at: string
+          delivered_by: string | null
+          id: string
+          month: string
+          note: string | null
+          school_id: string
+        }
+        Insert: {
+          channel?: string | null
+          created_at?: string
+          delivered_at?: string
+          delivered_by?: string | null
+          id?: string
+          month: string
+          note?: string | null
+          school_id: string
+        }
+        Update: {
+          channel?: string | null
+          created_at?: string
+          delivered_at?: string
+          delivered_by?: string | null
+          id?: string
+          month?: string
+          note?: string | null
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_deliveries_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
@@ -2323,6 +2511,44 @@ export type Database = {
           },
         ]
       }
+      school_management_settings: {
+        Row: {
+          closing_due_day: number
+          created_at: string
+          id: string
+          is_active: boolean
+          responsible_user_id: string | null
+          school_id: string
+          updated_at: string
+        }
+        Insert: {
+          closing_due_day?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          responsible_user_id?: string | null
+          school_id: string
+          updated_at?: string
+        }
+        Update: {
+          closing_due_day?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          responsible_user_id?: string | null
+          school_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_management_settings_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: true
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schools: {
         Row: {
           allow_weekend_entries: boolean
@@ -2634,6 +2860,26 @@ export type Database = {
           month: string
         }[]
       }
+      get_management_portfolio: {
+        Args: { _month: string }
+        Returns: {
+          checklist_pending: number
+          closing_due_day: number
+          closing_percent: number
+          data_updated_through: string
+          next_action: string
+          period_closed: boolean
+          reconciliation_pending: number
+          reconciliation_percent: number
+          report_delivered: boolean
+          responsible_email: string
+          responsible_user_id: string
+          review_complete: boolean
+          school_id: string
+          school_name: string
+          waiting_for_client: boolean
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2660,6 +2906,7 @@ export type Database = {
         Returns: boolean
       }
       is_platform_member: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       set_bank_tx_splits: {
         Args: { _parts: Json; _tx_id: string }
         Returns: undefined
