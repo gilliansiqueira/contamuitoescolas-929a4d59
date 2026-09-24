@@ -31,6 +31,7 @@ export async function fetchAllRows<T = any>(
     const wrap = (target: any): any =>
       new Proxy(target, {
         get(t, prop, recv) {
+          if (prop === '__raw') return t;
           if (prop === 'order') {
             return (column: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) => {
               if (!captured) orders.push({ column, ascending: opts?.ascending !== false, nullsFirst: opts?.nullsFirst });
@@ -45,8 +46,11 @@ export async function fetchAllRows<T = any>(
           };
         },
       });
-    let q = builder(wrap(base));
+    const built = builder(wrap(base));
     captured = true;
+    // Unwrap so the cursor ordering is really sent to the server
+    // (the proxy swallows .order() calls to re-sort in memory).
+    let q: any = built?.__raw ?? built;
     if (lastId !== null) q = q.gt('id', lastId);
     const { data, error } = await (q.order('id', { ascending: true }).limit(pageSize) as any);
     if (error) throw error;
