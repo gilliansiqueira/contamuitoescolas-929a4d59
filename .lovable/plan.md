@@ -1,85 +1,85 @@
-# Fluxo de Caixa alimentando Dashboard e Fluxo Diário (Dourados, Uberlândia Centro e Uberlândia Santa Mônica)
+# Fluxo de Caixa alimentando Dashboard e Fluxo Diário (piloto) — estrutura e conferência, sem ativação
 
-## O que existe hoje
+## Resumo do que já existe
+- O Fluxo de Caixa fica na tabela de movimentações bancárias, uma linha por lançamento do extrato. Cada linha é vinculada à escola pelo `school_id`, e as divisões ficam em uma tabela separada.
+- Tudo o que está no Fluxo de Caixa é realizado. As previsões continuam vindo dos uploads atuais: Sponte, cartão, cheque e contas a pagar.
+- O Dashboard e o Fluxo Diário leem os lançamentos financeiros pelo motor oficial. Os meses com "fluxo realizado" usam esse realizado mais as previsões a partir de hoje.
+- Extratos novos disponíveis: 01/09 a 24/09/2026, nas três escolas. As planilhas de fluxo realizado cobrem de junho a setembro.
 
-| Pergunta | Resposta |
-|---|---|
-| Onde ficam os lançamentos do Fluxo de Caixa | Na tabela de movimentações bancárias, uma linha por lançamento do extrato. As divisões ficam em uma tabela à parte. |
-| Campo da empresa | `school_id` (é o "company_id" da plataforma), presente em todas as linhas e protegido por permissão. |
-| Realizado x projetado | No Fluxo de Caixa tudo é **realizado**, porque vem do extrato. Ele não tem lançamentos projetados. As previsões continuam vindo dos uploads atuais (Sponte, cartão, cheque e contas a pagar). |
-| Categorias | O Fluxo de Caixa só marca a **natureza** do lançamento: normal, operação, ignorar, transferência ou aplicação automática. Ele **não guarda o tipo financeiro** que o Dashboard usa (Receita, Despesa, Pró-labore, Rendimentos e similares). |
-| De onde o Dashboard e o Fluxo Diário leem | Da tabela de lançamentos financeiros, usando o motor oficial. Quando um mês tem lançamentos "fluxo realizado", o motor já usa esses lançamentos e só considera previsões a partir de hoje. Assim, previsão e realizado não se somam. |
-| O que as três empresas têm | Planilhas de fluxo realizado de junho a setembro de 2026, com setembro parcial. No Fluxo de Caixa novo existem apenas extratos de **01/09 a 24/09/2026**. |
+## Respostas às confirmações
 
-Com isso, a integração não precisa de uma lógica nova. O Fluxo de Caixa passa a gerar os mesmos lançamentos "fluxo realizado" que a planilha gera hoje, e o motor oficial faz o resto.
+**2. Saldo inicial histórico.** Cada conta tem um saldo de abertura guardado com data, e não o saldo de hoje. Todas as contas estão com a posição de 31/08/2026: em conta e aplicado separados. Alguns exemplos:
+- BB de Dourados: R$ 0,00 em conta e R$ 122.078,73 aplicados.
+- BB Centro: R$ 0,00 em conta e R$ 8.007,33 aplicados.
+- BB Santa Mônica: R$ 0,00 em conta e R$ 15.945,31 aplicados.
+
+A partir desse ponto, o saldo de cada dia e de cada mês sai da abertura mais as movimentações. Nunca do saldo atual. O saldo final de um dia vira o inicial do dia seguinte, e o final de um mês vira o inicial do mês seguinte.
+- Esse saldo passa a ser guardado por data, em uma estrutura própria de saldos por conta. A primeira posição gravada será a de 31/08.
+- O valor aplicado entra no saldo, porque o Dashboard trabalha com o caixa total. O detalhe "em conta" e "aplicado" continua visível na conferência.
+- **Ponto encontrado:** Uberlândia Santa Mônica tem uma conta chamada "Sicredi Centro", com R$ 5.667,09 em 01/09. É o mesmo nome e o mesmo valor da conta do Centro. Ela vai aparecer na conferência como possível cadastro duplicado, para vocês confirmarem antes da ativação.
+
+**6. Data de corte.** O motor deixa de usar a data de hoje nessas escolas e passa a usar **"Fluxo de Caixa atualizado até"**. Essa data é o último dia com extrato importado em todas as contas ativas da escola. Até esse dia, vale o realizado. Depois dele, a projeção continua. Quando novos dias forem importados, a data avança e o realizado substitui a projeção desses dias, sem duplicar. Se uma conta estiver atrasada, a data fica no dia dessa conta.
 
 ## Como vai funcionar
 
-1. **Tipo financeiro no Fluxo de Caixa.** Cada movimentação e cada parte de uma divisão ganha um campo "Tipo financeiro", com a mesma lista de tipos do Dashboard daquela empresa. O campo vem pré-preenchido quando possível:
-   - Transferência entre contas próprias e aplicação ou resgate automático: fora do resultado. Uma transferência se anula entre as contas; aplicação e resgate não mudam o saldo total.
-   - Ignorar: Ignorar.
-   - Operação: tipo de operação correspondente.
-   - Demais lançamentos: ficam como **"A classificar"** até a equipe definir. As meninas podem classificar em lote.
+1. **Status da configuração.** Cada escola tem uma configuração com os campos:
+   - status: Rascunho, Em conferência, Ativo ou Pausado;
+   - fonte do Dashboard e fonte do Fluxo Diário;
+   - competência inicial: setembro/2026;
+   - data "atualizado até";
+   - última atualização;
+   - último erro.
 
-2. **Geração automática.** Sempre que uma movimentação é importada, editada, dividida, reclassificada ou excluída, o banco atualiza os lançamentos "fluxo realizado" da empresa naquele dia. Essa atualização só acontece a partir da competência inicial escolhida.
-   - Cada lançamento gerado fica ligado ao `school_id` e ao lançamento bancário que o originou, com origem "Fluxo de Caixa". Uma segunda execução não duplica nada.
-   - Divisões geram uma linha por parte.
-   - A conciliação não gera nada nem altera valores. Pendente e conciliado entram iguais nos totais.
+   Só o status **Ativo** muda o que o Dashboard e o Fluxo Diário mostram. As três escolas começam como **Em conferência**. Nesse status, a sincronização roda e alimenta apenas a tela de conferência.
 
-3. **"A classificar".** O lançamento entra no saldo e nas entradas ou saídas do Fluxo Diário, mas fica fora do Resultado até ser classificado. A equipe vê um aviso com a quantidade e um link para as linhas. O cliente não vê o aviso.
+2. **Tipo financeiro vinculado ao modelo.** Cada movimentação e cada parte de divisão guarda a **referência ao item do modelo financeiro da escola**, e o nome fica só para exibição. A tela oferece apenas a lista oficial da escola, sem texto livre, e o banco rejeita itens de outro modelo. Algumas movimentações já vêm sugeridas; as demais ficam como "A classificar".
+   - **Neutras no consolidado:** transferências entre contas próprias com as duas pontas identificadas, e aplicações ou resgates automáticos do principal.
+   - **Rendimento da aplicação:** entra como Rendimento.
+   - **IOF, imposto, tarifa ou taxa:** entram no tipo correspondente. Quando não houver sugestão segura, ficam "A classificar".
+   - **Empréstimo, aporte e retirada:** operações fora do resultado, como hoje.
+   - **Transferência com uma só ponta identificada:** não é tratada como neutra. Fica como pendência na conferência e continua contando no saldo.
+   - **Movimentação original:** sempre preservada para auditoria, mesmo quando não gera linha no consolidado.
 
-4. **Fonte de dados por empresa.** Uma configuração por empresa guarda:
-   - fonte do Dashboard;
-   - fonte do Fluxo Diário;
-   - competência inicial.
+3. **Linhas divididas.** Cada parte gera sua própria linha e o valor total não gera linha. A divisão só é sincronizada quando a soma das partes é exatamente igual ao valor do banco. Se não fechar, a movimentação fica marcada "Divisão com diferença de R$ X" para a equipe. Alterar ou excluir uma parte recalcula todas as linhas dessa movimentação. Lançamentos sem divisão e partes de divisão têm proteções contra duplicidade separadas.
 
-   Nas três escolas, as duas fontes passam a ser "Fluxo de Caixa". A Análise de Despesas não muda. Nos meses a partir da competência inicial, as linhas de planilha de fluxo realizado deixam de ser usadas nos cálculos, mas **não são apagadas**. Os meses anteriores continuam iguais. As demais empresas continuam sem configuração e seguem o processo atual.
+4. **A classificar.** O lançamento entra no saldo. O Dashboard e o PDF ganham uma linha própria, **"Movimentações em classificação: R$ X"**, que só aparece quando houver valor. A conta sempre fecha:
 
-5. **Previsão vira realizado.** O motor atual já faz essa troca pela data: nos meses com fluxo realizado, previsões com data anterior a hoje saem da conta. O cartão Sponte e a maquininha continuam com a regra atual.
+   Saldo inicial + Resultado + Operações fora do resultado + Movimentações em classificação = Saldo final
 
-6. **Selo no Dashboard.** Nas três empresas aparece a frase: "Atualizado automaticamente pelo Fluxo de Caixa até DD/MM/AAAA às HH:MM". A data e a hora vêm da última atualização registrada. Se a geração falhar, a equipe vê um aviso de erro.
+   A equipe também vê um aviso com quantidade, valor e link. Quando a equipe classifica, o valor sai dessa linha e entra no tipo certo, e o saldo final não muda.
 
-7. **Tela de conferência (só equipe),** dentro do Fluxo Bancário. Por mês, lado a lado:
-   - receitas, despesas, saldo inicial e saldo final do Fluxo de Caixa;
-   - os mesmos valores calculados para o Dashboard e para o Fluxo Diário;
-   - quantidade de lançamentos realizados, projetados, pendentes de conciliação e "A classificar";
-   - possíveis duplicidades, com as linhas responsáveis quando algo não fechar.
+5. **Sincronização automática.** Importar, editar, dividir, reclassificar ou excluir uma movimentação atualiza as linhas geradas daquele dia. A atualização pode ser repetida sem duplicar nada. Ela grava data e hora da última atualização e mostra os erros à equipe. A conciliação não altera nenhum valor.
 
-## Decisão antes de ativar
+6. **Selo no Dashboard.** Aparece só quando o status é Ativo: "Atualizado automaticamente pelo Fluxo de Caixa até DD/MM/AAAA às HH:MM".
 
-Nada será trocado até você escolher a competência inicial de cada escola. Hoje só setembro/2026 tem extratos no Fluxo de Caixa, e setembro também tem planilha de fluxo realizado até o dia 24. A proposta é começar em **setembro/2026** nas três, depois que a conferência mostrar os valores lado a lado. Os meses de junho a agosto continuam vindo das planilhas.
+7. **Tela de conferência (só equipe),** dentro do Fluxo Bancário, para 01/09 a 24/09. Compara o Fluxo de Caixa novo, a planilha de fluxo realizado atual e o que o Dashboard e o Fluxo Diário mostrariam se a fonte estivesse ativa:
+   - por escola, por conta, por dia e por tipo de entrada e saída;
+   - quantidade de lançamentos, entradas, saídas, saldo inicial e saldo final;
+   - transferências, com as pontas pendentes;
+   - aplicações e resgates;
+   - valores A classificar e divisões com diferença;
+   - lançamentos pendentes de conciliação;
+   - lista detalhada das divergências, linha a linha: o que existe só na planilha, só no extrato, com valor ou data diferente, ou em duplicidade.
 
-## Permissões e segurança
+## Testes sem afetar dados reais
+- Os testes de inclusão, edição, divisão, conciliação, previsão virando realizado, exclusão e troca de escola rodam **dentro de uma transação que é desfeita no final**. Nenhum lançamento de teste fica gravado.
+- Depois, é feita só a leitura com os dados reais das três escolas.
+- Também será confirmado que as demais empresas e a Análise de Despesas não mudaram.
 
-- Só a equipe inclui, edita, exclui, classifica e concilia.
-- O cliente só vê o Dashboard e o Fluxo Diário, sem controles de conciliação.
-- Toda geração e toda leitura são filtradas por `school_id`. Os testes vão confirmar que as três escolas não se misturam, inclusive para quem acessa mais de uma.
+## Etapas desta entrega
+1. Criar a estrutura: configuração com status, saldos por conta e data, referência ao tipo financeiro e vínculo das linhas geradas com a movimentação ou a parte.
+2. Criar a sincronização automática e o corte por "atualizado até" no motor oficial, valendo só para o status Ativo.
+3. Colocar o seletor de tipo financeiro, a classificação em lote, o aviso e a linha "em classificação".
+4. Criar a tela de conferência.
+5. Deixar as três escolas Em conferência, sincronizar setembro e apresentar a conferência a vocês.
 
-## Testes
-
-Os 11 testes pedidos, feitos nas três escolas com lançamentos de teste que depois serão removidos:
-- entrada, saída e lançamento pendente;
-- conciliar sem mudar valores;
-- previsão, depois confirmada como realizado;
-- edição e exclusão;
-- troca entre escolas;
-- outras empresas sem mudança;
-- Análise de Despesas intacta.
-
-## Etapas
-
-1. Estrutura: tipo financeiro, ligação com o lançamento bancário, configuração de fonte e registro da última atualização.
-2. Geração automática no banco, segura para repetir, e respeito à configuração de fonte no motor oficial.
-3. Campo e classificação em lote no Fluxo Bancário, aviso "A classificar" e selo no Dashboard.
-4. Tela de conferência e apresentação dos números a você.
-5. Após sua aprovação, ativação com a competência escolhida e os testes.
+A ativação fica fora desta entrega. Ela só acontece depois que vocês aprovarem os números, com as divergências e o saldo inicial resolvidos. Junho a agosto continuam vindo das planilhas.
 
 ## Detalhes técnicos
-
-- `bank_transactions.tipo_financeiro text null` e `bank_transaction_splits.tipo_financeiro text null`. A lista vem dos tipos do modelo financeiro da escola (`tipoMeta`/`financial_model_template_items`).
-- `financial_entries.bank_transaction_id uuid null` e `bank_split_id uuid null`, com índice único parcial para garantir idempotência. Valores fixos: `origem='fluxo'`, `tipo_registro='realizado'`, `source_kind='bank_cashflow'`, `categoria='fluxo_realizado'`, `tipo_original=tipo_financeiro` (ou "A classificar"), `data` = data bancária. Transferência, aplicação e resgate não geram linhas, porque o saldo consolidado não muda.
-- Nova tabela `school_data_sources(school_id, dashboard_source, daily_flow_source, start_month, last_synced_at, last_error)`, com GRANT, RLS por `user_has_school_access` para leitura e escrita só para admin.
-- Função `sync_bank_cashflow_entries(_school_id, _date)` (security definer), com upsert e delete por vínculo. É chamada por triggers AFTER em `bank_transactions`/`bank_transaction_splits`, só quando existe configuração ativa e a data é igual ou posterior a `start_month`.
-- `periodMovement`: nos meses a partir de `start_month` em escolas com fonte "Fluxo de Caixa", entries `origem='fluxo'` com `source_kind<>'bank_cashflow'` ficam fora do cálculo. É um único filtro no carregamento, sem recálculo paralelo.
-- "A classificar": `tipoMeta` passa a trazê-lo como impacta caixa e fora do resultado (sinal pela coluna `tipo` do extrato, que é o sentido real do banco).
-- O saldo inicial das contas vem de `bank_accounts` (em conta + aplicado), conferido contra o saldo do motor na tela de conferência.
+- Nova tabela `school_data_sources(school_id pk, status text check in ('rascunho','em_conferencia','ativo','pausado'), dashboard_source, daily_flow_source, start_month, synced_through date, last_synced_at, last_error)`, com GRANT, leitura via `user_has_school_access` e escrita só para admin. Seed das 3 escolas com `em_conferencia` e `2026-09`.
+- Nova tabela `bank_account_balances(account_id, school_id, data, saldo_conta, saldo_aplicado, origem)`, com unique `(account_id, data)` e seed a partir de `bank_accounts.saldo_inicial*`.
+- `bank_transactions.model_item_id uuid null` e `bank_transaction_splits.model_item_id uuid null`, com FK para `financial_model_template_items`. Um trigger valida que o item pertence a `schools.financial_model_template_id`.
+- `financial_entries`: novas colunas `bank_transaction_id uuid null` e `bank_split_id uuid null`. Índices únicos parciais: `(bank_transaction_id) where bank_split_id is null` e `(bank_split_id) where bank_split_id is not null`. Linhas geradas com `origem='fluxo'`, `source_kind='bank_cashflow'`, `tipo_registro='realizado'`, `tipo_original` igual ao nome do item ou "A classificar".
+- Função `sync_bank_cashflow_entries(_school_id, _date)`, security definer e idempotente, com delete e reinsert por movimentação. Chamada por triggers AFTER em transações e splits, roda para os status em_conferencia e ativo; atualiza `synced_through` e `last_synced_at`, e grava erros em `last_error`.
+- Quando o status não é ativo, as linhas `bank_cashflow` são ignoradas pelo carregamento. Quando é ativo, nos meses a partir de `start_month`, o carregamento ignora `origem='fluxo'` com `source_kind<>'bank_cashflow'` e usa `synced_through` no lugar de hoje como corte de projeção em `periodMovement`. Os motores oficiais continuam sem duplicação.
+- "A classificar" entra no `tipoMeta` como classificação própria que impacta caixa e fica fora do resultado. O sinal vem do sentido bancário. O item aparece no Dashboard e no PDF como linha de ajuste.
