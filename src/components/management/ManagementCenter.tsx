@@ -73,9 +73,8 @@ function statusOf(row: PortfolioRow, month: string): RowStatus {
 function formatPeriod(month: string) {
   const [year, monthNumber] = month.split('-').map(Number);
   if (!year || !monthNumber) return month;
-  return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric' })
-    .format(new Date(year, monthNumber - 1, 1))
-    .replace('.', '');
+  const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  return `${monthLabels[monthNumber - 1]}/${year}`;
 }
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
@@ -142,10 +141,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             ))}
           </nav>
           <div className="app-sidebar-divider border-t p-3">
-            <div className="flex items-center gap-3 px-4 py-3 text-sm text-primary-foreground/70">
-              <Settings2 className="h-5 w-5" />
-              <span>Configurações</span>
-            </div>
+            <Button variant="ghost" size="icon" aria-label="Configurações" className="app-sidebar-item"><Settings2 className="h-5 w-5" /></Button>
           </div>
         </aside>
       )}
@@ -211,7 +207,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             </Select>
           </div>
 
-          <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <section className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm">
             {isError ? (
               <p className="p-8 text-center text-sm text-destructive">Não foi possível carregar a carteira.</p>
             ) : (
@@ -228,7 +224,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                       <div key={row.school_id} className="grid gap-4 p-5 transition-colors hover:bg-muted/20 xl:grid-cols-[1.35fr_1fr_.72fr_.9fr_1fr_1fr_.6fr_1fr_.75fr] xl:items-center">
                         <div className="min-w-0"><p className="truncate font-semibold">{row.school_name}</p></div>
                         <div className="min-w-0"><p className="text-xs text-muted-foreground xl:hidden">Responsável</p><p className="truncate text-sm">{row.responsible_email ?? 'Não definida'}</p></div>
-                        <div><p className="text-xs text-muted-foreground xl:hidden">Período</p><p className="text-sm capitalize">{formatPeriod(month)}</p></div>
+                        <div><p className="text-xs text-muted-foreground xl:hidden">Período</p><p className="text-sm">{formatPeriod(month)}</p></div>
                         <div><p className="text-xs text-muted-foreground xl:hidden">Atualizado até</p><p className="text-sm">{row.data_updated_through ? new Date(`${row.data_updated_through}T12:00:00`).toLocaleDateString('pt-BR') : 'Sem data'}</p></div>
                         <div>
                           <div className="mb-1 flex justify-between text-xs"><span className="xl:sr-only">Conciliação</span><span>{row.reconciliation_percent == null ? 'Indisponível' : `${row.reconciliation_percent}%`}</span></div>
