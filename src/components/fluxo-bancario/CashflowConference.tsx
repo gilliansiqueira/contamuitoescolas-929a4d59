@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useCashflowEntries, useDataSource, useResyncCashflow, useSheetFluxoEntries } from '@/hooks/useBankPilot';
 import { accountBalances, isAutoInvest, type BankAccount, type BankTx } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
+import { ActivationPreview } from './ActivationPreview';
 
 interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[] }
 
@@ -163,6 +164,10 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         {card('Saldo final', fmtBRL(data.fim), `bancário em ${fmtDate(to)}`)}
         {card('Fechamento do saldo', data.diffSaldo === 0 ? 'Fecha' : fmtBRL(data.diffSaldo), 'inicial + entradas − saídas = final', data.diffSaldo !== 0)}
       </div>
+
+      {cfg.synced_through && <ActivationPreview schoolId={schoolId} cfg={cfg} gen={gen} bankTo={cfg.synced_through}
+        bankIni={active.reduce((s, a) => s + accountBalances(a, txs, dayBefore(`${cfg.start_month}-01`)).total, 0)}
+        bankFim={active.reduce((s, a) => s + accountBalances(a, txs, cfg.synced_through!).total, 0)} />}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="rounded-xl border border-border bg-card p-4 text-sm"><div className="mb-2 flex items-center gap-2"><CalendarRange className="h-4 w-4 text-primary" /><h3 className="font-semibold">Período comparado com a planilha</h3></div>

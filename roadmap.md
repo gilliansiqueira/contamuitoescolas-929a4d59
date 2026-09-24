@@ -52,3 +52,8 @@
 - [x] Simplificar Movimentações e Conferência Dashboard, com veredito, períodos separados e detalhes recolhidos
 - [ ] Equipe detalhar as operações de setembro e corrigir as divergências — aguardando equipe
 - [ ] Ativação (após aprovação): ler as linhas no Dashboard/Fluxo Diário, linha "Movimentações em classificação", selo "Atualizado automaticamente" — aguardando aprovação dos números
+
+## Ativação Fluxo de Caixa no Dashboard/Fluxo Diário (set/2026)
+- [x] Troca de fonte reversível (só quando Ativo) e prévia com botão Aprovar/Pausar
+- [ ] Santa Mônica: equipe revisar prévia e clicar em Aprovar e ativar
+- [ ] Centro e Dourados: terminar divergências e repetir
