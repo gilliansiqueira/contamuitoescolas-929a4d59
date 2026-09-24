@@ -89,7 +89,8 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
     divergencias.sort((a, b) => a.data.localeCompare(b.data) || a.tipo.localeCompare(b.tipo));
 
     const sheetNet = sheet.reduce((s, e) => s + signed(e.tipo, e.valor), 0);
-    return { g, sheet, tx, ini, fim, genIn, genOut, diffSaldo, aClass, pend, semPar, pairOut, splitDiff, auto, transf, dups, porConta,
+    const semMov = porConta.filter(c => c.n === 0);
+    return { g, sheet, tx, ini, fim, genIn, genOut, diffSaldo, aClass, pend, semPar, pairOut, splitDiff, auto, transf, dups, porConta, semMov,
       tipos: [...tipos.entries()].map(([k, v]) => ({ label: labelOf.get(k) ?? k, ...v })).sort((a, b) => (b.gIn + b.gOut + b.sIn + b.sOut) - (a.gIn + a.gOut + a.sIn + a.sOut)),
       dias: [...dias.entries()].sort(([a], [b]) => a.localeCompare(b)), divergencias, sheetNet };
   }, [gen, sheetAll, txs, from, to, active, accName]);
