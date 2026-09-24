@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useBankAccounts, useBankTransactions } from '@/hooks/useBankPilot';
+import { useBankAccounts, useBankTransactions, useBankImports } from '@/hooks/useBankPilot';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
-import { summarize, accountBalance, lastDateByAccount } from '@/lib/bankStatements/bankCashflowEngine';
+import { summarize, accountBalances, lastDateByAccount } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, todayIso } from './shared';
 import { BankTransactionsTable } from './BankTransactionsTable';
 import { BankAccountsImports } from './BankAccountsImports';
@@ -20,6 +20,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const { data: accounts = [] } = useBankAccounts(schoolId);
   const { data: txs = [], isLoading } = useBankTransactions(schoolId);
   const { entries: projected } = useProjectedEntries(schoolId);
+  const { data: imports = [] } = useBankImports(schoolId);
   const today = todayIso();
   const { from, to } = monthRange(selectedMonth);
   const active = accounts.filter(a => a.ativa);
@@ -37,7 +38,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const ultimaAtualizacao = [...lastDates.values()].sort().pop();
 
   const cards = [
-    { label: 'Saldo atual', value: fmtBRL(summary.saldoAtual), hint: `em ${fmtDate(today)}` },
+    { label: 'Saldo atual', value: fmtBRL(summary.saldoAtual), hint: `em conta + aplicado, em ${fmtDate(today)}` },
     { label: 'Entradas realizadas', value: fmtBRL(summary.entradasRealizadas), hint: 'no mês, sem transferências internas' },
     { label: 'Saídas realizadas', value: fmtBRL(summary.saidasRealizadas), hint: 'no mês, sem transferências internas' },
     { label: 'Saldo projetado', value: fmtBRL(saldoProjetado), hint: `até ${fmtDate(horizon)}` },
@@ -81,18 +82,37 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
               <p className="text-sm text-muted-foreground">Nenhuma conta cadastrada. Cadastre em "Contas e Extratos".</p>
             ) : (
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1">Conta</th><th>Atualizada até</th><th className="text-right">Saldo atual</th></tr></thead>
+                <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1">Conta</th><th>Atualizada até</th><th className="text-right">Em conta</th><th className="text-right">Aplicado</th><th className="text-right">Total</th><th>Conferência com o banco</th></tr></thead>
                 <tbody>
-                  {active.map(a => (
-                    <tr key={a.id} className="border-t border-border">
-                      <td className="py-2 font-medium">{a.nome} <span className="text-xs text-muted-foreground">{a.banco}</span></td>
-                      <td>{fmtDate(lastDates.get(a.id))}</td>
-                      <td className="text-right tabular-nums">{fmtBRL(accountBalance(a, txs, today))}</td>
-                    </tr>
-                  ))}
-                  <tr className="border-t-2 border-border font-bold"><td className="py-2">Consolidado</td><td /><td className="text-right tabular-nums">{fmtBRL(summary.saldoAtual)}</td></tr>
+                  {active.map(a => {
+                    const b = accountBalances(a, txs, today);
+                    const last = imports.find(i => i.account_id === a.id && i.periodo_fim);
+                    const checks: { label: string; ok: boolean; diff: number }[] = [];
+                    if (last?.periodo_fim) {
+                      const atFim = accountBalances(a, txs, last.periodo_fim);
+                      if (last.saldo_final_informado != null) { const d = atFim.emConta - Number(last.saldo_final_informado); checks.push({ label: 'em conta', ok: Math.abs(d) < 0.01, diff: d }); }
+                      if (last.saldo_aplicado_informado != null) { const d = atFim.total - Number(last.saldo_aplicado_informado); checks.push({ label: 'com aplicação', ok: Math.abs(d) < 0.01, diff: d }); }
+                    }
+                    return (
+                      <tr key={a.id} className="border-t border-border">
+                        <td className="py-2 font-medium">{a.nome} <span className="text-xs text-muted-foreground">{a.banco}</span></td>
+                        <td>{fmtDate(lastDates.get(a.id))}</td>
+                        <td className="text-right tabular-nums">{fmtBRL(b.emConta)}</td>
+                        <td className="text-right tabular-nums">{a.has_auto_invest ? fmtBRL(b.aplicado) : '—'}</td>
+                        <td className="text-right tabular-nums font-semibold">{fmtBRL(b.total)}</td>
+                        <td className="pl-3 text-xs">{checks.length === 0 ? <span className="text-muted-foreground">—</span> : checks.map(c => (
+                          <p key={c.label} className={c.ok ? 'text-success' : 'text-destructive'}>{c.label}: {c.ok ? 'confere' : `diferença de ${fmtBRL(c.diff)}`} em {fmtDate(last!.periodo_fim)}</p>
+                        ))}</td>
+                      </tr>
+                    );
+                  })}
+                  {(() => { const t = active.reduce((s, a) => { const b = accountBalances(a, txs, today); return { e: s.e + b.emConta, p: s.p + b.aplicado }; }, { e: 0, p: 0 });
+                    return <tr className="border-t-2 border-border font-bold"><td className="py-2">Consolidado</td><td /><td className="text-right tabular-nums">{fmtBRL(t.e)}</td><td className="text-right tabular-nums">{fmtBRL(t.p)}</td><td className="text-right tabular-nums">{fmtBRL(summary.saldoAtual)}</td><td /></tr>; })()}
                 </tbody>
               </table>
+            )}
+            {summary.aplicacoesAutomaticas !== 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">Aplicações automáticas líquidas no mês: {fmtBRL(summary.aplicacoesAutomaticas)} (só mudam a divisão entre conta e aplicação; fora de entradas e saídas).</p>
             )}
             {summary.transferenciasInternas > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">Transferências entre contas próprias no mês: {fmtBRL(summary.transferenciasInternas)} (fora de entradas e saídas).</p>

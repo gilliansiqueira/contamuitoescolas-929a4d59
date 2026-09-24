@@ -42,6 +42,7 @@ export interface BankImport {
   id: string; account_id: string; file_name: string; file_path: string | null; formato: string;
   periodo_inicio: string | null; periodo_fim: string | null; total_linhas: number; inseridas: number;
   duplicadas: number; total_entradas: number; total_saidas: number; created_at: string;
+  saldo_final_informado?: number | null; saldo_aplicado_informado?: number | null;
 }
 
 export function useBankImports(schoolId: string) {
@@ -61,6 +62,7 @@ export function useInvalidateBank(schoolId: string) {
     qc.invalidateQueries({ queryKey: ['bankTransactions', schoolId] });
     qc.invalidateQueries({ queryKey: ['bankImports', schoolId] });
     qc.invalidateQueries({ queryKey: ['bankAccounts', schoolId] });
+    qc.invalidateQueries({ queryKey: ['autoInvestPatterns', schoolId] });
   };
 }
 
