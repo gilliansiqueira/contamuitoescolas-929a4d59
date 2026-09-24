@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Download, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCashflowEntries, useDataSource, useResyncCashflow, useSheetFluxoEntries } from '@/hooks/useBankPilot';
 import { accountBalances, isAutoInvest, type BankAccount, type BankTx } from '@/lib/bankStatements/bankCashflowEngine';
@@ -162,6 +162,12 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         {card('Contas sem movimentação', String(data.semMov.length), data.semMov.length ? data.semMov.map(c => c.a.nome).join(', ') : 'normal: o banco pode não ter movimento no mês')}
       </div>
 
+      <section className="rounded-xl border border-border bg-card p-3 text-sm">
+        <p className="font-semibold">{data.sheetMax ? <>Comparando extrato x planilha de {fmtDate(from)} a {fmtDate(data.cmpTo)}{data.cmpTo < to && ' (último dia lançado na planilha)'}</> : 'Não há planilha de fluxo no período para comparar.'}</p>
+        {data.sheetMax && <p className="text-xs text-muted-foreground">Extrato: entradas {fmtBRL(data.cmp.bIn)} · saídas {fmtBRL(data.cmp.bOut)} — Planilha: entradas {fmtBRL(data.cmp.sIn)} · saídas {fmtBRL(data.cmp.sOut)} — Diferença: entradas {fmtBRL(data.cmp.bIn - data.cmp.sIn)} · saídas {fmtBRL(data.cmp.bOut - data.cmp.sOut)}</p>}
+        {data.txPost.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Movimentações posteriores à planilha (não contam como divergência): {data.txPost.length} lançamentos · entradas {fmtBRL(data.txPost.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0))} · saídas {fmtBRL(data.txPost.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0))}</p>}
+      </section>
+
       <section className="rounded-xl border border-border bg-card p-3">
         <h3 className="mb-2 text-sm font-semibold">Por conta</h3>
         <table className="w-full text-sm">
@@ -177,7 +183,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       </section>
 
       <section className="rounded-xl border border-border bg-card p-3">
-        <h3 className="mb-2 text-sm font-semibold">Por tipo financeiro: Fluxo de Caixa x planilha ({fmtDate(from)} a {fmtDate(to)})</h3>
+        <h3 className="mb-2 text-sm font-semibold">Por tipo financeiro: Fluxo de Caixa x planilha ({fmtDate(from)} a {fmtDate(data.cmpTo)})</h3>
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground"><tr><th>Tipo</th><th className="text-right">Fluxo: entradas</th><th className="text-right">Fluxo: saídas</th><th className="text-right">Fluxo: qtd.</th><th className="text-right">Planilha: entradas</th><th className="text-right">Planilha: saídas</th><th className="text-right">Planilha: qtd.</th><th /></tr></thead>
           <tbody>{data.tipos.map(t => { const ok = r2(t.gIn) === r2(t.sIn) && r2(t.gOut) === r2(t.sOut); return (
@@ -195,17 +201,18 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
               <tr key={d} className="border-t border-border"><td className="py-1">{fmtDate(d)}</td><td className="text-right tabular-nums">{fmtBRL(v.bIn)}</td><td className="text-right tabular-nums">{fmtBRL(v.bOut)}</td><td className="text-right tabular-nums">{fmtBRL(v.gIn)}</td><td className="text-right tabular-nums">{fmtBRL(v.gOut)}</td><td className="text-right tabular-nums">{fmtBRL(v.sIn)}</td><td className="text-right tabular-nums">{fmtBRL(v.sOut)}</td><td className="pl-2"><Ok ok={ok} /></td></tr>); })}</tbody>
           </table>
         </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">"Geradas" excluem transferências internas e aplicações automáticas (neutras). A comparação com a planilha usa o extrato completo.</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">"Geradas" excluem transferências internas e aplicações automáticas (neutras). A comparação com a planilha vai só até o último dia lançado nela.</p>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-3">
-        <h3 className="mb-2 text-sm font-semibold">Divergências linha a linha ({data.divergencias.length})</h3>
+        <div className="mb-2 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Divergências linha a linha até {fmtDate(data.cmpTo)} ({data.divergencias.filter(d => d.tipo === 'Falta na planilha').length} faltam na planilha · {data.divergencias.filter(d => d.tipo === 'Só na planilha').length} só na planilha · {data.divergencias.filter(d => d.tipo === 'Data diferente').length} com data diferente)</h3>
+          <Button size="sm" variant="outline" onClick={exportXlsx}><Download className="mr-1 h-4 w-4" />Baixar Excel</Button></div>
         {data.divergencias.length === 0 ? <p className="text-sm text-success">Extrato e planilha batem linha a linha no período.</p> : (
           <div className="max-h-96 overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-card text-left text-xs text-muted-foreground"><tr><th>Situação</th><th>Data</th><th>Descrição</th><th className="text-right">Valor</th><th>Detalhe</th></tr></thead>
+              <thead className="sticky top-0 bg-card text-left text-xs text-muted-foreground"><tr><th>Situação</th><th>Data</th><th>Conta</th><th>Descrição</th><th className="text-right">Valor</th><th>Detalhe</th></tr></thead>
               <tbody>{data.divergencias.map((d, i) => (
-                <tr key={i} className="border-t border-border"><td className="py-1 text-xs font-semibold">{d.tipo}</td><td>{fmtDate(d.data)}</td><td className="max-w-80 truncate" title={d.descricao}>{d.descricao}</td>
+                <tr key={i} className="border-t border-border"><td className="py-1 text-xs font-semibold">{d.tipo}</td><td>{fmtDate(d.data)}</td><td className="text-xs">{d.conta}</td><td className="max-w-80 truncate" title={d.descricao}>{d.descricao}</td>
                   <td className={`text-right tabular-nums ${d.sentido === 'entrada' ? 'text-success' : 'text-destructive'}`}>{d.sentido === 'entrada' ? '' : '−'}{fmtBRL(d.valor)}</td><td className="text-xs text-muted-foreground">{d.detalhe}</td></tr>
               ))}</tbody>
             </table>
