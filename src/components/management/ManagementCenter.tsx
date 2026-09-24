@@ -1,13 +1,19 @@
 import { useMemo, useState } from 'react';
 import type { School } from '@/types/financial';
 import { useAuth } from '@/hooks/useAuth';
-import { useManagementPortfolio, type PortfolioRow } from '@/hooks/useManagementPortfolio';
+import {
+  useManagementPortfolio,
+  useManagementResponsibleCandidates,
+  useSetManagementResponsible,
+  type PortfolioRow,
+} from '@/hooks/useManagementPortfolio';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
+import { toast } from 'sonner';
 import {
   AlertCircle,
   Bell,
@@ -84,7 +90,16 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [situation, setSituation] = useState<Situation>('all');
   const [view, setView] = useState<ManagementView>('portfolio');
   const { data: rows = [], isLoading, isError } = useManagementPortfolio(month, true);
+  const { data: responsibleCandidates = [] } = useManagementResponsibleCandidates(isSuperAdmin);
+  const setResponsible = useSetManagementResponsible(month);
   const schoolById = useMemo(() => new Map(schools.map(school => [school.id, school])), [schools]);
+  const candidatesBySchool = useMemo(() => {
+    const grouped = new Map<string, typeof responsibleCandidates>();
+    responsibleCandidates.forEach(candidate => {
+      grouped.set(candidate.school_id, [...(grouped.get(candidate.school_id) ?? []), candidate]);
+    });
+    return grouped;
+  }, [responsibleCandidates]);
 
   const filtered = useMemo(() => rows.filter(row => {
     const term = search.toLocaleLowerCase('pt-BR');
@@ -108,6 +123,16 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const openSchool = (id: string) => {
     const school = schoolById.get(id);
     if (school) onSelect(school);
+  };
+
+  const changeResponsible = (schoolId: string, value: string) => {
+    setResponsible.mutate(
+      { schoolId, userId: value === '__none' ? null : value },
+      {
+        onSuccess: () => toast.success('Responsável atualizada.'),
+        onError: error => toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a responsável.'),
+      },
+    );
   };
 
   const navigation = [
@@ -223,7 +248,28 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                     return (
                       <div key={row.school_id} className="grid gap-4 p-5 transition-colors hover:bg-muted/20 xl:grid-cols-[1.35fr_1fr_.72fr_.9fr_1fr_1fr_.6fr_1fr_.75fr] xl:items-center">
                         <div className="min-w-0"><p className="truncate font-semibold">{row.school_name}</p></div>
-                        <div className="min-w-0"><p className="text-xs text-muted-foreground xl:hidden">Responsável</p><p className="truncate text-sm">{row.responsible_email ?? 'Não definida'}</p></div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground xl:hidden">Responsável</p>
+                          {isSuperAdmin && (candidatesBySchool.get(row.school_id)?.length ?? 0) > 1 ? (
+                            <Select
+                              value={row.responsible_user_id ?? '__none'}
+                              onValueChange={value => changeResponsible(row.school_id, value)}
+                              disabled={setResponsible.isPending}
+                            >
+                              <SelectTrigger className="h-8 min-w-0 bg-background text-xs" aria-label={`Responsável por ${row.school_name}`}>
+                                <SelectValue placeholder="Definir responsável" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none">Definir responsável</SelectItem>
+                                {(candidatesBySchool.get(row.school_id) ?? []).map(candidate => (
+                                  <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <p className="truncate text-sm">{row.responsible_email ?? 'Não definida'}</p>
+                          )}
+                        </div>
                         <div><p className="text-xs text-muted-foreground xl:hidden">Período</p><p className="text-sm">{formatPeriod(month)}</p></div>
                         <div><p className="text-xs text-muted-foreground xl:hidden">Atualizado até</p><p className="text-sm">{row.data_updated_through ? new Date(`${row.data_updated_through}T12:00:00`).toLocaleDateString('pt-BR') : 'Sem data'}</p></div>
                         <div>

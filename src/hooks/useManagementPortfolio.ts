@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PortfolioRow {
@@ -19,6 +19,12 @@ export interface PortfolioRow {
   next_action: string | null;
 }
 
+export interface ResponsibleCandidate {
+  school_id: string;
+  user_id: string;
+  email: string;
+}
+
 export function useManagementPortfolio(month: string, enabled: boolean) {
   return useQuery({
     queryKey: ['management-portfolio', month],
@@ -35,5 +41,31 @@ export function useManagementPortfolio(month: string, enabled: boolean) {
         checklist_pending: Number(row.checklist_pending),
       })) as PortfolioRow[];
     },
+  });
+}
+
+export function useManagementResponsibleCandidates(enabled: boolean) {
+  return useQuery({
+    queryKey: ['management-responsible-candidates'],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_management_responsible_candidates');
+      if (error) throw error;
+      return (data ?? []) as ResponsibleCandidate[];
+    },
+  });
+}
+
+export function useSetManagementResponsible(month: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ schoolId, userId }: { schoolId: string; userId: string | null }) => {
+      const { error } = await supabase.rpc('set_management_responsible', {
+        _school_id: schoolId,
+        _user_id: userId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] }),
   });
 }
