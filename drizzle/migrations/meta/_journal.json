@@ -64,6 +64,13 @@
       "when": 1790255076534,
       "tag": "0008_bank_auto_invest",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790256810413,
+      "tag": "0009_bank_tx_edit_desc_operacao",
+      "breakpoints": true
     }
   ]
 }

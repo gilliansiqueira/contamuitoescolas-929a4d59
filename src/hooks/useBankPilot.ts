@@ -123,3 +123,18 @@ export function useSetMovementKind(schoolId: string) {
     onSuccess: invalidate,
   });
 }
+
+/** Só altera a descrição exibida/observação; valor, data e descrição original seguem protegidos no banco. */
+export function useUpdateTxText(schoolId: string) {
+  const invalidate = useInvalidateBank(schoolId);
+  return useMutation({
+    mutationFn: async ({ id, descricao_editada, recon_note }: { id: string; descricao_editada?: string | null; recon_note?: string | null }) => {
+      const patch: Record<string, unknown> = {};
+      if (descricao_editada !== undefined) patch.descricao_editada = descricao_editada?.trim() || null;
+      if (recon_note !== undefined) patch.recon_note = recon_note?.trim() || null;
+      const { error } = await db.from('bank_transactions').update(patch).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+}
