@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllRows } from '@/lib/fetchAll';
-import type { BankAccount, BankTx, ReconStatus } from '@/lib/bankStatements/bankCashflowEngine';
+import { DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type ReconStatus, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 
 export const BANK_PILOT_FEATURE = 'cashflow_bank_pilot';
 const db = supabase as any;
@@ -34,7 +34,7 @@ export function useBankTransactions(schoolId: string) {
     queryKey: ['bankTransactions', schoolId],
     queryFn: async () =>
       fetchAllRows<BankTx>('bank_transactions', q => q.eq('school_id', schoolId),
-        1000, 'id, account_id, import_id, data, descricao, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at'),
+        1000, 'id, account_id, import_id, data, descricao, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind'),
   });
 }
 
@@ -95,4 +95,29 @@ export async function fetchReconHistory(txId: string) {
   const { data, error } = await db.from('bank_reconciliation_history').select('*').eq('transaction_id', txId).order('changed_at', { ascending: false });
   if (error) throw error;
   return data as { id: string; old_status: string | null; new_status: string; note: string | null; changed_by_email: string | null; changed_at: string }[];
+}
+
+/** Padrões de descrição de aplicação automática: padrão do sistema + os cadastrados na empresa. */
+export function useAutoInvestPatterns(schoolId: string) {
+  return useQuery({
+    queryKey: ['autoInvestPatterns', schoolId],
+    queryFn: async () => {
+      const { data } = await db.from('bank_auto_invest_patterns').select('id, padrao').eq('school_id', schoolId).order('padrao');
+      const custom = (data ?? []) as { id: string; padrao: string }[];
+      return { custom, all: [...DEFAULT_AUTO_INVEST_PATTERNS, ...custom.map(c => c.padrao)] };
+    },
+  });
+}
+
+export function useSetMovementKind(schoolId: string) {
+  const invalidate = useInvalidateBank(schoolId);
+  return useMutation({
+    mutationFn: async ({ ids, kind }: { ids: string[]; kind: MovementKind }) => {
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await db.from('bank_transactions').update({ movement_kind: kind }).in('id', ids.slice(i, i + 200));
+        if (error) throw error;
+      }
+    },
+    onSuccess: invalidate,
+  });
 }
