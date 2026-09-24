@@ -92,7 +92,7 @@ const SIDEBAR_COLLAPSED_KEY = 'cm-sidebar-collapsed';
 const Index = () => {
   const { isPresentationMode } = usePresentation();
   const { isDemo, demoSchoolId } = useDemoMode();
-  const { isAdmin: realIsAdmin, isSuperAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
+  const { isAdmin: realIsAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
   const isAdmin = isDemo ? false : realIsAdmin;
   const { data: allSchools = [], isError: schoolsError, isFetching: schoolsFetching, refetch: refetchSchools } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
