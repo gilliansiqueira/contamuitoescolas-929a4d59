@@ -80,3 +80,22 @@ describe('transferência entre contas próprias', () => {
     expect(s.saldoAtual).toBe(700);
   });
 });
+
+import { autoTransferPairs, detectOwnTransfer as _dot } from '@/lib/bankStatements/bankCashflowEngine';
+describe('par automático de transferências', () => {
+  const base: any = { import_id: 'i', recon_status: 'pendente', recon_by_email: null, recon_at: null, recon_note: null, created_at: 'x', transfer_pair_id: null };
+  it('não confunde influx dourados com holding', () => {
+    expect(_dot('Pagamento de Titulo: "INFLUX HOLDING E FRANQUIAS LTD"', ['influx dourados'])).toBe(false);
+    expect(_dot('Pix recebido: "Cp :16501555-INFLUX DOURADOS"', ['influx dourados'])).toBe(true);
+  });
+  it('acha a outra ponta e tira das entradas', () => {
+    const stone = { ...base, id: 's', account_id: 'S', data: '2026-09-01', descricao: 'PEGORER', valor: 1439.46, tipo: 'saida', movement_kind: 'transferencia' };
+    const inter = { ...base, id: 'n', account_id: 'N', data: '2026-09-01', descricao: 'INFLUX', valor: 1439.46, tipo: 'entrada', movement_kind: 'normal' };
+    const pairs = autoTransferPairs([stone, inter]);
+    expect(pairs.map(p => p.map(x => x.id))).toEqual([['s', 'n']]);
+    const accs: any[] = [{ id: 'S', saldo_inicial: 0, saldo_inicial_data: '2026-08-31', ativa: true }, { id: 'N', saldo_inicial: 0, saldo_inicial_data: '2026-08-31', ativa: true }];
+    const s = _sum(accs, [{ ...stone, transfer_pair_id: 'p' }, { ...inter, transfer_pair_id: 'p', movement_kind: 'transferencia' }], '2026-09-01', '2026-09-30', '2026-09-30');
+    expect(s.entradasRealizadas).toBe(0);
+    expect(s.transferenciasInternas).toBe(1439.46);
+  });
+});
