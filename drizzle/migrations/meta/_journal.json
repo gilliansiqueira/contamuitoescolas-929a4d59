@@ -127,6 +127,13 @@
       "when": 1790269409931,
       "tag": "0017_management_responsible_display_names",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790271776997,
+      "tag": "0018_responsible_includes_principal_school",
+      "breakpoints": true
     }
   ]
 }
