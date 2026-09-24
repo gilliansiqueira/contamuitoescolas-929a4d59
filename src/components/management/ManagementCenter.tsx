@@ -23,7 +23,6 @@ import {
   ChevronRight,
   Clock3,
   FileCheck2,
-  ListChecks,
   LogOut,
   Search,
   Settings2,
@@ -36,8 +35,8 @@ interface Props {
   onSignOut: () => void;
 }
 
-type Situation = 'all' | 'finalizado' | 'bloqueado' | 'atrasado' | 'atencao' | 'em_dia' | 'sem_acompanhamento';
-type ManagementView = 'portfolio' | 'reconciliation' | 'closing' | 'pending' | 'responsible';
+type Situation = 'all' | 'finalizado' | 'bloqueado' | 'atrasado' | 'atencao' | 'em_dia' | 'sem_etapas';
+type ManagementView = 'portfolio' | 'closing' | 'pending' | 'responsible';
 type RowStatus = Exclude<Situation, 'all'>;
 
 const statusLabels: Record<RowStatus, string> = {
@@ -46,7 +45,7 @@ const statusLabels: Record<RowStatus, string> = {
   atrasado: 'Atrasada',
   atencao: 'Atenção',
   em_dia: 'Em dia',
-  sem_acompanhamento: 'Sem acompanhamento',
+  sem_etapas: 'Sem etapas cadastradas',
 };
 
 const statusStyles: Record<RowStatus, string> = {
@@ -55,12 +54,11 @@ const statusStyles: Record<RowStatus, string> = {
   atrasado: 'bg-destructive/15 text-destructive',
   atencao: 'bg-warning/15 text-warning',
   em_dia: 'bg-success/15 text-success',
-  sem_acompanhamento: 'bg-muted text-muted-foreground',
+  sem_etapas: 'bg-muted text-muted-foreground',
 };
 
 const viewLabels: Record<ManagementView, string> = {
   portfolio: 'Carteira de Clientes',
-  reconciliation: 'Conciliação',
   closing: 'Fechamentos',
   pending: 'Pendências',
   responsible: 'Por Responsável',
@@ -69,7 +67,7 @@ const viewLabels: Record<ManagementView, string> = {
 function statusOf(row: PortfolioRow, month: string): RowStatus {
   if (row.period_closed && row.report_delivered && row.checklist_pending === 0) return 'finalizado';
   if (row.waiting_for_client) return 'bloqueado';
-  if (row.closing_percent == null && !row.report_delivered && !row.period_closed) return 'sem_acompanhamento';
+  if (row.closing_percent == null && !row.report_delivered && !row.period_closed) return 'sem_etapas';
   const currentMonth = new Date().toISOString().slice(0, 7);
   if (month < currentMonth && (!row.period_closed || !row.report_delivered)) return 'atrasado';
   if (row.reconciliation_pending > 0 || row.checklist_pending > 0) return 'atencao';
@@ -107,7 +105,6 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       || (row.responsible_email ?? '').toLocaleLowerCase('pt-BR').includes(term);
     const status = statusOf(row, month);
     const matchesView = view === 'portfolio'
-      || (view === 'reconciliation' && row.reconciliation_pending > 0)
       || (view === 'closing' && (!row.period_closed || !row.report_delivered))
       || (view === 'pending' && (row.reconciliation_pending > 0 || row.checklist_pending > 0 || row.waiting_for_client))
       || (view === 'responsible' && !!row.responsible_user_id);
@@ -137,7 +134,6 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
 
   const navigation = [
     { key: 'portfolio' as const, label: 'Carteira de Clientes', icon: Building2 },
-    { key: 'reconciliation' as const, label: 'Conciliação', icon: ListChecks },
     { key: 'closing' as const, label: 'Fechamentos', icon: FileCheck2 },
     { key: 'pending' as const, label: 'Pendências', icon: AlertCircle },
     { key: 'responsible' as const, label: 'Por Responsável', icon: Users },
@@ -227,7 +223,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                 <SelectItem value="atrasado">Atrasadas</SelectItem>
                 <SelectItem value="atencao">Atenção</SelectItem>
                 <SelectItem value="em_dia">Em dia</SelectItem>
-                <SelectItem value="sem_acompanhamento">Sem acompanhamento</SelectItem>
+                <SelectItem value="sem_etapas">Sem etapas cadastradas</SelectItem>
               </SelectContent>
             </Select>
           </div>
