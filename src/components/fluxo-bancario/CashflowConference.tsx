@@ -143,7 +143,10 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground"><tr><th>Conta</th><th>Atualizada até</th><th className="text-right">Saldo inicial</th><th className="text-right">Entradas</th><th className="text-right">Saídas</th><th className="text-right">Saldo final</th><th className="text-right">Lançamentos</th></tr></thead>
           <tbody>{data.porConta.map(c => (
-            <tr key={c.a.id} className="border-t border-border"><td className="py-1.5">{c.a.nome}</td><td className={c.last && cfg.synced_through && c.last === cfg.synced_through && c.last < to ? 'text-warning' : ''}>{fmtDate(c.last || undefined)}</td>
+            <tr key={c.a.id} className="border-t border-border"><td className="py-1.5">{c.a.nome}</td>
+              {c.n === 0
+                ? <td className="text-muted-foreground">Sem movimentação no período</td>
+                : <td className={c.last && cfg.synced_through && c.last === cfg.synced_through && c.last < to ? 'text-warning' : ''}>{fmtDate(c.last || undefined)}</td>}
               <td className="text-right tabular-nums">{fmtBRL(c.ini)}</td><td className="text-right tabular-nums text-success">{fmtBRL(c.ent)}</td><td className="text-right tabular-nums text-destructive">{fmtBRL(c.sai)}</td><td className="text-right tabular-nums font-semibold">{fmtBRL(c.fim)}</td><td className="text-right">{c.n}</td></tr>
           ))}</tbody>
         </table>
