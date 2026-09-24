@@ -28,3 +28,10 @@
 - [ ] Decidir: Manaus Laranjeiras ago/2026 Distribuição de Lucros 100.000 no histórico x 50.000 no extrato
 - [ ] Decidir: nomes sem regra (ex.: "Parcela do Empréstimo", "8.01 Pagamento de Empréstimo Bancário", "Aporte") seguem como despesa
 - [x] Fazer o PDF espelhar os mesmos itens, sentidos e totais de Operações Financeiras do Dashboard
+
+## Piloto Fluxo Bancário — Dourados (set/2026)
+- [x] Tabelas novas, acesso só de administradores, opção do piloto ligada só na Dourados
+- [x] Aba "Fluxo Bancário" (admin + piloto): Resumo, Movimentações/conciliação, Contas e Extratos
+- [x] Leitura de OFX, CSV, Excel e PDF, com conferência e proteção contra duplicidade
+- [ ] Validar com extratos reais da Dourados (aguardando arquivos e saldos das contas)
+- [ ] Fase 2 (nova aprovação): extratos alimentando Dashboard e Fluxo Diário
