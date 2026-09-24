@@ -60,17 +60,21 @@ const statusLabels: Record<RowStatus, string> = {
 };
 
 const statusStyles: Record<RowStatus, string> = {
-  finalizado: 'bg-success/10 text-success',
-  bloqueado: 'bg-info/10 text-info',
-  atrasado: 'bg-destructive/10 text-destructive',
-  atencao: 'bg-warning/10 text-warning',
-  em_dia: 'bg-success/10 text-success',
-  sem_etapas: 'bg-muted text-muted-foreground',
+  finalizado: 'bg-success/20 text-success border border-success/35',
+  bloqueado: 'bg-info/20 text-info border border-info/35',
+  atrasado: 'bg-destructive/20 text-destructive border border-destructive/35',
+  atencao: 'bg-progress/25 text-progress border border-progress/45',
+  em_dia: 'bg-success/20 text-success border border-success/35',
+  sem_etapas: 'bg-muted text-muted-foreground border border-border',
 };
 
 const statusDotStyles: Record<RowStatus, string> = {
-  finalizado: 'bg-success', bloqueado: 'bg-info', atrasado: 'bg-destructive',
-  atencao: 'bg-warning', em_dia: 'bg-success', sem_etapas: 'bg-muted-foreground',
+  finalizado: 'bg-success shadow-[0_0_6px_hsl(var(--success)/0.55)]',
+  bloqueado: 'bg-info shadow-[0_0_6px_hsl(var(--info)/0.55)]',
+  atrasado: 'bg-destructive shadow-[0_0_6px_hsl(var(--destructive)/0.55)] animate-pulse',
+  atencao: 'bg-progress shadow-[0_0_6px_hsl(var(--progress)/0.6)]',
+  em_dia: 'bg-success shadow-[0_0_6px_hsl(var(--success)/0.55)]',
+  sem_etapas: 'bg-muted-foreground/50',
 };
 
 const viewLabels: Record<ManagementView, string> = {
@@ -98,6 +102,12 @@ function statusOf(row: PortfolioRow, month: string): RowStatus {
   if (month < currentMonth && (!row.period_closed || !row.report_delivered)) return 'atrasado';
   if (row.reconciliation_pending > 0 || row.checklist_pending > 0) return 'atencao';
   return 'em_dia';
+}
+
+function progressTone(percent: number) {
+  if (percent >= 100) return { bar: '[&>div]:bg-success', text: 'text-success' };
+  if (percent >= 50) return { bar: '[&>div]:bg-info', text: 'text-info' };
+  return { bar: '[&>div]:bg-progress', text: 'text-progress' };
 }
 
 function formatPeriodLong(month: string) {
@@ -293,11 +303,11 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
 
           <div className="mb-3 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
             {[
-              { label: 'Empresas ativas', value: rows.length, note: 'Toda a carteira', icon: Building2, tone: 'text-primary bg-primary/10' },
-              { label: 'Atualizadas hoje', value: updatedToday, note: 'Dados até hoje', icon: CalendarDays, tone: 'text-success bg-success/10' },
-              { label: 'Conciliação pendente', value: pendingReconciliationCompanies, note: `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`, icon: AlertCircle, tone: 'text-warning bg-warning/10' },
-              { label: 'Fechamento pendente', value: pendingClosing, note: `${deliveredReports} relatório${deliveredReports === 1 ? '' : 's'} entregue${deliveredReports === 1 ? '' : 's'}`, icon: FileCheck2, tone: 'text-destructive bg-destructive/10' },
-            ].map(card => <div key={card.label} className="rounded-lg border border-border bg-card p-3.5"><div className="flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">{card.label}</span><span className={`flex h-7 w-7 items-center justify-center rounded-md ${card.tone}`}><card.icon className="h-3.5 w-3.5" /></span></div><p className="mt-2 text-2xl font-medium leading-none">{isLoading ? '—' : card.value}</p><p className="mt-1.5 text-[11px] text-muted-foreground">{card.note}</p></div>)}
+              { label: 'Empresas ativas', value: rows.length, note: 'Toda a carteira', icon: Building2, tone: 'text-primary bg-primary/10', strip: 'border-t-primary' },
+              { label: 'Atualizadas hoje', value: updatedToday, note: 'Dados até hoje', icon: CalendarDays, tone: 'text-success bg-success/10', strip: 'border-t-success' },
+              { label: 'Conciliação pendente', value: pendingReconciliationCompanies, note: `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`, icon: AlertCircle, tone: 'text-progress bg-progress/10', strip: 'border-t-progress' },
+              { label: 'Fechamento pendente', value: pendingClosing, note: `${deliveredReports} relatório${deliveredReports === 1 ? '' : 's'} entregue${deliveredReports === 1 ? '' : 's'}`, icon: FileCheck2, tone: 'text-destructive bg-destructive/10', strip: 'border-t-destructive' },
+            ].map(card => <div key={card.label} className={`rounded-lg border border-border border-t-[3px] bg-card p-3.5 ${card.strip}`}><div className="flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">{card.label}</span><span className={`flex h-7 w-7 items-center justify-center rounded-md ${card.tone}`}><card.icon className="h-3.5 w-3.5" /></span></div><p className="mt-2 text-2xl font-medium leading-none">{isLoading ? '—' : card.value}</p><p className="mt-1.5 text-[11px] text-muted-foreground">{card.note}</p></div>)}
           </div>
 
           <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5 sm:flex-row">
@@ -323,19 +333,19 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                 {isError ? <p className="p-8 text-center text-sm text-destructive">Não foi possível carregar a carteira.</p> : <>
                   <div className="hidden grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] gap-3 border-b bg-muted/30 px-3 py-2.5 text-[11px] font-medium text-muted-foreground lg:grid"><span>Empresa</span><span>Responsável</span><span>Atualizado até</span><span>Andamento</span><span>Situação</span><span /></div>
                   <div className="divide-y divide-border">{!isLoading && filtered.length === 0 && <p className="p-10 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>}{filtered.map(row => {
-                    const status = statusOf(row, month); const progress = row.closing_percent ?? row.reconciliation_percent; const candidates = candidatesBySchool.get(row.school_id) ?? [];
+                    const status = statusOf(row, month); const progress = row.closing_percent ?? row.reconciliation_percent; const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
                     return <div key={row.school_id} className="grid gap-3 px-3 py-3 text-xs transition-colors hover:bg-muted/20 lg:grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] lg:items-center">
-                      <div className="flex min-w-0 items-center gap-2"><span className={`h-2 w-2 shrink-0 rounded-full ${statusDotStyles[status]}`} /><span className="truncate font-medium">{row.school_name}</span></div>
+                      <div className="flex min-w-0 items-center gap-2"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotStyles[status]}`} /><span className="truncate font-medium">{row.school_name}</span></div>
                       <div className="min-w-0">{isSuperAdmin && candidates.length > 1 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{candidates.map(candidate => <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
                       <span className="text-muted-foreground"><span className="mr-1 lg:hidden">Atualizado:</span>{formatDate(row.data_updated_through)}</span>
-                      <div>{progress == null ? <button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"><ListChecks className="h-3 w-3" />{row.closing_percent == null ? 'Configurar etapas' : 'Indisponível'}</button> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-1.5 flex-1 bg-muted ${progress === 100 ? '[&>div]:bg-success' : '[&>div]:bg-warning'}`} /><span className="w-8 text-right text-[11px]">{progress}%</span><button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="text-muted-foreground hover:text-primary" aria-label={`Configurar etapas de ${row.school_name}`}><ListChecks className="h-3.5 w-3.5" /></button></div>}</div>
+                      <div>{progress == null ? <button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"><ListChecks className="h-3 w-3" />{row.closing_percent == null ? 'Configurar etapas' : 'Indisponível'}</button> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-1.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-8 text-right text-[11px] font-semibold ${tone?.text ?? ''}`}>{progress}%</span><button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="text-muted-foreground hover:text-primary" aria-label={`Configurar etapas de ${row.school_name}`}><ListChecks className="h-3.5 w-3.5" /></button></div>}</div>
                       <div><span className={`inline-flex rounded-full px-2 py-1 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div>
                       <Button variant="ghost" size="sm" onClick={() => openSchool(row.school_id)} className="h-7 justify-start px-1 text-xs text-primary lg:justify-center">Abrir <ArrowRight className="ml-1 h-3 w-3" /></Button>
                     </div>;
                   })}</div><div className="border-t px-3 py-3 text-[10px] text-muted-foreground">Mostrando {filtered.length} de {rows.length} empresas em {viewLabels[view].toLocaleLowerCase('pt-BR')}</div>
                 </>}
               </section>
-              <aside className="h-fit rounded-lg border border-border bg-card p-3.5"><div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-sm font-medium">Prioridades de hoje</h2><span className="text-[10px] text-muted-foreground">{priorities.length} itens</span></div><div className="space-y-2">{priorities.length === 0 && <p className="rounded-md bg-muted/30 p-3 text-[11px] text-muted-foreground">Nenhuma prioridade encontrada para este período.</p>}{priorities.map(({ row, status, pending }) => <button key={row.school_id} type="button" onClick={() => openSchool(row.school_id)} className={`w-full rounded-md border-l-[3px] bg-muted/30 p-2.5 text-left ${status === 'atrasado' ? 'border-destructive' : status === 'bloqueado' ? 'border-info' : 'border-warning'}`}><strong className="block truncate text-[11px] font-medium">{row.school_name}</strong><span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{row.next_action || (status === 'bloqueado' ? 'Aguardando informações do cliente.' : pending > 0 ? `${pending} pendência${pending === 1 ? '' : 's'} no período.` : statusLabels[status])}</span><span className="mt-1.5 flex justify-between gap-2 text-[10px] text-muted-foreground"><span>{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Sem responsável'}</span><span>{statusLabels[status]}</span></span></button>)}</div></aside>
+              <aside className="h-fit rounded-lg border border-border bg-card p-3.5"><div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-sm font-medium">Prioridades de hoje</h2><span className="text-[10px] text-muted-foreground">{priorities.length} itens</span></div><div className="space-y-2">{priorities.length === 0 && <p className="rounded-md bg-muted/30 p-3 text-[11px] text-muted-foreground">Nenhuma prioridade encontrada para este período.</p>}{priorities.map(({ row, status, pending }) => <button key={row.school_id} type="button" onClick={() => openSchool(row.school_id)} className={`w-full rounded-md border-l-[3px] p-2.5 text-left ${status === 'atrasado' ? 'border-destructive bg-destructive/10' : status === 'bloqueado' ? 'border-info bg-info/10' : 'border-progress bg-progress/10'}`}><strong className="block truncate text-[11px] font-medium">{row.school_name}</strong><span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{row.next_action || (status === 'bloqueado' ? 'Aguardando informações do cliente.' : pending > 0 ? `${pending} pendência${pending === 1 ? '' : 's'} no período.` : statusLabels[status])}</span><span className="mt-1.5 flex justify-between gap-2 text-[10px] text-muted-foreground"><span>{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Sem responsável'}</span><span>{statusLabels[status]}</span></span></button>)}</div></aside>
             </div>
           )}
         </main>
