@@ -58,42 +58,66 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         sai: at.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0), last: txs.filter(t => t.account_id === a.id).reduce((m, t) => t.data > m ? t.data : m, '') };
     });
 
+    // Período comum: só compara com a planilha até o último dia lançado nela
+    const sheetMax = sheet.reduce((m, e) => e.data > m ? e.data : m, '');
+    const cmpTo = sheetMax && sheetMax < to ? sheetMax : to;
+    const gCmp = g.filter(e => e.data <= cmpTo);
+    const txCmp = tx.filter(t => t.data <= cmpTo);
+    const txPost = tx.filter(t => t.data > cmpTo);
+
     // Por tipo financeiro: Fluxo novo x planilha
     const tipos = new Map<string, { gIn: number; gOut: number; gN: number; sIn: number; sOut: number; sN: number }>();
     const T = (k: string) => { const key = k.trim().toLowerCase(); if (!tipos.has(key)) tipos.set(key, { gIn: 0, gOut: 0, gN: 0, sIn: 0, sOut: 0, sN: 0 }); return tipos.get(key)!; };
     const labelOf = new Map<string, string>();
-    for (const e of g) { const k = e.tipo_nome; labelOf.set(k.trim().toLowerCase(), k); const x = T(k); x.gN++; e.tipo === 'entrada' ? x.gIn += Number(e.valor) : x.gOut += Number(e.valor); }
+    for (const e of gCmp) { const k = e.tipo_nome; labelOf.set(k.trim().toLowerCase(), k); const x = T(k); x.gN++; e.tipo === 'entrada' ? x.gIn += Number(e.valor) : x.gOut += Number(e.valor); }
     for (const e of sheet) { const k = e.tipo_original || '(sem tipo)'; if (!labelOf.has(k.trim().toLowerCase())) labelOf.set(k.trim().toLowerCase(), k); const x = T(k); x.sN++; e.tipo === 'entrada' ? x.sIn += Math.abs(Number(e.valor)) : x.sOut += Math.abs(Number(e.valor)); }
 
-    // Por dia
+    // Por dia (só período comum)
     const dias = new Map<string, { gIn: number; gOut: number; bIn: number; bOut: number; sIn: number; sOut: number }>();
     const D = (d: string) => { if (!dias.has(d)) dias.set(d, { gIn: 0, gOut: 0, bIn: 0, bOut: 0, sIn: 0, sOut: 0 }); return dias.get(d)!; };
-    for (const e of g) { const x = D(e.data); e.tipo === 'entrada' ? x.gIn += Number(e.valor) : x.gOut += Number(e.valor); }
-    for (const t of tx) { const x = D(t.data); t.tipo === 'entrada' ? x.bIn += Number(t.valor) : x.bOut += Number(t.valor); }
+    for (const e of gCmp) { const x = D(e.data); e.tipo === 'entrada' ? x.gIn += Number(e.valor) : x.gOut += Number(e.valor); }
+    for (const t of txCmp) { const x = D(t.data); t.tipo === 'entrada' ? x.bIn += Number(t.valor) : x.bOut += Number(t.valor); }
     for (const e of sheet) { const x = D(e.data); e.tipo === 'entrada' ? x.sIn += Math.abs(Number(e.valor)) : x.sOut += Math.abs(Number(e.valor)); }
 
     // Divergências linha a linha: extrato x planilha (mesma data, sentido e valor)
     const pool = new Map<string, typeof sheet>();
     for (const e of sheet) { const k = `${e.data}|${e.tipo}|${r2(Math.abs(Number(e.valor)))}`; pool.set(k, [...(pool.get(k) ?? []), e]); }
     const soExtrato: BankTx[] = [];
-    for (const t of tx) { const k = `${t.data}|${t.tipo}|${r2(Number(t.valor))}`; const l = pool.get(k); if (l?.length) l.pop(); else soExtrato.push(t); }
+    for (const t of txCmp) { const k = `${t.data}|${t.tipo}|${r2(Number(t.valor))}`; const l = pool.get(k); if (l?.length) l.pop(); else soExtrato.push(t); }
     const soPlanilhaRaw = [...pool.values()].flat();
-    const divergencias: { tipo: string; data: string; descricao: string; valor: number; sentido: string; detalhe: string }[] = [];
+    const divergencias: { tipo: string; data: string; conta: string; descricao: string; valor: number; sentido: string; detalhe: string }[] = [];
     const usedSheet = new Set<string>();
     for (const t of soExtrato) {
+      const conta = accName.get(t.account_id) ?? '';
       const near = soPlanilhaRaw.find(e => !usedSheet.has(e.id) && e.tipo === t.tipo && r2(Math.abs(Number(e.valor))) === r2(Number(t.valor)) && Math.abs(new Date(e.data).getTime() - new Date(t.data).getTime()) <= 5 * 86400000);
-      if (near) { usedSheet.add(near.id); divergencias.push({ tipo: 'Data diferente', data: t.data, descricao: t.descricao, valor: Number(t.valor), sentido: t.tipo, detalhe: `planilha em ${fmtDate(near.data)} (${accName.get(t.account_id) ?? ''})` }); }
-      else divergencias.push({ tipo: 'Só no extrato', data: t.data, descricao: t.descricao, valor: Number(t.valor), sentido: t.tipo, detalhe: `${accName.get(t.account_id) ?? ''}${isAutoInvest(t) ? ' · aplicação automática' : t.transfer_pair_id ? ' · transferência interna' : ''}` });
+      if (near) { usedSheet.add(near.id); divergencias.push({ tipo: 'Data diferente', data: t.data, conta, descricao: t.descricao, valor: Number(t.valor), sentido: t.tipo, detalhe: `planilha em ${fmtDate(near.data)}` }); }
+      else divergencias.push({ tipo: 'Falta na planilha', data: t.data, conta, descricao: t.descricao, valor: Number(t.valor), sentido: t.tipo, detalhe: isAutoInvest(t) ? 'aplicação automática' : t.transfer_pair_id ? 'transferência interna' : '' });
     }
-    for (const e of soPlanilhaRaw) if (!usedSheet.has(e.id)) divergencias.push({ tipo: 'Só na planilha', data: e.data, descricao: e.descricao, valor: Math.abs(Number(e.valor)), sentido: e.tipo, detalhe: e.tipo_original ?? '' });
+    for (const e of soPlanilhaRaw) if (!usedSheet.has(e.id)) divergencias.push({ tipo: 'Só na planilha', data: e.data, conta: '', descricao: e.descricao, valor: Math.abs(Number(e.valor)), sentido: e.tipo, detalhe: e.tipo_original ?? '' });
     divergencias.sort((a, b) => a.data.localeCompare(b.data) || a.tipo.localeCompare(b.tipo));
 
     const sheetNet = sheet.reduce((s, e) => s + signed(e.tipo, e.valor), 0);
     const semMov = porConta.filter(c => c.n === 0);
+    const cmp = {
+      bIn: txCmp.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0),
+      bOut: txCmp.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0),
+      sIn: sheet.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Math.abs(Number(e.valor)), 0),
+      sOut: sheet.filter(e => e.tipo === 'saida').reduce((s, e) => s + Math.abs(Number(e.valor)), 0),
+    };
     return { g, sheet, tx, ini, fim, genIn, genOut, diffSaldo, aClass, pend, semPar, pairOut, splitDiff, auto, transf, dups, porConta, semMov,
       tipos: [...tipos.entries()].map(([k, v]) => ({ label: labelOf.get(k) ?? k, ...v })).sort((a, b) => (b.gIn + b.gOut + b.sIn + b.sOut) - (a.gIn + a.gOut + a.sIn + a.sOut)),
-      dias: [...dias.entries()].sort(([a], [b]) => a.localeCompare(b)), divergencias, sheetNet };
+      dias: [...dias.entries()].sort(([a], [b]) => a.localeCompare(b)), divergencias, sheetNet, sheetMax, cmpTo, txPost, cmp };
   }, [gen, sheetAll, txs, from, to, active, accName]);
+
+  const exportXlsx = async () => {
+    const XLSX = await import('xlsx');
+    const rows = data.divergencias.map(d => ({ Situação: d.tipo, Data: fmtDate(d.data), Conta: d.conta, Descrição: d.descricao, Sentido: d.sentido === 'entrada' ? 'Entrada' : 'Saída', Valor: d.valor, Detalhe: d.detalhe }));
+    const post = data.txPost.map(t => ({ Data: fmtDate(t.data), Conta: accName.get(t.account_id) ?? '', Descrição: t.descricao, Sentido: t.tipo === 'entrada' ? 'Entrada' : 'Saída', Valor: Number(t.valor) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Divergências');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(post), 'Posteriores à planilha');
+    XLSX.writeFile(wb, `conferencia_${from}_a_${data.cmpTo}.xlsx`);
+  };
 
   if (!cfg) return <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Esta empresa não tem configuração de integração com o Dashboard e o Fluxo Diário.</p>;
 
