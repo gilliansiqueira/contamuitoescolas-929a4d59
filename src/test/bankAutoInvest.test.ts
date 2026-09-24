@@ -26,3 +26,12 @@ describe('aplicação automática', () => {
     expect(accountBalances(acc, txs.map(t => ({ ...t, recon_status: 'conciliado' as const })), '2026-09-30')).toEqual(accountBalances(acc, txs, '2026-09-30'));
   });
 });
+
+import { decodeBankText } from '@/lib/bankStatements/parsers';
+describe('acentos do extrato', () => {
+  it('lê OFX em Windows-1252', () => {
+    const buf = new Uint8Array([0x46, 0xc1, 0x43, 0x49, 0x4c]).buffer; // "FÁCIL" em 1252
+    expect(decodeBankText(buf)).toBe('FÁCIL');
+    expect(detectMovementKind('BB RENDE F\uFFFDCIL', 'saida', DEFAULT_AUTO_INVEST_PATTERNS)).toBe('auto_aplicacao');
+  });
+});
