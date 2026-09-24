@@ -174,6 +174,17 @@ export function useOwnTransferNames(schoolId: string) {
 
 /** Busca linhas sem par da escola e pareia automaticamente as transferências marcadas com a outra ponta. */
 export async function autoPairTransfers(schoolId: string): Promise<number> {
+  // Limpa pares órfãos: quando a outra ponta foi apagada (reimportação do extrato),
+  // o grupo fica com uma única linha e impede o pareamento com a ponta nova.
+  const paired = await fetchAllRows<any>('bank_transactions', q => q.eq('school_id', schoolId).not('transfer_pair_id', 'is', null),
+    1000, 'id, transfer_pair_id');
+  const groupSize = new Map<string, number>();
+  for (const r of paired) groupSize.set(r.transfer_pair_id, (groupSize.get(r.transfer_pair_id) ?? 0) + 1);
+  const dangling = paired.filter(r => (groupSize.get(r.transfer_pair_id) ?? 0) < 2).map(r => r.id as string);
+  for (let i = 0; i < dangling.length; i += 200) {
+    const { error } = await db.from('bank_transactions').update({ transfer_pair_id: null }).in('id', dangling.slice(i, i + 200));
+    if (error) throw error;
+  }
   const rows = await fetchAllRows<any>('bank_transactions', q => q.eq('school_id', schoolId).is('transfer_pair_id', null),
     1000, 'id, account_id, data, valor, tipo, transfer_pair_id, movement_kind');
   const pairs = autoTransferPairs(rows);
