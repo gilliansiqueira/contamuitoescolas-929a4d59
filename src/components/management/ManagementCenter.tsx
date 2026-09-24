@@ -160,7 +160,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const finalized = rows.filter(row => statusOf(row, month) === 'finalizado').length;
   const pendingClosing = rows.filter(row => !row.period_closed || !row.report_delivered).length;
   const pendingReconciliationCompanies = rows.filter(row => row.reconciliation_pending > 0).length;
-  const completedReconciliation = rows.filter(row => row.reconciliation_pending === 0 && row.reconciliation_total > 0).length;
+  const completedReconciliation = rows.filter(row => row.reconciliation_percent === 100).length;
   const updatedToday = rows.filter(row => row.data_updated_through === new Date().toISOString().slice(0, 10)).length;
   const displayName = profile?.email?.split('@')[0] || 'Equipe';
 
