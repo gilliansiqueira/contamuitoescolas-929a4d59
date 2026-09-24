@@ -23,7 +23,7 @@ type RowStatus = Exclude<Situation, 'all'>;
 function statusOf(row: PortfolioRow, month: string): RowStatus {
   if (row.period_closed && row.report_delivered && row.checklist_pending === 0) return 'finalizado';
   if (row.waiting_for_client) return 'bloqueado';
-  if (row.data_updated_through == null && row.reconciliation_percent == null && row.closing_percent == null && !row.report_delivered && !row.period_closed) return 'sem_acompanhamento';
+  if (row.closing_percent == null && !row.report_delivered && !row.period_closed) return 'sem_acompanhamento';
   const currentMonth = new Date().toISOString().slice(0, 7);
   if (month < currentMonth && (!row.period_closed || !row.report_delivered)) return 'atrasado';
   if (row.reconciliation_pending > 0 || row.checklist_pending > 0) return 'atencao';
