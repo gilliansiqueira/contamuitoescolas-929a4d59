@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react';
 import type { School } from '@/types/financial';
 import { useAuth } from '@/hooks/useAuth';
 import {
+  useManagementResponsibleDisplayNames,
   useManagementPortfolio,
   useManagementResponsibleCandidates,
   useSetManagementResponsible,
+  useSetManagementResponsibleDisplayName,
   type PortfolioRow,
 } from '@/hooks/useManagementPortfolio';
 import { Button } from '@/components/ui/button';
@@ -14,6 +16,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import {
   AlertCircle,
   Bell,
@@ -24,11 +27,13 @@ import {
   ChevronRight,
   Clock3,
   FileCheck2,
+  Pencil,
   LogOut,
   Search,
   Settings2,
   UserX,
   Users,
+  X,
 } from 'lucide-react';
 
 interface Props {
@@ -66,6 +71,54 @@ const viewLabels: Record<ManagementView, string> = {
   responsible: 'Por Responsável',
 };
 
+const displayNameSchema = z.string().trim().min(1, 'Digite um nome.').max(60, 'Use no máximo 60 caracteres.');
+
+function nameFromEmail(email: string) {
+  const local = email.split('@')[0] ?? email;
+  return local
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\p{L}/gu, letter => letter.toLocaleUpperCase('pt-BR'));
+}
+
+function initialsOf(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return `${parts[0]?.[0] ?? ''}${parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : parts[0]?.[1] ?? ''}`.toLocaleUpperCase('pt-BR');
+}
+
+function ProgressRing({ value, label, tone }: { value: number | null; label: string; tone: 'success' | 'warning' }) {
+  const normalized = value == null ? 0 : Math.min(100, Math.max(0, value));
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <div className="relative h-14 w-14 shrink-0" aria-label={`${label}: ${value == null ? 'Indisponível' : `${value}%`}`}>
+        <svg viewBox="0 0 42 42" className="h-full w-full -rotate-90" aria-hidden="true">
+          <circle cx="21" cy="21" r="16" fill="none" pathLength="100" strokeWidth="4" className="stroke-muted" />
+          {value != null && (
+            <circle
+              cx="21"
+              cy="21"
+              r="16"
+              fill="none"
+              pathLength="100"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={`${normalized} 100`}
+              className={tone === 'success' ? 'stroke-success' : 'stroke-primary'}
+            />
+          )}
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold">
+          {value == null ? '—' : `${value}%`}
+        </span>
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+        <p className="truncate text-xs font-medium">{value == null ? 'Indisponível' : value === 100 ? 'Concluída' : 'Em andamento'}</p>
+      </div>
+    </div>
+  );
+}
+
 function statusOf(row: PortfolioRow, month: string): RowStatus {
   if (row.period_closed && row.report_delivered && row.checklist_pending === 0) return 'finalizado';
   if (row.waiting_for_client) return 'bloqueado';
@@ -91,7 +144,11 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [view, setView] = useState<ManagementView>('portfolio');
   const { data: rows = [], isLoading, isError } = useManagementPortfolio(month, true);
   const { data: responsibleCandidates = [] } = useManagementResponsibleCandidates(isSuperAdmin);
+  const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
   const setResponsible = useSetManagementResponsible(month);
+  const setDisplayName = useSetManagementResponsibleDisplayName();
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
   const schoolById = useMemo(() => new Map(schools.map(school => [school.id, school])), [schools]);
   const candidatesBySchool = useMemo(() => {
     const grouped = new Map<string, typeof responsibleCandidates>();
@@ -100,18 +157,23 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     });
     return grouped;
   }, [responsibleCandidates]);
+  const displayNameByUser = useMemo(
+    () => new Map(displayNames.map(item => [item.user_id, item.display_name])),
+    [displayNames],
+  );
 
   const filtered = useMemo(() => rows.filter(row => {
     const term = search.toLocaleLowerCase('pt-BR');
     const matchesSearch = row.school_name.toLocaleLowerCase('pt-BR').includes(term)
-      || (row.responsible_email ?? '').toLocaleLowerCase('pt-BR').includes(term);
+      || (row.responsible_email ?? '').toLocaleLowerCase('pt-BR').includes(term)
+      || (row.responsible_user_id ? (displayNameByUser.get(row.responsible_user_id) ?? '').toLocaleLowerCase('pt-BR').includes(term) : false);
     const status = statusOf(row, month);
     const matchesView = view === 'portfolio'
       || (view === 'closing' && (!row.period_closed || !row.report_delivered))
       || (view === 'pending' && (row.reconciliation_pending > 0 || row.checklist_pending > 0 || row.waiting_for_client))
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (situation === 'all' || status === situation);
-  }), [month, rows, search, situation, view]);
+  }), [displayNameByUser, month, rows, search, situation, view]);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleGroup = (key: string) => setExpanded(prev => {
@@ -140,9 +202,12 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       });
       return {
         key,
-        label: key === '__none'
+        email: key === '__none'
           ? 'Não definida'
           : (groupRows.find(row => row.responsible_user_id === key)?.responsible_email ?? 'Não definida'),
+        label: key === '__none'
+          ? 'Não definida'
+          : (displayNameByUser.get(key) ?? nameFromEmail(groupRows.find(row => row.responsible_user_id === key)?.responsible_email ?? 'Responsável')),
         rows: [...groupRows].sort((a, b) => a.school_name.localeCompare(b.school_name, 'pt-BR')),
         reconciliationPercent: avg(groupRows.map(row => row.reconciliation_percent).filter((value): value is number => value != null)),
         closingPercent: avg(groupRows.map(row => row.closing_percent).filter((value): value is number => value != null)),
@@ -155,7 +220,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       if (b.key === '__none') return -1;
       return a.label.localeCompare(b.label, 'pt-BR');
     });
-  }, [filtered, month, view]);
+  }, [displayNameByUser, filtered, month, view]);
 
   const finalized = rows.filter(row => statusOf(row, month) === 'finalizado').length;
   const pendingClosing = rows.filter(row => !row.period_closed || !row.report_delivered).length;
@@ -175,6 +240,34 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       {
         onSuccess: () => toast.success('Responsável atualizada.'),
         onError: error => toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a responsável.'),
+      },
+    );
+  };
+
+  const startEditingName = (userId: string, currentName: string) => {
+    setEditingUserId(userId);
+    setDisplayNameDraft(currentName);
+  };
+
+  const cancelEditingName = () => {
+    setEditingUserId(null);
+    setDisplayNameDraft('');
+  };
+
+  const saveDisplayName = (userId: string) => {
+    const parsed = displayNameSchema.safeParse(displayNameDraft.replace(/\s+/g, ' '));
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Nome inválido.');
+      return;
+    }
+    setDisplayName.mutate(
+      { userId, displayName: parsed.data },
+      {
+        onSuccess: () => {
+          toast.success('Nome exibido atualizado.');
+          cancelEditingName();
+        },
+        onError: error => toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o nome.'),
       },
     );
   };
@@ -277,55 +370,75 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           </div>
 
           {view === 'responsible' ? (
-            <section className="space-y-4" aria-label="Resumo por responsável">
+            <section className="font-team" aria-label="Resumo por responsável">
               {!isLoading && responsibleGroups.length === 0 && (
                 <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground shadow-sm">Nenhuma responsável encontrada.</div>
               )}
+              <div className="grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {responsibleGroups.map(group => {
                 const isOpen = expanded.has(group.key);
+                const isEditing = editingUserId === group.key;
                 return (
-                  <div key={group.key} className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(group.key)}
-                      aria-expanded={isOpen}
-                      className="flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:bg-muted/20"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                          {group.key === '__none' ? <UserX className="h-5 w-5" /> : group.label.slice(0, 2).toUpperCase()}
+                  <article key={group.key} className="group overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-all hover:border-primary/30 hover:shadow-md">
+                    <div className="p-5">
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-team-display text-base font-bold text-primary ring-4 ring-primary/5">
+                          {group.key === '__none' ? <UserX className="h-5 w-5" /> : initialsOf(group.label)}
                         </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold">{group.label}</p>
-                          <p className="text-xs text-muted-foreground">{group.rows.length} {group.rows.length === 1 ? 'empresa' : 'empresas'}</p>
+                        <div className="text-right">
+                          <p className="text-xs font-semibold text-muted-foreground">Empresas</p>
+                          <p className="font-team-display text-2xl font-bold">{group.rows.length}</p>
                         </div>
                       </div>
-                      <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    <div className="grid gap-4 border-t border-border p-5 sm:grid-cols-2">
-                      <div>
-                        <div className="mb-1 flex justify-between text-xs"><span className="text-muted-foreground">Conciliação</span><span>{group.reconciliationPercent == null ? 'Indisponível' : `${group.reconciliationPercent}%`}</span></div>
-                        <Progress value={group.reconciliationPercent ?? 0} className="h-1.5 bg-muted [&>div]:bg-success" />
-                      </div>
-                      <div>
-                        <div className="mb-1 flex justify-between text-xs"><span className="text-muted-foreground">Fechamento</span><span>{group.closingPercent == null ? 'Indisponível' : `${group.closingPercent}%`}</span></div>
-                        <Progress value={group.closingPercent ?? 0} className="h-1.5 bg-muted [&>div]:bg-warning" />
+
+                      {isEditing ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            value={displayNameDraft}
+                            onChange={event => setDisplayNameDraft(event.target.value)}
+                            onKeyDown={event => {
+                              if (event.key === 'Enter') saveDisplayName(group.key);
+                              if (event.key === 'Escape') cancelEditingName();
+                            }}
+                            maxLength={60}
+                            autoFocus
+                            aria-label={`Nome exibido de ${group.email}`}
+                            className="h-9 font-semibold"
+                          />
+                          <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={() => saveDisplayName(group.key)} disabled={setDisplayName.isPending} aria-label="Salvar nome">
+                            <CheckCircle2 className="h-4 w-4 text-success" />
+                          </Button>
+                          <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={cancelEditingName} aria-label="Cancelar edição">
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex min-w-0 items-center gap-1">
+                          <h2 className="truncate font-team-display text-lg font-semibold">{group.label}</h2>
+                          {isSuperAdmin && group.key !== '__none' && (
+                            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0 opacity-70 transition-opacity group-hover:opacity-100" onClick={() => startEditingName(group.key, group.label)} aria-label={`Editar nome de ${group.label}`}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                      <p className="truncate text-xs text-muted-foreground">{group.email}</p>
+
+                      <div className="mt-5 grid grid-cols-2 gap-3 rounded-md bg-muted/35 p-3">
+                        <ProgressRing value={group.reconciliationPercent} label="Conciliação" tone="success" />
+                        <ProgressRing value={group.closingPercent} label="Fechamento" tone="warning" />
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-4 text-xs font-semibold">
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.statusCounts.finalizado > 0 ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'}`}>
-                        <CheckCircle2 className="h-3.5 w-3.5" /> {group.statusCounts.finalizado} finalizadas
-                      </span>
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.statusCounts.atrasado > 0 ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground'}`}>
-                        <Clock3 className="h-3.5 w-3.5" /> {group.statusCounts.atrasado} atrasadas
-                      </span>
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.statusCounts.bloqueado > 0 ? 'bg-info/15 text-info' : 'bg-muted text-muted-foreground'}`}>
-                        <AlertCircle className="h-3.5 w-3.5" /> {group.statusCounts.bloqueado} aguardando cliente
-                      </span>
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.pending > 0 ? 'bg-warning/15 text-warning' : 'bg-muted text-muted-foreground'}`}>
-                        {group.pending} pendências
-                      </span>
+                    <div className="grid grid-cols-4 border-t border-border bg-muted/15 text-center text-xs">
+                      <div className="border-r border-border px-1 py-3"><strong className="block text-sm text-success">{group.statusCounts.finalizado}</strong><span className="text-muted-foreground">Finalizadas</span></div>
+                      <div className="border-r border-border px-1 py-3"><strong className="block text-sm text-destructive">{group.statusCounts.atrasado}</strong><span className="text-muted-foreground">Atrasadas</span></div>
+                      <div className="border-r border-border px-1 py-3"><strong className="block text-sm text-info">{group.statusCounts.bloqueado}</strong><span className="text-muted-foreground">Cliente</span></div>
+                      <div className="px-1 py-3"><strong className="block text-sm text-warning">{group.pending}</strong><span className="text-muted-foreground">Pendências</span></div>
                     </div>
+                    <Button type="button" variant="ghost" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="h-10 w-full justify-between rounded-none border-t border-border px-5 text-xs font-semibold">
+                      <span>{isOpen ? 'Ocultar empresas' : 'Ver empresas'}</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    </Button>
                     {isOpen && (
                       <div className="divide-y divide-border border-t border-border">
                         {group.rows.map(row => {
@@ -342,9 +455,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                         })}
                       </div>
                     )}
-                  </div>
+                  </article>
                 );
               })}
+              </div>
             </section>
           ) : (
           <section className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm">
