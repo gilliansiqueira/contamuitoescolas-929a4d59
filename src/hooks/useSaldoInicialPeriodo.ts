@@ -1,3 +1,4 @@
+import { useCashflowAnchor } from '@/hooks/useCashflowAnchor';
 /**
  * Wrapper trivial sobre a SSOT `periodMovement`.
  *
