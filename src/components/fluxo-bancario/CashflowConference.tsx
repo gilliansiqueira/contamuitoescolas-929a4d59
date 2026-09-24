@@ -135,6 +135,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         {card('Aplicações e resgates automáticos', `${data.auto.length}`, 'neutros; só movem entre conta e aplicação')}
         {card('Transferências sem par', String(data.semPar.length + data.pairOut.length), 'contam no saldo até achar a outra ponta', data.semPar.length + data.pairOut.length > 0)}
         {card('Duplicidades / divisões com diferença', `${data.dups.length} / ${data.splitDiff.length}`, 'divisão com diferença não sincroniza', data.dups.length + data.splitDiff.length > 0)}
+        {card('Contas sem movimentação', String(data.semMov.length), data.semMov.length ? data.semMov.map(c => c.a.nome).join(', ') : 'normal: o banco pode não ter movimento no mês')}
       </div>
 
       <section className="rounded-xl border border-border bg-card p-3">
