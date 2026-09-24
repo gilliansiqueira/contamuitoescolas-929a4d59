@@ -17,6 +17,7 @@ import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/Mobile
 import { AppSidebar, type SidebarGroup } from '@/components/app-shell/AppSidebar';
 import { AppHeader } from '@/components/app-shell/AppHeader';
 import { SchoolSelector } from '@/components/SchoolSelector';
+import { ManagementCenter } from '@/components/management/ManagementCenter';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
@@ -131,6 +132,8 @@ const Index = () => {
               <span>Carregando demonstração...</span>
             )}
           </div>
+        ) : isAdmin ? (
+          <ManagementCenter schools={allSchools} onSelect={setSchool} onSignOut={signOut} />
         ) : (
           <SchoolSelector selectedSchool={null} onSelect={setSchool} />
         )}

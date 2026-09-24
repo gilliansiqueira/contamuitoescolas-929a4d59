@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useMemo } fr
 import { supabase } from '@/integrations/supabase/client';
 import type { Session, User } from '@supabase/supabase-js';
 
-export type UserRole = 'admin' | 'cliente';
+export type UserRole = 'super_admin' | 'admin' | 'cliente';
 
 export type AdminScope = 'all' | 'list';
 
@@ -22,6 +22,8 @@ interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   isAdmin: boolean;
+  /** Acesso proprietário à Central de Gestão completa. */
+  isSuperAdmin: boolean;
   /** True quando admin com acesso global (scope='all'). False para admins restritos a uma lista. */
   isAdminAll: boolean;
   /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin scope='all' = todas. */
@@ -41,7 +43,9 @@ async function loadProfile(userId: string): Promise<UserProfile | null> {
     supabase.from('user_schools').select('school_id').eq('user_id', userId),
   ]);
   if (!profile) return null;
-  const role: UserRole = roles?.some(r => r.role === 'admin') ? 'admin' : 'cliente';
+  const role: UserRole = roles?.some(r => r.role === 'super_admin')
+    ? 'super_admin'
+    : roles?.some(r => r.role === 'admin') ? 'admin' : 'cliente';
   const extra_school_ids = (extras ?? []).map((r: any) => r.school_id).filter(Boolean);
   const admin_scope: AdminScope = ((profile as any).admin_scope === 'list' ? 'list' : 'all');
   return { ...profile, role, admin_scope, extra_school_ids };
@@ -112,8 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user,
         profile,
-        isAdmin: profile?.role === 'admin',
-        isAdminAll: profile?.role === 'admin' && profile?.admin_scope !== 'list',
+        isAdmin: profile?.role === 'admin' || profile?.role === 'super_admin',
+        isSuperAdmin: profile?.role === 'super_admin',
+        isAdminAll: (profile?.role === 'admin' || profile?.role === 'super_admin') && profile?.admin_scope !== 'list',
         accessibleSchoolIds,
         loading,
         signIn,
