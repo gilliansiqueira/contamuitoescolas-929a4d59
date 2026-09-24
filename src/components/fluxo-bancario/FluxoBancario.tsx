@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBankAccounts, useBankTransactions, useBankImports } from '@/hooks/useBankPilot';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { summarize, accountBalances, lastDateByAccount } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, todayIso } from './shared';
-import { BankTransactionsTable } from './BankTransactionsTable';
+import { BankTransactionsTable, type TableFocus } from './BankTransactionsTable';
 import { BankAccountsImports } from './BankAccountsImports';
 import { Landmark, ShieldCheck } from 'lucide-react';
 
@@ -22,6 +22,8 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const { entries: projected } = useProjectedEntries(schoolId);
   const { data: imports = [] } = useBankImports(schoolId);
   const today = todayIso();
+  const [tab, setTab] = useState('resumo');
+  const [focus, setFocus] = useState<TableFocus | null>(null);
   const hasInMonth = txs.some(t => t.data.startsWith(selectedMonth.slice(0, 7)));
   const lastTxDate = txs.reduce((m, t) => (t.data > m ? t.data : m), '');
   const { from, to } = monthRange(selectedMonth);
@@ -64,7 +66,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
         <p className="flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> Visível apenas para administradores. Não altera Dashboard, Fluxo Diário nem relatórios.</p>
       </div>
 
-      <Tabs defaultValue="resumo">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="resumo">Resumo</TabsTrigger>
           <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
@@ -126,11 +128,11 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
         </TabsContent>
 
         <TabsContent value="movimentacoes">
-          <BankTransactionsTable schoolId={schoolId} accounts={accounts} txs={txs} defaultFrom={tableRange.from} defaultTo={tableRange.to} />
+          <BankTransactionsTable schoolId={schoolId} accounts={accounts} txs={txs} defaultFrom={tableRange.from} defaultTo={tableRange.to} focus={focus} />
         </TabsContent>
 
         <TabsContent value="contas">
-          <BankAccountsImports schoolId={schoolId} accounts={accounts} />
+          <BankAccountsImports schoolId={schoolId} accounts={accounts} txs={txs} onViewAuto={(importId, from, to) => { setFocus({ importId, from, to, nonce: Date.now() }); setTab('movimentacoes'); }} />
         </TabsContent>
       </Tabs>
     </div>
