@@ -12,9 +12,10 @@ import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxT
 import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, displayDesc, type BankAccount, type BankTx, type ReconStatus, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
 
-interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string }
+export interface TableFocus { importId: string; from: string; to: string; nonce: number }
+interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string; focus?: TableFocus | null }
 
-export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, defaultTo }: Props) {
+export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, defaultTo, focus }: Props) {
   const [accountId, setAccountId] = useState<string>('all');
   const [status, setStatus] = useState<'all' | ReconStatus>('all');
   const [from, setFrom] = useState(defaultFrom);
@@ -27,7 +28,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [noteText, setNoteText] = useState('');
   const [history, setHistory] = useState<{ tx: BankTx; rows: Awaited<ReturnType<typeof fetchReconHistory>> } | null>(null);
   const [showPairs, setShowPairs] = useState(false);
-  const [showAuto, setShowAuto] = useState(false);
+  const [showAuto, setShowAuto] = useState(true);
+  const [importFilter, setImportFilter] = useState<string | null>(null);
+  useEffect(() => { if (focus) { setImportFilter(focus.importId); setCat('auto'); setAccountId('all'); setFrom(focus.from); setTo(focus.to); } }, [focus?.nonce]);
   const [cat, setCat] = useState<'all' | 'mov' | 'operacao' | 'transf' | 'auto'>('all');
   const [descTx, setDescTx] = useState<BankTx | null>(null);
   const [descText, setDescText] = useState('');
@@ -58,9 +61,24 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const saveText = async (id: string, patch: { descricao_editada?: string | null; recon_note?: string | null }) => {
     try { await updText.mutateAsync({ id, ...patch }); toast.success('Salvo'); } catch (e: any) { toast.error(e.message ?? 'Erro ao salvar'); }
   };
-  const setCategory = async (ids: string[], kind: 'normal' | 'operacao' | 'ignorar') => {
+  const KIND_LABEL: Record<string, string> = { normal: 'Entrada/Saída', operacao: 'Operação', ignorar: 'Ignorar', auto_aplicacao: 'Aplicação automática', auto_resgate: 'Resgate automático' };
+  /** Muda a categoria e oferece "Desfazer" restaurando o valor anterior de cada linha. */
+  const setCategory = async (ids: string[], kind: string) => {
     if (!ids.length) return;
-    try { await setKind.mutateAsync({ ids, kind }); toast.success(`${ids.length} lançamento(s): ${kind === 'operacao' ? 'Operação' : kind === 'ignorar' ? 'Ignorar' : 'Entrada/Saída'}`); setSelected(new Set()); } catch (e: any) { toast.error(e.message ?? 'Erro'); }
+    const prev = new Map<string, string>();
+    for (const id of ids) prev.set(id, txs.find(x => x.id === id)?.movement_kind ?? 'normal');
+    try {
+      await setKind.mutateAsync({ ids, kind: kind as any });
+      setSelected(new Set());
+      toast.success(`${ids.length} lançamento(s): ${KIND_LABEL[kind] ?? kind}`, {
+        duration: 8000,
+        action: { label: 'Desfazer', onClick: async () => {
+          const groups = new Map<string, string[]>();
+          for (const [id, k] of prev) groups.set(k, [...(groups.get(k) ?? []), id]);
+          try { for (const [k, gids] of groups) await setKind.mutateAsync({ ids: gids, kind: k as any }); toast.success('Alteração desfeita'); } catch (e: any) { toast.error(e.message ?? 'Erro ao desfazer'); }
+        } },
+      });
+    } catch (e: any) { toast.error(e.message ?? 'Erro'); }
   };
   const setKind = useSetMovementKind(schoolId);
   const setRecon = useSetReconStatus(schoolId);
@@ -72,9 +90,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return txs
-      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || catOf(t) === cat))
+      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || catOf(t) === cat) && (!importFilter || t.import_id === importFilter))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-  }, [txs, accountId, from, to, status, search, showAuto, cat]);
+  }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter]);
   const autoCount = txs.filter(t => isAutoInvest(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to).length;
 
   const pend = rows.filter(r => r.recon_status === 'pendente');
@@ -127,7 +145,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {rows.length} lançamentos · <span className="font-semibold text-warning">{pend.length} pendentes ({fmtBRL(pendValor)})</span>
         </p>
         <div className="flex flex-wrap gap-2">
-          {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={showAuto} onCheckedChange={v => setShowAuto(!!v)} />Mostrar aplicações automáticas ({autoCount})</label>}
+          {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
+          {importFilter && <Button size="sm" variant="secondary" onClick={() => { setImportFilter(null); setCat('all'); }}>Só deste extrato · limpar filtro ✕</Button>}
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
           <Button size="sm" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar selecionados ({selected.size})</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'nao_se_aplica')}><Ban className="mr-1 h-4 w-4" />Não se aplica</Button>
@@ -154,16 +173,16 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
             </td></tr>}
             {rows.map(t => (
               <Fragment key={t.id}>
-              <tr className="border-t border-border hover:bg-muted/20">
+              <tr className={`border-t border-border hover:bg-muted/20 ${isAutoInvest(t) ? 'opacity-70' : ''}`}>
                 <td className="p-2"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} /></td>
                 <td className="p-2 whitespace-nowrap">{fmtDate(t.data)}</td>
                 <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
                 <td className="p-2"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
-                <td className="p-2 whitespace-nowrap">{isAutoInvest(t) || t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
-                  t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind === 'ignorar' ? 'ignorar' : isOperacao(t) ? 'operacao' : 'normal'} onValueChange={v => setCategory([t.id], v as any)}>
-                    <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem></SelectContent>
-                  </Select>)}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}{isAutoInvest(t) && <span className="ml-1 rounded bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">{t.movement_kind === 'auto_aplicacao' ? 'Aplicação automática' : 'Resgate automático'}</span>}</td>
+                <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
+                  t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
+                    <SelectTrigger className="h-7 w-44 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
+                  </Select>)}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}</td>
                 <td className="p-2 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums">{fmtBRL(balances.get(t.id) ?? 0)}</td>
@@ -185,8 +204,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                         {!isAutoInvest(t) && !t.transfer_pair_id && <DropdownMenuItem onClick={() => openSplit(t)}><Split className="mr-2 h-4 w-4" />{t.splits?.length ? 'Editar divisão' : 'Dividir valor'}</DropdownMenuItem>}
                         {t.transfer_pair_id && <DropdownMenuItem onClick={() => setPair.mutate({ ids: txs.filter(x => x.transfer_pair_id === t.transfer_pair_id).map(x => x.id), pairId: null })}><ArrowLeftRight className="mr-2 h-4 w-4" />Desfazer transferência interna</DropdownMenuItem>}
                         {isAutoInvest(t)
-                          ? <DropdownMenuItem onClick={() => setKind.mutate({ ids: [t.id], kind: 'normal' })}><PiggyBank className="mr-2 h-4 w-4" />Não é aplicação automática</DropdownMenuItem>
-                          : !t.transfer_pair_id && <DropdownMenuItem onClick={() => setKind.mutate({ ids: [t.id], kind: t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate' })}><PiggyBank className="mr-2 h-4 w-4" />Marcar como aplicação automática</DropdownMenuItem>}
+                          ? <DropdownMenuItem onClick={() => setCategory([t.id], 'normal')}><PiggyBank className="mr-2 h-4 w-4" />Não é aplicação automática</DropdownMenuItem>
+                          : !t.transfer_pair_id && <DropdownMenuItem onClick={() => setCategory([t.id], t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate')}><PiggyBank className="mr-2 h-4 w-4" />Marcar como aplicação automática</DropdownMenuItem>}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openHistory(t)}><History className="mr-2 h-4 w-4" />Histórico</DropdownMenuItem>
                       </DropdownMenuContent>

@@ -14,12 +14,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useBankImports, useInvalidateBank, useAutoInvestPatterns } from '@/hooks/useBankPilot';
 import { Checkbox } from '@/components/ui/checkbox';
 import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, type BankParseResult } from '@/lib/bankStatements/parsers';
-import { detectMovementKind, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
+import { detectMovementKind, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 
 const db = supabase as any;
 
-interface Props { schoolId: string; accounts: BankAccount[] }
+interface Props { schoolId: string; accounts: BankAccount[]; txs?: BankTx[]; onViewAuto?: (importId: string, from: string, to: string) => void }
 
 interface Preview {
   file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; saldoAplicado: string;
@@ -27,7 +27,9 @@ interface Preview {
 
 const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: '', saldoData: '', auto: false, autoSaldo: '', autoData: '' };
 
-export function BankAccountsImports({ schoolId, accounts }: Props) {
+export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }: Props) {
+  const autoByImport = new Map<string, number>();
+  for (const t of txs) if (t.movement_kind === 'auto_aplicacao' || t.movement_kind === 'auto_resgate') autoByImport.set(t.import_id, (autoByImport.get(t.import_id) ?? 0) + 1);
   const { user } = useAuth();
   const { data: imports = [] } = useBankImports(schoolId);
   const invalidate = useInvalidateBank(schoolId);
@@ -208,6 +210,9 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
                     <p className="text-xs text-muted-foreground">
                       {i.formato.toUpperCase()} · {fmtDate(i.periodo_inicio)} a {fmtDate(i.periodo_fim)} · {i.inseridas} novos, {i.duplicadas} já existiam · entradas {fmtBRL(Number(i.total_entradas))} · saídas {fmtBRL(Number(i.total_saidas))} · {fmtDateTime(i.created_at)}
                     </p>
+                    {(autoByImport.get(i.id) ?? 0) > 0 && (
+                      <p className="mt-1 text-xs">{autoByImport.get(i.id)} linha(s) marcadas como aplicação automática{onViewAuto && <Button size="sm" variant="link" className="h-auto p-0 pl-2 text-xs" onClick={() => onViewAuto(i.id, i.periodo_inicio ?? '0000-01-01', i.periodo_fim ?? '9999-12-31')}>Ver e conferir</Button>}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex">
