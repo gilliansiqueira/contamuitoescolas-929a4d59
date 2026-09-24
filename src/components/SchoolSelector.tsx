@@ -57,20 +57,25 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
     }
   };
 
-  const confirmDelete = async () => {
+  const normalizeName = (s: string) =>
+    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+  const confirmDelete = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
     if (!deleteId) return;
-    if (deletePassword.trim() !== (selectedSchool?.nome ?? '').trim()) {
+    if (normalizeName(deletePassword) !== normalizeName(selectedSchool?.nome ?? '')) {
       toast.error('O nome digitado não confere com o nome da empresa');
       return;
     }
     try {
       await deleteSchoolMut.mutateAsync(deleteId);
+      const wasSelected = selectedSchool?.id === deleteId;
       setDeleteId(null);
       setDeletePassword('');
-      if (selectedSchool?.id === deleteId) onSelect(null as any);
-      toast.success('Escola excluída com sucesso');
-    } catch {
-      toast.error('Erro ao excluir escola');
+      if (wasSelected) onSelect(null as any);
+      toast.success('Empresa excluída com sucesso');
+    } catch (err: any) {
+      toast.error(`Erro ao excluir empresa: ${err?.message ?? 'erro desconhecido'}`);
     }
   };
 
@@ -110,8 +115,8 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
             />
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Excluir
+              <AlertDialogAction onClick={confirmDelete} disabled={deleteSchoolMut.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                {deleteSchoolMut.isPending ? 'Excluindo…' : 'Excluir'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
