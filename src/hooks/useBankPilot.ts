@@ -245,6 +245,26 @@ export function useDataSource(schoolId: string) {
   });
 }
 
+/** Aprovar/ativar ou pausar a fonte automática. Reversível: nenhuma linha é alterada. */
+export function useSetDataSourceStatus(schoolId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (status: 'ativo' | 'pausado' | 'em_conferencia') => {
+      const { error } = await db.from('school_data_sources').update({ status }).eq('school_id', schoolId);
+      if (error) throw error;
+      const { data: u } = await supabase.auth.getUser();
+      await db.from('audit_log').insert({
+        school_id: schoolId, action: 'fonte_fluxo_caixa',
+        description: `Fonte do Dashboard/Fluxo Diário: ${status === 'ativo' ? 'ativada (Fluxo de Caixa)' : status === 'pausado' ? 'pausada (volta para a planilha)' : 'em conferência'} por ${u.user?.email ?? 'desconhecido'}`,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bankCashflow', schoolId] });
+      qc.invalidateQueries({ queryKey: ['entries'] });
+    },
+  });
+}
+
 export interface CashflowEntry {
   id: string; bank_transaction_id: string; bank_split_id: string | null; account_id: string; data: string;
   descricao: string; valor: number; tipo: 'entrada' | 'saida'; model_item_id: string | null; tipo_nome: string; recon_status: string;

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { FinancialEntry, School, TypeClassification, PaymentDelayRule, ExclusionRule, UploadRecord, AuditLogEntry } from '@/types/financial';
 import { fetchAllRows } from '@/lib/fetchAll';
+import { applyCashflowOverlay, type CashflowOverlayRow } from '@/lib/bankCashflowOverlay';
 import { syncWeekendAllowedSchools, setSchoolAllowsWeekend } from '@/lib/dateUtils';
 
 // Bump when the canonical fetch strategy changes so React Query does not keep
@@ -112,6 +113,20 @@ function mapEntry(e: any): FinancialEntry {
 
 }
 
+/**
+ * Fonte automática (Fluxo de Caixa bancário): só vale quando a configuração da
+ * empresa está 'ativo'. Em qualquer outro status devolve as linhas intactas.
+ */
+async function withCashflowSource(schoolId: string, entries: FinancialEntry[]): Promise<FinancialEntry[]> {
+  const db = supabase as any;
+  const { data: cfg } = await db.from('school_data_sources')
+    .select('status, dashboard_source, daily_flow_source, start_month').eq('school_id', schoolId).maybeSingle();
+  if (!cfg || cfg.status !== 'ativo' || cfg.dashboard_source !== 'fluxo_caixa') return entries;
+  const rows = await fetchAllRows<CashflowOverlayRow>('bank_cashflow_entries', q => q.eq('school_id', schoolId).order('data'),
+    1000, 'id, data, descricao, valor, tipo, tipo_nome');
+  return applyCashflowOverlay(entries, rows, `${cfg.start_month}-01`, schoolId);
+}
+
 export function useEntries(schoolId: string) {
   return useQuery({
     queryKey: ['entries', schoolId, DATA_FETCH_VERSION],
@@ -119,9 +134,25 @@ export function useEntries(schoolId: string) {
       const data = await fetchAllRows<any>('financial_entries', q =>
         q.eq('school_id', schoolId).order('data'),
       );
-      return data.map(mapEntry);
+      return withCashflowSource(schoolId, data.map(mapEntry));
     },
     enabled: !!schoolId,
+  });
+}
+
+/** Linhas da planilha sem a troca de fonte (usado só na prévia de ativação). */
+export function useRawEntriesFromBaseDate(schoolId: string, baseDate?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['entries', schoolId, 'raw', baseDate, DATA_FETCH_VERSION],
+    queryFn: async (): Promise<FinancialEntry[]> => {
+      const data = await fetchAllRows<any>('financial_entries', q => {
+        let qq = q.eq('school_id', schoolId);
+        if (baseDate) qq = qq.gte('data', baseDate);
+        return qq.order('data');
+      });
+      return data.map(mapEntry);
+    },
+    enabled: !!schoolId && enabled,
   });
 }
 
@@ -136,7 +167,7 @@ export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
         if (baseDate) qq = qq.gte('data', baseDate);
         return qq.order('data');
       });
-      return data.map(mapEntry);
+      return withCashflowSource(schoolId, data.map(mapEntry));
     },
     enabled: !!schoolId,
   });
