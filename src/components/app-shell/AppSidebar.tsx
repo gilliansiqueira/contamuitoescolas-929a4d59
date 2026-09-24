@@ -29,12 +29,14 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
   const activeGroupKey = groups.find(g => g.items.some(i => i.active))?.key
     ?? (footerGroup?.items.some(i => i.active) ? footerGroup.key : null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (activeGroupKey) {
       setOpenGroups(prev => ({ ...prev, [activeGroupKey]: true }));
+      if (footerGroup?.key === activeGroupKey) setSettingsOpen(true);
     }
-  }, [activeGroupKey]);
+  }, [activeGroupKey, footerGroup?.key]);
 
   const toggleGroup = (key: string) =>
     setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
