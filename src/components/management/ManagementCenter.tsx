@@ -20,12 +20,14 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock3,
   FileCheck2,
   LogOut,
   Search,
   Settings2,
+  UserX,
   Users,
 } from 'lucide-react';
 
