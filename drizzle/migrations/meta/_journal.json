@@ -169,6 +169,13 @@
       "when": 1790277809141,
       "tag": "0023_cashflow_opening_balance",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790278363473,
+      "tag": "0024_responsible_include_linked_global_admins",
+      "breakpoints": true
     }
   ]
 }
