@@ -78,6 +78,13 @@
       "when": 1790257483867,
       "tag": "0010_bank_tx_splits_ignorar",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790258202818,
+      "tag": "0011_bank_own_transfer_names",
+      "breakpoints": true
     }
   ]
 }

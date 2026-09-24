@@ -134,6 +134,35 @@ export type Database = {
           },
         ]
       }
+      bank_own_transfer_names: {
+        Row: {
+          created_at: string
+          id: string
+          padrao: string
+          school_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          padrao: string
+          school_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          padrao?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_own_transfer_names_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_reconciliation_history: {
         Row: {
           changed_at: string

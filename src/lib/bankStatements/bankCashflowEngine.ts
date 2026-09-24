@@ -18,7 +18,7 @@ export interface BankAccount {
   auto_invest_saldo_data?: string | null;
 }
 
-export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar';
+export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar' | 'transferencia';
 export type SplitCategoria = 'normal' | 'operacao' | 'ignorar';
 export interface BankSplit { id: string; valor: number; categoria: SplitCategoria; descricao: string | null; note: string | null; sort_order: number }
 export const isAutoInvest = (t: Pick<BankTx, 'movement_kind'>) => t.movement_kind === 'auto_aplicacao' || t.movement_kind === 'auto_resgate';
@@ -115,6 +115,7 @@ export function summarize(accounts: BankAccount[], txs: BankTx[], from: string, 
     if (!countsForAccount(acc, t)) continue;
     if (isAutoInvest(t)) { auto += signed(t) * -1; continue; }
     if (t.transfer_pair_id) { transf += Number(t.valor); continue; }
+    if (t.movement_kind === 'transferencia') { transf += Number(t.valor) * 2; continue; }
     const parts: { valor: number; cat: string }[] = t.splits?.length
       ? t.splits.map(s => ({ valor: Number(s.valor), cat: s.categoria }))
       : [{ valor: Number(t.valor), cat: t.movement_kind === 'operacao' || t.movement_kind === 'ignorar' ? t.movement_kind : 'normal' }];
@@ -180,4 +181,11 @@ export function detectMovementKind(descricao: string, tipo: 'entrada' | 'saida',
   if (!patterns.some(p => p.trim() && d.includes(norm(p)))) return 'normal';
   if (/rendiment|juros|\bir\b|iof/.test(d)) return 'normal';
   return tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate';
+}
+
+/** Transferência entre contas próprias: a descrição cita a razão social da própria empresa. */
+export const isOwnTransfer = (t: Pick<BankTx, 'transfer_pair_id' | 'movement_kind'>) => !!t.transfer_pair_id || t.movement_kind === 'transferencia';
+export function detectOwnTransfer(descricao: string, ownNames: string[]): boolean {
+  const d = norm(descricao);
+  return ownNames.some(n => n.trim().length >= 3 && d.includes(norm(n)));
 }
