@@ -95,12 +95,14 @@ export interface PilotSummary {
   pendentesQtd: number;
   pendentesValor: number;
   percentConciliado: number;
+  operacoesIn: number;
+  operacoesOut: number;
 }
 
-/** Transferências entre contas próprias (par confirmado) ficam fora de entradas/saídas. */
+/** Transferências entre contas próprias (par confirmado) e Operações ficam fora de entradas/saídas. */
 export function summarize(accounts: BankAccount[], txs: BankTx[], from: string, to: string, today: string): PilotSummary {
   const accMap = new Map(accounts.map(a => [a.id, a]));
-  let entradas = 0, saidas = 0, transf = 0, auto = 0, pendQ = 0, pendV = 0, resolved = 0, total = 0;
+  let entradas = 0, saidas = 0, transf = 0, auto = 0, pendQ = 0, pendV = 0, resolved = 0, total = 0, opIn = 0, opOut = 0;
   for (const t of txs) {
     const acc = accMap.get(t.account_id);
     if (!acc || t.data < from || t.data > to) continue;
@@ -109,6 +111,7 @@ export function summarize(accounts: BankAccount[], txs: BankTx[], from: string, 
     if (!countsForAccount(acc, t)) continue;
     if (isAutoInvest(t)) { auto += signed(t) * -1; continue; }
     if (t.transfer_pair_id) { transf += Number(t.valor); continue; }
+    if (isOperacao(t)) { if (t.tipo === 'entrada') opIn += Number(t.valor); else opOut += Number(t.valor); continue; }
     if (t.tipo === 'entrada') entradas += Number(t.valor); else saidas += Number(t.valor);
   }
   const saldoAtual = accounts.reduce((s, a) => s + accountBalance(a, txs, today), 0);
@@ -121,6 +124,8 @@ export function summarize(accounts: BankAccount[], txs: BankTx[], from: string, 
     pendentesQtd: pendQ,
     pendentesValor: pendV,
     percentConciliado: total ? (resolved / total) * 100 : 0,
+    operacoesIn: r2(opIn),
+    operacoesOut: r2(opOut),
   };
 }
 
