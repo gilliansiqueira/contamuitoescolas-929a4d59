@@ -1,0 +1,2 @@
+ALTER TABLE public.school_data_sources ADD COLUMN IF NOT EXISTS opening_adjustment numeric;
+COMMENT ON COLUMN public.school_data_sources.opening_adjustment IS 'Diferença (saldo do banco no dia anterior à competência inicial − fechamento da planilha). Aplicada só em memória quando status=ativo.';

@@ -231,6 +231,7 @@ export function useSetSplitModelItem(schoolId: string) {
 export interface DataSourceConfig {
   school_id: string; status: 'rascunho' | 'em_conferencia' | 'ativo' | 'pausado';
   dashboard_source: string; daily_flow_source: string; start_month: string;
+  opening_adjustment?: number | null;
   synced_through: string | null; last_synced_at: string | null; last_error: string | null;
 }
 export function useDataSource(schoolId: string) {
@@ -249,8 +250,11 @@ export function useDataSource(schoolId: string) {
 export function useSetDataSourceStatus(schoolId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (status: 'ativo' | 'pausado' | 'em_conferencia') => {
-      const { error } = await db.from('school_data_sources').update({ status }).eq('school_id', schoolId);
+    mutationFn: async (arg: 'ativo' | 'pausado' | 'em_conferencia' | { status: 'ativo'; openingAdjustment: number }) => {
+      const status = typeof arg === 'string' ? arg : arg.status;
+      const patch: Record<string, unknown> = { status };
+      if (typeof arg !== 'string') patch.opening_adjustment = Math.round(arg.openingAdjustment * 100) / 100;
+      const { error } = await db.from('school_data_sources').update(patch).eq('school_id', schoolId);
       if (error) throw error;
       const { data: u } = await supabase.auth.getUser();
       await db.from('audit_log').insert({

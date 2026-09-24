@@ -2604,6 +2604,7 @@ export type Database = {
           dashboard_source: string
           last_error: string | null
           last_synced_at: string | null
+          opening_adjustment: number | null
           school_id: string
           start_month: string
           status: string
@@ -2616,6 +2617,7 @@ export type Database = {
           dashboard_source?: string
           last_error?: string | null
           last_synced_at?: string | null
+          opening_adjustment?: number | null
           school_id: string
           start_month: string
           status?: string
@@ -2628,6 +2630,7 @@ export type Database = {
           dashboard_source?: string
           last_error?: string | null
           last_synced_at?: string | null
+          opening_adjustment?: number | null
           school_id?: string
           start_month?: string
           status?: string

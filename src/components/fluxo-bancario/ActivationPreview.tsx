@@ -30,8 +30,12 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   const setStatus = useSetDataSourceStatus(schoolId);
 
   const p = useMemo(() => {
-    const newCtx = { ...ctx, entries: projectEntries(applyCashflowOverlay(raw, gen, start, schoolId), rules, classifications, model) };
     const opts = { isInModel };
+    const mkCtx = (adj: number) => ({ ...ctx, entries: projectEntries(applyCashflowOverlay(raw, gen, start, schoolId, adj), rules, classifications, model) });
+    // Fechamento de agosto da planilha (sem ajuste) → diferença para o banco vira o ajuste de abertura.
+    const planIni = computeSaldoInicial(month, mkCtx(0), opts);
+    const adjust = Math.round((bankIni - planIni) * 100) / 100;
+    const newCtx = mkCtx(adjust);
     const mk = (c: typeof ctx) => {
       const mov = buildMonthMovement(month, c, opts);
       const ini = computeSaldoInicial(month, c, opts);
@@ -42,12 +46,13 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
     const ign = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo_nome === 'Ignorar')
       .reduce((s, e) => s + (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor), 0);
-    return { next: mk(newCtx), bankMov: genIn - genOut, genIn, genOut, ign, aClass };
-  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo]);
+    return { next: mk(newCtx), planIni, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass };
+  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni]);
 
   const movOk = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov) === 0;
   const iniDiff = r2(p.next.ini - bankIni);
-  const ok = movOk && p.aClass.length === 0;
+  const fimOk = r2(p.next.fimReal - bankFim) === 0;
+  const ok = movOk && iniDiff === 0 && fimOk && p.aClass.length === 0;
   const active = cfg.status === 'ativo';
 
   const row = (label: string, v: number, bank?: number) => (
@@ -57,7 +62,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   );
   const m = p.next.mov;
 
-  const act = (s: 'ativo' | 'pausado') => setStatus.mutate(s, {
+  const act = (s: 'ativo' | 'pausado') => setStatus.mutate(s === 'ativo' ? { status: 'ativo', openingAdjustment: p.adjust } : s, {
     onSuccess: () => toast.success(s === 'ativo' ? 'Fluxo de Caixa ativado no Dashboard e no Fluxo Diário' : 'Voltou a usar a planilha'),
     onError: (e: any) => toast.error(e.message ?? 'Erro'),
   });
@@ -78,14 +83,15 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead><tr className="text-xs text-muted-foreground"><th className="text-left font-medium">Mês</th><th className="text-right font-medium">Dashboard / Fluxo Diário</th><th className="text-right font-medium">Banco</th></tr></thead>
           <tbody>
-            {row('Saldo inicial (fechamento de agosto)', p.next.ini, bankIni)}
+            {row('Saldo inicial (saldo do banco no dia anterior)', p.next.ini, bankIni)}
             {row('Entradas no banco', p.genIn, p.genIn)}
             {row('Saídas no banco', p.genOut, p.genOut)}
             {row('Receitas realizadas', m.receitasRealizadas)}
             {row('Despesas realizadas', m.despesasRealizadas)}
             {row('Resultado realizado', m.receitasRealizadas - m.despesasRealizadas)}
-            {row('Operações fora do resultado (inclui ignoradas do banco)', m.operacoesIn - m.operacoesOut)}
-            {row('   dessas, Movimentações ignoradas (banco)', p.ign)}
+            {row('Operações fora do resultado', m.operacoesIn - m.operacoesOut)}
+            <tr><td className="pb-1.5 pl-4 text-xs text-muted-foreground">já incluídas acima: movimentações ignoradas (banco)</td>
+              <td className="pb-1.5 text-right text-xs tabular-nums text-muted-foreground">{fmtBRL(p.ign)}</td><td /></tr>
             {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
             {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.next.fimReal, bankFim)}
           </tbody></table></div>
@@ -96,9 +102,12 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
           <li>{p.aClass.length === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {p.aClass.length === 0 ? 'Nenhuma movimentação a classificar' : `${p.aClass.length} movimentações ainda a classificar`}</li>
           <li>{iniDiff === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
-            {iniDiff === 0 ? 'Saldo inicial do Dashboard igual ao saldo do banco' : `Saldo inicial do Dashboard (vem de agosto, congelado) difere do banco em ${fmtBRL(iniDiff)} — apenas informativo, não impede a ativação`}</li>
+            {iniDiff === 0 ? 'Saldo inicial igual ao saldo do banco' : `Saldo inicial difere do banco em ${fmtBRL(iniDiff)}`}</li>
+          <li>{fimOk ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-destructive" />}
+            {fimOk ? 'Saldo final igual ao saldo do banco' : `Saldo final difere do banco em ${fmtBRL(p.next.fimReal - bankFim)}`}</li>
+          {p.adjust !== 0 && <li className="text-muted-foreground">Informativo: o fechamento de agosto da planilha ({fmtBRL(p.planIni)}) é diferente do banco em {fmtBRL(-p.adjust)}. Agosto não é alterado; setembro passa a começar pelo saldo do banco (ajuste de {fmtBRL(p.adjust)} registrado como operação fora do resultado em 31/08).</li>}
         </ul>
-        {!active && !ok && <p className="text-xs text-muted-foreground">O botão de ativar libera quando o movimento bater com o banco e não houver nada a classificar.</p>}
+        {!active && !ok && <p className="text-xs text-muted-foreground">O botão de ativar libera quando saldo inicial, movimento e saldo final baterem com o banco e não houver nada a classificar.</p>}
       </>)}
     </section>
   );
