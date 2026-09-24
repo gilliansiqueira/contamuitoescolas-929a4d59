@@ -59,8 +59,8 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
 
   const confirmDelete = async () => {
     if (!deleteId) return;
-    if (deletePassword !== '123@CM456') {
-      toast.error('Senha incorreta');
+    if (deletePassword.trim() !== (selectedSchool?.nome ?? '').trim()) {
+      toast.error('O nome digitado não confere com o nome da empresa');
       return;
     }
     try {
@@ -98,12 +98,12 @@ export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir empresa</AlertDialogTitle>
               <AlertDialogDescription>
-                Tem certeza? Todos os dados vinculados serão removidos permanentemente. Digite a senha de confirmação para prosseguir.
+                Tem certeza? Todos os dados vinculados serão removidos permanentemente. Para confirmar, digite o nome exato da empresa: <strong>{selectedSchool.nome}</strong>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Input
-              type="password"
-              placeholder="Senha de confirmação"
+              type="text"
+              placeholder="Nome da empresa"
               value={deletePassword}
               onChange={e => setDeletePassword(e.target.value)}
               autoFocus
