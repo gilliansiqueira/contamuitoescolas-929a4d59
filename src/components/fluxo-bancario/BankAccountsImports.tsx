@@ -11,9 +11,10 @@ import { Plus, Upload, Trash2, Pencil, FileText, Download, AlertTriangle } from 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useBankImports, useInvalidateBank } from '@/hooks/useBankPilot';
+import { useBankImports, useInvalidateBank, useAutoInvestPatterns } from '@/hooks/useBankPilot';
+import { Checkbox } from '@/components/ui/checkbox';
 import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, type BankParseResult } from '@/lib/bankStatements/parsers';
-import type { BankAccount } from '@/lib/bankStatements/bankCashflowEngine';
+import { detectMovementKind, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 
 const db = supabase as any;
@@ -21,10 +22,10 @@ const db = supabase as any;
 interface Props { schoolId: string; accounts: BankAccount[] }
 
 interface Preview {
-  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>;
+  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; saldoAplicado: string;
 }
 
-const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: '', saldoData: '' };
+const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: '', saldoData: '', auto: false, autoSaldo: '', autoData: '' };
 
 export function BankAccountsImports({ schoolId, accounts }: Props) {
   const { user } = useAuth();
@@ -36,12 +37,23 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
   const [busy, setBusy] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const accName = new Map(accounts.map(a => [a.id, a.nome]));
+  const { data: patterns } = useAutoInvestPatterns(schoolId);
+  const [newPattern, setNewPattern] = useState('');
+  const addPattern = async () => {
+    const v = newPattern.trim(); if (!v) return;
+    const { error } = await db.from('bank_auto_invest_patterns').insert({ school_id: schoolId, padrao: v });
+    if (error) return toast.error(error.message);
+    setNewPattern(''); invalidate();
+  };
+  const removePattern = async (id: string) => { await db.from('bank_auto_invest_patterns').delete().eq('id', id); invalidate(); };
 
   const saveAccount = async () => {
     if (!form?.nome.trim()) return toast.error('Informe o nome da conta');
     const row = {
       school_id: schoolId, nome: form.nome.trim(), banco: form.banco.trim(), agencia: form.agencia.trim() || null, conta: form.conta.trim() || null,
       saldo_inicial: parseBRNumber(form.saldo), saldo_inicial_data: form.saldoData || null,
+      has_auto_invest: form.auto, auto_invest_saldo_inicial: form.auto ? parseBRNumber(form.autoSaldo) : 0,
+      auto_invest_saldo_data: form.auto ? (form.autoData || form.saldoData || null) : null,
     };
     const { error } = form.id ? await db.from('bank_accounts').update(row).eq('id', form.id) : await db.from('bank_accounts').insert(row);
     if (error) return toast.error(error.message);
@@ -69,7 +81,10 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
         const { data } = await db.from('bank_transactions').select('dedup_hash').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
         (data ?? []).forEach((r: any) => existing.add(r.dedup_hash));
       }
-      setPreview({ file, hash, result, hashes, existing });
+      const acc = accounts.find(a => a.id === accountId);
+      const pats = patterns?.all ?? DEFAULT_AUTO_INVEST_PATTERNS;
+      const kinds = result.transactions.map(t => acc?.has_auto_invest ? detectMovementKind(t.descricao, t.tipo, pats) : 'normal' as MovementKind);
+      setPreview({ file, hash, result, hashes, existing, kinds, saldoAplicado: '' });
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao ler o arquivo');
     } finally { setBusy(false); }
@@ -78,23 +93,24 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
   const confirmImport = async () => {
     if (!preview) return;
     setBusy(true);
-    const { file, hash, result, hashes, existing } = preview;
+    const { file, hash, result, hashes, existing, kinds } = preview;
     try {
       const path = `${schoolId}/${accountId}/${hash.slice(0, 16)}-${file.name.replace(/[^\w.\-]+/g, '_')}`;
       const up = await supabase.storage.from('bank-statements').upload(path, file, { upsert: true });
       if (up.error) throw up.error;
       const entradas = result.transactions.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
       const saidas = result.transactions.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
-      const novos = result.transactions.map((t, i) => ({ t, h: hashes[i] })).filter(x => !existing.has(x.h));
+      const novos = result.transactions.map((t, i) => ({ t, h: hashes[i], k: kinds[i] })).filter(x => !existing.has(x.h));
       const { data: imp, error: e1 } = await db.from('bank_statement_imports').insert({
         school_id: schoolId, account_id: accountId, file_name: file.name, file_path: path, file_hash: hash, formato: result.formato,
         periodo_inicio: result.periodoInicio ?? null, periodo_fim: result.periodoFim ?? null, total_linhas: result.transactions.length,
         inseridas: novos.length, duplicadas: result.transactions.length - novos.length, total_entradas: entradas, total_saidas: saidas, imported_by: user?.id ?? null,
+        saldo_final_informado: result.saldoFinalInformado ?? null, saldo_aplicado_informado: preview.saldoAplicado.trim() ? parseBRNumber(preview.saldoAplicado) : null,
       }).select('id').single();
       if (e1) throw e1;
       for (let i = 0; i < novos.length; i += 500) {
-        const chunk = novos.slice(i, i + 500).map(({ t, h }) => ({
-          school_id: schoolId, account_id: accountId, import_id: imp.id, data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, bank_ref: t.bankRef ?? null, dedup_hash: h,
+        const chunk = novos.slice(i, i + 500).map(({ t, h, k }) => ({
+          school_id: schoolId, account_id: accountId, import_id: imp.id, data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, bank_ref: t.bankRef ?? null, dedup_hash: h, movement_kind: k,
         }));
         const { error } = await db.from('bank_transactions').upsert(chunk, { onConflict: 'account_id,dedup_hash', ignoreDuplicates: true });
         if (error) { await db.from('bank_statement_imports').delete().eq('id', imp.id); throw error; }
@@ -139,10 +155,10 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
             <tbody>
               {accounts.map(a => (
                 <tr key={a.id} className={`border-t border-border ${a.ativa ? '' : 'opacity-50'}`}>
-                  <td className="py-2 font-medium">{a.nome}</td><td>{a.banco}</td><td>{[a.agencia, a.conta].filter(Boolean).join(' / ')}</td>
+                  <td className="py-2 font-medium">{a.nome}{a.has_auto_invest && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Aplicação automática · {fmtBRL(Number(a.auto_invest_saldo_inicial ?? 0))}</span>}</td><td>{a.banco}</td><td>{[a.agencia, a.conta].filter(Boolean).join(' / ')}</td>
                   <td className="text-right tabular-nums">{fmtBRL(Number(a.saldo_inicial))}</td><td>{fmtDate(a.saldo_inicial_data)}</td>
                   <td className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setForm({ id: a.id, nome: a.nome, banco: a.banco, agencia: a.agencia ?? '', conta: a.conta ?? '', saldo: String(a.saldo_inicial).replace('.', ','), saldoData: a.saldo_inicial_data ?? '' })}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => setForm({ id: a.id, nome: a.nome, banco: a.banco, agencia: a.agencia ?? '', conta: a.conta ?? '', saldo: String(a.saldo_inicial).replace('.', ','), saldoData: a.saldo_inicial_data ?? '', auto: !!a.has_auto_invest, autoSaldo: String(a.auto_invest_saldo_inicial ?? 0).replace('.', ','), autoData: a.auto_invest_saldo_data ?? '' })}><Pencil className="h-4 w-4" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => toggleActive(a)}>{a.ativa ? 'Desativar' : 'Ativar'}</Button>
                   </td>
                 </tr>
@@ -151,6 +167,16 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
           </table>
         )}
         <p className="mt-2 text-xs text-muted-foreground">O saldo inicial é o saldo da conta no fim do dia informado. Lançamentos até essa data já estão contidos nele.</p>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-4">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Descrições de aplicação automática</h3>
+        <p className="mb-2 text-xs text-muted-foreground">Nas contas com aplicação automática, lançamentos com estas descrições viram "Aplicação automática": mexem só na divisão entre saldo em conta e aplicado, e ficam fora de entradas e saídas.</p>
+        <div className="flex flex-wrap gap-1.5">
+          {DEFAULT_AUTO_INVEST_PATTERNS.map(p => <span key={p} className="rounded bg-muted px-2 py-0.5 text-xs">{p}</span>)}
+          {patterns?.custom.map(p => <span key={p.id} className="inline-flex items-center gap-1 rounded bg-info/15 px-2 py-0.5 text-xs text-info">{p.padrao}<button onClick={() => removePattern(p.id)} aria-label="Remover">×</button></span>)}
+        </div>
+        <div className="mt-2 flex gap-2"><Input className="max-w-xs" value={newPattern} onChange={e => setNewPattern(e.target.value)} placeholder="Ex.: APLICACAO CDB AUT" /><Button size="sm" variant="outline" onClick={addPattern}>Adicionar</Button></div>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-4">
@@ -205,6 +231,12 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
               <div><Label>Conta</Label><Input value={form.conta} onChange={e => setForm({ ...form, conta: e.target.value })} /></div>
               <div><Label>Saldo inicial</Label><Input value={form.saldo} onChange={e => setForm({ ...form, saldo: e.target.value })} placeholder="1.500,50" /></div>
               <div><Label>Data do saldo</Label><Input type="date" value={form.saldoData} onChange={e => setForm({ ...form, saldoData: e.target.value })} /></div>
+              <label className="col-span-2 flex items-center gap-2 text-sm"><Checkbox checked={form.auto} onCheckedChange={v => setForm({ ...form, auto: !!v })} />Esta conta tem aplicação automática</label>
+              {form.auto && <>
+                <div><Label>Saldo aplicado inicial</Label><Input value={form.autoSaldo} onChange={e => setForm({ ...form, autoSaldo: e.target.value })} placeholder="122.078,73" /></div>
+                <div><Label>Data do saldo aplicado</Label><Input type="date" value={form.autoData} onChange={e => setForm({ ...form, autoData: e.target.value })} /></div>
+                <p className="col-span-2 text-xs text-muted-foreground">Informe só a parte aplicada (saldo com aplicação menos o saldo em conta).</p>
+              </>}
             </div>
           )}
           <DialogFooter><Button onClick={saveAccount}>Salvar</Button></DialogFooter>
@@ -224,16 +256,21 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-xs text-muted-foreground">Saídas</p><p className="font-semibold text-destructive">{fmtBRL(pSai)}</p></div>
               </div>
               {p.saldoFinalInformado !== undefined && <p className="text-xs text-muted-foreground">Saldo final informado pelo banco: {fmtBRL(p.saldoFinalInformado)}</p>}
+              {preview.kinds.some(k => k !== 'normal') && <p className="text-xs text-info">{preview.kinds.filter(k => k !== 'normal').length} lançamento(s) marcados como aplicação automática (fora de entradas e saídas). Desmarque na tabela se algum estiver errado.</p>}
+              {accounts.find(a => a.id === accountId)?.has_auto_invest && (
+                <div className="flex items-center gap-2 text-xs"><Label className="text-xs">Saldo com aplicação no fim do extrato (opcional, para conferência):</Label><Input className="h-7 w-40" value={preview.saldoAplicado} onChange={e => setPreview({ ...preview, saldoAplicado: e.target.value })} placeholder="122.677,73" /></div>
+              )}
               {preview.existing.size > 0 && <p className="text-xs text-muted-foreground">{preview.existing.size} lançamento(s) já existem nesta conta e serão ignorados.</p>}
               {p.avisos.map(a => <p key={a} className="flex items-center gap-1 rounded-md bg-warning/15 p-2 text-xs text-warning"><AlertTriangle className="h-4 w-4" />{a}</p>)}
               <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
                 <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-muted text-left"><tr><th className="p-1.5">Data</th><th className="p-1.5">Descrição</th><th className="p-1.5 text-right">Entrada</th><th className="p-1.5 text-right">Saída</th><th className="p-1.5" /></tr></thead>
+                  <thead className="sticky top-0 bg-muted text-left"><tr><th className="p-1.5">Data</th><th className="p-1.5">Descrição</th><th className="p-1.5 text-right">Entrada</th><th className="p-1.5 text-right">Saída</th><th className="p-1.5">Aplic. aut.</th><th className="p-1.5" /></tr></thead>
                   <tbody>
                     {p.transactions.map((t, i) => (
                       <tr key={i} className={`border-t border-border ${preview.existing.has(preview.hashes[i]) ? 'opacity-40' : ''}`}>
                         <td className="p-1.5">{fmtDate(t.data)}</td><td className="p-1.5">{t.descricao}</td>
                         <td className="p-1.5 text-right">{t.tipo === 'entrada' ? fmtBRL(t.valor) : ''}</td><td className="p-1.5 text-right">{t.tipo === 'saida' ? fmtBRL(t.valor) : ''}</td>
+                        <td className="p-1.5"><Checkbox checked={preview.kinds[i] !== 'normal'} onCheckedChange={v => { const k = [...preview.kinds]; k[i] = v ? (t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate') : 'normal'; setPreview({ ...preview, kinds: k }); }} /></td>
                         <td className="p-1.5 text-muted-foreground">{preview.existing.has(preview.hashes[i]) ? 'já existe' : ''}</td>
                       </tr>
                     ))}
