@@ -43,6 +43,20 @@
       "when": 1790182315205,
       "tag": "0005_tighten_shared_library_and_icon_storage_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790253600421,
+      "tag": "0006_bank_cashflow_pilot",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790253633348,
+      "tag": "0007_bank_statements_storage_policies",
+      "breakpoints": true
     }
   ]
 }
