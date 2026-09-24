@@ -61,6 +61,13 @@ A partir desse ponto, o saldo de cada dia e de cada mês sai da abertura mais as
    - lançamentos pendentes de conciliação;
    - lista detalhada das divergências, linha a linha: o que existe só na planilha, só no extrato, com valor ou data diferente, ou em duplicidade.
 
+## Proteção do histórico
+- Nenhum lançamento já importado é apagado, editado, sobrescrito ou reprocessado.
+- Junho, julho e agosto de 2026 ficam totalmente congelados.
+- A sincronização só cria, altera ou exclui as próprias linhas do Fluxo de Caixa, sempre com data a partir de 01/09/2026. O banco recusa qualquer outra operação, mesmo que alguém tente.
+- Em setembro, as linhas antigas da planilha continuam intactas. Após a aprovação, muda só a fonte usada no cálculo.
+- A troca é reversível. Voltar o status para "Pausado" faz o cálculo usar a planilha anterior de novo, sem perder dados.
+
 ## Testes sem afetar dados reais
 - Os testes de inclusão, edição, divisão, conciliação, previsão virando realizado, exclusão e troca de escola rodam **dentro de uma transação que é desfeita no final**. Nenhum lançamento de teste fica gravado.
 - Depois, é feita só a leitura com os dados reais das três escolas.
