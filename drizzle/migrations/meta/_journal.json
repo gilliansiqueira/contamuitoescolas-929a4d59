@@ -71,6 +71,13 @@
       "when": 1790256810413,
       "tag": "0009_bank_tx_edit_desc_operacao",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790257483867,
+      "tag": "0010_bank_tx_splits_ignorar",
+      "breakpoints": true
     }
   ]
 }

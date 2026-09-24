@@ -263,6 +263,60 @@ export type Database = {
           },
         ]
       }
+      bank_transaction_splits: {
+        Row: {
+          categoria: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          note: string | null
+          school_id: string
+          sort_order: number
+          transaction_id: string
+          valor: number
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          note?: string | null
+          school_id: string
+          sort_order?: number
+          transaction_id: string
+          valor: number
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          note?: string | null
+          school_id?: string
+          sort_order?: number
+          transaction_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transaction_splits_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transaction_splits_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_transactions: {
         Row: {
           account_id: string
@@ -2577,6 +2631,10 @@ export type Database = {
         Returns: boolean
       }
       is_platform_member: { Args: never; Returns: boolean }
+      set_bank_tx_splits: {
+        Args: { _parts: Json; _tx_id: string }
+        Returns: undefined
+      }
       user_has_school_access: {
         Args: { _school_id: string; _user_id: string }
         Returns: boolean
