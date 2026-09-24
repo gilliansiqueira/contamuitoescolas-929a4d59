@@ -1475,6 +1475,30 @@ export type Database = {
           },
         ]
       }
+      management_responsible_display_names: {
+        Row: {
+          created_at: string
+          display_name: string
+          updated_at: string
+          updated_by: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          updated_at?: string
+          updated_by: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          updated_at?: string
+          updated_by?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       module_tabs: {
         Row: {
           created_at: string
@@ -2888,6 +2912,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_management_responsible_display_names: {
+        Args: never
+        Returns: {
+          display_name: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2921,6 +2952,10 @@ export type Database = {
       }
       set_management_responsible: {
         Args: { _school_id: string; _user_id: string }
+        Returns: undefined
+      }
+      set_management_responsible_display_name: {
+        Args: { _display_name: string; _user_id: string }
         Returns: undefined
       }
       sync_school_management_responsible: {

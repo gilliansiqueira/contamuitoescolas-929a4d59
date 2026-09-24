@@ -120,6 +120,13 @@
       "when": 1790267736989,
       "tag": "0016_sync_responsible_on_access_update",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790269409931,
+      "tag": "0017_management_responsible_display_names",
+      "breakpoints": true
     }
   ]
 }
