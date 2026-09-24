@@ -106,6 +106,13 @@
       "when": 1790267622556,
       "tag": "0014_automate_management_responsibles",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790267692650,
+      "tag": "0015_fix_responsible_uuid_selection",
+      "breakpoints": true
     }
   ]
 }
