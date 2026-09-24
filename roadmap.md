@@ -39,3 +39,6 @@
 ## Fluxo Bancário: aplicação automática (set/2026)
 - [x] Dois saldos por conta (em conta + aplicado), aplicações fora de entradas/saídas, detecção por descrição, conferência com o banco
 - [ ] Confirmar saldos iniciais da conta BB de Dourados (extrato indica saldo em conta 0,00 em 31/08; usuária informou 599,00) — aguardando usuária
+
+## Central compacta (set/2026)
+- [x] Reproduzir a Central de Clientes compacta para proprietária e equipe, preservando acessos e dados reais
