@@ -89,7 +89,8 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
     divergencias.sort((a, b) => a.data.localeCompare(b.data) || a.tipo.localeCompare(b.tipo));
 
     const sheetNet = sheet.reduce((s, e) => s + signed(e.tipo, e.valor), 0);
-    return { g, sheet, tx, ini, fim, genIn, genOut, diffSaldo, aClass, pend, semPar, pairOut, splitDiff, auto, transf, dups, porConta,
+    const semMov = porConta.filter(c => c.n === 0);
+    return { g, sheet, tx, ini, fim, genIn, genOut, diffSaldo, aClass, pend, semPar, pairOut, splitDiff, auto, transf, dups, porConta, semMov,
       tipos: [...tipos.entries()].map(([k, v]) => ({ label: labelOf.get(k) ?? k, ...v })).sort((a, b) => (b.gIn + b.gOut + b.sIn + b.sOut) - (a.gIn + a.gOut + a.sIn + a.sOut)),
       dias: [...dias.entries()].sort(([a], [b]) => a.localeCompare(b)), divergencias, sheetNet };
   }, [gen, sheetAll, txs, from, to, active, accName]);
@@ -134,6 +135,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         {card('Aplicações e resgates automáticos', `${data.auto.length}`, 'neutros; só movem entre conta e aplicação')}
         {card('Transferências sem par', String(data.semPar.length + data.pairOut.length), 'contam no saldo até achar a outra ponta', data.semPar.length + data.pairOut.length > 0)}
         {card('Duplicidades / divisões com diferença', `${data.dups.length} / ${data.splitDiff.length}`, 'divisão com diferença não sincroniza', data.dups.length + data.splitDiff.length > 0)}
+        {card('Contas sem movimentação', String(data.semMov.length), data.semMov.length ? data.semMov.map(c => c.a.nome).join(', ') : 'normal: o banco pode não ter movimento no mês')}
       </div>
 
       <section className="rounded-xl border border-border bg-card p-3">
@@ -141,7 +143,10 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground"><tr><th>Conta</th><th>Atualizada até</th><th className="text-right">Saldo inicial</th><th className="text-right">Entradas</th><th className="text-right">Saídas</th><th className="text-right">Saldo final</th><th className="text-right">Lançamentos</th></tr></thead>
           <tbody>{data.porConta.map(c => (
-            <tr key={c.a.id} className="border-t border-border"><td className="py-1.5">{c.a.nome}</td><td className={c.last && cfg.synced_through && c.last === cfg.synced_through && c.last < to ? 'text-warning' : ''}>{fmtDate(c.last || undefined)}</td>
+            <tr key={c.a.id} className="border-t border-border"><td className="py-1.5">{c.a.nome}</td>
+              {c.n === 0
+                ? <td className="text-muted-foreground">Sem movimentação no período</td>
+                : <td className={c.last && cfg.synced_through && c.last === cfg.synced_through && c.last < to ? 'text-warning' : ''}>{fmtDate(c.last || undefined)}</td>}
               <td className="text-right tabular-nums">{fmtBRL(c.ini)}</td><td className="text-right tabular-nums text-success">{fmtBRL(c.ent)}</td><td className="text-right tabular-nums text-destructive">{fmtBRL(c.sai)}</td><td className="text-right tabular-nums font-semibold">{fmtBRL(c.fim)}</td><td className="text-right">{c.n}</td></tr>
           ))}</tbody>
         </table>
