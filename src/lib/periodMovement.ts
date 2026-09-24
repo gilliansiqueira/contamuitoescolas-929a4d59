@@ -100,6 +100,8 @@ export interface PeriodMovementCtx {
   saldoInicialBase: number; // school.saldoInicial
   saldoInicialBaseDate?: string; // 'YYYY-MM-DD' (define o mês da âncora)
   todayStr?: string; // override para testes
+  /** Fluxo de Caixa ativo: a partir deste mês, o saldo parte do saldo do banco. */
+  cashflowAnchor?: { month: string; saldo: number };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -467,6 +469,12 @@ export function computeSaldoFinal(
   ctx: PeriodMovementCtx,
   opts: { isInModel?: (label: string) => boolean } = {}
 ): number {
+  const anc = ctx.cashflowAnchor;
+  if (anc && month >= anc.month) {
+    let s0 = anc.saldo;
+    for (const m of monthsFromBaseTo(anc.month, month)) s0 += buildMonthMovement(m, ctx, opts).saldoMovimento;
+    return s0;
+  }
   const baseMonth = resolveAnchorMonth(ctx);
   const months = monthsFromBaseTo(baseMonth, month);
   if (months.length === 0) return ctx.saldoInicialBase;
@@ -516,6 +524,12 @@ export function computeSaldoFinalRealizado(
   ctx: PeriodMovementCtx,
   opts: { isInModel?: (label: string) => boolean } = {}
 ): number {
+  const anc = ctx.cashflowAnchor;
+  if (anc && month >= anc.month) {
+    let s0 = anc.saldo;
+    for (const m of monthsFromBaseTo(anc.month, month)) s0 += buildMonthMovement(m, ctx, opts).saldoMovimentoRealizado;
+    return s0;
+  }
   const baseMonth = resolveAnchorMonth(ctx);
   const months = monthsFromBaseTo(baseMonth, month);
   if (months.length === 0) return ctx.saldoInicialBase;
