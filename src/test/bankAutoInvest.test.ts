@@ -52,3 +52,15 @@ describe('categoria Operação', () => {
     expect(s.saldoAtual).toBe(120);
   });
 });
+
+describe('divisão com Ignorar', () => {
+  it('800 saída + 200 ignorar: saídas 800, saldo -1000', () => {
+    const acc: any = { id: 'a', nome: 'A', banco: 'X', agencia: null, conta: null, saldo_inicial: 0, saldo_inicial_data: '2026-08-31', ativa: true };
+    const t: any = { id: '1', account_id: 'a', import_id: 'i', transfer_pair_id: null, recon_status: 'pendente', recon_by_email: null, recon_at: null, recon_note: null, created_at: 'x', data: '2026-09-02', descricao: 'PIX', valor: 1000, tipo: 'saida', movement_kind: 'normal',
+      splits: [{ id: 's1', valor: 800, categoria: 'normal', descricao: null, note: null, sort_order: 1 }, { id: 's2', valor: 200, categoria: 'ignorar', descricao: null, note: null, sort_order: 2 }] };
+    const s = _sum([acc], [t], '2026-09-01', '2026-09-30', '2026-09-30');
+    expect(s.saidasRealizadas).toBe(800);
+    expect(s.ignorados).toBe(200);
+    expect(s.saldoAtual).toBe(-1000);
+  });
+});

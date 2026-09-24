@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -6,10 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight, PiggyBank, Pencil, Layers } from 'lucide-react';
+import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight, PiggyBank, Pencil, Layers, Split, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxText, fetchReconHistory } from '@/hooks/useBankPilot';
-import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, displayDesc, type BankAccount, type BankTx, type ReconStatus } from '@/lib/bankStatements/bankCashflowEngine';
+import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxText, useSetSplits, fetchReconHistory } from '@/hooks/useBankPilot';
+import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, displayDesc, type BankAccount, type BankTx, type ReconStatus, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
 
 interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string }
@@ -32,13 +32,35 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [descTx, setDescTx] = useState<BankTx | null>(null);
   const [descText, setDescText] = useState('');
   const updText = useUpdateTxText(schoolId);
-  const catOf = (t: BankTx) => isAutoInvest(t) ? 'auto' : t.transfer_pair_id ? 'transf' : isOperacao(t) ? 'operacao' : 'mov';
+  const catOf = (t: BankTx) => isAutoInvest(t) ? 'auto' : t.transfer_pair_id ? 'transf' : t.splits?.length ? 'dividido' : t.movement_kind === 'ignorar' ? 'ignorar' : isOperacao(t) ? 'operacao' : 'mov';
+  const CAT_LABEL: Record<SplitCategoria, string> = { normal: 'Entrada/Saída', operacao: 'Operação', ignorar: 'Ignorar' };
+  const setSplitsM = useSetSplits(schoolId);
+  const [splitTx, setSplitTx] = useState<BankTx | null>(null);
+  const [parts, setParts] = useState<{ valor: string; categoria: SplitCategoria; descricao: string; note: string }[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const parseBR = (v: string) => { const n = Number(v.replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+  const toBR = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const openSplit = (t: BankTx) => {
+    setSplitTx(t);
+    setParts(t.splits?.length
+      ? t.splits.map(x => ({ valor: toBR(Number(x.valor)), categoria: x.categoria, descricao: x.descricao ?? '', note: x.note ?? '' }))
+      : [{ valor: toBR(Number(t.valor)), categoria: 'normal', descricao: '', note: '' }, { valor: '0,00', categoria: 'ignorar', descricao: '', note: '' }]);
+  };
+  const partsSum = parts.reduce((a, p) => a + parseBR(p.valor), 0);
+  const diff = splitTx ? Math.round((Number(splitTx.valor) - partsSum) * 100) / 100 : 0;
+  const saveSplit = async (clear = false) => {
+    if (!splitTx) return;
+    try {
+      await setSplitsM.mutateAsync({ txId: splitTx.id, parts: clear ? [] : parts.map(p => ({ valor: parseBR(p.valor), categoria: p.categoria, descricao: p.descricao, note: p.note })) });
+      toast.success(clear ? 'Divisão desfeita' : 'Lançamento dividido'); setSplitTx(null);
+    } catch (e: any) { toast.error(e.message ?? 'Erro ao dividir'); }
+  };
   const saveText = async (id: string, patch: { descricao_editada?: string | null; recon_note?: string | null }) => {
     try { await updText.mutateAsync({ id, ...patch }); toast.success('Salvo'); } catch (e: any) { toast.error(e.message ?? 'Erro ao salvar'); }
   };
-  const setCategory = async (ids: string[], kind: 'normal' | 'operacao') => {
+  const setCategory = async (ids: string[], kind: 'normal' | 'operacao' | 'ignorar') => {
     if (!ids.length) return;
-    try { await setKind.mutateAsync({ ids, kind }); toast.success(`${ids.length} lançamento(s): ${kind === 'operacao' ? 'Operação' : 'Entrada/Saída'}`); setSelected(new Set()); } catch (e: any) { toast.error(e.message ?? 'Erro'); }
+    try { await setKind.mutateAsync({ ids, kind }); toast.success(`${ids.length} lançamento(s): ${kind === 'operacao' ? 'Operação' : kind === 'ignorar' ? 'Ignorar' : 'Entrada/Saída'}`); setSelected(new Set()); } catch (e: any) { toast.error(e.message ?? 'Erro'); }
   };
   const setKind = useSetMovementKind(schoolId);
   const setRecon = useSetReconStatus(schoolId);
@@ -92,7 +114,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
         <div className="w-44"><label className="text-xs text-muted-foreground">Categoria</label>
           <Select value={cat} onValueChange={v => setCat(v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="mov">Entrada / Saída</SelectItem><SelectItem value="operacao">Operações</SelectItem><SelectItem value="transf">Transferências internas</SelectItem><SelectItem value="auto">Aplicação automática</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="mov">Entrada / Saída</SelectItem><SelectItem value="operacao">Operações</SelectItem><SelectItem value="ignorar">Ignorados</SelectItem><SelectItem value="dividido">Divididos</SelectItem><SelectItem value="transf">Transferências internas</SelectItem><SelectItem value="auto">Aplicação automática</SelectItem></SelectContent>
           </Select>
         </div>
         <div><label className="text-xs text-muted-foreground">De</label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
@@ -131,15 +153,16 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
               {lastTx && (lastTx < from || lastTx > to) && <Button size="sm" variant="link" onClick={() => { setFrom(`${lastTx.slice(0, 7)}-01`); setTo(lastTx); }}>Ver último extrato</Button>}
             </td></tr>}
             {rows.map(t => (
-              <tr key={t.id} className="border-t border-border hover:bg-muted/20">
+              <Fragment key={t.id}>
+              <tr className="border-t border-border hover:bg-muted/20">
                 <td className="p-2"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} /></td>
                 <td className="p-2 whitespace-nowrap">{fmtDate(t.data)}</td>
                 <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
                 <td className="p-2"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
                 <td className="p-2 whitespace-nowrap">{isAutoInvest(t) || t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
-                  <Select value={isOperacao(t) ? 'operacao' : 'normal'} onValueChange={v => setCategory([t.id], v as any)}>
+                  t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind === 'ignorar' ? 'ignorar' : isOperacao(t) ? 'operacao' : 'normal'} onValueChange={v => setCategory([t.id], v as any)}>
                     <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem></SelectContent>
                   </Select>)}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}{isAutoInvest(t) && <span className="ml-1 rounded bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">{t.movement_kind === 'auto_aplicacao' ? 'Aplicação automática' : 'Resgate automático'}</span>}</td>
                 <td className="p-2 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
@@ -159,6 +182,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                         {t.recon_status !== 'pendente' && <DropdownMenuItem onClick={() => apply([t.id], 'pendente')}><Undo2 className="mr-2 h-4 w-4" />Desfazer (pendente)</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className="mr-2 h-4 w-4" />Observação</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="mr-2 h-4 w-4" />Editar descrição</DropdownMenuItem>
+                        {!isAutoInvest(t) && !t.transfer_pair_id && <DropdownMenuItem onClick={() => openSplit(t)}><Split className="mr-2 h-4 w-4" />{t.splits?.length ? 'Editar divisão' : 'Dividir valor'}</DropdownMenuItem>}
                         {t.transfer_pair_id && <DropdownMenuItem onClick={() => setPair.mutate({ ids: txs.filter(x => x.transfer_pair_id === t.transfer_pair_id).map(x => x.id), pairId: null })}><ArrowLeftRight className="mr-2 h-4 w-4" />Desfazer transferência interna</DropdownMenuItem>}
                         {isAutoInvest(t)
                           ? <DropdownMenuItem onClick={() => setKind.mutate({ ids: [t.id], kind: 'normal' })}><PiggyBank className="mr-2 h-4 w-4" />Não é aplicação automática</DropdownMenuItem>
@@ -170,6 +194,18 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                   </div>
                 </td>
               </tr>
+              {expanded.has(t.id) && t.splits?.map(sp => (
+                <tr key={sp.id} className="bg-muted/20 text-xs">
+                  <td /><td /><td />
+                  <td className="p-1.5 pl-6">↳ {sp.descricao || displayDesc(t)}</td>
+                  <td className="p-1.5">{CAT_LABEL[sp.categoria]}</td>
+                  <td className="p-1.5 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(sp.valor)) : ''}</td>
+                  <td className="p-1.5 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(sp.valor)) : ''}</td>
+                  <td colSpan={5} />
+                  <td className="p-1.5 text-muted-foreground" colSpan={2}>{sp.note}</td>
+                </tr>
+              ))}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -194,6 +230,33 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <DialogFooter className="gap-2">
             {descTx?.descricao_editada && <Button variant="ghost" onClick={async () => { await saveText(descTx.id, { descricao_editada: null }); setDescTx(null); }}>Voltar ao original</Button>}
             <Button onClick={async () => { if (descTx) { await saveText(descTx.id, { descricao_editada: descText.trim() === descTx.descricao ? null : descText }); setDescTx(null); } }}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!splitTx} onOpenChange={o => !o && setSplitTx(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader><DialogTitle>Dividir valor</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{splitTx && `${displayDesc(splitTx)} · ${splitTx.tipo === 'entrada' ? 'Entrada' : 'Saída'} de ${fmtBRL(Number(splitTx.valor))} no banco (não muda, o saldo segue o banco).`}</p>
+          <div className="space-y-2">
+            {parts.map((p, i) => (
+              <div key={i} className="grid grid-cols-[110px_140px_1fr_1fr_32px] items-center gap-2">
+                <Input value={p.valor} onChange={e => setParts(ps => ps.map((x, j) => j === i ? { ...x, valor: e.target.value } : x))} className="text-right" aria-label="Valor" />
+                <Select value={p.categoria} onValueChange={v => setParts(ps => ps.map((x, j) => j === i ? { ...x, categoria: v as SplitCategoria } : x))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="normal">{splitTx?.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem></SelectContent>
+                </Select>
+                <Input value={p.descricao} placeholder="Descrição (opcional)" onChange={e => setParts(ps => ps.map((x, j) => j === i ? { ...x, descricao: e.target.value } : x))} />
+                <Input value={p.note} placeholder="Observação" onChange={e => setParts(ps => ps.map((x, j) => j === i ? { ...x, note: e.target.value } : x))} />
+                <Button size="sm" variant="ghost" disabled={parts.length <= 2} onClick={() => setParts(ps => ps.filter((_, j) => j !== i))} aria-label="Remover parte"><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+            <Button size="sm" variant="outline" onClick={() => setParts(ps => [...ps, { valor: toBR(Math.max(diff, 0)), categoria: 'normal', descricao: '', note: '' }])}><Plus className="mr-1 h-4 w-4" />Adicionar parte</Button>
+          </div>
+          <p className={`text-sm font-semibold ${Math.abs(diff) < 0.005 ? 'text-success' : 'text-destructive'}`}>Soma das partes: {fmtBRL(partsSum)} · Diferença: {fmtBRL(diff)}</p>
+          <DialogFooter className="gap-2">
+            {splitTx?.splits?.length ? <Button variant="ghost" disabled={setSplitsM.isPending} onClick={() => saveSplit(true)}>Desfazer divisão</Button> : null}
+            <Button disabled={Math.abs(diff) >= 0.005 || parts.some(p => parseBR(p.valor) <= 0) || setSplitsM.isPending} onClick={() => saveSplit()}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
