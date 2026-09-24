@@ -148,6 +148,33 @@
     color: hsl(var(--background) / 0.65);
   }
 
+  /* Central de Clientes compacta */
+  .management-center {
+    --management-sidebar-start: 26 91% 54%;
+    --management-sidebar-end: 25 91% 45%;
+  }
+  .management-sidebar {
+    background: linear-gradient(180deg, hsl(var(--management-sidebar-start)), hsl(var(--management-sidebar-end)));
+  }
+  .management-nav-item { color: hsl(var(--primary-foreground) / 0.82); }
+  .management-nav-item:hover { background: hsl(var(--primary-foreground) / 0.1); color: hsl(var(--primary-foreground)); }
+  .management-nav-active,
+  .management-nav-active:hover {
+    background: hsl(28 100% 97%);
+    color: hsl(var(--management-sidebar-end));
+    box-shadow: 0 8px 20px hsl(24 90% 24% / 0.16);
+  }
+  .management-profile { border-color: hsl(var(--primary-foreground) / 0.22); }
+  .dark .management-center {
+    --management-sidebar-start: 18 72% 43%;
+    --management-sidebar-end: 17 79% 34%;
+  }
+  .dark .management-nav-active,
+  .dark .management-nav-active:hover {
+    background: hsl(var(--primary-foreground) / 0.18);
+    color: hsl(var(--primary-foreground));
+  }
+
   /* Menu lateral laranja — moldura da plataforma (Etapa 1) */
   .app-sidebar {
     background: linear-gradient(180deg, #E05E08 0%, #D1540A 100%);
