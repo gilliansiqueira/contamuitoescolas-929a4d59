@@ -204,6 +204,13 @@
       "when": 1790281092445,
       "tag": "0028_audit_skip_when_school_deleted",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790281507236,
+      "tag": "0029_guard_management_sync_during_school_deletion",
+      "breakpoints": true
     }
   ]
 }
