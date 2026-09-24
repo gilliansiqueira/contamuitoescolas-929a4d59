@@ -19,6 +19,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { CompactStat } from '@/components/mobile/CompactStat';
 import type { FinancialEntry } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
+import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
+const IGNORADOS_BANCO = new Set([IGNORADO_ENTRADA, IGNORADO_SAIDA]);
 
 interface DailyFlowTableProps {
   schoolId: string;
@@ -39,6 +41,7 @@ interface DayRow {
   saidaPrevista: number;
   saidaRealizada: number;
   operacoes: number;
+  ignorados: number;
   saldoFinal: number;
   isWeekend: boolean;
   dayOfWeek: string;
@@ -124,9 +127,9 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const dailyData = useMemo(() => {
     const priorSaldo = saldoInicialPeriodo;
 
-    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoesPrev: number; operacoesReal: number }> = {};
+    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoesPrev: number; operacoesReal: number; ignorados: number }> = {};
     const ensureDay = (data: string) => {
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
+      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0, ignorados: 0 };
       return byDate[data];
     };
 
@@ -179,6 +182,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       ensureDay(data);
       const impact = e.impacto;
       if (impact === 0) return;
+      if (IGNORADOS_BANCO.has((e as any).tipoOriginal ?? '')) {
+        byDate[data].ignorados += impact;
+        return;
+      }
       if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
         byDate[data].operacoesReal += impact;
         return;
@@ -194,7 +201,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     // Cutoff: último dia com QUALQUER movimento realizado.
     const cutoffIdx = allDays.reduce((last, data, i) => {
       const d = byDate[data];
-      if (d && (d.entradaRealizada > 0 || d.saidaRealizada > 0 || d.operacoesReal !== 0)) return i;
+      if (d && (d.entradaRealizada > 0 || d.saidaRealizada > 0 || d.operacoesReal !== 0 || d.ignorados !== 0)) return i;
       return last;
     }, -1);
 
@@ -203,14 +210,15 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     let saldoReal = priorSaldo;
     let saldoProj = priorSaldo; // híbrido: realizado até cutoff, previsto depois
     return allDays.map((data, i) => {
-      const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0 };
-      const operacoes = d.operacoesPrev + d.operacoesReal;
-      saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + operacoes;
-      saldoPrev += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
-      saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoesReal;
+      const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0, ignorados: 0 };
       const isAfterCutoff = cutoffIdx >= 0 && i > cutoffIdx;
+      // Até o último dia realizado, Operações mostra só o que aconteceu (previsões antigas não somam).
+      const operacoes = cutoffIdx >= 0 && !isAfterCutoff ? d.operacoesReal : d.operacoesPrev + d.operacoesReal;
+      saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + d.operacoesPrev + d.operacoesReal + d.ignorados;
+      saldoPrev += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
+      saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados;
       if (!isAfterCutoff) {
-        saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal;
+        saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados;
       } else {
         saldoProj += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
       }
@@ -221,6 +229,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         saidaPrevista: d.saidaPrevista,
         saidaRealizada: d.saidaRealizada,
         operacoes,
+        ignorados: d.ignorados,
         saldoFinal: saldo,
         saldoFinalPrevisto: saldoPrev,
         saldoFinalRealizado: saldoReal,
@@ -244,7 +253,8 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     saidaPrevista: acc.saidaPrevista + d.saidaPrevista,
     saidaRealizada: acc.saidaRealizada + d.saidaRealizada,
     operacoes: acc.operacoes + d.operacoes,
-  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0 }), [dailyData]);
+    ignorados: acc.ignorados + d.ignorados,
+  }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0, ignorados: 0 }), [dailyData]);
 
   // Previsto de fechamento: realizado até o corte + previsto apenas dos dias futuros.
   // Sem nenhum realizado no período, todo o previsto conta como "restante".
@@ -327,6 +337,9 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                   )}
                   {showReal && day.saidaRealizada > 0 && (
                     <div className="flex justify-between"><span className="text-muted-foreground">Saí. real.</span><span className="text-destructive font-medium">{formatCurrency(day.saidaRealizada)}</span></div>
+                  )}
+                  {day.ignorados !== 0 && (
+                    <div className="flex justify-between"><span className="text-muted-foreground">Ignorados (banco)</span><span className="text-muted-foreground font-medium">{formatCurrency(day.ignorados)}</span></div>
                   )}
                   {day.operacoes !== 0 && (
                     <div className="flex justify-between"><span className="text-muted-foreground">Operações</span><span className="text-purple-600 font-medium">{formatCurrency(day.operacoes)}</span></div>
@@ -434,6 +447,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                       </td>
                       <td className={`px-3 py-2 text-right ${day.operacoes >= 0 ? 'text-purple-600' : 'text-purple-700'}`}>
                         {day.operacoes !== 0 ? formatCurrency(day.operacoes) : '—'}
+                        {day.ignorados !== 0 && <div className="text-[10px] text-muted-foreground" title="Ignorado: conta só no saldo">ign. {formatCurrency(day.ignorados)}</div>}
                       </td>
                       <td className={`px-3 py-2 text-right font-semibold ${day.saldoFinalPrevisto >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-destructive'}`}>
                         {showPrev ? formatCurrency(day.saldoFinalPrevisto) : '—'}
@@ -457,7 +471,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className="px-3 py-2.5 text-right text-primary">{formatCurrency(totals.entradaRealizada)}</td>
                 <td className="px-3 py-2.5 text-right text-orange-500">{formatCurrency(totals.saidaPrevista)}</td>
                 <td className="px-3 py-2.5 text-right text-destructive">{formatCurrency(totals.saidaRealizada)}</td>
-                <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}</td>
+                <td className="px-3 py-2.5 text-right text-purple-600">{formatCurrency(totals.operacoes)}{totals.ignorados !== 0 && <div className="text-[10px] font-normal text-muted-foreground">Ignorados (banco): {formatCurrency(totals.ignorados)}</div>}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo) >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalPrevisto : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo) >= 0 ? 'text-primary' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalRealizado : saldoInicialPeriodo)}</td>
                 <td className={`px-3 py-2.5 text-right font-bold ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo)}</td>
