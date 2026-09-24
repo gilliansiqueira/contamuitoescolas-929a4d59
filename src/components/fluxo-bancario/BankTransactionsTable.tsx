@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight, PiggyBank, Pencil, Layers, Split, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxText, useSetSplits, fetchReconHistory } from '@/hooks/useBankPilot';
-import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, displayDesc, type BankAccount, type BankTx, type ReconStatus, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
+import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, isOwnTransfer, displayDesc, type BankAccount, type BankTx, type ReconStatus, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
@@ -35,7 +35,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [descTx, setDescTx] = useState<BankTx | null>(null);
   const [descText, setDescText] = useState('');
   const updText = useUpdateTxText(schoolId);
-  const catOf = (t: BankTx) => isAutoInvest(t) ? 'auto' : t.transfer_pair_id ? 'transf' : t.splits?.length ? 'dividido' : t.movement_kind === 'ignorar' ? 'ignorar' : isOperacao(t) ? 'operacao' : 'mov';
+  const catOf = (t: BankTx) => isAutoInvest(t) ? 'auto' : isOwnTransfer(t) ? 'transf' : t.splits?.length ? 'dividido' : t.movement_kind === 'ignorar' ? 'ignorar' : isOperacao(t) ? 'operacao' : 'mov';
   const CAT_LABEL: Record<SplitCategoria, string> = { normal: 'Entrada/Saída', operacao: 'Operação', ignorar: 'Ignorar' };
   const setSplitsM = useSetSplits(schoolId);
   const [splitTx, setSplitTx] = useState<BankTx | null>(null);
@@ -61,7 +61,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const saveText = async (id: string, patch: { descricao_editada?: string | null; recon_note?: string | null }) => {
     try { await updText.mutateAsync({ id, ...patch }); toast.success('Salvo'); } catch (e: any) { toast.error(e.message ?? 'Erro ao salvar'); }
   };
-  const KIND_LABEL: Record<string, string> = { normal: 'Entrada/Saída', operacao: 'Operação', ignorar: 'Ignorar', auto_aplicacao: 'Aplicação automática', auto_resgate: 'Resgate automático' };
+  const KIND_LABEL: Record<string, string> = { normal: 'Entrada/Saída', operacao: 'Operação', ignorar: 'Ignorar', transferencia: 'Transferência entre contas', auto_aplicacao: 'Aplicação automática', auto_resgate: 'Resgate automático' };
   /** Muda a categoria e oferece "Desfazer" restaurando o valor anterior de cada linha. */
   const setCategory = async (ids: string[], kind: string) => {
     if (!ids.length) return;
@@ -181,7 +181,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="text-xs text-muted-foreground">—</span> : (
                   t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
                     <SelectTrigger className="h-7 w-44 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value="transferencia">Transferência entre contas</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
                   </Select>)}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}</td>
                 <td className="p-2 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>

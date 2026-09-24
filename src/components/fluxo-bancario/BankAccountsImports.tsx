@@ -11,10 +11,10 @@ import { Plus, Upload, Trash2, Pencil, FileText, Download, AlertTriangle } from 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useBankImports, useInvalidateBank, useAutoInvestPatterns } from '@/hooks/useBankPilot';
+import { useBankImports, useInvalidateBank, useAutoInvestPatterns, useOwnTransferNames, useSetMovementKind } from '@/hooks/useBankPilot';
 import { Checkbox } from '@/components/ui/checkbox';
 import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, type BankParseResult } from '@/lib/bankStatements/parsers';
-import { detectMovementKind, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
+import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 
 const db = supabase as any;
@@ -46,6 +46,21 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
     const { error } = await db.from('bank_auto_invest_patterns').insert({ school_id: schoolId, padrao: v });
     if (error) return toast.error(error.message);
     setNewPattern(''); invalidate();
+  };
+  const { data: ownNames = [] } = useOwnTransferNames(schoolId);
+  const setKindM = useSetMovementKind(schoolId);
+  const [newOwn, setNewOwn] = useState('');
+  const addOwn = async () => {
+    const v = newOwn.trim().toLowerCase(); if (v.length < 3) return toast.error('Use pelo menos 3 letras');
+    const { error } = await db.from('bank_own_transfer_names').insert({ school_id: schoolId, padrao: v });
+    if (error) return toast.error(error.message);
+    setNewOwn(''); invalidate();
+  };
+  const removeOwn = async (id: string) => { await db.from('bank_own_transfer_names').delete().eq('id', id); invalidate(); };
+  const ownCandidates = txs.filter(t => (t.movement_kind ?? 'normal') === 'normal' && !t.transfer_pair_id && !t.splits?.length && detectOwnTransfer(t.descricao, ownNames.map(n => n.padrao)));
+  const applyOwnToExisting = async () => {
+    try { await setKindM.mutateAsync({ ids: ownCandidates.map(t => t.id), kind: 'transferencia' }); toast.success(`${ownCandidates.length} lançamento(s) marcados como transferência entre contas`); }
+    catch (e: any) { toast.error(e.message ?? 'Erro'); }
   };
   const removePattern = async (id: string) => { await db.from('bank_auto_invest_patterns').delete().eq('id', id); invalidate(); };
 
@@ -85,7 +100,11 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       }
       const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
       const pats = patterns?.all ?? DEFAULT_AUTO_INVEST_PATTERNS;
-      const kinds = result.transactions.map(t => acc?.has_auto_invest ? detectMovementKind(t.descricao, t.tipo, pats) : 'normal' as MovementKind);
+      const own = ownNames.map(n => n.padrao);
+      const kinds = result.transactions.map(t => {
+        const k: MovementKind = acc?.has_auto_invest ? detectMovementKind(t.descricao, t.tipo, pats) : 'normal';
+        return k === 'normal' && detectOwnTransfer(t.descricao, own) ? 'transferencia' : k;
+      });
       setPreview({ file, hash, result, hashes, existing, kinds, saldoAplicado: '' });
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao ler o arquivo');
@@ -181,6 +200,18 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           {patterns?.custom.map(p => <span key={p.id} className="inline-flex items-center gap-1 rounded bg-info/15 px-2 py-0.5 text-xs text-info">{p.padrao}<button onClick={() => removePattern(p.id)} aria-label="Remover">×</button></span>)}
         </div>
         <div className="mt-2 flex gap-2"><Input className="max-w-xs" value={newPattern} onChange={e => setNewPattern(e.target.value)} placeholder="Ex.: APLICACAO CDB AUT" /><Button size="sm" variant="outline" onClick={addPattern}>Adicionar</Button></div>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-4">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Nomes da própria empresa (transferência entre contas)</h3>
+        <p className="mb-2 text-xs text-muted-foreground">Lançamentos cuja descrição cita um destes nomes entram pré-marcados como "Transferência entre contas": continuam no saldo de cada conta, mas não são receita nem despesa. Use a razão social completa (ex.: "pegorer idiomas") para não pegar pessoas ou outras empresas com o mesmo sobrenome.</p>
+        <div className="flex flex-wrap gap-1.5">
+          {ownNames.length === 0 && <span className="text-xs text-muted-foreground">Nenhum nome cadastrado.</span>}
+          {ownNames.map(p => <span key={p.id} className="inline-flex items-center gap-1 rounded bg-info/15 px-2 py-0.5 text-xs text-info">{p.padrao}<button onClick={() => removeOwn(p.id)} aria-label="Remover">×</button></span>)}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2"><Input className="max-w-xs" value={newOwn} onChange={e => setNewOwn(e.target.value)} placeholder="Ex.: pegorer idiomas" /><Button size="sm" variant="outline" onClick={addOwn}>Adicionar</Button>
+          {ownCandidates.length > 0 && <Button size="sm" disabled={setKindM.isPending} onClick={applyOwnToExisting}>Marcar {ownCandidates.length} lançamento(s) já importados</Button>}
+        </div>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-4">

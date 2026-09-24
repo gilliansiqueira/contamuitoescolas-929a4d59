@@ -72,6 +72,7 @@ export function useInvalidateBank(schoolId: string) {
     qc.invalidateQueries({ queryKey: ['bankImports', schoolId] });
     qc.invalidateQueries({ queryKey: ['bankAccounts', schoolId] });
     qc.invalidateQueries({ queryKey: ['autoInvestPatterns', schoolId] });
+    qc.invalidateQueries({ queryKey: ['ownTransferNames', schoolId] });
   };
 }
 
@@ -157,5 +158,15 @@ export function useSetSplits(schoolId: string) {
       if (error) throw error;
     },
     onSuccess: invalidate,
+  });
+}
+
+export function useOwnTransferNames(schoolId: string) {
+  return useQuery({
+    queryKey: ['ownTransferNames', schoolId],
+    queryFn: async () => {
+      const { data } = await db.from('bank_own_transfer_names').select('id, padrao').eq('school_id', schoolId).order('padrao');
+      return (data ?? []) as { id: string; padrao: string }[];
+    },
   });
 }
