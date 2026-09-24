@@ -35,3 +35,7 @@
 - [x] Leitura de OFX, CSV, Excel e PDF, com conferência e proteção contra duplicidade
 - [ ] Validar com extratos reais da Dourados (aguardando arquivos e saldos das contas)
 - [ ] Fase 2 (nova aprovação): extratos alimentando Dashboard e Fluxo Diário
+
+## Fluxo Bancário: aplicação automática (set/2026)
+- [x] Dois saldos por conta (em conta + aplicado), aplicações fora de entradas/saídas, detecção por descrição, conferência com o banco
+- [ ] Confirmar saldos iniciais da conta BB de Dourados (extrato indica saldo em conta 0,00 em 31/08; usuária informou 599,00) — aguardando usuária
