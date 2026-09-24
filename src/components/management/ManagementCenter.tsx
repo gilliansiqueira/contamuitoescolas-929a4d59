@@ -10,6 +10,8 @@ import {
   type PortfolioRow,
 } from '@/hooks/useManagementPortfolio';
 import { useAddSchool } from '@/hooks/useFinancialData';
+import { useClosingStepTemplates, useEnsureMonthlyChecklist } from '@/hooks/useClosingSteps';
+import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -28,6 +30,7 @@ import {
   ChevronDown,
   Clock3,
   FileCheck2,
+  ListChecks,
   LogOut,
   Pencil,
   Plus,
