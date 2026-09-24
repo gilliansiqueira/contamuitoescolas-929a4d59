@@ -274,6 +274,77 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             </Select>
           </div>
 
+          {view === 'responsible' ? (
+            <section className="space-y-4" aria-label="Resumo por responsável">
+              {!isLoading && responsibleGroups.length === 0 && (
+                <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground shadow-sm">Nenhuma responsável encontrada.</div>
+              )}
+              {responsibleGroups.map(group => {
+                const isOpen = expanded.has(group.key);
+                return (
+                  <div key={group.key} className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.key)}
+                      aria-expanded={isOpen}
+                      className="flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:bg-muted/20"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                          {group.key === '__none' ? <UserX className="h-5 w-5" /> : group.label.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{group.label}</p>
+                          <p className="text-xs text-muted-foreground">{group.rows.length} {group.rows.length === 1 ? 'empresa' : 'empresas'}</p>
+                        </div>
+                      </div>
+                      <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <div className="grid gap-4 border-t border-border p-5 sm:grid-cols-2">
+                      <div>
+                        <div className="mb-1 flex justify-between text-xs"><span className="text-muted-foreground">Conciliação</span><span>{group.reconciliationPercent == null ? 'Indisponível' : `${group.reconciliationPercent}%`}</span></div>
+                        <Progress value={group.reconciliationPercent ?? 0} className="h-1.5 bg-muted [&>div]:bg-success" />
+                      </div>
+                      <div>
+                        <div className="mb-1 flex justify-between text-xs"><span className="text-muted-foreground">Fechamento</span><span>{group.closingPercent == null ? 'Indisponível' : `${group.closingPercent}%`}</span></div>
+                        <Progress value={group.closingPercent ?? 0} className="h-1.5 bg-muted [&>div]:bg-warning" />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-4 text-xs font-semibold">
+                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.statusCounts.finalizado > 0 ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'}`}>
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {group.statusCounts.finalizado} finalizadas
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.statusCounts.atrasado > 0 ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+                        <Clock3 className="h-3.5 w-3.5" /> {group.statusCounts.atrasado} atrasadas
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.statusCounts.bloqueado > 0 ? 'bg-info/15 text-info' : 'bg-muted text-muted-foreground'}`}>
+                        <AlertCircle className="h-3.5 w-3.5" /> {group.statusCounts.bloqueado} aguardando cliente
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${group.pending > 0 ? 'bg-warning/15 text-warning' : 'bg-muted text-muted-foreground'}`}>
+                        {group.pending} pendências
+                      </span>
+                    </div>
+                    {isOpen && (
+                      <div className="divide-y divide-border border-t border-border">
+                        {group.rows.map(row => {
+                          const status = statusOf(row, month);
+                          return (
+                            <div key={row.school_id} className="flex items-center justify-between gap-3 px-5 py-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{row.school_name}</p>
+                                <span className={`mt-1 inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold ${statusStyles[status]}`}>{statusLabels[status]}</span>
+                              </div>
+                              <Button variant="outline" size="sm" onClick={() => openSchool(row.school_id)}>Acessar <ChevronRight className="ml-1 h-4 w-4" /></Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          ) : (
           <section className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm">
             {isError ? (
               <p className="p-8 text-center text-sm text-destructive">Não foi possível carregar a carteira.</p>
