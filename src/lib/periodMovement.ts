@@ -201,6 +201,10 @@ export function includeEntryForMonth(
     return entry.dataProjetada > cutoff;
   }
   if (source === 'historico') {
+    // Mês histórico é encerrado: previsões de upload nativo (contas a pagar,
+    // sponte, cartão, cheque) nunca entram — nem quando a categoria é uma
+    // Operação. Preserva exatamente o cálculo congelado desses meses.
+    if (ORIGENS_NATIVAS.has(entry.origem)) return false;
     const rule = resolveEntryLedgerRule(entry, classifications);
     // Somente operações — histórico não consolida operações.
     return rule.impactaCaixa && !rule.entraNoResultado;
