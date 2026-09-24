@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { School } from '@/types/financial';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -138,12 +138,25 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [newSchoolName, setNewSchoolName] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [stepsSchool, setStepsSchool] = useState<{ id: string; name: string } | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const { data: rows = [], isLoading, isError } = useManagementPortfolio(month, true);
   const { data: responsibleCandidates = [] } = useManagementResponsibleCandidates(isSuperAdmin);
   const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
+  const { data: stepTemplates = [] } = useClosingStepTemplates(true);
+  const ensureChecklist = useEnsureMonthlyChecklist();
   const setResponsible = useSetManagementResponsible(month);
   const setDisplayName = useSetManagementResponsibleDisplayName();
   const addSchool = useAddSchool();
+
+  // Gera as etapas do mês para empresas que ainda não têm (idempotente)
+  useEffect(() => {
+    if (stepTemplates.length === 0 || rows.length === 0) return;
+    rows.filter(row => row.closing_percent == null).forEach(row => {
+      ensureChecklist.mutate({ schoolId: row.school_id, month });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, stepTemplates.length, month]);
 
   const schoolById = useMemo(() => new Map(schools.map(school => [school.id, school])), [schools]);
   const candidatesBySchool = useMemo(() => {
