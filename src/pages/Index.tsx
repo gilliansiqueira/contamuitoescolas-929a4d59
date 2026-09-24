@@ -17,6 +17,7 @@ import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/Mobile
 import { AppSidebar, type SidebarGroup } from '@/components/app-shell/AppSidebar';
 import { AppHeader } from '@/components/app-shell/AppHeader';
 import { SchoolSelector } from '@/components/SchoolSelector';
+import { ManagementCenter } from '@/components/management/ManagementCenter';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
@@ -91,7 +92,7 @@ const SIDEBAR_COLLAPSED_KEY = 'cm-sidebar-collapsed';
 const Index = () => {
   const { isPresentationMode } = usePresentation();
   const { isDemo, demoSchoolId } = useDemoMode();
-  const { isAdmin: realIsAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
+  const { isAdmin: realIsAdmin, isSuperAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
   const isAdmin = isDemo ? false : realIsAdmin;
   const { data: allSchools = [], isError: schoolsError, isFetching: schoolsFetching, refetch: refetchSchools } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
@@ -131,6 +132,8 @@ const Index = () => {
               <span>Carregando demonstração...</span>
             )}
           </div>
+        ) : isAdmin ? (
+          <ManagementCenter schools={allSchools} onSelect={setSchool} onSignOut={signOut} />
         ) : (
           <SchoolSelector selectedSchool={null} onSelect={setSchool} />
         )}

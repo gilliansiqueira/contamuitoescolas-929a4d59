@@ -20,7 +20,7 @@ interface SchoolSelectorProps {
 
 export function SchoolSelector({ selectedSchool, onSelect }: SchoolSelectorProps) {
   const { isAdmin, isAdminAll, accessibleSchoolIds, profile } = useAuth();
-  const canDeleteSchool = profile?.email === 'adm@contamuito';
+  const canDeleteSchool = profile?.role === 'super_admin';
   const [deletePassword, setDeletePassword] = useState('');
   const { data: allSchools = [], isLoading } = useSchools();
   // Admin com escopo 'all' vê todas; demais (admins restritos e clientes) veem apenas as empresas vinculadas.
