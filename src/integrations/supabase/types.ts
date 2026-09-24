@@ -50,9 +50,12 @@ export type Database = {
         Row: {
           agencia: string | null
           ativa: boolean
+          auto_invest_saldo_data: string | null
+          auto_invest_saldo_inicial: number
           banco: string
           conta: string | null
           created_at: string
+          has_auto_invest: boolean
           id: string
           nome: string
           saldo_inicial: number
@@ -63,9 +66,12 @@ export type Database = {
         Insert: {
           agencia?: string | null
           ativa?: boolean
+          auto_invest_saldo_data?: string | null
+          auto_invest_saldo_inicial?: number
           banco?: string
           conta?: string | null
           created_at?: string
+          has_auto_invest?: boolean
           id?: string
           nome: string
           saldo_inicial?: number
@@ -76,9 +82,12 @@ export type Database = {
         Update: {
           agencia?: string | null
           ativa?: boolean
+          auto_invest_saldo_data?: string | null
+          auto_invest_saldo_inicial?: number
           banco?: string
           conta?: string | null
           created_at?: string
+          has_auto_invest?: boolean
           id?: string
           nome?: string
           saldo_inicial?: number
@@ -89,6 +98,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "bank_accounts_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_auto_invest_patterns: {
+        Row: {
+          created_at: string
+          id: string
+          padrao: string
+          school_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          padrao: string
+          school_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          padrao?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_auto_invest_patterns_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
@@ -161,6 +199,8 @@ export type Database = {
           inseridas: number
           periodo_fim: string | null
           periodo_inicio: string | null
+          saldo_aplicado_informado: number | null
+          saldo_final_informado: number | null
           school_id: string
           total_entradas: number
           total_linhas: number
@@ -179,6 +219,8 @@ export type Database = {
           inseridas?: number
           periodo_fim?: string | null
           periodo_inicio?: string | null
+          saldo_aplicado_informado?: number | null
+          saldo_final_informado?: number | null
           school_id: string
           total_entradas?: number
           total_linhas?: number
@@ -197,6 +239,8 @@ export type Database = {
           inseridas?: number
           periodo_fim?: string | null
           periodo_inicio?: string | null
+          saldo_aplicado_informado?: number | null
+          saldo_final_informado?: number | null
           school_id?: string
           total_entradas?: number
           total_linhas?: number
@@ -229,6 +273,7 @@ export type Database = {
           descricao: string
           id: string
           import_id: string
+          movement_kind: string
           recon_at: string | null
           recon_by: string | null
           recon_by_email: string | null
@@ -248,6 +293,7 @@ export type Database = {
           descricao: string
           id?: string
           import_id: string
+          movement_kind?: string
           recon_at?: string | null
           recon_by?: string | null
           recon_by_email?: string | null
@@ -267,6 +313,7 @@ export type Database = {
           descricao?: string
           id?: string
           import_id?: string
+          movement_kind?: string
           recon_at?: string | null
           recon_by?: string | null
           recon_by_email?: string | null
