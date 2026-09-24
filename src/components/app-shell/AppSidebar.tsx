@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
@@ -26,17 +26,10 @@ interface Props {
 
 /** Menu lateral laranja da plataforma. Apenas apresentação/navegação. */
 export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
-  const activeGroupKey = groups.find(g => g.items.some(i => i.active))?.key
-    ?? (footerGroup?.items.some(i => i.active) ? footerGroup.key : null);
+  // Grupos e Configurações começam fechados; a pessoa abre o que precisar.
+  // Quando um grupo está fechado mas contém o item ativo, o item ativo continua visível.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    if (activeGroupKey) {
-      setOpenGroups(prev => ({ ...prev, [activeGroupKey]: true }));
-      if (footerGroup?.key === activeGroupKey) setSettingsOpen(true);
-    }
-  }, [activeGroupKey, footerGroup?.key]);
 
   const toggleGroup = (key: string) =>
     setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
@@ -67,7 +60,7 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
 
   const renderGroup = (group: SidebarGroup) => {
     if (group.items.length === 0) return null;
-    const isOpen = collapsed || openGroups[group.key] !== false;
+    const isOpen = collapsed || openGroups[group.key] === true;
     const hasActive = group.items.some(i => i.active);
     return (
       <div key={group.key}>
@@ -109,6 +102,9 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
 
       {footerGroup && footerGroup.items.length > 0 && (
         <div className={`app-sidebar-divider border-t p-3 ${collapsed ? 'px-2' : ''}`}>
+          {!settingsOpen && footerGroup.items.some(i => i.active) && (
+            <div className="space-y-0.5 mb-1">{footerGroup.items.filter(i => i.active).map(renderItem)}</div>
+          )}
           {settingsOpen && (
             <div className="space-y-0.5 mb-1">{footerGroup.items.map(renderItem)}</div>
           )}
