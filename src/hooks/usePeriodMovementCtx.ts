@@ -10,6 +10,7 @@ import { useSchool, useTypeClassifications } from '@/hooks/useFinancialData';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
+import { useCashflowAnchor } from '@/hooks/useCashflowAnchor';
 import type { PeriodMovementCtx, HistoricalRow } from '@/lib/periodMovement';
 
 export interface UsePeriodMovementCtx {
@@ -26,6 +27,7 @@ export function usePeriodMovementCtx(schoolId: string): UsePeriodMovementCtx {
   const { entries, isLoading: l1 } = useProjectedEntries(schoolId);
   const { data: classifications = [], isLoading: l2 } = useTypeClassifications(schoolId);
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
+  const cashflowAnchor = useCashflowAnchor(schoolId);
   const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
 
   const { data: historicalRowsRaw = [], isLoading: l3 } = useQuery({
@@ -54,7 +56,8 @@ export function usePeriodMovementCtx(schoolId: string): UsePeriodMovementCtx {
     modelItems,
     saldoInicialBase,
     saldoInicialBaseDate,
-  }), [entries, historicalRows, snapshotMap, classifications, modelItems, saldoInicialBase, saldoInicialBaseDate]);
+    cashflowAnchor,
+  }), [cashflowAnchor, entries, historicalRows, snapshotMap, classifications, modelItems, saldoInicialBase, saldoInicialBaseDate]);
 
   return { ctx, isInModel, hasModel, isLoading: l1 || l2 || l3 };
 }

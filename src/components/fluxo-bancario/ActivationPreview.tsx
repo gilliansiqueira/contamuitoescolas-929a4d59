@@ -8,7 +8,7 @@ import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
 import { useSetDataSourceStatus, type CashflowEntry, type DataSourceConfig } from '@/hooks/useBankPilot';
 import { projectEntries } from '@/lib/projectionEngine';
 import { applyCashflowOverlay } from '@/lib/bankCashflowOverlay';
-import { buildMonthMovement, computeSaldoInicial } from '@/lib/periodMovement';
+import { buildMonthMovement, computeSaldoInicial, computeSaldoInicialRealizado } from '@/lib/periodMovement';
 import { fmtBRL, fmtDate } from './shared';
 
 interface Props {
@@ -31,11 +31,13 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
 
   const p = useMemo(() => {
     const opts = { isInModel };
-    const mkCtx = (adj: number) => ({ ...ctx, entries: projectEntries(applyCashflowOverlay(raw, gen, start, schoolId, adj), rules, classifications, model) });
-    // Fechamento de agosto da planilha (sem ajuste) → diferença para o banco vira o ajuste de abertura.
-    const planIni = computeSaldoInicial(month, mkCtx(0), opts);
+    const entries = projectEntries(applyCashflowOverlay(raw, gen, start, schoolId), rules, classifications, model);
+    // Histórico antigo (sem âncora): só informativo.
+    const oldCtx = { ...ctx, entries, cashflowAnchor: undefined };
+    const planIni = computeSaldoInicial(month, oldCtx, opts);
+    const planIniReal = computeSaldoInicialRealizado(month, oldCtx, opts);
     const adjust = Math.round((bankIni - planIni) * 100) / 100;
-    const newCtx = mkCtx(adjust);
+    const newCtx = { ...ctx, entries, cashflowAnchor: { month, saldo: bankIni } };
     const mk = (c: typeof ctx) => {
       const mov = buildMonthMovement(month, c, opts);
       const ini = computeSaldoInicial(month, c, opts);
@@ -46,7 +48,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
     const ign = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo_nome === 'Ignorar')
       .reduce((s, e) => s + (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor), 0);
-    return { next: mk(newCtx), planIni, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass };
+    return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass };
   }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni]);
 
   const movOk = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov) === 0;
@@ -62,7 +64,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   );
   const m = p.next.mov;
 
-  const act = (s: 'ativo' | 'pausado') => setStatus.mutate(s === 'ativo' ? { status: 'ativo', openingAdjustment: p.adjust } : s, {
+  const act = (s: 'ativo' | 'pausado') => setStatus.mutate(s === 'ativo' ? { status: 'ativo', openingBalance: bankIni } : s, {
     onSuccess: () => toast.success(s === 'ativo' ? 'Fluxo de Caixa ativado no Dashboard e no Fluxo Diário' : 'Voltou a usar a planilha'),
     onError: (e: any) => toast.error(e.message ?? 'Erro'),
   });
@@ -105,7 +107,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {iniDiff === 0 ? 'Saldo inicial igual ao saldo do banco' : `Saldo inicial difere do banco em ${fmtBRL(iniDiff)}`}</li>
           <li>{fimOk ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-destructive" />}
             {fimOk ? 'Saldo final igual ao saldo do banco' : `Saldo final difere do banco em ${fmtBRL(p.next.fimReal - bankFim)}`}</li>
-          {p.adjust !== 0 && <li className="text-muted-foreground">Informativo: o fechamento de agosto da planilha ({fmtBRL(p.planIni)}) é diferente do banco em {fmtBRL(-p.adjust)}. Agosto não é alterado; setembro passa a começar pelo saldo do banco (ajuste de {fmtBRL(p.adjust)} registrado como operação fora do resultado em 31/08).</li>}
+          {(p.adjust !== 0 || r2(p.planIniReal - bankIni) !== 0) && <li className="text-muted-foreground">Informativo: o histórico antigo terminava agosto com {fmtBRL(p.planIni)} (projetado) e {fmtBRL(p.planIniReal)} (realizado); a diferença entre eles ({fmtBRL(p.planIniReal - p.planIni)}) vem de previsões antigas que nunca viraram realizado. Agosto não é alterado; com o Fluxo de Caixa, setembro começa pelo saldo do banco nos dois.</li>}
         </ul>
         {!active && !ok && <p className="text-xs text-muted-foreground">O botão de ativar libera quando saldo inicial, movimento e saldo final baterem com o banco e não houver nada a classificar.</p>}
       </>)}

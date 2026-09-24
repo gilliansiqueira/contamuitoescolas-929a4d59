@@ -162,6 +162,13 @@
       "when": 1790277269828,
       "tag": "0022_cashflow_opening_adjustment",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790277809141,
+      "tag": "0023_cashflow_opening_balance",
+      "breakpoints": true
     }
   ]
 }

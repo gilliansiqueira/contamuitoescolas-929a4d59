@@ -24,7 +24,6 @@ export interface CashflowOverlayRow {
  */
 export function applyCashflowOverlay(
   entries: FinancialEntry[], cashflow: CashflowOverlayRow[], startDate: string, schoolId: string,
-  openingAdjustment = 0,
 ): FinancialEntry[] {
   // Todo realizado antigo (planilha e lançamentos manuais) sai do cálculo a partir do corte.
   const kept = entries.filter(e => !((e.tipoRegistro ?? 'realizado') === 'realizado' && e.data >= startDate));
@@ -42,17 +41,5 @@ export function applyCashflowOverlay(
     tipoRegistro: 'realizado',
     editadoManualmente: false,
   } as FinancialEntry));
-  const adj = Math.round(openingAdjustment * 100) / 100;
-  if (adj !== 0) {
-    // Leva o saldo inicial da competência ao saldo do banco: operação só de caixa, fora do Resultado,
-    // no dia anterior ao corte. Nenhum dado é gravado.
-    added.push({
-      id: 'bcf-ajuste-saldo-inicial', data: dayBefore(startDate),
-      descricao: 'Ajuste para o saldo do banco (início do Fluxo de Caixa)', valor: Math.abs(adj),
-      tipo: adj > 0 ? 'entrada' : 'saida', categoria: 'fluxo_realizado', origem: 'fluxo' as FinancialEntry['origem'],
-      school_id: schoolId, tipoOriginal: adj > 0 ? AJUSTE_ENTRADA : AJUSTE_SAIDA,
-      tipoRegistro: 'realizado', editadoManualmente: false,
-    } as FinancialEntry);
-  }
   return [...kept, ...added].sort((a, b) => a.data.localeCompare(b.data));
 }

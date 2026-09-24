@@ -1,3 +1,4 @@
+import { useCashflowAnchor } from '@/hooks/useCashflowAnchor';
 /**
  * Wrapper trivial sobre a SSOT `periodMovement`.
  *
@@ -23,6 +24,7 @@ export function useSaldoInicialPeriodo(
   const { entries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
+  const cashflowAnchor = useCashflowAnchor(schoolId);
   const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
 
   const { data: historicalRowsRaw = [] } = useQuery({
@@ -53,10 +55,11 @@ export function useSaldoInicialPeriodo(
       modelItems,
       saldoInicialBase,
       saldoInicialBaseDate,
+      cashflowAnchor,
     };
     return computeSaldoInicial(selectedMonths[0], ctx, { isInModel });
   }, [
     entries, historicalRows, snapshotMap, classifications, modelItems,
-    saldoInicialBase, saldoInicialBaseDate, selectedMonths, isInModel,
+    saldoInicialBase, saldoInicialBaseDate, selectedMonths, isInModel, cashflowAnchor,
   ]);
 }
