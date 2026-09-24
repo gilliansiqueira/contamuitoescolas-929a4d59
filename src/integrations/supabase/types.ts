@@ -2880,6 +2880,14 @@ export type Database = {
           waiting_for_client: boolean
         }[]
       }
+      get_management_responsible_candidates: {
+        Args: never
+        Returns: {
+          email: string
+          school_id: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2909,6 +2917,14 @@ export type Database = {
       is_super_admin: { Args: never; Returns: boolean }
       set_bank_tx_splits: {
         Args: { _parts: Json; _tx_id: string }
+        Returns: undefined
+      }
+      set_management_responsible: {
+        Args: { _school_id: string; _user_id: string }
+        Returns: undefined
+      }
+      sync_school_management_responsible: {
+        Args: { _school_id: string }
         Returns: undefined
       }
       user_has_school_access: {
