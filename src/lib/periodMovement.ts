@@ -501,6 +501,7 @@ export function computeSaldoInicial(
   opts: { isInModel?: (label: string) => boolean } = {}
 ): number {
   const prev = prevMonth(month);
+  if (ctx.cashflowAnchor && month === ctx.cashflowAnchor.month) return ctx.cashflowAnchor.saldo;
   const baseMonth = resolveAnchorMonth(ctx);
   // Se o mês anterior é anterior à âncora, saldo inicial === âncora.
   if (!baseMonth || prev < baseMonth) return ctx.saldoInicialBase;
@@ -557,6 +558,7 @@ export function computeSaldoInicialRealizado(
   opts: { isInModel?: (label: string) => boolean } = {}
 ): number {
   const prev = prevMonth(month);
+  if (ctx.cashflowAnchor && month === ctx.cashflowAnchor.month) return ctx.cashflowAnchor.saldo;
   const baseMonth = resolveAnchorMonth(ctx);
   if (!baseMonth || prev < baseMonth) return ctx.saldoInicialBase;
   return computeSaldoFinalRealizado(prev, ctx, opts);

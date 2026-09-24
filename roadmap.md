@@ -57,4 +57,4 @@
 - [x] Troca de fonte reversível (só quando Ativo) e prévia com botão Aprovar/Pausar
 - [ ] Santa Mônica: equipe revisar prévia e clicar em Aprovar e ativar
 - [ ] Centro e Dourados: terminar divergências e repetir
-- [ ] Fluxo Diário Santa Mônica: saldo inicial da tabela diferente do cartão (âncora do banco)
+- [x] Fluxo Diário Santa Mônica: saldo inicial da tabela diferente do cartão (âncora do banco)
