@@ -99,6 +99,27 @@
       "when": 1790266535710,
       "tag": "0013_create_management_center",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790267622556,
+      "tag": "0014_automate_management_responsibles",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790267692650,
+      "tag": "0015_fix_responsible_uuid_selection",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790267736989,
+      "tag": "0016_sync_responsible_on_access_update",
+      "breakpoints": true
     }
   ]
 }
