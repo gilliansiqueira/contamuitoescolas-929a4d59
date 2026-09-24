@@ -64,15 +64,15 @@ Nada será alterado antes da sua aprovação e da confirmação do cliente abaix
 - O Relatório Realizado continua exatamente como está.
 
 ## 9. Etapas
-1. Confirmar o cliente e ler o "Fluxo de Caixa CM".
-2. Criar as tabelas novas, as regras de acesso e a opção do piloto, desligada.
-3. Tela de contas e importação de OFX, com conferência, anti-duplicidade e arquivo guardado.
-4. Importação de CSV/Excel (bancos e Stone) e depois de PDF.
-5. Transferências entre contas próprias: pares identificados automaticamente, com confirmação manual. Contam só no saldo da conta, fora de entradas e saídas do consolidado.
-6. Tabela de conciliação: individual, em lote, desfazer, "Não se aplica", filtros, totais pendentes e histórico.
-7. Ligar os extratos na fonte oficial do Dashboard e do Fluxo Diário do piloto: realizado até hoje, projetado depois, saldo por conta e consolidado, "atualizado até" por conta.
-8. Cartões do Dashboard do piloto.
-9. Ligar a opção só para Dourados e validar.
+1. Criar as tabelas novas, as regras de acesso e a opção do piloto, ainda desligada.
+2. Criar a aba "Fluxo Bancário" (só administradores e só no piloto) com a parte de Contas e Extratos.
+3. Importação de OFX, com conferência, anti-duplicidade e arquivo guardado.
+4. Importação de CSV/Excel (bancos e Stone), depois de PDF.
+5. Transferências entre contas próprias: a plataforma sugere os pares e alguém confirma. Elas contam no saldo de cada conta, mas ficam fora das entradas e saídas do consolidado.
+6. Tabela de movimentações e conciliação: individual, em lote, desfazer, "Não se aplica", filtros, totais pendentes e histórico.
+7. Resumo da aba: saldos por conta e consolidado, "atualizado até", saldo projetado (usando os lançamentos futuros já existentes), % conciliado e pendências.
+8. Ligar a opção só para a Dourados e validar com vocês.
+9. **Segunda fase, com nova aprovação:** os extratos passam a alimentar o Dashboard e o Fluxo Diário, substituindo o upload consolidado a partir de uma data de corte.
 
 ## 10. Testes antes de liberar
 - Reimportar o mesmo arquivo não cria nenhum lançamento a mais.
@@ -80,20 +80,17 @@ Nada será alterado antes da sua aprovação e da confirmação do cliente abaix
 - A conciliação não muda valor, data, saldo nem quantidade de lançamentos. Um teste compara o saldo antes e depois.
 - Transferências entre contas não entram em entradas e saídas do consolidado.
 - Saldo por conta igual ao saldo final do extrato do banco.
-- Os números de outro cliente, comparados antes e depois, ficam idênticos.
-- O cliente não consegue alterar a conciliação.
-- O Relatório Realizado de Dourados fica idêntico.
-- PDF do mês fecha com o Dashboard.
+- Com uma conta de cliente, a aba não aparece e as tabelas novas não podem ser lidas.
+- Dashboard, Fluxo Diário, Relatório Realizado e PDF da Dourados ficam idênticos aos de antes.
+- Outro cliente, comparado antes e depois, fica idêntico.
 
 ## 11. Como reverter
-- Desligar a opção da Dourados faz tudo voltar na hora ao funcionamento atual, sem apagar nada.
-- As tabelas novas ficam guardadas e não mexem em dados existentes.
-- A planilha consolidada antiga continua disponível como fonte, se for preciso voltar.
+- Desligar a opção da Dourados esconde a aba na hora, sem apagar nada.
+- As tabelas novas ficam separadas e não mexem em dados existentes.
+- Nesta fase, nenhum número do Dashboard depende dos extratos, então não há nada a desfazer nos relatórios.
 
 ## 12. O que preciso de você
-- Confirmação: Dourados = `08d994fd-...`.
-- Mover o "Fluxo de Caixa CM" para o mesmo espaço de trabalho.
+- Confirmação: Dourados = `08d994fd-c1ca-448f-9e22-95810bb29ab4`.
 - Um extrato real de cada conta e da Stone (OFX, CSV/Excel e PDF), de preferência de um mês já conferido.
 - A lista das contas da Dourados, com o saldo de cada uma numa data de referência.
-- A data de corte a partir da qual os extratos substituem a planilha consolidada.
 - Os e-mails de quem pode conciliar, se não forem todos os administradores.
