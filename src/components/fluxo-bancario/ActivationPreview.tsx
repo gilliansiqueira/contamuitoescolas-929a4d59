@@ -82,7 +82,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {row('Despesas realizadas', p.plan.mov.despesasRealizadas, p.next.mov.despesasRealizadas)}
             {row('Movimento realizado no caixa', p.plan.mov.saldoMovimentoRealizado, p.next.mov.saldoMovimentoRealizado, p.bankMov)}
             {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.plan.fimReal, p.next.fimReal, bankFim)}
-            {row('Resultado do mês (com projeção)', p.plan.mov.resultado, p.next.mov.resultado)}
+            {row('Resultado realizado', p.plan.mov.receitasRealizadas - p.plan.mov.despesasRealizadas, p.next.mov.receitasRealizadas - p.next.mov.despesasRealizadas)}
           </tbody></table></div>
 
         <ul className="space-y-1 text-sm">
