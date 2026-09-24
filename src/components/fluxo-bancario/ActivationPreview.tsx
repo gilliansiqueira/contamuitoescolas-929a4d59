@@ -30,7 +30,6 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   const setStatus = useSetDataSourceStatus(schoolId);
 
   const p = useMemo(() => {
-    const planCtx = { ...ctx, entries: projectEntries(raw, rules, classifications, model) };
     const newCtx = { ...ctx, entries: projectEntries(applyCashflowOverlay(raw, gen, start, schoolId), rules, classifications, model) };
     const opts = { isInModel };
     const mk = (c: typeof ctx) => {
@@ -41,7 +40,9 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const genIn = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const genOut = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
-    return { plan: mk(planCtx), next: mk(newCtx), bankMov: genIn - genOut, aClass };
+    const ign = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo_nome === 'Ignorar')
+      .reduce((s, e) => s + (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor), 0);
+    return { next: mk(newCtx), bankMov: genIn - genOut, genIn, genOut, ign, aClass };
   }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo]);
 
   const movOk = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov) === 0;
@@ -49,12 +50,12 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   const ok = movOk && p.aClass.length === 0;
   const active = cfg.status === 'ativo';
 
-  const row = (label: string, a: number, b: number, bank?: number) => (
+  const row = (label: string, v: number, bank?: number) => (
     <tr className="border-t border-border"><td className="py-1.5">{label}</td>
-      <td className="text-right tabular-nums text-muted-foreground">{fmtBRL(a)}</td>
-      <td className="text-right font-semibold tabular-nums">{fmtBRL(b)}</td>
+      <td className="text-right font-semibold tabular-nums">{fmtBRL(v)}</td>
       <td className="text-right tabular-nums">{bank === undefined ? '—' : fmtBRL(bank)}</td></tr>
   );
+  const m = p.next.mov;
 
   const act = (s: 'ativo' | 'pausado') => setStatus.mutate(s, {
     onSuccess: () => toast.success(s === 'ativo' ? 'Fluxo de Caixa ativado no Dashboard e no Fluxo Diário' : 'Voltou a usar a planilha'),
@@ -75,14 +76,18 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
 
       {isLoading ? <p className="text-sm text-muted-foreground">Calculando prévia…</p> : (<>
         <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="text-xs text-muted-foreground"><th className="text-left font-medium">Mês</th><th className="text-right font-medium">Hoje (planilha)</th><th className="text-right font-medium">Com o Fluxo de Caixa</th><th className="text-right font-medium">Banco</th></tr></thead>
+          <thead><tr className="text-xs text-muted-foreground"><th className="text-left font-medium">Mês</th><th className="text-right font-medium">Dashboard / Fluxo Diário</th><th className="text-right font-medium">Banco</th></tr></thead>
           <tbody>
-            {row('Saldo inicial', p.plan.ini, p.next.ini, bankIni)}
-            {row('Receitas realizadas', p.plan.mov.receitasRealizadas, p.next.mov.receitasRealizadas)}
-            {row('Despesas realizadas', p.plan.mov.despesasRealizadas, p.next.mov.despesasRealizadas)}
-            {row('Movimento realizado no caixa', p.plan.mov.saldoMovimentoRealizado, p.next.mov.saldoMovimentoRealizado, p.bankMov)}
-            {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.plan.fimReal, p.next.fimReal, bankFim)}
-            {row('Resultado realizado', p.plan.mov.receitasRealizadas - p.plan.mov.despesasRealizadas, p.next.mov.receitasRealizadas - p.next.mov.despesasRealizadas)}
+            {row('Saldo inicial (fechamento de agosto)', p.next.ini, bankIni)}
+            {row('Entradas no banco', p.genIn, p.genIn)}
+            {row('Saídas no banco', p.genOut, p.genOut)}
+            {row('Receitas realizadas', m.receitasRealizadas)}
+            {row('Despesas realizadas', m.despesasRealizadas)}
+            {row('Resultado realizado', m.receitasRealizadas - m.despesasRealizadas)}
+            {row('Operações fora do resultado (inclui ignoradas do banco)', m.operacoesIn - m.operacoesOut)}
+            {row('   dessas, Movimentações ignoradas (banco)', p.ign)}
+            {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
+            {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.next.fimReal, bankFim)}
           </tbody></table></div>
 
         <ul className="space-y-1 text-sm">
@@ -91,7 +96,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
           <li>{p.aClass.length === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {p.aClass.length === 0 ? 'Nenhuma movimentação a classificar' : `${p.aClass.length} movimentações ainda a classificar`}</li>
           <li>{iniDiff === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
-            {iniDiff === 0 ? 'Saldo inicial do Dashboard igual ao saldo do banco' : `Saldo inicial do Dashboard (vem de agosto, congelado) difere do banco em ${fmtBRL(iniDiff)} — isso aparece igual antes e depois da troca`}</li>
+            {iniDiff === 0 ? 'Saldo inicial do Dashboard igual ao saldo do banco' : `Saldo inicial do Dashboard (vem de agosto, congelado) difere do banco em ${fmtBRL(iniDiff)} — apenas informativo, não impede a ativação`}</li>
         </ul>
         {!active && !ok && <p className="text-xs text-muted-foreground">O botão de ativar libera quando o movimento bater com o banco e não houver nada a classificar.</p>}
       </>)}
