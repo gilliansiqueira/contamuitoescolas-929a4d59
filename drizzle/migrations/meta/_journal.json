@@ -134,6 +134,20 @@
       "when": 1790271776997,
       "tag": "0018_responsible_includes_principal_school",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790273283226,
+      "tag": "0019_bank_cashflow_integration_structure",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790273340166,
+      "tag": "0020_bank_split_model_item_rpc",
+      "breakpoints": true
     }
   ]
 }

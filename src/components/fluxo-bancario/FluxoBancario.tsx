@@ -6,6 +6,8 @@ import { summarize, accountBalances, lastDateByAccount } from '@/lib/bankStateme
 import { fmtBRL, fmtDate, todayIso } from './shared';
 import { BankTransactionsTable, type TableFocus } from './BankTransactionsTable';
 import { BankAccountsImports } from './BankAccountsImports';
+import { CashflowConference } from './CashflowConference';
+import { useDataSource } from '@/hooks/useBankPilot';
 import { Landmark, ShieldCheck } from 'lucide-react';
 
 interface Props { schoolId: string; selectedMonth: string }
@@ -22,6 +24,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const { entries: projected } = useProjectedEntries(schoolId);
   const { data: imports = [] } = useBankImports(schoolId);
   const today = todayIso();
+  const { data: source } = useDataSource(schoolId);
   const [tab, setTab] = useState('resumo');
   const [focus, setFocus] = useState<TableFocus | null>(null);
   const hasInMonth = txs.some(t => t.data.startsWith(selectedMonth.slice(0, 7)));
@@ -63,7 +66,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
           <h2 className="font-display text-lg font-bold text-foreground">Fluxo Bancário</h2>
           <span className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-foreground">Piloto</span>
         </div>
-        <p className="flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> Visível apenas para administradores. Não altera Dashboard, Fluxo Diário nem relatórios.</p>
+        <p className="flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" /> Visível apenas para administradores. {source?.status === 'ativo' ? 'Alimenta o Dashboard e o Fluxo Diário.' : 'Ainda não altera Dashboard, Fluxo Diário nem relatórios.'}</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -71,6 +74,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
           <TabsTrigger value="resumo">Resumo</TabsTrigger>
           <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
           <TabsTrigger value="contas">Contas e Extratos</TabsTrigger>
+          {source && <TabsTrigger value="conferencia">Conferência Dashboard</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="resumo" className="space-y-4">
@@ -129,6 +133,10 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
 
         <TabsContent value="movimentacoes">
           <BankTransactionsTable schoolId={schoolId} accounts={accounts} txs={txs} defaultFrom={tableRange.from} defaultTo={tableRange.to} focus={focus} />
+        </TabsContent>
+
+        <TabsContent value="conferencia">
+          <CashflowConference schoolId={schoolId} accounts={accounts} txs={txs} />
         </TabsContent>
 
         <TabsContent value="contas">

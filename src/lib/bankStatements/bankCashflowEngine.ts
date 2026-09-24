@@ -20,7 +20,7 @@ export interface BankAccount {
 
 export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar' | 'transferencia';
 export type SplitCategoria = 'normal' | 'operacao' | 'ignorar';
-export interface BankSplit { id: string; valor: number; categoria: SplitCategoria; descricao: string | null; note: string | null; sort_order: number }
+export interface BankSplit { id: string; valor: number; categoria: SplitCategoria; descricao: string | null; note: string | null; sort_order: number; model_item_id?: string | null }
 export const isAutoInvest = (t: Pick<BankTx, 'movement_kind'>) => t.movement_kind === 'auto_aplicacao' || t.movement_kind === 'auto_resgate';
 /** Operação: fora de entradas/saídas realizadas, mas continua no saldo (igual às Operações do Dashboard). */
 export const isOperacao = (t: Pick<BankTx, 'movement_kind'>) => t.movement_kind === 'operacao';
@@ -38,6 +38,7 @@ export interface BankTx {
   tipo: 'entrada' | 'saida';
   transfer_pair_id: string | null;
   recon_status: ReconStatus;
+  model_item_id?: string | null;
   recon_by_email: string | null;
   recon_at: string | null;
   recon_note: string | null;
