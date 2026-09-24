@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 
@@ -29,12 +29,14 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
   const activeGroupKey = groups.find(g => g.items.some(i => i.active))?.key
     ?? (footerGroup?.items.some(i => i.active) ? footerGroup.key : null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (activeGroupKey) {
       setOpenGroups(prev => ({ ...prev, [activeGroupKey]: true }));
+      if (footerGroup?.key === activeGroupKey) setSettingsOpen(true);
     }
-  }, [activeGroupKey]);
+  }, [activeGroupKey, footerGroup?.key]);
 
   const toggleGroup = (key: string) =>
     setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
@@ -107,12 +109,30 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
 
       {footerGroup && footerGroup.items.length > 0 && (
         <div className={`app-sidebar-divider border-t p-3 ${collapsed ? 'px-2' : ''}`}>
-          {!collapsed && (
-            <p className="app-sidebar-group-label px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest">
-              {footerGroup.title}
-            </p>
+          {settingsOpen && (
+            <div className="space-y-0.5 mb-1">{footerGroup.items.map(renderItem)}</div>
           )}
-          <div className="space-y-0.5">{footerGroup.items.map(renderItem)}</div>
+          {(() => {
+            const gearBtn = (
+              <button
+                onClick={() => setSettingsOpen(prev => !prev)}
+                title={collapsed ? footerGroup.title : undefined}
+                className={`app-sidebar-item w-full flex items-center gap-3 rounded-lg text-sm transition-colors ${
+                  collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2'
+                } ${footerGroup.items.some(i => i.active) ? 'app-sidebar-item-active font-semibold shadow-sm' : ''}`}
+              >
+                <Settings className="w-5 h-5 shrink-0" />
+                {!collapsed && <span className="truncate">{footerGroup.title}</span>}
+              </button>
+            );
+            if (!collapsed) return gearBtn;
+            return (
+              <Tooltip delayDuration={150}>
+                <TooltipTrigger asChild>{gearBtn}</TooltipTrigger>
+                <TooltipContent side="right">{footerGroup.title}</TooltipContent>
+              </Tooltip>
+            );
+          })()}
         </div>
       )}
     </aside>
