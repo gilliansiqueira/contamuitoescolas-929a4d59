@@ -183,6 +183,13 @@
       "when": 1790279331827,
       "tag": "0025_closing_step_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790279675279,
+      "tag": "0026_fix_ensure_checklist_source",
+      "breakpoints": true
     }
   ]
 }
