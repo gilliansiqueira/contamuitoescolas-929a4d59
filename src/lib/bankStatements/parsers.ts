@@ -19,6 +19,7 @@ export interface BankParseResult {
   periodoInicio?: string;
   periodoFim?: string;
   saldoFinalInformado?: number;
+  saldoDisponivelInformado?: number;
   transactions: ParsedBankTx[];
   avisos: string[];
 }
@@ -80,7 +81,8 @@ export function parseOFX(content: string): BankParseResult {
     txs.push({ data, descricao: memo || 'Transação', valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada', bankRef: fitid || undefined });
   }
   const bal = content.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
-  return finish('ofx', txs, { banco: bank, saldoFinalInformado: bal ? parseBRNumber(bal) : undefined });
+  const avail = content.match(/<AVAILBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
+  return finish('ofx', txs, { banco: bank, saldoFinalInformado: bal ? parseBRNumber(bal) : undefined, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
 }
 
 function findHeader(headers: string[], candidates: string[], exclude: number[] = []): number {

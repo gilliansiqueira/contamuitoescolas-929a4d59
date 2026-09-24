@@ -6,10 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight } from 'lucide-react';
+import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight, PiggyBank } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSetReconStatus, useSetTransferPair, fetchReconHistory } from '@/hooks/useBankPilot';
-import { runningBalances, suggestTransferPairs, type BankAccount, type BankTx, type ReconStatus } from '@/lib/bankStatements/bankCashflowEngine';
+import { useSetReconStatus, useSetTransferPair, useSetMovementKind, fetchReconHistory } from '@/hooks/useBankPilot';
+import { runningBalances, suggestTransferPairs, isAutoInvest, type BankAccount, type BankTx, type ReconStatus } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
 
 interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string }
@@ -25,6 +25,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [noteText, setNoteText] = useState('');
   const [history, setHistory] = useState<{ tx: BankTx; rows: Awaited<ReturnType<typeof fetchReconHistory>> } | null>(null);
   const [showPairs, setShowPairs] = useState(false);
+  const [showAuto, setShowAuto] = useState(false);
+  const setKind = useSetMovementKind(schoolId);
   const setRecon = useSetReconStatus(schoolId);
   const setPair = useSetTransferPair(schoolId);
 
@@ -34,9 +36,10 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return txs
-      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || t.descricao.toLowerCase().includes(q)))
+      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || t.descricao.toLowerCase().includes(q)) && (showAuto || !isAutoInvest(t)))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-  }, [txs, accountId, from, to, status, search]);
+  }, [txs, accountId, from, to, status, search, showAuto]);
+  const autoCount = txs.filter(t => isAutoInvest(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to).length;
 
   const pend = rows.filter(r => r.recon_status === 'pendente');
   const pendValor = pend.reduce((s, r) => s + Number(r.valor), 0);
@@ -82,6 +85,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {rows.length} lançamentos · <span className="font-semibold text-warning">{pend.length} pendentes ({fmtBRL(pendValor)})</span>
         </p>
         <div className="flex flex-wrap gap-2">
+          {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={showAuto} onCheckedChange={v => setShowAuto(!!v)} />Mostrar aplicações automáticas ({autoCount})</label>}
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
           <Button size="sm" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar selecionados ({selected.size})</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'nao_se_aplica')}><Ban className="mr-1 h-4 w-4" />Não se aplica</Button>
@@ -106,7 +110,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} /></td>
                 <td className="p-2 whitespace-nowrap">{fmtDate(t.data)}</td>
                 <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
-                <td className="p-2">{t.descricao}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}</td>
+                <td className="p-2">{t.descricao}{t.transfer_pair_id && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Transferência interna</span>}{isAutoInvest(t) && <span className="ml-1 rounded bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">{t.movement_kind === 'auto_aplicacao' ? 'Aplicação automática' : 'Resgate automático'}</span>}</td>
                 <td className="p-2 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums">{fmtBRL(balances.get(t.id) ?? 0)}</td>
@@ -125,6 +129,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                         {t.recon_status !== 'pendente' && <DropdownMenuItem onClick={() => apply([t.id], 'pendente')}><Undo2 className="mr-2 h-4 w-4" />Desfazer (pendente)</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className="mr-2 h-4 w-4" />Observação</DropdownMenuItem>
                         {t.transfer_pair_id && <DropdownMenuItem onClick={() => setPair.mutate({ ids: txs.filter(x => x.transfer_pair_id === t.transfer_pair_id).map(x => x.id), pairId: null })}><ArrowLeftRight className="mr-2 h-4 w-4" />Desfazer transferência interna</DropdownMenuItem>}
+                        {isAutoInvest(t)
+                          ? <DropdownMenuItem onClick={() => setKind.mutate({ ids: [t.id], kind: 'normal' })}><PiggyBank className="mr-2 h-4 w-4" />Não é aplicação automática</DropdownMenuItem>
+                          : !t.transfer_pair_id && <DropdownMenuItem onClick={() => setKind.mutate({ ids: [t.id], kind: t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate' })}><PiggyBank className="mr-2 h-4 w-4" />Marcar como aplicação automática</DropdownMenuItem>}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openHistory(t)}><History className="mr-2 h-4 w-4" />Histórico</DropdownMenuItem>
                       </DropdownMenuContent>

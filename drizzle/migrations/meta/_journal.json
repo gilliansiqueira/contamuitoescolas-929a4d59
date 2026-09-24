@@ -57,6 +57,13 @@
       "when": 1790253633348,
       "tag": "0007_bank_statements_storage_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790255076534,
+      "tag": "0008_bank_auto_invest",
+      "breakpoints": true
     }
   ]
 }
