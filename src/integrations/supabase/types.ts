@@ -46,6 +46,261 @@ export type Database = {
           },
         ]
       }
+      bank_accounts: {
+        Row: {
+          agencia: string | null
+          ativa: boolean
+          banco: string
+          conta: string | null
+          created_at: string
+          id: string
+          nome: string
+          saldo_inicial: number
+          saldo_inicial_data: string | null
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          agencia?: string | null
+          ativa?: boolean
+          banco?: string
+          conta?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          saldo_inicial?: number
+          saldo_inicial_data?: string | null
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          agencia?: string | null
+          ativa?: boolean
+          banco?: string
+          conta?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          saldo_inicial?: number
+          saldo_inicial_data?: string | null
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_reconciliation_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          changed_by_email: string | null
+          id: string
+          new_status: string
+          note: string | null
+          old_status: string | null
+          school_id: string
+          transaction_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_email?: string | null
+          id?: string
+          new_status: string
+          note?: string | null
+          old_status?: string | null
+          school_id: string
+          transaction_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_email?: string | null
+          id?: string
+          new_status?: string
+          note?: string | null
+          old_status?: string | null
+          school_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_reconciliation_history_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_history_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_statement_imports: {
+        Row: {
+          account_id: string
+          created_at: string
+          duplicadas: number
+          file_hash: string
+          file_name: string
+          file_path: string | null
+          formato: string
+          id: string
+          imported_by: string | null
+          inseridas: number
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          school_id: string
+          total_entradas: number
+          total_linhas: number
+          total_saidas: number
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          duplicadas?: number
+          file_hash: string
+          file_name: string
+          file_path?: string | null
+          formato: string
+          id?: string
+          imported_by?: string | null
+          inseridas?: number
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          school_id: string
+          total_entradas?: number
+          total_linhas?: number
+          total_saidas?: number
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          duplicadas?: number
+          file_hash?: string
+          file_name?: string
+          file_path?: string | null
+          formato?: string
+          id?: string
+          imported_by?: string | null
+          inseridas?: number
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          school_id?: string
+          total_entradas?: number
+          total_linhas?: number
+          total_saidas?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_statement_imports_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_statement_imports_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_transactions: {
+        Row: {
+          account_id: string
+          bank_ref: string | null
+          created_at: string
+          data: string
+          dedup_hash: string
+          descricao: string
+          id: string
+          import_id: string
+          recon_at: string | null
+          recon_by: string | null
+          recon_by_email: string | null
+          recon_note: string | null
+          recon_status: string
+          school_id: string
+          tipo: string
+          transfer_pair_id: string | null
+          valor: number
+        }
+        Insert: {
+          account_id: string
+          bank_ref?: string | null
+          created_at?: string
+          data: string
+          dedup_hash: string
+          descricao: string
+          id?: string
+          import_id: string
+          recon_at?: string | null
+          recon_by?: string | null
+          recon_by_email?: string | null
+          recon_note?: string | null
+          recon_status?: string
+          school_id: string
+          tipo: string
+          transfer_pair_id?: string | null
+          valor: number
+        }
+        Update: {
+          account_id?: string
+          bank_ref?: string | null
+          created_at?: string
+          data?: string
+          dedup_hash?: string
+          descricao?: string
+          id?: string
+          import_id?: string
+          recon_at?: string | null
+          recon_by?: string | null
+          recon_by_email?: string | null
+          recon_note?: string | null
+          recon_status?: string
+          school_id?: string
+          tipo?: string
+          transfer_pair_id?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statement_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_rules: {
         Row: {
           created_at: string
@@ -1858,6 +2113,38 @@ export type Database = {
           sort_order?: number
         }
         Relationships: []
+      }
+      school_features: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          feature_key: string
+          id: string
+          school_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          feature_key: string
+          id?: string
+          school_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          feature_key?: string
+          id?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_features_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       school_kpis: {
         Row: {
