@@ -91,9 +91,8 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {row('Receitas realizadas', m.receitasRealizadas)}
             {row('Despesas realizadas', m.despesasRealizadas)}
             {row('Resultado realizado', m.receitasRealizadas - m.despesasRealizadas)}
-            {row('Operações fora do resultado', m.operacoesIn - m.operacoesOut)}
-            <tr><td className="pb-1.5 pl-4 text-xs text-muted-foreground">já incluídas acima: movimentações ignoradas (banco)</td>
-              <td className="pb-1.5 text-right text-xs tabular-nums text-muted-foreground">{fmtBRL(p.ign)}</td><td /></tr>
+            {row('Operações fora do resultado', m.operacoesIn - m.operacoesOut - p.ign)}
+            {p.ign !== 0 && row('Ignorados (banco) — só no saldo', p.ign)}
             {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
             {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.next.fimReal, bankFim)}
           </tbody></table></div>
