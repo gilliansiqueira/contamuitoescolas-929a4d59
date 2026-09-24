@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllRows } from '@/lib/fetchAll';
-import { DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type ReconStatus, type MovementKind, type BankSplit, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
+import { autoTransferPairs, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type ReconStatus, type MovementKind, type BankSplit, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 
 export const BANK_PILOT_FEATURE = 'cashflow_bank_pilot';
 const db = supabase as any;
@@ -169,4 +169,17 @@ export function useOwnTransferNames(schoolId: string) {
       return (data ?? []) as { id: string; padrao: string }[];
     },
   });
+}
+
+/** Busca linhas sem par da escola e pareia automaticamente as transferências marcadas com a outra ponta. */
+export async function autoPairTransfers(schoolId: string): Promise<number> {
+  const rows = await fetchAllRows<any>('bank_transactions', q => q.eq('school_id', schoolId).is('transfer_pair_id', null),
+    1000, 'id, account_id, data, valor, tipo, transfer_pair_id, movement_kind');
+  const pairs = autoTransferPairs(rows);
+  for (const [a, b] of pairs) {
+    const pid = crypto.randomUUID();
+    const { error } = await db.from('bank_transactions').update({ movement_kind: 'transferencia', transfer_pair_id: pid }).in('id', [a.id, b.id]);
+    if (error) throw error;
+  }
+  return pairs.length;
 }

@@ -189,3 +189,40 @@ export function detectOwnTransfer(descricao: string, ownNames: string[]): boolea
   const d = norm(descricao);
   return ownNames.some(n => n.trim().length >= 3 && d.includes(norm(n)));
 }
+
+type PairTx = Pick<BankTx, 'id' | 'account_id' | 'data' | 'valor' | 'tipo' | 'transfer_pair_id' | 'movement_kind'>;
+const dDiff = (a: string, b: string) => Math.abs((Date.parse(a) - Date.parse(b)) / 86400000);
+const pairable = (t: PairTx) => !t.transfer_pair_id && !isAutoInvest(t) && t.movement_kind !== 'operacao' && t.movement_kind !== 'ignorar';
+
+/** Outra ponta: mesmo valor, sentido oposto, outra conta, até 2 dias; prefere data mais próxima e já marcada. */
+export function findTransferCounterpart<T extends PairTx>(tx: T, txs: T[], used: Set<string> = new Set()): T | null {
+  let best: T | null = null; let bestScore = Infinity;
+  for (const c of txs) {
+    if (c.id === tx.id || used.has(c.id) || !pairable(c) || c.account_id === tx.account_id || c.tipo === tx.tipo) continue;
+    if (Math.abs(Number(c.valor) - Number(tx.valor)) >= 0.005) continue;
+    const d = dDiff(c.data, tx.data); if (d > 2) continue;
+    const score = d - (c.movement_kind === 'transferencia' ? 0.5 : 0);
+    if (score < bestScore) { best = c; bestScore = score; }
+  }
+  return best;
+}
+
+/** Pares automáticos a partir das linhas marcadas como transferência que ainda não têm par. */
+export function autoTransferPairs<T extends PairTx>(txs: T[]): [T, T][] {
+  const used = new Set<string>(); const out: [T, T][] = [];
+  const anchors = txs.filter(t => t.movement_kind === 'transferencia' && pairable(t)).sort((a, b) => a.data.localeCompare(b.data));
+  for (const a of anchors) {
+    if (used.has(a.id)) continue;
+    const c = findTransferCounterpart(a, txs, used);
+    if (c) { used.add(a.id); used.add(c.id); out.push([a, c]); }
+  }
+  return out;
+}
+
+/** Sugestão de nome para "lembrar": trecho depois de "Cp :NNNN-" ou texto sem prefixos/números. */
+export function suggestOwnName(descricao: string): string {
+  const cp = descricao.match(/Cp\s*:\s*\d+\s*-\s*([^"|]+)/i);
+  let s = cp ? cp[1] : descricao.replace(/pix (recebido|enviado)|recebimento pix|pix_cred|transfer[êe]ncia|ted|doc|pagamento de titulo|[:"|\-]/gi, ' ');
+  s = s.replace(/\d{5,}/g, ' ').replace(/\b(ltda|me|eireli|s\/?a)\b\.?/gi, ' ').replace(/\s+/g, ' ').trim();
+  return s.toLowerCase();
+}

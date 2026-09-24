@@ -11,7 +11,7 @@ import { Plus, Upload, Trash2, Pencil, FileText, Download, AlertTriangle } from 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useBankImports, useInvalidateBank, useAutoInvestPatterns, useOwnTransferNames, useSetMovementKind } from '@/hooks/useBankPilot';
+import { useBankImports, useInvalidateBank, useAutoInvestPatterns, useOwnTransferNames, useSetMovementKind, autoPairTransfers } from '@/hooks/useBankPilot';
 import { Checkbox } from '@/components/ui/checkbox';
 import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, type BankParseResult } from '@/lib/bankStatements/parsers';
 import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
@@ -59,7 +59,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
   const removeOwn = async (id: string) => { await db.from('bank_own_transfer_names').delete().eq('id', id); invalidate(); };
   const ownCandidates = txs.filter(t => (t.movement_kind ?? 'normal') === 'normal' && !t.transfer_pair_id && !t.splits?.length && detectOwnTransfer(t.descricao, ownNames.map(n => n.padrao)));
   const applyOwnToExisting = async () => {
-    try { await setKindM.mutateAsync({ ids: ownCandidates.map(t => t.id), kind: 'transferencia' }); toast.success(`${ownCandidates.length} lançamento(s) marcados como transferência entre contas`); }
+    try { await setKindM.mutateAsync({ ids: ownCandidates.map(t => t.id), kind: 'transferencia' }); const np = await autoPairTransfers(schoolId); invalidate(); toast.success(`${ownCandidates.length} lançamento(s) marcados como transferência entre contas${np ? ` · ${np} par(es) encontrados` : ''}`); }
     catch (e: any) { toast.error(e.message ?? 'Erro'); }
   };
   const removePattern = async (id: string) => { await db.from('bank_auto_invest_patterns').delete().eq('id', id); invalidate(); };
@@ -136,6 +136,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const { error } = await db.from('bank_transactions').upsert(chunk, { onConflict: 'account_id,dedup_hash', ignoreDuplicates: true });
         if (error) { await db.from('bank_statement_imports').delete().eq('id', imp.id); throw error; }
       }
+      try { const np = await autoPairTransfers(schoolId); if (np) toast.info(`${np} transferência(s) entre contas pareadas com a outra ponta`); } catch { /* pareamento é opcional */ }
       { const autoN = novos.filter(n => n.k === 'auto_aplicacao' || n.k === 'auto_resgate').length;
         const trN = novos.filter(n => n.k === 'transferencia').length; if (trN) toast.info(`${trN} lançamento(s) pré-marcados como transferência entre contas`);
         toast.success(`${novos.length} lançamentos importados · ${result.transactions.length - novos.length} já existiam${autoN ? ` · ${autoN} pré-marcados como aplicação automática` : ''}`,

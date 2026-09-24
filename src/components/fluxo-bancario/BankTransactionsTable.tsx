@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +9,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Check, Ban, Undo2, History, MessageSquare, ArrowLeftRight, PiggyBank, Pencil, Layers, Split, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxText, useSetSplits, fetchReconHistory } from '@/hooks/useBankPilot';
-import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, isOwnTransfer, displayDesc, type BankAccount, type BankTx, type ReconStatus, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
+import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxText, useSetSplits, fetchReconHistory, autoPairTransfers, useInvalidateBank, useOwnTransferNames } from '@/hooks/useBankPilot';
+import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, isOwnTransfer, suggestOwnName, detectOwnTransfer, displayDesc, type BankAccount, type BankTx, type ReconStatus, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
@@ -70,6 +71,15 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     try {
       await setKind.mutateAsync({ ids, kind: kind as any });
       setSelected(new Set());
+      if (kind === 'transferencia') {
+        try { const np = await autoPairTransfers(schoolId); invalidateBank(); if (np) toast.info(`${np} transferência(s) pareadas com a outra ponta`); } catch { /* opcional */ }
+        const first = txs.find(x => x.id === ids[0]);
+        if (first && !detectOwnTransfer(first.descricao, ownNames.map(n => n.padrao))) setRememberName(suggestOwnName(first.descricao));
+      }
+      if (kind === 'normal' || kind === 'operacao' || kind === 'ignorar') {
+        const pairIds = [...new Set(ids.map(id => txs.find(x => x.id === id)?.transfer_pair_id).filter(Boolean))] as string[];
+        if (pairIds.length) { const pids = txs.filter(x => x.transfer_pair_id && pairIds.includes(x.transfer_pair_id)).map(x => x.id); await setPair.mutateAsync({ ids: pids, pairId: null }); }
+      }
       toast.success(`${ids.length} lançamento(s): ${KIND_LABEL[kind] ?? kind}`, {
         duration: 8000,
         action: { label: 'Desfazer', onClick: async () => {
@@ -81,6 +91,16 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     } catch (e: any) { toast.error(e.message ?? 'Erro'); }
   };
   const setKind = useSetMovementKind(schoolId);
+  const invalidateBank = useInvalidateBank(schoolId);
+  const { data: ownNames = [] } = useOwnTransferNames(schoolId);
+  const [rememberName, setRememberName] = useState<string | null>(null);
+  const saveOwnName = async () => {
+    const v = (rememberName ?? '').trim().toLowerCase();
+    if (v.length < 3) return toast.error('Use pelo menos 3 letras');
+    const { error } = await (supabase as any).from('bank_own_transfer_names').insert({ school_id: schoolId, padrao: v });
+    if (error && !String(error.message).includes('duplicate')) return toast.error(error.message);
+    toast.success(`"${v}" será reconhecido nos próximos extratos`); setRememberName(null); invalidateBank();
+  };
   const setRecon = useSetReconStatus(schoolId);
   const setPair = useSetTransferPair(schoolId);
 
@@ -153,6 +173,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <Button size="sm" variant="ghost" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'pendente')}><Undo2 className="mr-1 h-4 w-4" />Voltar a pendente</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !t.transfer_pair_id && !isAutoInvest(t); }), 'operacao')}><Layers className="mr-1 h-4 w-4" />Marcar como Operação</Button>
           <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => txs.find(x => x.id === id)?.movement_kind === 'operacao'), 'normal')}>Tirar de Operação</Button>
+          <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !isAutoInvest(t) && !t.splits?.length && t.movement_kind !== 'transferencia'; }), 'transferencia')}><ArrowLeftRight className="mr-1 h-4 w-4" />Marcar como transferência</Button>
+          <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && isOwnTransfer(t); }), 'normal')}>Tirar de transferência</Button>
         </div>
       </div>
 
@@ -277,6 +299,15 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
             {splitTx?.splits?.length ? <Button variant="ghost" disabled={setSplitsM.isPending} onClick={() => saveSplit(true)}>Desfazer divisão</Button> : null}
             <Button disabled={Math.abs(diff) >= 0.005 || parts.some(p => parseBR(p.valor) <= 0) || setSplitsM.isPending} onClick={() => saveSplit()}>Salvar</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rememberName !== null} onOpenChange={o => !o && setRememberName(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Lembrar este nome para os próximos extratos?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Lançamentos com este texto na descrição entrarão pré-marcados como transferência entre contas. Use o nome completo da empresa para não pegar fornecedores parecidos.</p>
+          <Input value={rememberName ?? ''} onChange={e => setRememberName(e.target.value)} />
+          <DialogFooter className="gap-2"><Button variant="ghost" onClick={() => setRememberName(null)}>Agora não</Button><Button onClick={saveOwnName}>Lembrar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
