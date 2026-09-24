@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { School } from '@/types/financial';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -10,6 +10,8 @@ import {
   type PortfolioRow,
 } from '@/hooks/useManagementPortfolio';
 import { useAddSchool } from '@/hooks/useFinancialData';
+import { useClosingStepTemplates, useEnsureMonthlyChecklist } from '@/hooks/useClosingSteps';
+import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -28,6 +30,7 @@ import {
   ChevronDown,
   Clock3,
   FileCheck2,
+  ListChecks,
   LogOut,
   Pencil,
   Plus,
@@ -135,12 +138,25 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [newSchoolName, setNewSchoolName] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [stepsSchool, setStepsSchool] = useState<{ id: string; name: string } | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const { data: rows = [], isLoading, isError } = useManagementPortfolio(month, true);
   const { data: responsibleCandidates = [] } = useManagementResponsibleCandidates(isSuperAdmin);
   const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
+  const { data: stepTemplates = [] } = useClosingStepTemplates(true);
+  const ensureChecklist = useEnsureMonthlyChecklist();
   const setResponsible = useSetManagementResponsible(month);
   const setDisplayName = useSetManagementResponsibleDisplayName();
   const addSchool = useAddSchool();
+
+  // Gera as etapas do mês para empresas que ainda não têm (idempotente)
+  useEffect(() => {
+    if (stepTemplates.length === 0 || rows.length === 0) return;
+    rows.filter(row => row.closing_percent == null).forEach(row => {
+      ensureChecklist.mutate({ schoolId: row.school_id, month });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, stepTemplates.length, month]);
 
   const schoolById = useMemo(() => new Map(schools.map(school => [school.id, school])), [schools]);
   const candidatesBySchool = useMemo(() => {
@@ -269,6 +285,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             <div><h1 className="text-2xl font-medium tracking-normal">Central de Clientes</h1><p className="mt-1 text-xs text-muted-foreground">Acompanhe a carteira e priorize o que precisa de atenção.</p></div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Período" type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-[168px] bg-card pl-9 text-xs" /></label>
+              {isSuperAdmin && <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setTemplatesOpen(true)}><ListChecks className="h-3.5 w-3.5" />Etapas padrão</Button>}
               {isSuperAdmin && <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" />Nova empresa</Button>}
               <div className="hidden items-center gap-1 lg:flex"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
             </div>
@@ -311,7 +328,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                       <div className="flex min-w-0 items-center gap-2"><span className={`h-2 w-2 shrink-0 rounded-full ${statusDotStyles[status]}`} /><span className="truncate font-medium">{row.school_name}</span></div>
                       <div className="min-w-0">{isSuperAdmin && candidates.length > 1 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{candidates.map(candidate => <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
                       <span className="text-muted-foreground"><span className="mr-1 lg:hidden">Atualizado:</span>{formatDate(row.data_updated_through)}</span>
-                      <div>{progress == null ? <span className="text-[11px] text-muted-foreground">{row.closing_percent == null ? 'Configurar etapas' : 'Indisponível'}</span> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-1.5 flex-1 bg-muted ${progress === 100 ? '[&>div]:bg-success' : '[&>div]:bg-warning'}`} /><span className="w-8 text-right text-[11px]">{progress}%</span></div>}</div>
+                      <div>{progress == null ? <button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"><ListChecks className="h-3 w-3" />{row.closing_percent == null ? 'Configurar etapas' : 'Indisponível'}</button> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-1.5 flex-1 bg-muted ${progress === 100 ? '[&>div]:bg-success' : '[&>div]:bg-warning'}`} /><span className="w-8 text-right text-[11px]">{progress}%</span><button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="text-muted-foreground hover:text-primary" aria-label={`Configurar etapas de ${row.school_name}`}><ListChecks className="h-3.5 w-3.5" /></button></div>}</div>
                       <div><span className={`inline-flex rounded-full px-2 py-1 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div>
                       <Button variant="ghost" size="sm" onClick={() => openSchool(row.school_id)} className="h-7 justify-start px-1 text-xs text-primary lg:justify-center">Abrir <ArrowRight className="ml-1 h-3 w-3" /></Button>
                     </div>;
@@ -325,6 +342,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
+      <ClosingStepTemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
+      <SchoolStepsDialog open={stepsSchool !== null} onOpenChange={open => { if (!open) setStepsSchool(null); }} schoolId={stepsSchool?.id ?? null} schoolName={stepsSchool?.name ?? ''} month={month} canEditTemplates={isSuperAdmin} />
     </div>
   );
 }
