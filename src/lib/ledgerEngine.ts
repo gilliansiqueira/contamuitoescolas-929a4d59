@@ -67,6 +67,10 @@ export const DEFAULT_MAPPINGS: Record<string, LedgerRule> = {
   'saque saida': { entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair' },
   'aporte saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
   'compra escola': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair' },
+  // Fluxo Bancário: "Ignorar" de um lançamento do banco fica fora do Resultado,
+  // mas o dinheiro passou pela conta — mexe só no saldo (usado apenas pelas linhas bcf-*).
+  'movimentacoes ignoradas (banco) - entrada': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar', label: 'Movimentações ignoradas (banco) - entrada' },
+  'movimentacoes ignoradas (banco) - saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Movimentações ignoradas (banco) - saída' },
 };
 
 /**

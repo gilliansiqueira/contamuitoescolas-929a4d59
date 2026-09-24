@@ -1,5 +1,8 @@
 import type { FinancialEntry } from '@/types/financial';
 
+export const IGNORADO_ENTRADA = 'Movimentações ignoradas (banco) - entrada';
+export const IGNORADO_SAIDA = 'Movimentações ignoradas (banco) - saída';
+
 export interface CashflowOverlayRow {
   id: string; data: string; descricao: string; valor: number; tipo: 'entrada' | 'saida'; tipo_nome: string;
 }
@@ -24,7 +27,8 @@ export function applyCashflowOverlay(
     categoria: 'fluxo_realizado',
     origem: 'fluxo' as FinancialEntry['origem'],
     school_id: schoolId,
-    tipoOriginal: c.tipo_nome,
+    // "Ignorar" no banco: fora do Resultado, mas mexe no saldo (o dinheiro passou pela conta).
+    tipoOriginal: c.tipo_nome === 'Ignorar' ? (c.tipo === 'entrada' ? IGNORADO_ENTRADA : IGNORADO_SAIDA) : c.tipo_nome,
     tipoRegistro: 'realizado',
     editadoManualmente: false,
   } as FinancialEntry));
