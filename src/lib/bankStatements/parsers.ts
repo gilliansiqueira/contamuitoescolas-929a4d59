@@ -273,10 +273,16 @@ async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   return out;
 }
 
+/** Bancos brasileiros costumam gerar OFX/CSV em Windows-1252; UTF-8 é usado só quando o arquivo é UTF-8 válido. */
+export function decodeBankText(buf: ArrayBuffer): string {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+  catch { return new TextDecoder('windows-1252').decode(buf); }
+}
+
 export async function parseBankFile(file: File): Promise<BankParseResult> {
   const name = file.name.toLowerCase();
-  if (name.endsWith('.ofx')) return parseOFX(await file.text());
-  if (name.endsWith('.csv') || name.endsWith('.txt')) return parseCSV(await file.text());
+  if (name.endsWith('.ofx')) return parseOFX(decodeBankText(await file.arrayBuffer()));
+  if (name.endsWith('.csv') || name.endsWith('.txt')) return parseCSV(decodeBankText(await file.arrayBuffer()));
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) return parseXLSX(await file.arrayBuffer());
   if (name.endsWith('.pdf')) return parsePdfLines(await readPdfLines(await file.arrayBuffer()));
   throw new Error('Formato não suportado. Use OFX, CSV, Excel ou PDF.');

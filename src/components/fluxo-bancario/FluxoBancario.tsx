@@ -22,7 +22,10 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const { entries: projected } = useProjectedEntries(schoolId);
   const { data: imports = [] } = useBankImports(schoolId);
   const today = todayIso();
+  const hasInMonth = txs.some(t => t.data.startsWith(selectedMonth.slice(0, 7)));
+  const lastTxDate = txs.reduce((m, t) => (t.data > m ? t.data : m), '');
   const { from, to } = monthRange(selectedMonth);
+  const tableRange = !hasInMonth && lastTxDate ? monthRange(lastTxDate) : { from, to };
   const active = accounts.filter(a => a.ativa);
 
   const summary = useMemo(() => summarize(active, txs, from, to, today), [active, txs, from, to, today]);
@@ -121,7 +124,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
         </TabsContent>
 
         <TabsContent value="movimentacoes">
-          <BankTransactionsTable schoolId={schoolId} accounts={accounts} txs={txs} defaultFrom={from} defaultTo={to} />
+          <BankTransactionsTable schoolId={schoolId} accounts={accounts} txs={txs} defaultFrom={tableRange.from} defaultTo={tableRange.to} />
         </TabsContent>
 
         <TabsContent value="contas">

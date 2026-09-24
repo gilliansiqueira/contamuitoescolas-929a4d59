@@ -81,7 +81,7 @@ export function BankAccountsImports({ schoolId, accounts }: Props) {
         const { data } = await db.from('bank_transactions').select('dedup_hash').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
         (data ?? []).forEach((r: any) => existing.add(r.dedup_hash));
       }
-      const acc = accounts.find(a => a.id === accountId);
+      const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
       const pats = patterns?.all ?? DEFAULT_AUTO_INVEST_PATTERNS;
       const kinds = result.transactions.map(t => acc?.has_auto_invest ? detectMovementKind(t.descricao, t.tipo, pats) : 'normal' as MovementKind);
       setPreview({ file, hash, result, hashes, existing, kinds, saldoAplicado: '' });

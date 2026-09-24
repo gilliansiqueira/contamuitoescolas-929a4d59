@@ -149,7 +149,7 @@ export function suggestTransferPairs(txs: BankTx[]): [BankTx, BankTx][] {
   return pairs;
 }
 
-export const DEFAULT_AUTO_INVEST_PATTERNS = ['bb rende facil', 'aplicacao automatica', 'resgate automatico', 'aplic aut', 'resg aut', 'invest facil', 'aplicacao programada', 'resgate programado'];
+export const DEFAULT_AUTO_INVEST_PATTERNS = ['bb rende facil', 'bb rende f', 'aplicacao automatica', 'resgate automatico', 'aplic aut', 'resg aut', 'invest facil', 'aplicacao programada', 'resgate programado'];
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
