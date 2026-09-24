@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -129,6 +129,17 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   };
 
   const toggleAll = () => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => r.id)));
+
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [tableWidth, setTableWidth] = useState(0);
+  useEffect(() => {
+    const el = tableRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => setTableWidth(el.scrollWidth));
+    ro.observe(el); setTableWidth(el.scrollWidth);
+    return () => ro.disconnect();
+  }, []);
 
   const openHistory = async (tx: BankTx) => {
     try { setHistory({ tx, rows: await fetchReconHistory(tx.id) }); } catch { toast.error('Erro ao carregar histórico'); }
