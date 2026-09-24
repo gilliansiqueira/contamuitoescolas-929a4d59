@@ -1,5 +1,8 @@
 import type { FinancialEntry } from '@/types/financial';
 
+export const IGNORADO_ENTRADA = 'Movimentações ignoradas (banco) - entrada';
+export const IGNORADO_SAIDA = 'Movimentações ignoradas (banco) - saída';
+
 export interface CashflowOverlayRow {
   id: string; data: string; descricao: string; valor: number; tipo: 'entrada' | 'saida'; tipo_nome: string;
 }
