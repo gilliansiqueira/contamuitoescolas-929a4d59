@@ -24,7 +24,8 @@ export function applyCashflowOverlay(
     categoria: 'fluxo_realizado',
     origem: 'fluxo' as FinancialEntry['origem'],
     school_id: schoolId,
-    tipoOriginal: c.tipo_nome,
+    // "Ignorar" no banco: fora do Resultado, mas mexe no saldo (o dinheiro passou pela conta).
+    tipoOriginal: c.tipo_nome === 'Ignorar' ? (c.tipo === 'entrada' ? IGNORADO_ENTRADA : IGNORADO_SAIDA) : c.tipo_nome,
     tipoRegistro: 'realizado',
     editadoManualmente: false,
   } as FinancialEntry));
