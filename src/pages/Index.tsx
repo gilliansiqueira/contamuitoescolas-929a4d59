@@ -5,6 +5,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { PresentationToggle } from '@/components/PresentationToggle';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
+import { useSchoolFeature, BANK_PILOT_FEATURE } from '@/hooks/useBankPilot';
 import { useSchools } from '@/hooks/useFinancialData';
 import { useDemoMode } from '@/contexts/DemoModeContext';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -21,7 +22,7 @@ import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
 import { MobileNavSheet, type NavSheetSection } from '@/components/mobile/MobileNavSheet';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard, ChevronDown,
-  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon, Database,
+  CalendarDays, TableProperties, TrendingUp, Table2, FileBarChart, LogOut, MoreHorizontal, Menu as MenuIcon, Database, Landmark,
 } from 'lucide-react';
 import contaMuitoLogo from '@/assets/logo-conta-muito.png';
 import { motion, AnimatePresence } from 'framer-motion';
