@@ -225,6 +225,13 @@
       "when": 1790344620058,
       "tag": "0031_perf_keyset_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790344649785,
+      "tag": "0032_perf_rls_initplan",
+      "breakpoints": true
     }
   ]
 }
