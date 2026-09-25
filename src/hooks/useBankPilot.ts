@@ -22,9 +22,13 @@ export function useBankAccounts(schoolId: string) {
   return useQuery({
     queryKey: ['bankAccounts', schoolId],
     queryFn: async () => {
-      const { data, error } = await db.from('bank_accounts').select('*').eq('school_id', schoolId).order('sort_order').order('created_at');
+      const [{ data, error }, { data: anc, error: e2 }] = await Promise.all([
+        db.from('bank_accounts').select('*').eq('school_id', schoolId).order('sort_order').order('created_at'),
+        db.from('bank_account_balances').select('id, account_id, data, saldo_conta, saldo_aplicado').eq('school_id', schoolId).eq('origem', 'conferencia'),
+      ]);
       if (error) throw error;
-      return (data ?? []) as BankAccount[];
+      if (e2) throw e2;
+      return ((data ?? []) as BankAccount[]).map(a => ({ ...a, anchors: (anc ?? []).filter((x: any) => x.account_id === a.id) }));
     },
   });
 }
