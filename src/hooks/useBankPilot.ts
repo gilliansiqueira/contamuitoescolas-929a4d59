@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllRows } from '@/lib/fetchAll';
-import { autoTransferPairs, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type ReconStatus, type MovementKind, type BankSplit, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
+import { autoTransferPairs, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BalanceAnchor, type BankTx, type ReconStatus, type MovementKind, type BankSplit, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 
 export const BANK_PILOT_FEATURE = 'cashflow_bank_pilot';
 const db = supabase as any;
@@ -22,13 +22,25 @@ export function useBankAccounts(schoolId: string) {
   return useQuery({
     queryKey: ['bankAccounts', schoolId],
     queryFn: async () => {
-      const [{ data, error }, { data: anc, error: e2 }] = await Promise.all([
+      const [{ data, error }, { data: imps, error: e2 }] = await Promise.all([
         db.from('bank_accounts').select('*').eq('school_id', schoolId).order('sort_order').order('created_at'),
-        db.from('bank_account_balances').select('id, account_id, data, saldo_conta, saldo_aplicado').eq('school_id', schoolId).eq('origem', 'conferencia'),
+        db.from('bank_statement_imports').select('id, account_id, periodo_fim, saldo_final_informado, saldo_aplicado_informado, created_at')
+          .eq('school_id', schoolId).gte('periodo_fim', '2026-09-01').not('saldo_final_informado', 'is', null).order('created_at'),
       ]);
       if (error) throw error;
       if (e2) throw e2;
-      return ((data ?? []) as BankAccount[]).map(a => ({ ...a, anchors: (anc ?? []).filter((x: any) => x.account_id === a.id) }));
+      // Saldo informado no próprio extrato = saldo oficial da conta no último dia do arquivo (automático).
+      return ((data ?? []) as BankAccount[]).map(a => {
+        const byDate = new Map<string, BalanceAnchor>();
+        for (const i of (imps ?? []) as any[]) {
+          if (i.account_id !== a.id) continue;
+          const conta = Number(i.saldo_final_informado);
+          if (a.has_auto_invest && i.saldo_aplicado_informado == null) continue; // sem aplicado no arquivo: mantém o calculado
+          const total = a.has_auto_invest ? Number(i.saldo_aplicado_informado) : conta;
+          byDate.set(i.periodo_fim, { id: i.id, data: i.periodo_fim, saldo_conta: conta, saldo_aplicado: Math.round((total - conta) * 100) / 100 });
+        }
+        return { ...a, anchors: [...byDate.values()] };
+      });
     },
   });
 }
