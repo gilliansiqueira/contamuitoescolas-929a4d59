@@ -1,2 +1,4 @@
 - [ ] Conciliação: total deve aparecer ao SELECIONAR lançamentos (antes de conciliar); conferir soma dos valores da seleção
 - [ ] Conciliação: conferir valor 'Pendente de conciliação' (usuário vê R$ 180,00 em Dourados e acha errado)
+- [x] Conciliação: barra de totais da seleção aparecendo ao selecionar (implementado e verificado)
+- [x] Conciliação: valor pendente conferido no banco — 1 lançamento pendente de R$ 180 em Dourados (correto)
