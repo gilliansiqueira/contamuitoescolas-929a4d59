@@ -281,6 +281,9 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   let fundos: number | undefined; let inFundos = false;
   const all = stripAccents(lines.join(' '));
   // Só o PDF do Banco do Brasil é usado apenas para futuros/saldos (os efetivados vêm do OFX).
+  // Sicredi: saldos vêm no rodapé ("Saldo Atual", "Saldo bloqueado", "Saldo de investimentos com resgate automático").
+  const isSicredi = /saldo de investimentos com resgate autom/i.test(all);
+  let sicData: string | undefined; let sicBloq: number | undefined;
   const isBB = /banco do brasil|bb rende facil|invest\.?\s*resgate\s*autom|s a l d o|total diario/i.test(all);
   // Ano de referência para bancos que imprimem a data sem ano (ex.: Sicoob "01/09").
   const anoRef = all.match(/\d{2}\/\d{2}\/(\d{4})/)?.[1] ?? String(new Date().getFullYear());
@@ -312,6 +315,12 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     // O "Saldo" do resumo já desconta débitos aprovisionados (futuros) — não usar como total.
     if (/saldo\s+de\s+fundos\s+de\s+investimento/i.test(plain)) { inFundos = true; continue; }
     if (inFundos) { const v = lastVal(line); if (v !== undefined) fundos = Math.round(((fundos ?? 0) + v) * 100) / 100; continue; }
+    if (isSicredi && !inFuturos) {
+      const md = plain.match(/saldo em (\d{2}\/\d{2}\/\d{4})/i); if (md) { sicData = toIsoDate(md[1]) ?? undefined; continue; }
+      if (/^saldo\s+atual/i.test(plain)) { const v = lastVal(line); if (v !== undefined) { saldoConta = v; saldoContaData = sicData; } continue; }
+      if (/^saldo\s+bloqueado/i.test(plain)) { sicBloq = lastVal(line); continue; }
+      if (/^saldo\s+de\s+investimentos/i.test(plain)) { investido = lastVal(line); continue; }
+    }
     if (/^invest\.?\s*resgate\s*autom/i.test(plain)) { investido = lastVal(line); continue; }
     if (/^saldo\s+aprovisionado/i.test(plain)) continue;
     if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined) continue;
@@ -351,6 +360,11 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo };
     if (inFuturos) futuros.push({ ...tx, futuro: true }); else { txs.push(tx); if (isBB) bbUltimo = tx; }
     if (!temMarcador && !isBB) semMarcador = inFuturos ? futuros[futuros.length - 1] : tx;
+  }
+  // Sicredi: depósito de cheque cujo valor está em "Saldo bloqueado" ainda não conta no saldo.
+  if (isSicredi && sicBloq && sicBloq > 0) {
+    const i = txs.findIndex(t => t.tipo === 'entrada' && /dep\.?\s*cheque/i.test(stripAccents(t.descricao)) && Math.abs(t.valor - sicBloq!) < 0.005);
+    if (i >= 0) { bloqN++; bloqT += txs[i].valor; txs.splice(i, 1); }
   }
   // Conferência interna: saldo anterior + movimento deve dar o saldo final do PDF.
   let avisoFecha: string[] = [];
