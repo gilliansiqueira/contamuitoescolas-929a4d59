@@ -25,7 +25,8 @@ export function useTeamTime(month: string, enabled: boolean) {
     refetchInterval: q => ((q.state.data as TeamTimeData | undefined)?.lastRun?.status === 'running' ? 5000 : false),
     queryFn: async (): Promise<TeamTimeData> => {
       const start = `${month}-01`;
-      const end = `${month}-31`;
+      const [y, m] = month.split('-').map(Number);
+      const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
       const [e, d, o, b, r, s] = await Promise.all([
         db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo').eq('ativo', true).order('nome'),
         db.from('team_time_daily').select('*').gte('dia', start).lte('dia', end),
