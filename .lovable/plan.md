@@ -1,16 +1,16 @@
-# Verificación del total de selección en la Conciliación
+# Verificação do total de seleção na Conciliação
 
-## Estado actual
+## Estado atual
 
-La mejora de la barra de totales de selección en la Conciliación ya está implementada en `src/components/fluxo-bancario/BankTransactionsTable.tsx` y la compilación está OK. Lo único pendiente es verificarla en pantalla con la cuenta de administradora.
+A melhoria da barra de totais de seleção na Conciliação já está implementada em `src/components/fluxo-bancario/BankTransactionsTable.tsx` e a compilação está OK. Só falta verificar na tela com a conta de administradora.
 
 ## Etapas
 
-1. Solicitar el acceso de prueba con la cuenta de administradora (adm@contamuito) para poder abrir el preview autenticado. Esto es solo una sesión de prueba para mí — no crea ni cambia nada en el sistema ni para otros usuarios.
-2. Abrir Fluxo Bancário → Movimentações (conciliação) de Dourados en el preview.
-3. Marcar lanzamientos variados (conciliado, pendiente, no se aplica) y confirmar que:
-   - la barra "Selecionados" aparece con cantidad y total en R$;
-   - los subtotales de Conciliados / A conciliar / No se aplica cuadran con las líneas;
-   - la barra se actualiza al marcar/desmarcar y desaparece al limpiar la selección;
-   - después de "Conciliar selecionados" la barra se limpia y los totales del período se actualizan.
-4. Reportar el resultado con captura de pantalla.
+1. Solicitar o acesso de teste com a conta de administradora (adm@contamuito) para abrir o preview autenticado. Isso é apenas uma sessão de teste para mim — não cria nem altera nada no sistema nem para outros usuários.
+2. Abrir Fluxo Bancário → Movimentações (conciliação) de Dourados no preview.
+3. Marcar lançamentos variados (conciliado, pendente, não se aplica) e confirmar que:
+   - a barra "Selecionados" aparece com quantidade e total em R$;
+   - os subtotais de Conciliados / A conciliar / Não se aplica batem com as linhas;
+   - a barra atualiza ao marcar/desmarcar e some ao limpar a seleção;
+   - depois de "Conciliar selecionados" a barra é limpa e os totais do período se atualizam.
+4. Reportar o resultado com captura de tela.
