@@ -278,6 +278,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   let bloqN = 0, bloqT = 0;
   let saldoConta: number | undefined; let saldoContaData: string | undefined;
   let investido: number | undefined; let saldoTotal: number | undefined;
+  let fundos: number | undefined; let inFundos = false;
   const all = stripAccents(lines.join(' '));
   // Só o PDF do Banco do Brasil é usado apenas para futuros/saldos (os efetivados vêm do OFX).
   const isBB = /banco do brasil|bb rende facil|invest\.?\s*resgate\s*autom|s a l d o|total diario/i.test(all);
@@ -294,8 +295,13 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     const line = raw.replace(/\s+/g, ' ').trim();
     const plain = stripAccents(line);
     if (/lancamentos\s+futuros/i.test(plain)) { inFuturos = true; continue; }
+    // BB: "Saldo de fundos de investimento" traz o saldo real da aplicação (com rendimento).
+    // O "Saldo" do resumo já desconta débitos aprovisionados (futuros) — não usar como total.
+    if (/saldo\s+de\s+fundos\s+de\s+investimento/i.test(plain)) { inFundos = true; continue; }
+    if (inFundos) { const v = lastVal(line); if (v !== undefined) fundos = Math.round(((fundos ?? 0) + v) * 100) / 100; continue; }
     if (/^invest\.?\s*resgate\s*autom/i.test(plain)) { investido = lastVal(line); continue; }
-    if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined && saldoTotal === undefined) { saldoTotal = lastVal(line); continue; }
+    if (/^saldo\s+aprovisionado/i.test(plain)) continue;
+    if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined) continue;
     if (!isBB && /^[DC]\*?$/i.test(line)) {
       if (semMarcador) semMarcador.tipo = /^d/i.test(line) ? 'saida' : 'entrada';
       semMarcador = null; continue;
