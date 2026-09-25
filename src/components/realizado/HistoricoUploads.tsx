@@ -1,3 +1,4 @@
+import { useRealizedEntries } from '@/hooks/useRealizedEntries';
 import { useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -41,13 +42,8 @@ export function HistoricoUploads({ schoolId }: Props) {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ data: string; descricao: string; valor: string; conta_nome: string }>({ data: '', descricao: '', valor: '', conta_nome: '' });
 
-  const { data: entries = [], isLoading } = useQuery({
-    queryKey: ['realized_entries', schoolId],
-    queryFn: async () => {
-      const { fetchAllRows } = await import('@/lib/fetchAll');
-      return fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId).order('data', { ascending: false }));
-    },
-  });
+  const { data: entriesAsc = [], isLoading } = useRealizedEntries(schoolId);
+  const entries = useMemo(() => [...entriesAsc].sort((a: any, b: any) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0)), [entriesAsc]);
 
   const uploads = useMemo(() => {
     const map: Record<string, { fileName: string; count: number; firstDate: string; lastDate: string; total: number; uploadDate: string }> = {};

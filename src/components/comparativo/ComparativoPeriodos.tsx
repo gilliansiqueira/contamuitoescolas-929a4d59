@@ -1,3 +1,4 @@
+import { useRealizedEntries } from '@/hooks/useRealizedEntries';
 import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -108,14 +109,7 @@ function DeltaBadge({ diff, pct, invert, format }: { diff: number; pct: number |
 export function ComparativoPeriodos({ schoolId }: Props) {
   const { ctx, isInModel, isLoading } = usePeriodMovementCtx(schoolId);
 
-  const { data: realized = [] } = useQuery({
-    queryKey: ['realized_entries', schoolId],
-    queryFn: async () => {
-      const { fetchAllRows } = await import('@/lib/fetchAll');
-      return fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId).order('data'));
-    },
-    enabled: !!schoolId,
-  });
+  const { data: realized = [] } = useRealizedEntries(schoolId);
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
