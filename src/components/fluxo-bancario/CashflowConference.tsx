@@ -20,7 +20,8 @@ const Ok = ({ ok }: { ok: boolean }) => ok ? <CheckCircle2 className="inline h-4
 export function CashflowConference({ schoolId, accounts, txs }: Props) {
   const { data: cfg } = useDataSource(schoolId);
   const [from, setFrom] = useState('2026-09-01');
-  const [to, setTo] = useState('2026-09-24');
+  const [toManual, setTo] = useState<string | null>(null);
+  const to = toManual ?? cfg?.synced_through ?? new Date().toISOString().slice(0, 10);
   const { data: gen = [] } = useCashflowEntries(schoolId, !!cfg);
   const { data: sheetAll = [] } = useSheetFluxoEntries(schoolId, from, to, !!cfg);
   const resync = useResyncCashflow(schoolId);
@@ -39,12 +40,17 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
     const genOut = g.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     // Ajuste pelo saldo do extrato (resgate/rendimento que o extrato não trouxe como lançamento)
     const ajusteConferido = active.reduce((s, a) => s + anchorAdjustments(a, txs, from, to), 0);
-    const diffSaldo = r2(fim - ini - (genIn - genOut) - ajusteConferido);
+    // Transferências em trânsito: uma ponta dentro do período, a outra depois da data "Até"
+    const byId = new Map(txs.map(t => [t.id, t]));
+    const pairOf = (t: BankTx) => (t.transfer_pair_id ? byId.get(t.transfer_pair_id) ?? txs.find(o => o.id !== t.id && o.transfer_pair_id === t.transfer_pair_id) : undefined);
+    const transito = tx.filter(t => { const p = pairOf(t); return !!p && p.data > to; });
+    const transitoValor = r2(transito.reduce((s, t) => s + signed(t.tipo, t.valor), 0));
+    const diffSaldo = r2(fim - ini - (genIn - genOut) - ajusteConferido - transitoValor);
 
     const aClass = g.filter(e => e.tipo_nome === 'A classificar');
     const pend = tx.filter(t => t.recon_status === 'pendente');
     const semPar = tx.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id);
-    const pairOut = tx.filter(t => t.transfer_pair_id && !tx.some(o => o.id !== t.id && o.transfer_pair_id === t.transfer_pair_id));
+    const pairOut = tx.filter(t => t.transfer_pair_id && !transito.includes(t) && !tx.some(o => o.id !== t.id && o.transfer_pair_id === t.transfer_pair_id));
     const splitDiff = tx.filter(t => t.splits?.length && Math.abs(r2(t.splits.reduce((s, p) => s + Number(p.valor), 0)) - r2(Number(t.valor))) > 0.004);
     const auto = tx.filter(isAutoInvest);
     const transf = tx.filter(t => t.transfer_pair_id);
