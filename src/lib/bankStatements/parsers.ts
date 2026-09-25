@@ -258,6 +258,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   const txs: ParsedBankTx[] = [];
   const futuros: ParsedBankTx[] = [];
   let inFuturos = false;
+  let bloqN = 0, bloqT = 0;
   let saldoConta: number | undefined; let saldoContaData: string | undefined;
   let investido: number | undefined; let saldoTotal: number | undefined;
   const all = stripAccents(lines.join(' '));
@@ -287,6 +288,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     const v = parseBRNumber(valStr);
     const descricao = dm[2].slice(0, dm[2].indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
     if (!descricao || SKIP_RE.test(descricao) || v === 0) continue;
+    if (BLOCKED_DEPOSIT_RE.test(descricao) || /\*$/.test(valStr.trim())) { bloqN++; bloqT += Math.abs(v); continue; }
     // Sentido: sinal/marcador D-C; sem marcador, "DÉB."/"PIX EMITIDO" etc. na descrição indicam saída.
     const s = valStr.trim();
     const temMarcador = /^[-(]/.test(s) || /[-DC)]$/i.test(s);
@@ -319,6 +321,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   // Demais bancos (ex.: Sicoob): efetivados + futuros como previstos.
   const r = finish('pdf', [...txs, ...futuros], { avisos: [
     ...avisoSaldo,
+    ...avisoBloqueados(bloqN, bloqT),
     'Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.',
     ...(futuros.length ? [`${futuros.length} lançamento(s) futuro(s) entram como "Previsto — aguardando extrato" e são trocados pelo real quando ele chegar.`] : []),
   ] });
