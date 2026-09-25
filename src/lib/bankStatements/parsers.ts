@@ -291,9 +291,21 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   let pendVal: string | undefined;
   let semMarcador: ParsedBankTx | null = null;
   let saldoAnterior: number | undefined;
+  // BB: a linha logo abaixo do lançamento traz o complemento (quem pagou/recebeu).
+  let bbUltimo: ParsedBankTx | null = null;
+  const bbLimpa = (d: string) => d
+    .replace(/^(\d{2}\/\d{2}\/\d{4}\s+)?\d{4}\s+\d{5}\s+/, '')
+    .replace(/\s+[\d.]+$/, '').trim();
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, ' ').trim();
     const plain = stripAccents(line);
+    if (isBB && bbUltimo && line && !/^\d{2}\/\d{2}\/\d{4}\s/.test(line)) {
+      const comp = line.replace(/^\d{2}\/\d{2}\s+\d{2}:\d{2}\s+/, '').replace(/^[\d.\/-]{8,}\s+/, '').replace(/^\d{3}\s+\d{4}\s+\d{11,14}\s+/, '').trim();
+      if (comp && !/^(https?:|lancamentos|data\b|cobranca referente)/i.test(stripAccents(comp)) && comp.length <= 60) bbUltimo.descricao = `${bbUltimo.descricao} - ${comp}`;
+      bbUltimo = null;
+      if (comp && !/^https?:/i.test(comp)) continue;
+    }
+    bbUltimo = null;
     if (/lancamentos\s+futuros/i.test(plain)) { inFuturos = true; continue; }
     // BB: "Saldo de fundos de investimento" traz o saldo real da aplicação (com rendimento).
     // O "Saldo" do resumo já desconta débitos aprovisionados (futuros) — não usar como total.
@@ -326,7 +338,8 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     if (!vals.length) continue;
     const valStr = vals.length >= 2 ? vals[vals.length - 2] : vals[0];
     const v = parseBRNumber(valStr);
-    const descricao = body.slice(0, body.indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
+    let descricao = body.slice(0, body.indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
+    if (isBB) descricao = bbLimpa(descricao);
     if (!descricao || SKIP_RE.test(descricao) || v === 0) continue;
     if (BLOCKED_DEPOSIT_RE.test(descricao) || /\*$/.test(valStr.trim())) { bloqN++; bloqT += Math.abs(v); continue; }
     // Sentido: sinal/marcador D-C; sem marcador, "DÉB."/"PIX EMIT." etc. na descrição indicam saída.
@@ -335,12 +348,12 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     const debDesc = /^(deb|debito|pagamento|pgto|pix emit|saque|tarifa)/i.test(stripAccents(descricao));
     const tipo: 'entrada' | 'saida' = v < 0 ? 'saida' : (!temMarcador && debDesc ? 'saida' : 'entrada');
     const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo };
-    if (inFuturos) futuros.push({ ...tx, futuro: true }); else txs.push(tx);
+    if (inFuturos) futuros.push({ ...tx, futuro: true }); else { txs.push(tx); if (isBB) bbUltimo = tx; }
     if (!temMarcador && !isBB) semMarcador = inFuturos ? futuros[futuros.length - 1] : tx;
   }
   // Conferência interna: saldo anterior + movimento deve dar o saldo final do PDF.
   let avisoFecha: string[] = [];
-  if (!isBB && saldoAnterior !== undefined && saldoConta !== undefined) {
+  if (saldoAnterior !== undefined && saldoConta !== undefined) {
     const mov = txs.reduce((a, t) => a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
     const dif = Math.round((saldoAnterior + mov - saldoConta) * 100) / 100;
     if (Math.abs(dif) >= 0.01) avisoFecha = [`Atenção: a leitura do PDF não fecha com o saldo final do extrato (diferença de ${dif.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Confira as linhas antes de importar.`];
@@ -358,14 +371,14 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     ? [`Saldos lidos do PDF em ${saldoContaData!.split('-').reverse().join('/')}: em conta ${fmt(saldoConta!)} · total com aplicação ${fmt(saldos.saldoComAplicacaoInformado)}.`]
     : [];
   if (isBB && (futuros.length || saldos.saldoComAplicacaoInformado !== undefined)) {
-    const r = finish('pdf', futuros, { avisos: [
+    const r = finish('pdf', [...txs, ...futuros], { avisos: [
       ...avisoSaldo,
-      futuros.length
-        ? `Encontrados ${futuros.length} lançamento(s) futuro(s). Só eles serão importados, como "Previsto — aguardando extrato"; os lançamentos já efetivados devem vir do OFX.`
-        : 'Nenhum lançamento futuro. Do PDF entram só os saldos; os lançamentos efetivados devem vir do OFX.',
-      'Quando o próximo OFX trouxer o lançamento real (mesmo valor e sentido, até 3 dias depois), ele substitui o previsto automaticamente.',
+      ...avisoFecha,
+      `${txs.length} lançamento(s) efetivado(s) lidos do PDF. Os que já existirem na conta (mesma data, valor e sentido, ex.: vindos do OFX) não serão gravados de novo.`,
+      ...(futuros.length ? [`${futuros.length} lançamento(s) futuro(s) entram como "Previsto — aguardando extrato" e são trocados pelo real quando ele chegar.`] : []),
     ] });
-    return { ...r, ...saldos, periodoInicio: saldos.periodoFim ?? r.periodoInicio };
+    const efet = txs.map(t => t.data).sort();
+    return { ...r, ...saldos, periodoInicio: efet[0] ?? saldos.periodoFim ?? r.periodoInicio, periodoFim: saldos.periodoFim ?? r.periodoFim };
   }
   // Demais bancos (ex.: Sicoob): efetivados + futuros como previstos.
   const r = finish('pdf', [...txs, ...futuros], { avisos: [
