@@ -246,18 +246,22 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   let inFuturos = false;
   let saldoConta: number | undefined; let saldoContaData: string | undefined;
   let investido: number | undefined; let saldoTotal: number | undefined;
-  const VAL = /(-?\s?R?\$?\s?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[-DC]?)/gi;
+  const all = stripAccents(lines.join(' '));
+  // Só o PDF do Banco do Brasil é usado apenas para futuros/saldos (os efetivados vêm do OFX).
+  const isBB = /banco do brasil|bb rende facil|invest\.?\s*resgate\s*autom/i.test(all);
+  // Ano de referência para bancos que imprimem a data sem ano (ex.: Sicoob "01/09").
+  const anoRef = all.match(/\d{2}\/\d{2}\/(\d{4})/)?.[1] ?? String(new Date().getFullYear());
+  const VAL = /(-?\s?R?\$?\s?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[-DC*]?)/gi;
   const lastVal = (s: string) => { const v = [...s.matchAll(VAL)].map(m => m[1]); return v.length ? parseBRNumber(v[v.length - 1]) : undefined; };
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, ' ').trim();
     const plain = stripAccents(line);
     if (/lancamentos\s+futuros/i.test(plain)) { inFuturos = true; continue; }
-    // Resumo final do PDF do BB: parte aplicada e saldo total (conta + aplicação)
     if (/^invest\.?\s*resgate\s*autom/i.test(plain)) { investido = lastVal(line); continue; }
     if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined && saldoTotal === undefined) { saldoTotal = lastVal(line); continue; }
-    const dm = line.match(/^(\d{2}\/\d{2}\/\d{2,4})\s+(.*)$/);
+    const dm = line.match(/^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.*)$/);
     if (!dm) continue;
-    const data = toIsoDate(dm[1]);
+    const data = toIsoDate(dm[1].length === 5 ? `${dm[1]}/${anoRef}` : dm[1]);
     if (!data) continue;
     if (!inFuturos && /\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && !/anterior/i.test(dm[2])) {
       const v = lastVal(dm[2]); if (v !== undefined) { saldoConta = v; saldoContaData = data; }
@@ -265,15 +269,18 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     }
     const vals = [...dm[2].matchAll(VAL)].map(m => m[1]);
     if (!vals.length) continue;
-    // Com saldo/total diário na linha, o valor do lançamento é o penúltimo número
     const valStr = vals.length >= 2 ? vals[vals.length - 2] : vals[0];
     const v = parseBRNumber(valStr);
     const descricao = dm[2].slice(0, dm[2].indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
     if (!descricao || SKIP_RE.test(descricao) || v === 0) continue;
-    const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' };
+    // Sentido: sinal/marcador D-C; sem marcador, "DÉB."/"PIX EMITIDO" etc. na descrição indicam saída.
+    const s = valStr.trim();
+    const temMarcador = /^[-(]/.test(s) || /[-DC)]$/i.test(s);
+    const debDesc = /^(deb|debito|pagamento|pgto|pix emitido|saque|tarifa)/i.test(stripAccents(descricao));
+    const tipo: 'entrada' | 'saida' = v < 0 ? 'saida' : (!temMarcador && debDesc ? 'saida' : 'entrada');
+    const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo };
     if (inFuturos) futuros.push({ ...tx, futuro: true }); else txs.push(tx);
   }
-  // Saldos lidos do próprio PDF (ninguém precisa digitar). Total = conta + aplicação.
   const saldos: Partial<BankParseResult> = {};
   if (saldoConta !== undefined && saldoContaData) {
     saldos.saldoFinalInformado = saldoConta;
@@ -285,7 +292,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   const avisoSaldo = saldos.saldoComAplicacaoInformado !== undefined
     ? [`Saldos lidos do PDF em ${saldoContaData!.split('-').reverse().join('/')}: em conta ${fmt(saldoConta!)} · total com aplicação ${fmt(saldos.saldoComAplicacaoInformado)}.`]
     : [];
-  if (futuros.length || saldos.saldoComAplicacaoInformado !== undefined) {
+  if (isBB && (futuros.length || saldos.saldoComAplicacaoInformado !== undefined)) {
     const r = finish('pdf', futuros, { avisos: [
       ...avisoSaldo,
       futuros.length
@@ -295,7 +302,14 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     ] });
     return { ...r, ...saldos, periodoInicio: saldos.periodoFim ?? r.periodoInicio };
   }
-  return finish('pdf', txs, { avisos: ['Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.'] });
+  // Demais bancos (ex.: Sicoob): efetivados + futuros como previstos.
+  const r = finish('pdf', [...txs, ...futuros], { avisos: [
+    ...avisoSaldo,
+    'Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.',
+    ...(futuros.length ? [`${futuros.length} lançamento(s) futuro(s) entram como "Previsto — aguardando extrato" e são trocados pelo real quando ele chegar.`] : []),
+  ] });
+  const efet = txs.map(t => t.data).sort();
+  return { ...r, ...saldos, periodoInicio: efet[0] ?? r.periodoInicio, periodoFim: saldos.periodoFim ?? efet[efet.length - 1] ?? r.periodoFim };
 }
 
 async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
