@@ -113,7 +113,8 @@ export function parseOFX(content: string): BankParseResult {
   const dtStart = toIsoDate(content.match(/<DTSTART>([^<\r\n]+)/i)?.[1] ?? '');
   const dtEnd = toIsoDate(content.match(/<DTEND>([^<\r\n]+)/i)?.[1] ?? '');
   if (dtStart && (!r.periodoInicio || dtStart < r.periodoInicio)) r.periodoInicio = dtStart;
-  if (dtEnd && (!r.periodoFim || dtEnd > r.periodoFim)) r.periodoFim = dtEnd;
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (dtEnd && dtEnd <= hoje && (!r.periodoFim || dtEnd > r.periodoFim)) r.periodoFim = dtEnd;
   r.avisos = [...avisoBloqueados(bloqN, bloqT), ...avisosExtra];
   return r;
 }

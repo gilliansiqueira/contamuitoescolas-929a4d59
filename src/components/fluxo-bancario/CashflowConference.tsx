@@ -174,6 +174,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       </div>
 
       {cfg.synced_through && <ActivationPreview schoolId={schoolId} cfg={cfg} gen={gen} bankTo={cfg.synced_through}
+        holder={(() => { const today = new Date().toISOString().slice(0, 10); if (cfg.synced_through! >= today) return undefined; const h = active.filter(a => (lastExtract.get(a.id) ?? '') <= cfg.synced_through!).map(a => a.nome); return h.length ? h.join(', ') : undefined; })()}
         bankIni={active.reduce((s, a) => s + accountBalances(a, txs, dayBefore(`${cfg.start_month}-01`)).total, 0)}
         bankFim={active.reduce((s, a) => s + accountBalances(a, txs, cfg.synced_through!).total, 0)} />}
 
