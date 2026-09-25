@@ -299,6 +299,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, ' ').trim();
     const plain = stripAccents(line);
+    if (isBB && !line) continue;
     if (isBB && bbUltimo && line && !/^\d{2}\/\d{2}\/\d{4}\s/.test(line)) {
       const comp = line.replace(/^\d{2}\/\d{2}\s+\d{2}:\d{2}\s+/, '').replace(/^[\d.\/-]{8,}\s+/, '').replace(/^\d{3}\s+\d{4}\s+\d{11,14}\s+/, '').trim();
       if (comp && !/^(https?:|lancamentos|data\b|cobranca referente)/i.test(stripAccents(comp)) && comp.length <= 60) bbUltimo.descricao = `${bbUltimo.descricao} - ${comp}`;
