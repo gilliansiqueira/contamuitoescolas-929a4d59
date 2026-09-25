@@ -100,6 +100,21 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const { data } = await db.from('bank_transactions').select('dedup_hash').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
         (data ?? []).forEach((r: any) => existing.add(r.dedup_hash));
       }
+      // PDF sem identificador do banco: não regravar o que já veio por outro arquivo (ex.: OFX)
+      // com mesma data, valor e sentido — contando ocorrências, para não descartar lançamentos iguais legítimos.
+      if (result.formato === 'pdf') {
+        const efet = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && !x.t.bankRef && !existing.has(hashes[x.i]));
+        if (efet.length) {
+          const datas = efet.map(x => x.t.data).sort();
+          const { data: prev } = await db.from('bank_transactions').select('data, valor, tipo').eq('account_id', accountId)
+            .eq('is_forecast', false).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const disp = new Map<string, number>();
+          (prev ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; disp.set(k, (disp.get(k) ?? 0) + 1); });
+          // Descontar os que já casaram por hash (mesmo arquivo reenviado).
+          result.transactions.forEach((t, i) => { if (existing.has(hashes[i]) && !t.futuro) { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; disp.set(k, (disp.get(k) ?? 0) - 1); } });
+          efet.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const n = disp.get(k) ?? 0; if (n > 0) { existing.add(hashes[i]); disp.set(k, n - 1); } });
+        }
+      }
       const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
       const pats = patterns?.all ?? DEFAULT_AUTO_INVEST_PATTERNS;
       const own = ownNames.map(n => n.padrao);
