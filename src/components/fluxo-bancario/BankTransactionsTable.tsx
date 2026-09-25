@@ -228,6 +228,18 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
         </div>
       )}
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm" data-testid="barra-selecionados">
+          <span className="font-semibold text-foreground">
+            Selecionados: {selected.size} lançamento{selected.size > 1 ? 's' : ''} · Total {fmtBRL(selTotal)}
+          </span>
+          {selByStatus.conciliado.n > 0 && <span className="font-semibold text-success">Conciliados: {selByStatus.conciliado.n} ({fmtBRL(selByStatus.conciliado.valor)})</span>}
+          {selByStatus.pendente.n > 0 && <span className="font-semibold text-warning">A conciliar: {selByStatus.pendente.n} ({fmtBRL(selByStatus.pendente.valor)})</span>}
+          {selByStatus.nao_se_aplica.n > 0 && <span className="font-semibold text-muted-foreground">Não se aplica: {selByStatus.nao_se_aplica.n} ({fmtBRL(selByStatus.nao_se_aplica.valor)})</span>}
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Limpar seleção ✕</Button>
+        </div>
+      )}
+
       <div ref={topScrollRef} className="overflow-x-auto" onScroll={e => { if (tableScrollRef.current) tableScrollRef.current.scrollLeft = e.currentTarget.scrollLeft; }} aria-hidden>
         <div style={{ width: tableWidth, height: 1 }} />
       </div>
