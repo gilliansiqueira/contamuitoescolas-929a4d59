@@ -92,7 +92,8 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       const { data: dup } = await db.from('bank_statement_imports').select('id, created_at').eq('account_id', accountId).eq('file_hash', hash).maybeSingle();
       if (dup) { toast.error(`Este arquivo já foi importado nesta conta em ${fmtDateTime(dup.created_at)}.`); return; }
       const result = await parseBankFile(file);
-      if (!result.transactions.length) { toast.error('Nenhum lançamento reconhecido no arquivo.'); return; }
+      if (!result.transactions.length && !result.periodoFim) { toast.error('Nenhum lançamento reconhecido no arquivo.'); return; }
+      if (!result.transactions.length) result.avisos = [...result.avisos, `Sem movimentação no período (${result.periodoInicio?.split('-').reverse().join('/') ?? '?'} a ${result.periodoFim.split('-').reverse().join('/')}). O extrato fica registrado e a conta passa a valer até essa data.`];
       const hashes = await computeDedupHashes(accountId, result.transactions);
       const existing = new Set<string>();
       for (let i = 0; i < hashes.length; i += 200) {
