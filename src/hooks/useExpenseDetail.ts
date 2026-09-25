@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchAllRows } from '@/lib/fetchAll';
+
+export type DetailTipo = 'receita' | 'despesa';
 
 export interface DetailGroup {
   id: string;
@@ -15,6 +18,7 @@ export interface DetailItem {
   descricao: string;
   valor: number;
   data: string;
+  tipo: DetailTipo;
 }
 
 /** Configuração (liga/desliga + nome da aba) por empresa. */
@@ -50,7 +54,7 @@ export function useExpenseDetailConfig(schoolId: string) {
   };
 }
 
-/** Grupos e itens livres do detalhamento. */
+/** Grupos (centros de custo) e itens livres do detalhamento. */
 export function useExpenseDetail(schoolId: string) {
   const queryClient = useQueryClient();
   const invalidate = () => {
@@ -76,13 +80,15 @@ export function useExpenseDetail(schoolId: string) {
     queryKey: ['expense_detail_items', schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('expense_detail_items')
-        .select('*')
-        .eq('school_id', schoolId)
-        .order('data');
-      if (error) throw error;
-      return (data || []).map(i => ({ ...i, valor: Number(i.valor || 0) })) as DetailItem[];
+      const data = await fetchAllRows<any>(
+        'expense_detail_items',
+        q => q.eq('school_id', schoolId).order('data'),
+      );
+      return data.map(i => ({
+        ...i,
+        valor: Number(i.valor || 0),
+        tipo: ((i as any).tipo === 'receita' ? 'receita' : 'despesa') as DetailTipo,
+      })) as DetailItem[];
     },
   });
 
@@ -128,11 +134,24 @@ export function useExpenseDetail(schoolId: string) {
   });
 
   const saveItem = useMutation({
-    mutationFn: async (item: { id?: string; group_id: string; descricao: string; valor: number; data: string }) => {
+    mutationFn: async (item: {
+      id?: string;
+      group_id: string;
+      descricao: string;
+      valor: number;
+      data: string;
+      tipo: DetailTipo;
+    }) => {
       if (item.id) {
         const { error } = await supabase
           .from('expense_detail_items')
-          .update({ group_id: item.group_id, descricao: item.descricao, valor: item.valor, data: item.data })
+          .update({
+            group_id: item.group_id,
+            descricao: item.descricao,
+            valor: item.valor,
+            data: item.data,
+            tipo: item.tipo,
+          })
           .eq('id', item.id);
         if (error) throw error;
       } else {
@@ -142,6 +161,7 @@ export function useExpenseDetail(schoolId: string) {
           descricao: item.descricao,
           valor: item.valor,
           data: item.data,
+          tipo: item.tipo,
         });
         if (error) throw error;
       }
@@ -149,42 +169,90 @@ export function useExpenseDetail(schoolId: string) {
     onSuccess: invalidate,
   });
 
+  /** Garante que um centro de custo (grupo) exista, retornando o id. */
+  const ensureGroup = async (name: string, cache: DetailGroup[], sortRef: { value: number }) => {
+    const found = cache.find(g => g.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (found) return found.id;
+    const { data: inserted, error } = await supabase
+      .from('expense_detail_groups')
+      .insert({ school_id: schoolId, name: name.trim(), sort_order: sortRef.value++ })
+      .select()
+      .single();
+    if (error) throw error;
+    cache.push(inserted as DetailGroup);
+    return (inserted as DetailGroup).id;
+  };
+
   /** Importa lista colada: grupos (MAIÚSCULAS) com itens abaixo. */
   const pasteImport = useMutation({
     mutationFn: async ({
       parsed,
       data,
     }: {
-      parsed: { grupo: string; itens: { descricao: string; valor: number }[] }[];
+      parsed: { grupo: string; itens: { descricao: string; valor: number; tipo?: DetailTipo }[] }[];
       data: string;
     }) => {
-      const existing = [...(groupsQuery.data || [])];
-      let sort = existing.length;
+      const cache = [...(groupsQuery.data || [])];
+      const sortRef = { value: cache.length };
 
       for (const block of parsed) {
-        let group = existing.find(g => g.name.trim().toLowerCase() === block.grupo.trim().toLowerCase());
-        if (!group) {
-          const { data: inserted, error } = await supabase
-            .from('expense_detail_groups')
-            .insert({ school_id: schoolId, name: block.grupo, sort_order: sort++ })
-            .select()
-            .single();
-          if (error) throw error;
-          group = inserted as DetailGroup;
-          existing.push(group);
-        }
+        const groupId = await ensureGroup(block.grupo, cache, sortRef);
         if (block.itens.length) {
           const { error } = await supabase.from('expense_detail_items').insert(
             block.itens.map(i => ({
               school_id: schoolId,
-              group_id: group!.id,
+              group_id: groupId,
               descricao: i.descricao,
               valor: i.valor,
               data,
+              tipo: i.tipo || 'despesa',
             }))
           );
           if (error) throw error;
         }
+      }
+    },
+    onSuccess: invalidate,
+  });
+
+  /** Salva várias linhas de planilha de uma vez (cria centros que não existem). */
+  const bulkSaveItems = useMutation({
+    mutationFn: async (
+      rows: { id?: string; grupo: string; data: string; descricao: string; valor: number; tipo: DetailTipo }[]
+    ) => {
+      const cache = [...(groupsQuery.data || [])];
+      const sortRef = { value: cache.length };
+      const inserts: any[] = [];
+
+      for (const row of rows) {
+        const groupId = await ensureGroup(row.grupo, cache, sortRef);
+        if (row.id) {
+          const { error } = await supabase
+            .from('expense_detail_items')
+            .update({
+              group_id: groupId,
+              descricao: row.descricao,
+              valor: row.valor,
+              data: row.data,
+              tipo: row.tipo,
+            })
+            .eq('id', row.id);
+          if (error) throw error;
+        } else {
+          inserts.push({
+            school_id: schoolId,
+            group_id: groupId,
+            descricao: row.descricao,
+            valor: row.valor,
+            data: row.data,
+            tipo: row.tipo,
+          });
+        }
+      }
+
+      if (inserts.length) {
+        const { error } = await supabase.from('expense_detail_items').insert(inserts);
+        if (error) throw error;
       }
     },
     onSuccess: invalidate,
@@ -209,5 +277,6 @@ export function useExpenseDetail(schoolId: string) {
     saveItem,
     deleteItem,
     pasteImport,
+    bulkSaveItems,
   };
 }
