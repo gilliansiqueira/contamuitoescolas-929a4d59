@@ -13,12 +13,12 @@ import { fmtBRL, fmtDate } from './shared';
 
 interface Props {
   schoolId: string; cfg: DataSourceConfig; gen: CashflowEntry[];
-  bankIni: number; bankFim: number; bankTo: string;
+  bankIni: number; bankFim: number; bankTo: string; holder?: string;
 }
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Prévia: como o Dashboard e o Fluxo Diário ficariam com o Fluxo de Caixa, usando os motores oficiais. */
-export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo }: Props) {
+export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo, holder }: Props) {
   const month = cfg.start_month;
   const start = `${month}-01`;
   const { data: school } = useSchool(schoolId);
@@ -77,6 +77,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
         <div>
           <h3 className="font-display text-lg font-bold">Prévia da ativação — {month.split('-').reverse().join('/')}</h3>
           <p className="text-xs text-muted-foreground">Como o Dashboard e o Fluxo Diário ficam com o Fluxo de Caixa (os dois usam o mesmo cálculo). Realizado até {fmtDate(cfg.synced_through ?? undefined)}; depois disso seguem as projeções.</p>
+          {holder && <p className="mt-1 text-xs font-medium text-warning">Realizado até {fmtDate(bankTo)} porque {holder} só tem extrato até essa data. Suba o extrato mais recente dessa conta, mesmo sem movimento.</p>}
         </div>
         {active
           ? <Button variant="outline" disabled={setStatus.isPending} onClick={() => act('pausado')}><Undo2 className="mr-1 h-4 w-4" />Pausar e voltar para a planilha</Button>

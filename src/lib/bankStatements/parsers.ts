@@ -109,6 +109,12 @@ export function parseOFX(content: string): BankParseResult {
     avisosExtra.push(`${chequesComp.length} cheque(s) recebido(s) em ${lastDate.split('-').reverse().join('/')} ainda em compensação (R$ ${soma.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). O saldo do extrato foi somado a eles: o banco mostra só o disponível.`);
   }
   const r = finish('ofx', txs, { banco: bank, saldoFinalInformado: saldoFinal, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
+  // Período do próprio arquivo (DTSTART/DTEND): vale mesmo sem lançamentos e estende o fim até a data do extrato.
+  const dtStart = toIsoDate(content.match(/<DTSTART>([^<\r\n]+)/i)?.[1] ?? '');
+  const dtEnd = toIsoDate(content.match(/<DTEND>([^<\r\n]+)/i)?.[1] ?? '');
+  if (dtStart && (!r.periodoInicio || dtStart < r.periodoInicio)) r.periodoInicio = dtStart;
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (dtEnd && dtEnd <= hoje && (!r.periodoFim || dtEnd > r.periodoFim)) r.periodoFim = dtEnd;
   r.avisos = [...avisoBloqueados(bloqN, bloqT), ...avisosExtra];
   return r;
 }
