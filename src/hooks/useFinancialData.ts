@@ -134,10 +134,10 @@ const ENTRY_COLS = 'id, data, descricao, valor, tipo, categoria, origem, school_
 export function useEntries(schoolId: string) {
   return useQuery({
     queryKey: ['entries', schoolId, DATA_FETCH_VERSION],
-    queryFn: async (): Promise<FinancialEntry[]> => {
+    queryFn: async ({ signal }): Promise<FinancialEntry[]> => {
       const data = await fetchAllRows<any>('financial_entries', q =>
         q.eq('school_id', schoolId).order('data'),
-        1000, ENTRY_COLS,
+        1000, ENTRY_COLS, signal,
       );
       return withCashflowSource(schoolId, data.map(mapEntry));
     },
@@ -149,12 +149,12 @@ export function useEntries(schoolId: string) {
 export function useRawEntriesFromBaseDate(schoolId: string, baseDate?: string, enabled = true) {
   return useQuery({
     queryKey: ['entries', schoolId, 'raw', baseDate, DATA_FETCH_VERSION],
-    queryFn: async (): Promise<FinancialEntry[]> => {
+    queryFn: async ({ signal }): Promise<FinancialEntry[]> => {
       const data = await fetchAllRows<any>('financial_entries', q => {
         let qq = q.eq('school_id', schoolId);
         if (baseDate) qq = qq.gte('data', baseDate);
         return qq.order('data');
-      }, 1000, ENTRY_COLS);
+      }, 1000, ENTRY_COLS, signal);
       return data.map(mapEntry);
     },
     enabled: !!schoolId && enabled,
@@ -164,14 +164,14 @@ export function useRawEntriesFromBaseDate(schoolId: string, baseDate?: string, e
 export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
   return useQuery({
     queryKey: ['entries', schoolId, 'fromBase', baseDate, DATA_FETCH_VERSION],
-    queryFn: async (): Promise<FinancialEntry[]> => {
+    queryFn: async ({ signal }): Promise<FinancialEntry[]> => {
       // If baseDate is set, filter strictly from it. Empty result = empty result
       // (no silent fallback to all-time data — avoids mixing periods).
       const data = await fetchAllRows<any>('financial_entries', q => {
         let qq = q.eq('school_id', schoolId);
         if (baseDate) qq = qq.gte('data', baseDate);
         return qq.order('data');
-      }, 1000, ENTRY_COLS);
+      }, 1000, ENTRY_COLS, signal);
       return withCashflowSource(schoolId, data.map(mapEntry));
     },
     enabled: !!schoolId,
