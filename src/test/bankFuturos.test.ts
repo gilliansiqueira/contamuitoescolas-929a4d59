@@ -9,10 +9,11 @@ describe('PDF do BB — lançamentos futuros', () => {
     'Data Lançamento Documento Valor Total diário',
     '25/09/2026 PGT CARTAO 82.513.282 R$ 2.159,03 D 2.159,03 D',
   ];
-  it('importa só os futuros, como previstos', () => {
+  it('importa efetivados e futuros (estes como previstos)', () => {
     const r = parsePdfLines(lines);
-    expect(r.transactions).toHaveLength(1);
-    const t = r.transactions[0];
+    expect(r.transactions).toHaveLength(2);
+    expect(r.transactions[0]).toMatchObject({ data: '2026-09-24', valor: 1200.8, tipo: 'entrada' });
+    const t = r.transactions[1];
     expect(t).toMatchObject({ data: '2026-09-25', valor: 2159.03, tipo: 'saida', futuro: true });
     expect(t.descricao).toContain('PGT CARTAO');
   });
