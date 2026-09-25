@@ -203,7 +203,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {rows.length} lançamentos · <span className="font-semibold text-warning">{pend.length} pendentes ({fmtBRL(pendValor)})</span>
+          {rows.length} lançamentos · <span className="font-semibold text-success">Conciliados {conc.length} ({fmtBRL(concValor)})</span> · <span className="font-semibold text-warning">Pendentes {pend.length} ({fmtBRL(pendValor)})</span> · Não se aplica {nsa.length} ({fmtBRL(nsaValor)})
         </p>
         <div className="flex flex-wrap gap-2">
           {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
