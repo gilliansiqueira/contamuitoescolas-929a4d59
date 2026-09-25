@@ -33,6 +33,7 @@ export const displayDesc = (t: Pick<BankTx, 'descricao' | 'descricao_editada'>) 
 
 export interface BankTx {
   id: string;
+  is_forecast?: boolean;
   account_id: string;
   import_id: string;
   data: string;
