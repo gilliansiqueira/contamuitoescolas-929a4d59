@@ -25,7 +25,8 @@ interface Preview {
   file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; saldoAplicado: string;
 }
 
-const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: '', saldoData: '', auto: false, autoSaldo: '', autoData: '' };
+const lastDayPrevMonth = (() => { const d = new Date(); const x = new Date(d.getFullYear(), d.getMonth(), 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; })();
+const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: '', saldoData: lastDayPrevMonth, auto: false, autoSaldo: '', autoData: lastDayPrevMonth };
 
 export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }: Props) {
   const autoByImport = new Map<string, number>();
