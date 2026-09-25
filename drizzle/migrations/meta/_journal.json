@@ -246,6 +246,13 @@
       "when": 1790348973711,
       "tag": "0034_bank_tx_forecast_fix_text_date",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790352499996,
+      "tag": "0035_auto_enable_bank_cashflow_new_schools",
+      "breakpoints": true
     }
   ]
 }
