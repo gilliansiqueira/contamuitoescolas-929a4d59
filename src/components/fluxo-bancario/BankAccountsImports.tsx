@@ -126,7 +126,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         school_id: schoolId, account_id: accountId, file_name: file.name, file_path: path, file_hash: hash, formato: result.formato,
         periodo_inicio: result.periodoInicio ?? null, periodo_fim: result.periodoFim ?? null, total_linhas: result.transactions.length,
         inseridas: novos.length, duplicadas: result.transactions.length - novos.length, total_entradas: entradas, total_saidas: saidas, imported_by: user?.id ?? null,
-        saldo_final_informado: result.saldoFinalInformado ?? null, saldo_aplicado_informado: preview.saldoAplicado.trim() ? parseBRNumber(preview.saldoAplicado) : null,
+        saldo_final_informado: result.saldoFinalInformado ?? null, saldo_aplicado_informado: result.saldoComAplicacaoInformado ?? null,
       }).select('id').single();
       if (e1) throw e1;
       for (let i = 0; i < novos.length; i += 500) {
@@ -298,7 +298,9 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               {p.saldoFinalInformado !== undefined && <p className="text-xs text-muted-foreground">Saldo final informado pelo banco: {fmtBRL(p.saldoFinalInformado)}</p>}
               {preview.kinds.some(k => k !== 'normal') && <p className="text-xs text-info">{preview.kinds.filter(k => k !== 'normal').length} lançamento(s) marcados como aplicação automática (fora de entradas e saídas). Desmarque na tabela se algum estiver errado.</p>}
               {accounts.find(a => a.id === accountId)?.has_auto_invest && (
-                <div className="flex items-center gap-2 text-xs"><Label className="text-xs">Saldo com aplicação no fim do extrato (opcional, para conferência):</Label><Input className="h-7 w-40" value={preview.saldoAplicado} onChange={e => setPreview({ ...preview, saldoAplicado: e.target.value })} placeholder="122.677,73" /></div>
+                p.saldoComAplicacaoInformado !== undefined
+                  ? <p className="text-xs text-success">Saldo com aplicação lido do arquivo: {fmtBRL(p.saldoComAplicacaoInformado)} — nada para digitar.</p>
+                  : <p className="text-xs text-muted-foreground">Este arquivo não traz o saldo com aplicação. Suba também o PDF do banco para o sistema ler o saldo automaticamente.</p>
               )}
               {preview.existing.size > 0 && <p className="text-xs text-muted-foreground">{preview.existing.size} lançamento(s) já existem nesta conta e serão ignorados.</p>}
               {p.avisos.map(a => <p key={a} className="flex items-center gap-1 rounded-md bg-warning/15 p-2 text-xs text-warning"><AlertTriangle className="h-4 w-4" />{a}</p>)}
