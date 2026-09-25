@@ -11,6 +11,7 @@ export interface ParsedBankTx {
   valor: number;
   tipo: 'entrada' | 'saida';
   bankRef?: string; // FITID (OFX)
+  futuro?: boolean; // "Lançamentos futuros" do PDF — entra como previsto
 }
 
 export interface BankParseResult {
@@ -231,24 +232,39 @@ export function parseXLSX(buffer: ArrayBuffer): BankParseResult {
   return finish('xlsx', rowsToTx(rows));
 }
 
-/** PDF: leitura por linhas "data ... valor". Sempre exige conferência manual. */
+/**
+ * PDF: leitura por linhas "data ... valor". Sempre exige conferência manual.
+ * Se o PDF tiver o bloco "Lançamentos futuros" (ex.: Banco do Brasil), somente
+ * essas linhas são importadas, como PREVISTAS — os lançamentos efetivados vêm do
+ * OFX, evitando duplicidade. O lançamento real substitui o previsto ao chegar.
+ */
 export function parsePdfLines(lines: string[]): BankParseResult {
   const txs: ParsedBankTx[] = [];
+  const futuros: ParsedBankTx[] = [];
+  let inFuturos = false;
   const VAL = /(-?\s?R?\$?\s?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[-DC]?)/gi;
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, ' ').trim();
+    if (/lan[cç]amentos\s+futuros/i.test(stripAccents(line)) || /lancamentos\s+futuros/i.test(stripAccents(line))) { inFuturos = true; continue; }
     const dm = line.match(/^(\d{2}\/\d{2}\/\d{2,4})\s+(.*)$/);
     if (!dm) continue;
     const data = toIsoDate(dm[1]);
     if (!data) continue;
     const vals = [...dm[2].matchAll(VAL)].map(m => m[1]);
     if (!vals.length) continue;
-    // Com saldo na linha, o valor do lançamento é o penúltimo número
+    // Com saldo/total diário na linha, o valor do lançamento é o penúltimo número
     const valStr = vals.length >= 2 ? vals[vals.length - 2] : vals[0];
     const v = parseBRNumber(valStr);
-    const descricao = dm[2].slice(0, dm[2].indexOf(vals[0])).trim();
+    const descricao = dm[2].slice(0, dm[2].indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
     if (!descricao || SKIP_RE.test(descricao) || v === 0) continue;
-    txs.push({ data, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' });
+    const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' };
+    if (inFuturos) futuros.push({ ...tx, futuro: true }); else txs.push(tx);
+  }
+  if (futuros.length) {
+    return finish('pdf', futuros, { avisos: [
+      `Encontrados ${futuros.length} lançamento(s) futuro(s). Só eles serão importados, como "Previsto — aguardando extrato"; os lançamentos já efetivados devem vir do OFX.`,
+      'Quando o próximo OFX trouxer o lançamento real (mesmo valor e sentido, até 3 dias depois), ele substitui o previsto automaticamente.',
+    ] });
   }
   return finish('pdf', txs, { avisos: ['Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.'] });
 }
