@@ -245,7 +245,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   const VAL = /(-?\s?R?\$?\s?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[-DC]?)/gi;
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, ' ').trim();
-    if (/lan[cç]amentos\s+futuros/i.test(stripAccents(line)) || /lancamentos\s+futuros/i.test(stripAccents(line))) { inFuturos = true; continue; }
+    if (/lancamentos\s+futuros/i.test(stripAccents(line))) { inFuturos = true; continue; }
     const dm = line.match(/^(\d{2}\/\d{2}\/\d{2,4})\s+(.*)$/);
     if (!dm) continue;
     const data = toIsoDate(dm[1]);
@@ -324,7 +324,7 @@ export async function computeDedupHashes(accountId: string, txs: ParsedBankTx[])
   const seen = new Map<string, number>();
   return Promise.all(txs.map(t => {
     if (t.bankRef) return sha256(`${accountId}|ref|${t.bankRef}`);
-    const base = `${accountId}|${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${normalizeDesc(t.descricao)}`;
+    const base = `${t.futuro ? 'fut|' : ''}${accountId}|${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${normalizeDesc(t.descricao)}`;
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
     return sha256(`${base}|${n}`);
