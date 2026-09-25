@@ -3080,6 +3080,272 @@ export type Database = {
           },
         ]
       }
+      team_time_daily: {
+        Row: {
+          dia: string
+          employee_external_id: string
+          horario_previsto: string | null
+          horas_extras: string | null
+          horas_trabalhadas: string | null
+          id: string
+          marcacoes: string[]
+          ocorrencia: string | null
+          primeira_marcacao: string | null
+          situacao: string
+          synced_at: string
+          ultima_marcacao: string | null
+        }
+        Insert: {
+          dia: string
+          employee_external_id: string
+          horario_previsto?: string | null
+          horas_extras?: string | null
+          horas_trabalhadas?: string | null
+          id?: string
+          marcacoes?: string[]
+          ocorrencia?: string | null
+          primeira_marcacao?: string | null
+          situacao?: string
+          synced_at?: string
+          ultima_marcacao?: string | null
+        }
+        Update: {
+          dia?: string
+          employee_external_id?: string
+          horario_previsto?: string | null
+          horas_extras?: string | null
+          horas_trabalhadas?: string | null
+          id?: string
+          marcacoes?: string[]
+          ocorrencia?: string | null
+          primeira_marcacao?: string | null
+          situacao?: string
+          synced_at?: string
+          ultima_marcacao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_time_daily_employee_external_id_fkey"
+            columns: ["employee_external_id"]
+            isOneToOne: false
+            referencedRelation: "team_time_employees"
+            referencedColumns: ["external_id"]
+          },
+        ]
+      }
+      team_time_employees: {
+        Row: {
+          ativo: boolean
+          cargo: string | null
+          created_at: string
+          departamento: string | null
+          external_id: string
+          horario_previsto: string | null
+          id: string
+          matricula: string | null
+          nome: string
+          synced_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cargo?: string | null
+          created_at?: string
+          departamento?: string | null
+          external_id: string
+          horario_previsto?: string | null
+          id?: string
+          matricula?: string | null
+          nome: string
+          synced_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cargo?: string | null
+          created_at?: string
+          departamento?: string | null
+          external_id?: string
+          horario_previsto?: string | null
+          id?: string
+          matricula?: string | null
+          nome?: string
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      team_time_hour_bank: {
+        Row: {
+          competencia: string
+          employee_external_id: string
+          id: string
+          saldo: string | null
+          saldo_minutos: number | null
+          synced_at: string
+        }
+        Insert: {
+          competencia: string
+          employee_external_id: string
+          id?: string
+          saldo?: string | null
+          saldo_minutos?: number | null
+          synced_at?: string
+        }
+        Update: {
+          competencia?: string
+          employee_external_id?: string
+          id?: string
+          saldo?: string | null
+          saldo_minutos?: number | null
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_time_hour_bank_employee_external_id_fkey"
+            columns: ["employee_external_id"]
+            isOneToOne: false
+            referencedRelation: "team_time_employees"
+            referencedColumns: ["external_id"]
+          },
+        ]
+      }
+      team_time_occurrences: {
+        Row: {
+          descricao: string | null
+          dia: string
+          employee_external_id: string
+          external_key: string
+          id: string
+          origem: string
+          synced_at: string
+          tipo: string
+        }
+        Insert: {
+          descricao?: string | null
+          dia: string
+          employee_external_id: string
+          external_key: string
+          id?: string
+          origem?: string
+          synced_at?: string
+          tipo: string
+        }
+        Update: {
+          descricao?: string | null
+          dia?: string
+          employee_external_id?: string
+          external_key?: string
+          id?: string
+          origem?: string
+          synced_at?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_time_occurrences_employee_external_id_fkey"
+            columns: ["employee_external_id"]
+            isOneToOne: false
+            referencedRelation: "team_time_employees"
+            referencedColumns: ["external_id"]
+          },
+        ]
+      }
+      team_time_settings: {
+        Row: {
+          auto_sync_enabled: boolean
+          id: boolean
+          sync_interval_minutes: number
+          updated_at: string
+          work_end: string
+          work_start: string
+        }
+        Insert: {
+          auto_sync_enabled?: boolean
+          id?: boolean
+          sync_interval_minutes?: number
+          updated_at?: string
+          work_end?: string
+          work_start?: string
+        }
+        Update: {
+          auto_sync_enabled?: boolean
+          id?: boolean
+          sync_interval_minutes?: number
+          updated_at?: string
+          work_end?: string
+          work_start?: string
+        }
+        Relationships: []
+      }
+      team_time_sync_errors: {
+        Row: {
+          created_at: string
+          endpoint: string | null
+          http_status: number | null
+          id: string
+          message: string
+          run_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          endpoint?: string | null
+          http_status?: number | null
+          id?: string
+          message: string
+          run_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string | null
+          http_status?: number | null
+          id?: string
+          message?: string
+          run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_time_sync_errors_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "team_time_sync_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_time_sync_runs: {
+        Row: {
+          counts: Json
+          finished_at: string | null
+          id: string
+          message: string | null
+          reference_date: string | null
+          requested_by: string | null
+          started_at: string
+          status: string
+          trigger: string
+        }
+        Insert: {
+          counts?: Json
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          reference_date?: string | null
+          requested_by?: string | null
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Update: {
+          counts?: Json
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          reference_date?: string | null
+          requested_by?: string | null
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Relationships: []
+      }
       upload_records: {
         Row: {
           file_name: string
