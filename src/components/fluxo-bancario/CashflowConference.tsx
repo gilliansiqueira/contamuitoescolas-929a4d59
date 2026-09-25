@@ -195,7 +195,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       {(data.dups.length > 0 || data.splitDiff.length > 0 || data.semPar.length + data.pairOut.length > 0) && (
         <section className="rounded-xl border border-warning bg-card p-3 text-sm">
           <h3 className="mb-2 font-semibold">Para revisar</h3>
-          {data.dups.map((l, i) => <p key={`d${i}`}>Possível duplicidade: {l.length}× {fmtBRL(Number(l[0].valor))} em {fmtDate(l[0].data)}, {accName.get(l[0].account_id)}: {l[0].descricao}</p>)}
+          {data.dups.map(({ who, l }, i) => { const ent = l[0].tipo === 'entrada'; return <p key={`d${i}`} title={l.map(t => t.descricao).join('\n')}>{l.length} {ent ? 'recebimentos' : 'pagamentos'} iguais de {fmtBRL(Number(l[0].valor))} {ent ? 'de' : 'para'} {who} em {fmtDate(l[0].data)} ({accName.get(l[0].account_id)}) — verificar se é {ent ? 'recebimento' : 'pagamento'} repetido</p>; })}
           {data.splitDiff.map(t => <p key={t.id}>Divisão com diferença: {t.descricao} ({fmtDate(t.data)}): banco {fmtBRL(Number(t.valor))}, partes {fmtBRL(t.splits!.reduce((s, p) => s + Number(p.valor), 0))}</p>)}
           {[...data.semPar, ...data.pairOut].map(t => <p key={`t${t.id}`}>Transferência sem a outra ponta: {fmtBRL(Number(t.valor))} em {fmtDate(t.data)}, {accName.get(t.account_id)}: {t.descricao}</p>)}
         </section>
