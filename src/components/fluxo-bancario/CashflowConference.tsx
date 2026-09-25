@@ -114,7 +114,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       sIn: sheet.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Math.abs(Number(e.valor)), 0),
       sOut: sheet.filter(e => e.tipo === 'saida').reduce((s, e) => s + Math.abs(Number(e.valor)), 0),
     };
-    return { g, sheet, tx, ini, fim, genIn, genOut, diffSaldo, ajusteConferido, aClass, pend, semPar, pairOut, splitDiff, auto, transf, dups, porConta, semMov,
+    return { g, sheet, tx, ini, fim, genIn, genOut, diffSaldo, ajusteConferido, transito, transitoValor, aClass, pend, semPar, pairOut, splitDiff, auto, transf, dups, porConta, semMov,
       tipos: [...tipos.entries()].map(([k, v]) => ({ label: labelOf.get(k) ?? k, ...v })).sort((a, b) => (b.gIn + b.gOut + b.sIn + b.sOut) - (a.gIn + a.gOut + a.sIn + a.sOut)),
       dias: [...dias.entries()].sort(([a], [b]) => a.localeCompare(b)), divergencias, sheetNet, sheetMax, cmpTo, txPost, cmp };
   }, [gen, sheetAll, txs, from, to, active, accName]);
@@ -170,7 +170,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         {card('Entradas geradas', fmtBRL(data.genIn), `${data.g.filter(e => e.tipo === 'entrada').length} linhas`)}
         {card('Saídas geradas', fmtBRL(data.genOut), `${data.g.filter(e => e.tipo === 'saida').length} linhas`)}
         {card('Saldo final', fmtBRL(data.fim), `bancário em ${fmtDate(to)}`)}
-        {card('Fechamento do saldo', data.diffSaldo === 0 ? 'Fecha' : fmtBRL(data.diffSaldo), data.ajusteConferido ? `inclui ajuste pelo saldo do extrato (a confirmar no próximo extrato): ${fmtBRL(data.ajusteConferido)}` : 'inicial + entradas − saídas = final', data.diffSaldo !== 0)}
+        {card('Fechamento do saldo', data.diffSaldo === 0 ? 'Fecha' : fmtBRL(data.diffSaldo), data.ajusteConferido ? `inclui ajuste pelo saldo do extrato (a confirmar no próximo extrato): ${fmtBRL(data.ajusteConferido)}` : data.transitoValor ? `inclui transferências em trânsito: ${fmtBRL(data.transitoValor)} (${data.transito.map(t => `${accName.get(t.account_id) ?? ''} ${fmtDate(t.data)}`).join(', ')})` : 'inicial + entradas − saídas = final', data.diffSaldo !== 0)}
       </div>
 
       {cfg.synced_through && <ActivationPreview schoolId={schoolId} cfg={cfg} gen={gen} bankTo={cfg.synced_through}
