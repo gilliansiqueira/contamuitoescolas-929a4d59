@@ -97,8 +97,19 @@ export function parseOFX(content: string): BankParseResult {
   }
   const bal = content.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
   const avail = content.match(/<AVAILBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
-  const r = finish('ofx', txs, { banco: bank, saldoFinalInformado: bal ? parseBRNumber(bal) : undefined, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
-  r.avisos = avisoBloqueados(bloqN, bloqT);
+  let saldoFinal = bal ? parseBRNumber(bal) : undefined;
+  // Inter: o OFX informa só o saldo disponível. Cheques recebidos no último dia ficam "bloqueados"
+  // (em compensação), mas já estão nos lançamentos → o saldo real é disponível + esses cheques.
+  const avisosExtra: string[] = [];
+  const lastDate = txs.reduce((m, t) => (t.data > m ? t.data : m), '');
+  const chequesComp = txs.filter(t => t.data === lastDate && t.tipo === 'entrada' && /^cheque recebido/i.test(t.descricao));
+  if (saldoFinal !== undefined && chequesComp.length) {
+    const soma = Math.round(chequesComp.reduce((s, t) => s + t.valor, 0) * 100) / 100;
+    saldoFinal = Math.round((saldoFinal + soma) * 100) / 100;
+    avisosExtra.push(`${chequesComp.length} cheque(s) recebido(s) em ${lastDate.split('-').reverse().join('/')} ainda em compensação (R$ ${soma.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). O saldo do extrato foi somado a eles: o banco mostra só o disponível.`);
+  }
+  const r = finish('ofx', txs, { banco: bank, saldoFinalInformado: saldoFinal, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
+  r.avisos = [...avisoBloqueados(bloqN, bloqT), ...avisosExtra];
   return r;
 }
 
