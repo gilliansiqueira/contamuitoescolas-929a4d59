@@ -22,7 +22,7 @@ const db = supabase as any;
 interface Props { schoolId: string; accounts: BankAccount[]; txs?: BankTx[]; onViewAuto?: (importId: string, from: string, to: string) => void }
 
 interface Preview {
-  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; saldoAplicado: string;
+  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; saldoAplicado: string; saldoCalc?: number;
 }
 
 const lastDayPrevMonth = (() => { const d = new Date(); const x = new Date(d.getFullYear(), d.getMonth(), 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; })();
@@ -122,7 +122,17 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const k: MovementKind = acc?.has_auto_invest ? detectMovementKind(t.descricao, t.tipo, pats) : 'normal';
         return k === 'normal' && detectOwnTransfer(t.descricao, own) ? 'transferencia' : k;
       });
-      setPreview({ file, hash, result, hashes, existing, kinds, saldoAplicado: '' });
+      // Saldo em conta esperado = saldo inicial + movimento já gravado + movimento novo deste arquivo.
+      let saldoCalc: number | undefined;
+      if (acc && result.saldoFinalInformado !== undefined && result.saldoComAplicacaoInformado === undefined && result.periodoFim) {
+        let q = db.from('bank_transactions').select('valor, tipo').eq('account_id', accountId).eq('is_forecast', false).lte('data', result.periodoFim).limit(20000);
+        if (acc.saldo_inicial_data) q = q.gt('data', acc.saldo_inicial_data);
+        const { data: gravados } = await q;
+        const movG = (gravados ?? []).reduce((a: number, r: any) => a + (r.tipo === 'entrada' ? 1 : -1) * Number(r.valor), 0);
+        const movN = result.transactions.reduce((a, t, i) => (t.futuro || existing.has(hashes[i]) || (acc.saldo_inicial_data && t.data <= acc.saldo_inicial_data)) ? a : a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
+        saldoCalc = Math.round((Number(acc.saldo_inicial ?? 0) + movG + movN) * 100) / 100;
+      }
+      setPreview({ file, hash, result, hashes, existing, kinds, saldoAplicado: '', saldoCalc });
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao ler o arquivo');
     } finally { setBusy(false); }
@@ -314,6 +324,16 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-xs text-muted-foreground">Saídas</p><p className="font-semibold text-destructive">{fmtBRL(pSai)}</p></div>
               </div>
               {p.saldoFinalInformado !== undefined && <p className="text-xs text-muted-foreground">Saldo final informado pelo banco: {fmtBRL(p.saldoFinalInformado)}</p>}
+              {preview.saldoCalc !== undefined && p.saldoFinalInformado !== undefined && p.saldoComAplicacaoInformado === undefined && p.saldoFinalInformado - preview.saldoCalc >= 0.01 && (
+                <div className="space-y-1 rounded-md bg-warning/15 p-2 text-xs text-warning">
+                  <p className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" />O saldo do arquivo ({fmtBRL(p.saldoFinalInformado)}) é maior que o saldo em conta calculado ({fmtBRL(preview.saldoCalc)}): diferença de {fmtBRL(p.saldoFinalInformado - preview.saldoCalc)}. Alguns bancos (ex.: Bradesco) somam o valor aplicado no saldo do arquivo.</p>
+                  <Button size="sm" variant="outline" onClick={() => setPreview({ ...preview, result: { ...p, saldoFinalInformado: preview.saldoCalc, saldoComAplicacaoInformado: p.saldoFinalInformado } })}>
+                    Tratar {fmtBRL(p.saldoFinalInformado - preview.saldoCalc)} como aplicação
+                  </Button>
+                  <p className="text-muted-foreground">Se não for aplicação, confira o saldo inicial da conta antes de importar.</p>
+                </div>
+              )}
+              {p.saldoComAplicacaoInformado !== undefined && !accounts.find(a => a.id === accountId)?.has_auto_invest && <p className="text-xs text-muted-foreground">Em conta {fmtBRL(p.saldoFinalInformado ?? 0)} · total com aplicação {fmtBRL(p.saldoComAplicacaoInformado)}.</p>}
               {preview.kinds.some(k => k !== 'normal') && <p className="text-xs text-info">{preview.kinds.filter(k => k !== 'normal').length} lançamento(s) marcados como aplicação automática (fora de entradas e saídas). Desmarque na tabela se algum estiver errado.</p>}
               {accounts.find(a => a.id === accountId)?.has_auto_invest && (
                 p.saldoComAplicacaoInformado !== undefined
