@@ -66,6 +66,16 @@ export function parseBRNumber(v: string | number): number {
 
 const SKIP_RE = /^(saldo\s+anterior|s\s*a\s*l\s*d\s*o|saldo\s+bloqueado|saldo\s+a\s+disp|saldo\s+do\s+dia|saldo\s+final|saldo\s+total)/i;
 
+/**
+ * Depósito de cheque bloqueado (ex.: Sicoob "DEP.CHEQUE BLOQ.1D", "DEP CH.CANAL ATEND.1D").
+ * Não entra no saldo: o valor só entra na linha "LIBERAÇÃO DE DEPÓSITO BLOQUEADO".
+ */
+export const BLOCKED_DEPOSIT_RE = /DEP\.?\s?CH(EQUE)?\.?\s?BLOQ|DEP\s?CH\.?\s?CANAL\s?ATEND/i;
+const fmtBR = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const avisoBloqueados = (n: number, total: number) => n
+  ? [`${n} depósito(s) de cheque bloqueado(s) deixado(s) de fora (R$ ${fmtBR(total)}): o valor entra na linha "Liberação de depósito bloqueado", como no saldo do banco.`]
+  : [];
+
 function finish(formato: BankParseResult['formato'], txs: ParsedBankTx[], extra: Partial<BankParseResult> = {}): BankParseResult {
   const dates = txs.map(t => t.data).sort();
   return { formato, periodoInicio: dates[0], periodoFim: dates[dates.length - 1], transactions: txs, avisos: [], ...extra };
@@ -73,6 +83,7 @@ function finish(formato: BankParseResult['formato'], txs: ParsedBankTx[], extra:
 
 export function parseOFX(content: string): BankParseResult {
   const txs: ParsedBankTx[] = [];
+  let bloqN = 0, bloqT = 0;
   const bank = content.match(/<BANKID>([^<\r\n]+)/i)?.[1]?.trim();
   for (const s of content.matchAll(/<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>)|(?=<\/BANKTRANLIST>))/gi)) {
     const body = s[1];
@@ -81,11 +92,14 @@ export function parseOFX(content: string): BankParseResult {
     const memo = (body.match(/<MEMO>([^<\r\n]+)/i)?.[1] ?? body.match(/<NAME>([^<\r\n]+)/i)?.[1] ?? '').trim();
     const fitid = body.match(/<FITID>([^<\r\n]+)/i)?.[1]?.trim();
     if (!data || valor === 0) continue;
+    if (valor > 0 && BLOCKED_DEPOSIT_RE.test(memo)) { bloqN++; bloqT += valor; continue; }
     txs.push({ data, descricao: memo || 'Transação', valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada', bankRef: fitid || undefined });
   }
   const bal = content.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
   const avail = content.match(/<AVAILBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
-  return finish('ofx', txs, { banco: bank, saldoFinalInformado: bal ? parseBRNumber(bal) : undefined, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
+  const r = finish('ofx', txs, { banco: bank, saldoFinalInformado: bal ? parseBRNumber(bal) : undefined, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
+  r.avisos = avisoBloqueados(bloqN, bloqT);
+  return r;
 }
 
 function findHeader(headers: string[], candidates: string[], exclude: number[] = []): number {
@@ -244,6 +258,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   const txs: ParsedBankTx[] = [];
   const futuros: ParsedBankTx[] = [];
   let inFuturos = false;
+  let bloqN = 0, bloqT = 0;
   let saldoConta: number | undefined; let saldoContaData: string | undefined;
   let investido: number | undefined; let saldoTotal: number | undefined;
   const all = stripAccents(lines.join(' '));
@@ -273,6 +288,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     const v = parseBRNumber(valStr);
     const descricao = dm[2].slice(0, dm[2].indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
     if (!descricao || SKIP_RE.test(descricao) || v === 0) continue;
+    if (BLOCKED_DEPOSIT_RE.test(descricao) || /\*$/.test(valStr.trim())) { bloqN++; bloqT += Math.abs(v); continue; }
     // Sentido: sinal/marcador D-C; sem marcador, "DÉB."/"PIX EMITIDO" etc. na descrição indicam saída.
     const s = valStr.trim();
     const temMarcador = /^[-(]/.test(s) || /[-DC)]$/i.test(s);
@@ -305,6 +321,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   // Demais bancos (ex.: Sicoob): efetivados + futuros como previstos.
   const r = finish('pdf', [...txs, ...futuros], { avisos: [
     ...avisoSaldo,
+    ...avisoBloqueados(bloqN, bloqT),
     'Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.',
     ...(futuros.length ? [`${futuros.length} lançamento(s) futuro(s) entram como "Previsto — aguardando extrato" e são trocados pelo real quando ele chegar.`] : []),
   ] });
