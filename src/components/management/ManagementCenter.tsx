@@ -12,6 +12,7 @@ import {
 import { useAddSchool } from '@/hooks/useFinancialData';
 import { useClosingStepTemplates, useEnsureMonthlyChecklist } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
+import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -47,7 +48,7 @@ interface Props {
 }
 
 type Situation = 'all' | 'finalizado' | 'bloqueado' | 'atrasado' | 'atencao' | 'em_dia' | 'sem_etapas';
-type ManagementView = 'portfolio' | 'closing' | 'pending' | 'responsible';
+type ManagementView = 'portfolio' | 'closing' | 'pending' | 'responsible' | 'team_time';
 type RowStatus = Exclude<Situation, 'all'>;
 
 const statusLabels: Record<RowStatus, string> = {
@@ -283,6 +284,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         </div>
         <nav className="mt-6 flex-1 space-y-1 px-3" aria-label="Central de Clientes">
           {navigation.map(item => <Button key={item.key} type="button" variant="ghost" onClick={() => setView(item.key)} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === item.key ? 'management-nav-active' : ''}`}><item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Button>)}
+          {isSuperAdmin && <>
+            <p className="px-3 pb-1 pt-4 text-[10px] uppercase tracking-[0.14em] text-primary-foreground/70">Equipe</p>
+            <Button type="button" variant="ghost" onClick={() => setView('team_time')} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === 'team_time' ? 'management-nav-active' : ''}`}><Clock3 className="h-4 w-4 shrink-0" /><span>Ponto da Equipe</span></Button>
+          </>}
         </nav>
         <div className="management-profile mx-3 mb-4 flex items-center gap-2 border-t px-1 pt-4">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-foreground text-[10px] font-semibold text-primary">{profileInitials}</div>
@@ -297,8 +302,12 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         </header>
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:hidden" aria-label="Central de Clientes">
           {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => setView(item.key)} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
+          {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => setView('team_time')} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
         </nav>
 
+        {view === 'team_time' && isSuperAdmin ? (
+          <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><TeamTimePanel /></main>
+        ) : (
         <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6">
           <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div><h1 className="text-2xl font-medium tracking-normal">Central de Clientes</h1><p className="mt-1 text-xs text-muted-foreground">Acompanhe a carteira e priorize o que precisa de atenção.</p></div>
@@ -358,6 +367,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             </div>
           )}
         </main>
+        )}
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
