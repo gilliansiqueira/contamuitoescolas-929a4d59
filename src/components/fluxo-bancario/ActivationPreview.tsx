@@ -31,7 +31,9 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
 
   const p = useMemo(() => {
     const opts = { isInModel };
-    const entries = projectEntries(applyCashflowOverlay(raw, gen, start, schoolId), rules, classifications, model);
+    // Mesma data de corte nas duas colunas: só o realizado até bankTo entra na comparação.
+    const genCut = gen.filter(e => e.data <= bankTo);
+    const entries = projectEntries(applyCashflowOverlay(raw, genCut, start, schoolId), rules, classifications, model);
     // Histórico antigo (sem âncora): só informativo.
     const oldCtx = { ...ctx, entries, cashflowAnchor: undefined };
     const planIni = computeSaldoInicial(month, oldCtx, opts);
