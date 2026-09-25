@@ -239,6 +239,13 @@
       "when": 1790348950284,
       "tag": "0033_bank_tx_forecast_futuros",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790348973711,
+      "tag": "0034_bank_tx_forecast_fix_text_date",
+      "breakpoints": true
     }
   ]
 }
