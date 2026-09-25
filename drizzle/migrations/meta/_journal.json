@@ -267,6 +267,13 @@
       "when": 1790355702302,
       "tag": "0037_refresh_status_on_statement_import",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790360630512,
+      "tag": "0038_expense_detail_tipo_rastreio",
+      "breakpoints": true
     }
   ]
 }
