@@ -36,7 +36,8 @@ export function useBankAccounts(schoolId: string) {
           if (i.account_id !== a.id) continue;
           const conta = Number(i.saldo_final_informado);
           if (a.has_auto_invest && i.saldo_aplicado_informado == null) continue; // sem aplicado no arquivo: mantém o calculado
-          const total = a.has_auto_invest ? Number(i.saldo_aplicado_informado) : conta;
+          // Total com aplicação informado (ex.: Bradesco soma CDB no saldo do arquivo) vale também sem aplicação automática.
+          const total = i.saldo_aplicado_informado != null ? Number(i.saldo_aplicado_informado) : conta;
           byDate.set(i.periodo_fim, { id: i.id, data: i.periodo_fim, saldo_conta: conta, saldo_aplicado: Math.round((total - conta) * 100) / 100 });
         }
         // Só o extrato mais recente vale como saldo oficial. Saldos de extratos anteriores costumam ser
