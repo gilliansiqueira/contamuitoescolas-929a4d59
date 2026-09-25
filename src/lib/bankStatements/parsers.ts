@@ -21,6 +21,8 @@ export interface BankParseResult {
   periodoFim?: string;
   saldoFinalInformado?: number;
   saldoDisponivelInformado?: number;
+  /** Saldo total (em conta + aplicação automática), lido do próprio arquivo quando existir. */
+  saldoComAplicacaoInformado?: number;
   transactions: ParsedBankTx[];
   avisos: string[];
 }
@@ -242,14 +244,25 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   const txs: ParsedBankTx[] = [];
   const futuros: ParsedBankTx[] = [];
   let inFuturos = false;
+  let saldoConta: number | undefined; let saldoContaData: string | undefined;
+  let investido: number | undefined; let saldoTotal: number | undefined;
   const VAL = /(-?\s?R?\$?\s?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[-DC]?)/gi;
+  const lastVal = (s: string) => { const v = [...s.matchAll(VAL)].map(m => m[1]); return v.length ? parseBRNumber(v[v.length - 1]) : undefined; };
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, ' ').trim();
-    if (/lancamentos\s+futuros/i.test(stripAccents(line))) { inFuturos = true; continue; }
+    const plain = stripAccents(line);
+    if (/lancamentos\s+futuros/i.test(plain)) { inFuturos = true; continue; }
+    // Resumo final do PDF do BB: parte aplicada e saldo total (conta + aplicação)
+    if (/^invest\.?\s*resgate\s*autom/i.test(plain)) { investido = lastVal(line); continue; }
+    if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined && saldoTotal === undefined) { saldoTotal = lastVal(line); continue; }
     const dm = line.match(/^(\d{2}\/\d{2}\/\d{2,4})\s+(.*)$/);
     if (!dm) continue;
     const data = toIsoDate(dm[1]);
     if (!data) continue;
+    if (!inFuturos && /\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && !/anterior/i.test(dm[2])) {
+      const v = lastVal(dm[2]); if (v !== undefined) { saldoConta = v; saldoContaData = data; }
+      continue;
+    }
     const vals = [...dm[2].matchAll(VAL)].map(m => m[1]);
     if (!vals.length) continue;
     // Com saldo/total diário na linha, o valor do lançamento é o penúltimo número
@@ -260,11 +273,27 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' };
     if (inFuturos) futuros.push({ ...tx, futuro: true }); else txs.push(tx);
   }
-  if (futuros.length) {
-    return finish('pdf', futuros, { avisos: [
-      `Encontrados ${futuros.length} lançamento(s) futuro(s). Só eles serão importados, como "Previsto — aguardando extrato"; os lançamentos já efetivados devem vir do OFX.`,
+  // Saldos lidos do próprio PDF (ninguém precisa digitar). Total = conta + aplicação.
+  const saldos: Partial<BankParseResult> = {};
+  if (saldoConta !== undefined && saldoContaData) {
+    saldos.saldoFinalInformado = saldoConta;
+    saldos.periodoFim = saldoContaData;
+    if (saldoTotal === undefined && investido !== undefined) saldoTotal = Math.round((saldoConta + investido) * 100) / 100;
+    if (saldoTotal !== undefined) saldos.saldoComAplicacaoInformado = saldoTotal;
+  }
+  const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const avisoSaldo = saldos.saldoComAplicacaoInformado !== undefined
+    ? [`Saldos lidos do PDF em ${saldoContaData!.split('-').reverse().join('/')}: em conta ${fmt(saldoConta!)} · total com aplicação ${fmt(saldos.saldoComAplicacaoInformado)}.`]
+    : [];
+  if (futuros.length || saldos.saldoComAplicacaoInformado !== undefined) {
+    const r = finish('pdf', futuros, { avisos: [
+      ...avisoSaldo,
+      futuros.length
+        ? `Encontrados ${futuros.length} lançamento(s) futuro(s). Só eles serão importados, como "Previsto — aguardando extrato"; os lançamentos já efetivados devem vir do OFX.`
+        : 'Nenhum lançamento futuro. Do PDF entram só os saldos; os lançamentos efetivados devem vir do OFX.',
       'Quando o próximo OFX trouxer o lançamento real (mesmo valor e sentido, até 3 dias depois), ele substitui o previsto automaticamente.',
     ] });
+    return { ...r, ...saldos, periodoInicio: saldos.periodoFim ?? r.periodoInicio };
   }
   return finish('pdf', txs, { avisos: ['Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.'] });
 }
