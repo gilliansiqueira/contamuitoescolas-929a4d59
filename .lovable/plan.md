@@ -35,7 +35,7 @@ Minha recomendação é **deixar para depois** e resolver a lentidão primeiro:
 
 - O cartão da sua conta já está aqui, então não há ganho imediato em mudar.
 - A transferência leva o código e as configurações, mas há risco para os dados do servidor — e o seu histórico financeiro (até 01/09/2026) é justamente o que não pode se perder.
-- Quando fizer a迁移, o cartão precisará ser cadastrado lá, e é o suporte quem faz a transferência com segurança.
+- Quando você decidir fazer a mudança, o cartão precisará ser cadastrado lá, e é o suporte quem faz a transferência com segurança.
 
 Podemos tratar disso como um assunto separado, com backup antes.
 
