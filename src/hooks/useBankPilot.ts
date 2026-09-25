@@ -51,7 +51,7 @@ export function useBankTransactions(schoolId: string) {
     queryFn: async () => {
       const [txs, splits] = await Promise.all([
         fetchAllRows<BankTx>('bank_transactions', q => q.eq('school_id', schoolId),
-          1000, 'id, account_id, import_id, data, descricao, descricao_editada, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind, model_item_id'),
+          1000, 'id, account_id, import_id, data, descricao, descricao_editada, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind, model_item_id, is_forecast'),
         fetchAllRows<BankSplit & { transaction_id: string }>('bank_transaction_splits', q => q.eq('school_id', schoolId),
           1000, 'id, transaction_id, valor, categoria, descricao, note, sort_order, model_item_id'),
       ]);
