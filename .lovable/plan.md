@@ -1,25 +1,33 @@
 # Banco do Brasil de Dourados: diferença explicada pelo lançamento futuro
 
-## O que a conferência mostrou
-Você tinha razão. A conta fecha assim:
+## Resposta: o OFX traz o lançamento futuro?
+Não. O OFX do BB só traz o que já foi efetivado. Os "Lançamentos futuros" (como o PGT CARTAO de 2.159,03) aparecem apenas no PDF e na tela do banco. O arquivo de 25/09 confirma isso: a última linha é a VIVO de 190,53 e não há nenhum PGT CARTAO.
 
+## O que a conferência mostrou
 ```text
 Total calculado pelas linhas até 25/09 (em conta + aplicado)   151.130,00
-(-) PGT CARTAO 25/09 (lançamento futuro, não veio no arquivo)   -2.159,03
-(+) Rendimento do BB Rende Fácil (não veio no arquivo)             +21,21
+(-) PGT CARTAO 25/09 (lançamento futuro, não veio no OFX)       -2.159,03
+(+) Rendimento do BB Rende Fácil (ainda não lançado)               +21,21
 = Total real no fim de 25/09                                   148.992,18
 ```
-
-- 148.992,18 é exatamente o aplicado do extrato, com a conta zerada: o banco já resgatou da aplicação para cobrir a VIVO (190,53) e o pagamento do cartão.
-- Então o seu saldo esperado de 207.107,14 está certo. A diferença não é erro de lançamento: são 2 linhas que o banco só manda no próximo arquivo.
-- Todas as outras contas batem centavo por centavo. Nenhum lançamento foi alterado.
+Com o PGT CARTAO, fica faltando só o rendimento de 21,21. Todas as outras contas batem centavo por centavo.
 
 ## O que vou fazer
-1. Na lista "A confirmar no próximo extrato", mostrar a diferença do BB (2.137,82) com a explicação "provável lançamento futuro / rendimento ainda não lançado". Isso não trava o Dashboard nem o Fluxo Diário.
-2. Quando entrar o próximo extrato do BB com o PGT CARTAO de 2.159,03 e o rendimento, a pendência some sozinha. Se não sumir, ela continua visível para a equipe.
-3. Verificar um caso parecido em 22/09: o cheque de 580,80 aparece 3 vezes (depósito, devolução e novo depósito). Confirmar que só o depósito válido conta como receita.
+1. **Lançamentos futuros vindos do PDF do BB:** ao subir o PDF do extrato (junto com o OFX ou sozinho), o sistema lê o bloco "Lançamentos futuros" e cria cada linha como **Previsto**, com o selo "Aguardando extrato".
+   - Ele entra na conciliação e no saldo do dia para vocês conferirem.
+   - Quando o próximo OFX trouxer o lançamento real (mesma conta, mesmo valor, mesmo sentido, data até 3 dias depois), o real **substitui** o previsto automaticamente. Nunca ficam os dois, então não há duplicidade.
+   - Se o real não chegar em 5 dias úteis, o previsto fica destacado para a equipe revisar ou excluir.
+2. **Pequenas diferenças (rendimento/centavos):** continuam em "A confirmar no próximo extrato", sem travar o Dashboard nem o Fluxo Diário.
+3. Conferir o cheque de 580,80 de 22/09 (depósito, devolução e novo depósito) para garantir que só o depósito válido conta como receita.
+
+## Regras preservadas
+- Nenhum lançamento real é alterado ou apagado. Só o "Previsto" é substituído.
+- Cada previsto guarda o arquivo de origem e a data da importação.
+- Nada antes de 01/09/2026 é tocado.
 
 ## Detalhes técnicos
-- Não criar lançamento sintético para o PGT CARTAO. Isso evita duplicar quando o próximo OFX trouxer a linha real (a regra de deduplicação é por dedup_hash).
-- A pendência sai da diferença entre o saldo informado pelo extrato e o saldo calculado pelas linhas, por conta e data, e é recalculada a cada importação.
-- É só leitura e exibição. Nenhuma escrita em bank_transactions.
+- Em `parsers.ts`, `parsePdfLines` passa a reconhecer a seção "Lançamentos futuros" e devolve essas linhas com a marcação `futuro: true`.
+- Migration: coluna `is_forecast boolean default false` e `replaced_by uuid` em bank_transactions, com GRANTs e RLS inalterados. O previsto entra com recon_status Pendente.
+- Ao importar um OFX, a mesma rotina procura previstos da conta que casem por valor, sentido e data até +3 dias. Encontrando, apaga o previsto (fica registrado no histórico de conciliação) e mantém o real. Tudo idempotente pelo dedup_hash.
+- O guard de imutabilidade permite essa remoção apenas para linhas com `is_forecast = true`.
+- Testes: previsto e real no mesmo período nunca somam juntos; o saldo do BB em 25/09 fecha com diferença de 21,21.
