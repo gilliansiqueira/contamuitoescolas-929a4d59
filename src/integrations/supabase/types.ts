@@ -485,6 +485,7 @@ export type Database = {
           descricao_editada: string | null
           id: string
           import_id: string
+          is_forecast: boolean
           model_item_id: string | null
           movement_kind: string
           recon_at: string | null
@@ -507,6 +508,7 @@ export type Database = {
           descricao_editada?: string | null
           id?: string
           import_id: string
+          is_forecast?: boolean
           model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null
@@ -529,6 +531,7 @@ export type Database = {
           descricao_editada?: string | null
           id?: string
           import_id?: string
+          is_forecast?: boolean
           model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null

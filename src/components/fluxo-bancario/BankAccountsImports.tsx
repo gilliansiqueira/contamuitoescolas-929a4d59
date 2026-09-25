@@ -131,7 +131,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       if (e1) throw e1;
       for (let i = 0; i < novos.length; i += 500) {
         const chunk = novos.slice(i, i + 500).map(({ t, h, k }) => ({
-          school_id: schoolId, account_id: accountId, import_id: imp.id, data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, bank_ref: t.bankRef ?? null, dedup_hash: h, movement_kind: k,
+          school_id: schoolId, account_id: accountId, import_id: imp.id, data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, bank_ref: t.bankRef ?? null, dedup_hash: h, movement_kind: k, is_forecast: !!t.futuro,
         }));
         const { error } = await db.from('bank_transactions').upsert(chunk, { onConflict: 'account_id,dedup_hash', ignoreDuplicates: true });
         if (error) { await db.from('bank_statement_imports').delete().eq('id', imp.id); throw error; }
