@@ -1,32 +1,21 @@
-# Cuiabá Goiabeiras: por que os saldos não batem
+# Trocar a data do saldo inicial de 01/09 para 31/08
 
-Conferi as três contas, linha a linha, com os arquivos que você mandou. Todos os lançamentos entraram, sem nenhum duplicado. As diferenças vêm do **saldo inicial cadastrado em cada conta**, não dos extratos.
-
-## 1. Stone: diferença de R$ 2.310,70 (causa confirmada)
-- O saldo inicial foi cadastrado como R$ 0,00 **em 01/09**. Para o sistema, isso quer dizer "saldo no **fim** do dia 01/09". Então ele pula os lançamentos do próprio dia 01/09.
-- Em 01/09 entraram duas vendas: R$ 1.577,62 + R$ 733,08 = **R$ 2.310,70**, exatamente a diferença.
-- Contando o dia 01/09, a Stone fecha em **R$ 2.696,00**, igual ao banco.
-- O mesmo acontece em outras **15 contas** de outras empresas, cadastradas com data 01/09 em vez de 31/08.
-
-## 2. Sicredi: saldo inicial no lugar errado (causa provável)
-- Os R$ 19.565,67 foram cadastrados como saldo **em conta**, e o aplicado como R$ 0,00. Mas o próprio extrato mostra a conta zerada, com tudo indo para a aplicação. Então esses R$ 19.565,67 eram o **aplicado**, não o saldo em conta.
-- Com o valor no lugar certo, o total fica em **R$ 6.019,27**. O banco mostra **R$ 6.028,51**: sobram R$ 9,24, que devem ser rendimento. Eles aparecem em "A confirmar no próximo extrato", sem travar nada.
-- O extrato que está no sistema vai até 24/09. O arquivo novo que você mandou vai até 25/09 e deve ser importado.
-
-## 3. Banco do Brasil: diferença de R$ 19.560,27 (causa ainda não confirmada)
-- Pelo extrato, o saldo em conta confere: −R$ 48.824,96, coberto pela aplicação.
-- Com o aplicado cadastrado em 31/08 (R$ 75.161,82) e o dia 01/09 incluído, o total fica em R$ 20.512,73. O banco mostra R$ 952,46.
-- A diferença, de R$ 19.560,27, fica muito perto do saldo do Sicredi (R$ 19.565,67). Suspeito que o aplicado inicial do BB esteja errado ou tenha sido somado com o do Sicredi. Para confirmar, preciso do **saldo do BB em 31/08 (em conta e aplicado)** ou do PDF do BB de setembro.
+## Por que
+Quando o saldo inicial está com data 01/09, o sistema entende que é o saldo no **fim** do dia 01/09. Por isso, pula os lançamentos do próprio dia 01/09. Em Cuiabá Goiabeiras, na Stone, isso explica exatamente a diferença de R$ 2.310,70: são duas vendas do dia 01/09. Com o dia incluído, a Stone fecha em R$ 2.696,00, igual ao banco.
 
 ## O que vou fazer
-1. **Tornar a data mais clara no cadastro:** o campo passa a dizer "Saldo no fechamento do dia" e já vem com o último dia do mês anterior (31/08). Assim ninguém cadastra 01/09 sem querer.
-2. **Corrigir as contas cadastradas com data 01/09:** a data passa a ser 31/08, com o mesmo valor. Isso vale para as 16 contas. Nenhum lançamento é tocado. Antes de corrigir, confiro em cada conta se o valor bate com o saldo de abertura, como aconteceu na Stone.
-3. **Sicredi de Goiabeiras:** mover os R$ 19.565,67 de "em conta" para "aplicado", com R$ 0,00 em conta.
-4. **Banco do Brasil de Goiabeiras:** esperar o saldo de 31/08 ou o PDF antes de mexer.
-5. Pedir para importarem o extrato do Sicredi até 25/09.
+1. Trocar a data do saldo inicial de **01/09 para 31/08**, mantendo o mesmo valor, em todas as contas cadastradas assim. Hoje são 15 contas. Isso vale para o saldo em conta e para o saldo aplicado.
+2. Nenhum lançamento é alterado. Muda só a data do saldo inicial.
+3. Recalcular a conferência com o banco de cada conta alterada e mostrar para você quais passaram a bater e quais ainda têm diferença.
+4. Para não voltar a acontecer: no cadastro de conta, o campo passa a dizer "Saldo no fechamento do dia" e já vem com o último dia do mês anterior.
+
+## O que continua pendente em Cuiabá Goiabeiras
+- **Sicredi:** os R$ 19.565,67 parecem ser o saldo aplicado, e não o saldo em conta. Com o valor no lugar certo, a diferença deve ficar em uns R$ 9 de rendimento. Só mudo isso se você confirmar.
+- **Banco do Brasil:** vai sobrar uma diferença de uns R$ 19.560. Para achar a causa, preciso do saldo do BB em 31/08 (em conta e aplicado) ou do PDF de setembro.
+- **Sicredi:** o extrato que está no sistema vai até 24/09. É preciso importar o arquivo novo, que vai até 25/09.
 
 ## Detalhes técnicos
-- `bankCashflowEngine.ts:59` usa `t.data > saldo_inicial_data` (saldo = fechamento do dia). A regra fica como está: 53 contas usam 31/08 corretamente.
-- Correção de dados via run_sql: `bank_accounts.saldo_inicial_data` e `auto_invest_saldo_data` de '2026-09-01' para '2026-08-31', só em contas sem lançamentos antes de 01/09 que conflitem. A conta Stone de Goiabeiras tem lançamentos antes de 01/09 (de 26/06 em diante), que continuam sendo ignorados pelo corte.
-- Sicredi (1eed550f): `saldo_inicial=0`, `auto_invest_saldo_inicial=19565.67`.
-- No formulário de conta: novo rótulo e data padrão igual ao último dia do mês anterior.
+- Via run_sql: `UPDATE bank_accounts SET saldo_inicial_data='2026-08-31'` onde o valor atual é '2026-09-01'. Também `auto_invest_saldo_data`, nos mesmos casos.
+- O motor (`t.data > saldo_inicial_data`) não muda: 53 contas já usam 31/08 corretamente.
+- Depois da troca, rodar uma consulta que compara o saldo calculado com `saldo_final_informado` do último extrato de cada conta alterada.
+- Formulário de conta: novo rótulo e data padrão.
