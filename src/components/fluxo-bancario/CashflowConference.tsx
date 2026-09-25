@@ -6,6 +6,7 @@ import { Download, RefreshCw, AlertTriangle, CheckCircle2, CalendarRange } from 
 import { toast } from 'sonner';
 import { useCashflowEntries, useDataSource, useResyncCashflow, useSheetFluxoEntries } from '@/hooks/useBankPilot';
 import { accountBalances, anchorAdjustments, isAutoInvest, type BankAccount, type BankTx } from '@/lib/bankStatements/bankCashflowEngine';
+import { extractCounterparty } from '@/lib/bankStatements/counterparty';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 import { ActivationPreview } from './ActivationPreview';
 
@@ -61,10 +62,16 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
     const auto = tx.filter(isAutoInvest);
     const transf = tx.filter(t => t.transfer_pair_id);
 
-    // Duplicidades no extrato
-    const dupKey = new Map<string, BankTx[]>();
-    for (const t of tx) { const k = `${t.account_id}|${t.data}|${t.tipo}|${r2(Number(t.valor))}|${t.descricao}`; dupKey.set(k, [...(dupKey.get(k) ?? []), t]); }
-    const dups = [...dupKey.values()].filter(l => l.length > 1);
+    // Possível pagamento repetido: mesmo dia, conta, sentido, valor e mesma pessoa/empresa
+    const dupKey = new Map<string, { who: string; l: BankTx[] }>();
+    for (const t of tx) {
+      if (t.transfer_pair_id || isAutoInvest(t)) continue;
+      const who = extractCounterparty(t.descricao);
+      if (!who) continue;
+      const k = `${t.account_id}|${t.data}|${t.tipo}|${r2(Number(t.valor))}|${who}`;
+      const cur = dupKey.get(k) ?? { who, l: [] }; cur.l.push(t); dupKey.set(k, cur);
+    }
+    const dups = [...dupKey.values()].filter(d => d.l.length > 1);
 
     // Por conta
     const porConta = active.map(a => {
