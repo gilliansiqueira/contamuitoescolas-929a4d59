@@ -1,3 +1,4 @@
+import { useRealizedEntries } from '@/hooks/useRealizedEntries';
 import { useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -30,13 +31,7 @@ export function ExportacaoDados({ schoolId }: Props) {
   const [copied, setCopied] = useState(false);
   const [formato, setFormato] = useState<'numerico' | 'formatado'>('formatado');
 
-  const { data: entries = [] } = useQuery({
-    queryKey: ['realized_entries', schoolId],
-    queryFn: async () => {
-      const { fetchAllRows } = await import('@/lib/fetchAll');
-      return fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId).order('data'));
-    },
-  });
+  const { data: entries = [] } = useRealizedEntries(schoolId);
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],

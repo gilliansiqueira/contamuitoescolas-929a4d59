@@ -1,3 +1,4 @@
+import { useRealizedEntries } from '@/hooks/useRealizedEntries';
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -82,13 +83,7 @@ export function RelatorioRealizado({ schoolId }: Props) {
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('all');
   const [filtroOpen, setFiltroOpen] = useState(false);
 
-  const { data: entries = [], isLoading } = useQuery({
-    queryKey: ['realized_entries', schoolId],
-    queryFn: async () => {
-      const { fetchAllRows } = await import('@/lib/fetchAll');
-      return fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId).order('data'));
-    },
-  });
+  const { data: entries = [], isLoading } = useRealizedEntries(schoolId);
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],

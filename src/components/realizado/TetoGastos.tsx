@@ -1,3 +1,4 @@
+import { useRealizedEntries } from '@/hooks/useRealizedEntries';
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -98,13 +99,7 @@ export function TetoGastos({ schoolId }: Props) {
   const { isPresentationMode } = usePresentation();
   const canEdit = isAdmin && !isPresentationMode;
 
-  const { data: entries = [], isLoading: loadingEntries } = useQuery({
-    queryKey: ['realized_entries', schoolId],
-    queryFn: async () => {
-      const { fetchAllRows } = await import('@/lib/fetchAll');
-      return fetchAllRows<any>('realized_entries', q => q.eq('school_id', schoolId));
-    },
-  });
+  const { data: entries = [], isLoading: loadingEntries } = useRealizedEntries(schoolId);
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
