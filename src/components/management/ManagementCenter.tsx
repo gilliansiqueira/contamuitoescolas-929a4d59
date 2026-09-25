@@ -88,7 +88,7 @@ const rowAccent: Record<RowStatus, string> = {
 };
 
 const viewLabels: Record<ManagementView, string> = {
-  portfolio: 'Carteira de clientes', closing: 'Fechamentos', pending: 'Pendências', responsible: 'Por responsável',
+  portfolio: 'Carteira de clientes', closing: 'Fechamentos', pending: 'Pendências', responsible: 'Por responsável', team_time: 'Ponto da Equipe',
 };
 
 const displayNameSchema = z.string().trim().min(1, 'Digite um nome.').max(60, 'Use no máximo 60 caracteres.');
