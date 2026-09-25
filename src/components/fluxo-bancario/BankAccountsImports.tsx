@@ -119,8 +119,9 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
     const { file, hash, result, hashes, existing, kinds } = preview;
     try {
       const path = `${schoolId}/${accountId}/${hash.slice(0, 16)}-${file.name.replace(/[^\w.\-]+/g, '_')}`;
-      const up = await supabase.storage.from('bank-statements').upload(path, file, { upsert: true });
-      if (up.error) throw up.error;
+      // O caminho inclui o hash do arquivo: se já existe (reimportação após excluir), é o mesmo arquivo — reaproveita.
+      const up = await supabase.storage.from('bank-statements').upload(path, file, { upsert: false });
+      if (up.error && !/exist|duplicate/i.test(up.error.message ?? '')) throw up.error;
       const entradas = result.transactions.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
       const saidas = result.transactions.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
       const novos = result.transactions.map((t, i) => ({ t, h: hashes[i], k: kinds[i] })).filter(x => !existing.has(x.h));
