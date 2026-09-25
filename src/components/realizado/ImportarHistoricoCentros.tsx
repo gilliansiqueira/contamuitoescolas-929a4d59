@@ -100,10 +100,9 @@ export function ImportarHistoricoCentros({ schoolId, groups, items }: Props) {
   }, [conf, items]);
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ['expense-detail-items', schoolId] });
-    qc.invalidateQueries({ queryKey: ['expense-detail-groups', schoolId] });
+    qc.invalidateQueries({ queryKey: ['expense_detail_items', schoolId] });
+    qc.invalidateQueries({ queryKey: ['expense_detail_groups', schoolId] });
     qc.invalidateQueries({ queryKey: ['cc-uploads', schoolId] });
-    qc.invalidateQueries();
   };
 
   const importar = async () => {

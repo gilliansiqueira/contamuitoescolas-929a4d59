@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { useMonthSync, useRangeSync } from './SharedMonthContext';
+import { ImportarHistoricoCentros } from './ImportarHistoricoCentros';
 import { useExpenseDetail, useExpenseDetailConfig, type DetailItem, type DetailTipo } from '@/hooks/useExpenseDetail';
 
 interface Props {
@@ -128,7 +129,7 @@ export interface SheetRow {
 }
 
 /** Colunas: centro de custo, data, descrição, tipo, valor. */
-function parseSpreadsheet(text: string, fallbackMonth: string) {
+export function parseSpreadsheet(text: string, fallbackMonth: string) {
   const rows: SheetRow[] = [];
   const warnings: string[] = [];
   const lines = text.split('\n').filter(l => l.trim());
@@ -527,6 +528,7 @@ export function DetalhamentoDespesas({ schoolId }: Props) {
             </div>
           ) : (
             <>
+              <ImportarHistoricoCentros schoolId={schoolId} groups={groups} items={items} />
               <Button size="sm" variant="outline" className="rounded-xl gap-2" onClick={openSheet}>
                 <Table2 className="w-4 h-4" /> Planilha
               </Button>
