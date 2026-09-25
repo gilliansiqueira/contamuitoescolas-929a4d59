@@ -16,7 +16,11 @@ export interface BankAccount {
   has_auto_invest?: boolean;
   auto_invest_saldo_inicial?: number | null;
   auto_invest_saldo_data?: string | null;
+  /** Saldos conferidos pela equipe com o extrato (âncoras auditadas). */
+  anchors?: BalanceAnchor[];
 }
+
+export interface BalanceAnchor { id: string; data: string; saldo_conta: number; saldo_aplicado: number }
 
 export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar' | 'transferencia';
 export type SplitCategoria = 'normal' | 'operacao' | 'ignorar';
@@ -69,6 +73,23 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
  * O total só muda com movimentos reais (rendimento, tarifas, recebimentos, pagamentos).
  */
 export function accountBalances(acc: BankAccount, txs: BankTx[], upTo: string): AccountBalances {
+  // Saldo conferido pela equipe (âncora) mais recente até a data: passa a ser o ponto de partida.
+  const anchor = (acc.anchors ?? []).filter(a => a.data <= upTo).sort((a, b) => b.data.localeCompare(a.data))[0];
+  if (anchor) {
+    let emConta = Number(anchor.saldo_conta) || 0;
+    let aplicado = Number(anchor.saldo_aplicado) || 0;
+    for (const t of txs) {
+      if (t.account_id !== acc.id || t.data <= anchor.data || t.data > upTo) continue;
+      emConta += signed(t);
+      if (isAutoInvest(t) && acc.has_auto_invest) aplicado -= signed(t);
+    }
+    return { emConta: r2(emConta), aplicado: r2(aplicado), total: r2(emConta + aplicado) };
+  }
+  return rawAccountBalances(acc, txs, upTo);
+}
+
+/** Saldos calculados só pelos lançamentos (sem saldos conferidos). */
+export function rawAccountBalances(acc: BankAccount, txs: BankTx[], upTo: string): AccountBalances {
   let emConta = Number(acc.saldo_inicial) || 0;
   let aplicado = acc.has_auto_invest ? Number(acc.auto_invest_saldo_inicial) || 0 : 0;
   for (const t of txs) {
@@ -77,6 +98,17 @@ export function accountBalances(acc: BankAccount, txs: BankTx[], upTo: string): 
     if (isAutoInvest(t) && countsForInvest(acc, t)) aplicado -= signed(t);
   }
   return { emConta: r2(emConta), aplicado: r2(aplicado), total: r2(emConta + aplicado) };
+}
+
+/** Soma dos ajustes de saldo conferido com data em [from, to]: diferença entre o conferido e o calculado. */
+export function anchorAdjustments(acc: BankAccount, txs: BankTx[], from: string, to: string): number {
+  let s = 0;
+  for (const a of acc.anchors ?? []) {
+    if (a.data < from || a.data > to) continue;
+    const before = accountBalances({ ...acc, anchors: (acc.anchors ?? []).filter(x => x.data < a.data) }, txs, a.data).total;
+    s += Number(a.saldo_conta) + Number(a.saldo_aplicado) - before;
+  }
+  return r2(s);
 }
 
 /** Saldo disponível total (em conta + aplicado). */
