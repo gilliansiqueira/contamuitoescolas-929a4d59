@@ -27,6 +27,12 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
   const resync = useResyncCashflow(schoolId);
   const accName = useMemo(() => new Map(accounts.map(a => [a.id, a.nome])), [accounts]);
   const active = accounts.filter(a => a.ativa);
+  const lastExtract = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of txs) if (t.data > (m.get(t.account_id) ?? '')) m.set(t.account_id, t.data);
+    for (const a of accounts) { const d = (a as any).anchors?.[0]?.data; if (d && d > (m.get(a.id) ?? '')) m.set(a.id, d); }
+    return m;
+  }, [txs, accounts]);
 
   const data = useMemo(() => {
     const g = gen.filter(e => e.data >= from && e.data <= to);

@@ -253,6 +253,13 @@
       "when": 1790352499996,
       "tag": "0035_auto_enable_bank_cashflow_new_schools",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790355676672,
+      "tag": "0036_synced_through_uses_statement_period",
+      "breakpoints": true
     }
   ]
 }
