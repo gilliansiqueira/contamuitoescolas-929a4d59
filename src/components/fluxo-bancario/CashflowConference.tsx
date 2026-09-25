@@ -37,7 +37,9 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
     const fim = active.reduce((s, a) => s + accountBalances(a, txs, to).total, 0);
     const genIn = g.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const genOut = g.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
-    const diffSaldo = r2(fim - ini - (genIn - genOut));
+    // Ajustes de saldo conferido (resgate/rendimento que o extrato não trouxe como lançamento)
+    const ajusteConferido = active.reduce((s, a) => s + anchorAdjustments(a, txs, from, to), 0);
+    const diffSaldo = r2(fim - ini - (genIn - genOut) - ajusteConferido);
 
     const aClass = g.filter(e => e.tipo_nome === 'A classificar');
     const pend = tx.filter(t => t.recon_status === 'pendente');
