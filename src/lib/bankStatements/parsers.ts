@@ -248,7 +248,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   let investido: number | undefined; let saldoTotal: number | undefined;
   const all = stripAccents(lines.join(' '));
   // Só o PDF do Banco do Brasil é usado apenas para futuros/saldos (os efetivados vêm do OFX).
-  const isBB = /banco do brasil|bb rende facil|invest\.?\s*resgate\s*autom/i.test(all);
+  const isBB = /banco do brasil|bb rende facil|invest\.?\s*resgate\s*autom|s a l d o|total diario/i.test(all);
   // Ano de referência para bancos que imprimem a data sem ano (ex.: Sicoob "01/09").
   const anoRef = all.match(/\d{2}\/\d{2}\/(\d{4})/)?.[1] ?? String(new Date().getFullYear());
   const VAL = /(-?\s?R?\$?\s?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[-DC*]?)/gi;
