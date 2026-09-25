@@ -349,7 +349,8 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   if (saldoConta !== undefined && saldoContaData) {
     saldos.saldoFinalInformado = saldoConta;
     saldos.periodoFim = saldoContaData;
-    if (saldoTotal === undefined && investido !== undefined) saldoTotal = Math.round((saldoConta + investido) * 100) / 100;
+    const aplic = fundos ?? investido;
+    if (saldoTotal === undefined && aplic !== undefined) saldoTotal = Math.round((saldoConta + aplic) * 100) / 100;
     if (saldoTotal !== undefined) saldos.saldoComAplicacaoInformado = saldoTotal;
   }
   const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
