@@ -39,7 +39,10 @@ export function useBankAccounts(schoolId: string) {
           const total = a.has_auto_invest ? Number(i.saldo_aplicado_informado) : conta;
           byDate.set(i.periodo_fim, { id: i.id, data: i.periodo_fim, saldo_conta: conta, saldo_aplicado: Math.round((total - conta) * 100) / 100 });
         }
-        return { ...a, anchors: [...byDate.values()] };
+        // Só o extrato mais recente vale como saldo oficial. Saldos de extratos anteriores costumam ser
+        // "fotos" do meio do dia (o banco ainda lança depois), e usá-los criava diferenças falsas.
+        const latest = [...byDate.values()].sort((x, y) => y.data.localeCompare(x.data))[0];
+        return { ...a, anchors: latest ? [latest] : [] };
       });
     },
   });
