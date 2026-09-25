@@ -218,6 +218,13 @@
       "when": 1790281988884,
       "tag": "0030_perf_indexes_school_scoped",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790344620058,
+      "tag": "0031_perf_keyset_indexes",
+      "breakpoints": true
     }
   ]
 }
