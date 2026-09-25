@@ -19,3 +19,17 @@ describe('PDF Sicoob', () => {
     expect(fut[0].tipo).toBe('saida');
   });
 });
+
+import piraquaraLines from './fixtures/sicoobPiraquara.json';
+import { parsePdfLines as parsePira } from '@/lib/bankStatements/parsers';
+import { it as itPira, expect as expectPira } from 'vitest';
+itPira('Sicoob Piraquara: junta valor/marcador quebrados e fecha no saldo do extrato', () => {
+  const r = parsePira(piraquaraLines as string[]);
+  const efet = r.transactions.filter(t => !t.futuro);
+  const mov = efet.reduce((a, t) => a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
+  expectPira(Math.round((72577 + mov) * 100) / 100).toBe(20375.72);
+  expectPira(r.saldoFinalInformado).toBe(20375.72);
+  expectPira(efet.find(t => t.valor === 2065.49)?.tipo).toBe('saida');
+  expectPira(efet.find(t => t.valor === 1297.6)?.tipo).toBe('saida');
+  expectPira(r.avisos?.some(a => a.includes('não fecha'))).toBeFalsy();
+});

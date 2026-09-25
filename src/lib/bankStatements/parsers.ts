@@ -285,34 +285,59 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   const anoRef = all.match(/\d{2}\/\d{2}\/(\d{4})/)?.[1] ?? String(new Date().getFullYear());
   const VAL = /(-?\s?R?\$?\s?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[-DC*]?)/gi;
   const lastVal = (s: string) => { const v = [...s.matchAll(VAL)].map(m => m[1]); return v.length ? parseBRNumber(v[v.length - 1]) : undefined; };
+  // Sicoob e outros: o PDF quebra o lançamento em pedaços — o valor pode vir sozinho na linha
+  // de cima e o marcador D/C sozinho na linha de baixo. Juntamos os pedaços (não se aplica ao BB).
+  let pendVal: string | undefined;
+  let semMarcador: ParsedBankTx | null = null;
+  let saldoAnterior: number | undefined;
   for (const raw of lines) {
     const line = raw.replace(/\s+/g, ' ').trim();
     const plain = stripAccents(line);
     if (/lancamentos\s+futuros/i.test(plain)) { inFuturos = true; continue; }
     if (/^invest\.?\s*resgate\s*autom/i.test(plain)) { investido = lastVal(line); continue; }
     if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined && saldoTotal === undefined) { saldoTotal = lastVal(line); continue; }
+    if (!isBB && /^[DC]\*?$/i.test(line)) {
+      if (semMarcador) semMarcador.tipo = /^d/i.test(line) ? 'saida' : 'entrada';
+      semMarcador = null; continue;
+    }
+    if (!isBB && /^-?\d{1,3}(?:\.\d{3})*,\d{2}\s?[DC*]?$/i.test(line)) { pendVal = line; continue; }
     const dm = line.match(/^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.*)$/);
     if (!dm) continue;
+    const pv = pendVal; pendVal = undefined; semMarcador = null;
     const data = toIsoDate(dm[1].length === 5 ? `${dm[1]}/${anoRef}` : dm[1]);
     if (!data) continue;
-    if (!inFuturos && /\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && !/anterior/i.test(dm[2])) {
-      const v = lastVal(dm[2]); if (v !== undefined) { saldoConta = v; saldoContaData = data; }
+    if (/\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && /anterior/i.test(dm[2]) && !/bloq/i.test(dm[2])) {
+      const v = lastVal(dm[2]) ?? (pv ? parseBRNumber(pv) : undefined); if (v !== undefined) saldoAnterior = v;
       continue;
     }
-    const vals = [...dm[2].matchAll(VAL)].map(m => m[1]);
+    if (!inFuturos && /\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && !/anterior/i.test(dm[2])) {
+      const v = lastVal(dm[2]) ?? (!isBB && pv ? parseBRNumber(pv) : undefined); if (v !== undefined) { saldoConta = v; saldoContaData = data; }
+      continue;
+    }
+    let vals = [...dm[2].matchAll(VAL)].map(m => m[1]);
+    let body = dm[2];
+    if (!vals.length && !isBB && pv) { vals = [pv]; body = `${dm[2]} ${pv}`; }
     if (!vals.length) continue;
     const valStr = vals.length >= 2 ? vals[vals.length - 2] : vals[0];
     const v = parseBRNumber(valStr);
-    const descricao = dm[2].slice(0, dm[2].indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
+    const descricao = body.slice(0, body.indexOf(vals[0])).replace(/\s*R\$\s*$/i, '').trim();
     if (!descricao || SKIP_RE.test(descricao) || v === 0) continue;
     if (BLOCKED_DEPOSIT_RE.test(descricao) || /\*$/.test(valStr.trim())) { bloqN++; bloqT += Math.abs(v); continue; }
-    // Sentido: sinal/marcador D-C; sem marcador, "DÉB."/"PIX EMITIDO" etc. na descrição indicam saída.
+    // Sentido: sinal/marcador D-C; sem marcador, "DÉB."/"PIX EMIT." etc. na descrição indicam saída.
     const s = valStr.trim();
     const temMarcador = /^[-(]/.test(s) || /[-DC)]$/i.test(s);
-    const debDesc = /^(deb|debito|pagamento|pgto|pix emitido|saque|tarifa)/i.test(stripAccents(descricao));
+    const debDesc = /^(deb|debito|pagamento|pgto|pix emit|saque|tarifa)/i.test(stripAccents(descricao));
     const tipo: 'entrada' | 'saida' = v < 0 ? 'saida' : (!temMarcador && debDesc ? 'saida' : 'entrada');
     const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo };
     if (inFuturos) futuros.push({ ...tx, futuro: true }); else txs.push(tx);
+    if (!temMarcador && !isBB) semMarcador = inFuturos ? futuros[futuros.length - 1] : tx;
+  }
+  // Conferência interna: saldo anterior + movimento deve dar o saldo final do PDF.
+  let avisoFecha: string[] = [];
+  if (!isBB && saldoAnterior !== undefined && saldoConta !== undefined) {
+    const mov = txs.reduce((a, t) => a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
+    const dif = Math.round((saldoAnterior + mov - saldoConta) * 100) / 100;
+    if (Math.abs(dif) >= 0.01) avisoFecha = [`Atenção: a leitura do PDF não fecha com o saldo final do extrato (diferença de ${dif.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Confira as linhas antes de importar.`];
   }
   const saldos: Partial<BankParseResult> = {};
   if (saldoConta !== undefined && saldoContaData) {
@@ -338,6 +363,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   // Demais bancos (ex.: Sicoob): efetivados + futuros como previstos.
   const r = finish('pdf', [...txs, ...futuros], { avisos: [
     ...avisoSaldo,
+    ...avisoFecha,
     ...avisoBloqueados(bloqN, bloqT),
     'Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.',
     ...(futuros.length ? [`${futuros.length} lançamento(s) futuro(s) entram como "Previsto — aguardando extrato" e são trocados pelo real quando ele chegar.`] : []),
