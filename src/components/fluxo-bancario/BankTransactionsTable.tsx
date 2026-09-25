@@ -134,6 +134,19 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
 
   const pend = rows.filter(r => r.recon_status === 'pendente');
   const pendValor = pend.reduce((s, r) => s + Number(r.valor), 0);
+  const conc = rows.filter(r => r.recon_status === 'conciliado');
+  const concValor = conc.reduce((s, r) => s + Number(r.valor), 0);
+  const nsa = rows.filter(r => r.recon_status === 'nao_se_aplica');
+  const nsaValor = nsa.reduce((s, r) => s + Number(r.valor), 0);
+
+  /** Totais da seleção atual — mesmo conjunto usado pelas ações em lote ([...selected]). */
+  const selRows = useMemo(() => [...selected].map(id => txs.find(t => t.id === id)).filter((t): t is BankTx => !!t), [selected, txs]);
+  const selTotal = selRows.reduce((s, r) => s + Number(r.valor), 0);
+  const selByStatus = useMemo(() => {
+    const map: Record<ReconStatus, { n: number; valor: number }> = { pendente: { n: 0, valor: 0 }, conciliado: { n: 0, valor: 0 }, nao_se_aplica: { n: 0, valor: 0 } };
+    for (const r of selRows) { const b = map[r.recon_status]; b.n += 1; b.valor += Number(r.valor); }
+    return map;
+  }, [selRows]);
   const pairs = useMemo(() => suggestTransferPairs(txs.filter(t => t.data >= from && t.data <= to)), [txs, from, to]);
 
   const apply = async (ids: string[], st: ReconStatus, note?: string | null) => {
@@ -190,7 +203,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {rows.length} lançamentos · <span className="font-semibold text-warning">{pend.length} pendentes ({fmtBRL(pendValor)})</span>
+          {rows.length} lançamentos · <span className="font-semibold text-success">Conciliados {conc.length} ({fmtBRL(concValor)})</span> · <span className="font-semibold text-warning">Pendentes {pend.length} ({fmtBRL(pendValor)})</span> · Não se aplica {nsa.length} ({fmtBRL(nsaValor)})
         </p>
         <div className="flex flex-wrap gap-2">
           {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
