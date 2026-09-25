@@ -232,6 +232,13 @@
       "when": 1790344649785,
       "tag": "0032_perf_rls_initplan",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790348950284,
+      "tag": "0033_bank_tx_forecast_futuros",
+      "breakpoints": true
     }
   ]
 }
