@@ -6,6 +6,7 @@ import { Download, RefreshCw, AlertTriangle, CheckCircle2, CalendarRange } from 
 import { toast } from 'sonner';
 import { useCashflowEntries, useDataSource, useResyncCashflow, useSheetFluxoEntries } from '@/hooks/useBankPilot';
 import { accountBalances, anchorAdjustments, isAutoInvest, type BankAccount, type BankTx } from '@/lib/bankStatements/bankCashflowEngine';
+import { extractCounterparty } from '@/lib/bankStatements/counterparty';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 import { ActivationPreview } from './ActivationPreview';
 
@@ -61,10 +62,16 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
     const auto = tx.filter(isAutoInvest);
     const transf = tx.filter(t => t.transfer_pair_id);
 
-    // Duplicidades no extrato
-    const dupKey = new Map<string, BankTx[]>();
-    for (const t of tx) { const k = `${t.account_id}|${t.data}|${t.tipo}|${r2(Number(t.valor))}|${t.descricao}`; dupKey.set(k, [...(dupKey.get(k) ?? []), t]); }
-    const dups = [...dupKey.values()].filter(l => l.length > 1);
+    // Possível pagamento repetido: mesmo dia, conta, sentido, valor e mesma pessoa/empresa
+    const dupKey = new Map<string, { who: string; l: BankTx[] }>();
+    for (const t of tx) {
+      if (t.transfer_pair_id || isAutoInvest(t)) continue;
+      const who = extractCounterparty(t.descricao);
+      if (!who) continue;
+      const k = `${t.account_id}|${t.data}|${t.tipo}|${r2(Number(t.valor))}|${who}`;
+      const cur = dupKey.get(k) ?? { who, l: [] }; cur.l.push(t); dupKey.set(k, cur);
+    }
+    const dups = [...dupKey.values()].filter(d => d.l.length > 1);
 
     // Por conta
     const porConta = active.map(a => {
@@ -188,7 +195,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       {(data.dups.length > 0 || data.splitDiff.length > 0 || data.semPar.length + data.pairOut.length > 0) && (
         <section className="rounded-xl border border-warning bg-card p-3 text-sm">
           <h3 className="mb-2 font-semibold">Para revisar</h3>
-          {data.dups.map((l, i) => <p key={`d${i}`}>Possível duplicidade: {l.length}× {fmtBRL(Number(l[0].valor))} em {fmtDate(l[0].data)}, {accName.get(l[0].account_id)}: {l[0].descricao}</p>)}
+          {data.dups.map(({ who, l }, i) => { const ent = l[0].tipo === 'entrada'; return <p key={`d${i}`} title={l.map(t => t.descricao).join('\n')}>{l.length} {ent ? 'recebimentos' : 'pagamentos'} iguais de {fmtBRL(Number(l[0].valor))} {ent ? 'de' : 'para'} {who} em {fmtDate(l[0].data)} ({accName.get(l[0].account_id)}) — verificar se é {ent ? 'recebimento' : 'pagamento'} repetido</p>; })}
           {data.splitDiff.map(t => <p key={t.id}>Divisão com diferença: {t.descricao} ({fmtDate(t.data)}): banco {fmtBRL(Number(t.valor))}, partes {fmtBRL(t.splits!.reduce((s, p) => s + Number(p.valor), 0))}</p>)}
           {[...data.semPar, ...data.pairOut].map(t => <p key={`t${t.id}`}>Transferência sem a outra ponta: {fmtBRL(Number(t.valor))} em {fmtDate(t.data)}, {accName.get(t.account_id)}: {t.descricao}</p>)}
         </section>
