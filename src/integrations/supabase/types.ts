@@ -1004,7 +1004,11 @@ export type Database = {
           descricao: string
           group_id: string
           id: string
+          imported_at: string | null
+          origem_upload_id: string | null
           school_id: string
+          source_file: string | null
+          tipo: string
           valor: number
         }
         Insert: {
@@ -1013,7 +1017,11 @@ export type Database = {
           descricao?: string
           group_id: string
           id?: string
+          imported_at?: string | null
+          origem_upload_id?: string | null
           school_id: string
+          source_file?: string | null
+          tipo?: string
           valor?: number
         }
         Update: {
@@ -1022,7 +1030,11 @@ export type Database = {
           descricao?: string
           group_id?: string
           id?: string
+          imported_at?: string | null
+          origem_upload_id?: string | null
           school_id?: string
+          source_file?: string | null
+          tipo?: string
           valor?: number
         }
         Relationships: [
@@ -1031,6 +1043,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "expense_detail_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_detail_items_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "upload_records"
             referencedColumns: ["id"]
           },
           {
