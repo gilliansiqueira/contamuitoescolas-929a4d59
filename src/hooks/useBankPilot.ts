@@ -282,7 +282,8 @@ export function useSetDataSourceStatus(schoolId: string) {
   return useMutation({
     mutationFn: async (arg: 'ativo' | 'pausado' | 'em_conferencia' | { status: 'ativo'; openingBalance: number }) => {
       const status = typeof arg === 'string' ? arg : arg.status;
-      const patch: Record<string, unknown> = { status };
+      const src = status === 'ativo' ? 'fluxo_caixa' : 'planilha';
+      const patch: Record<string, unknown> = { status, dashboard_source: src, daily_flow_source: src };
       if (typeof arg !== 'string') patch.opening_balance = Math.round(arg.openingBalance * 100) / 100;
       const { error } = await db.from('school_data_sources').update(patch).eq('school_id', schoolId);
       if (error) throw error;
