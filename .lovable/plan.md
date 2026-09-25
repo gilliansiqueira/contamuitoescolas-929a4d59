@@ -12,7 +12,8 @@ O sistema já lia esses números, mas só para mostrar "confere" ou "diferença"
 2. **Aplicação automática (BB, Sicredi etc.):**
    - Se o extrato informa o saldo com aplicação (BB), o sistema usa esse total direto do banco.
    - Se o extrato não informa (Sicredi), o sistema mantém o total calculado pelos lançamentos. Quando a conta fica negativa, ele considera que o próprio banco cobre esse valor com a aplicação. Assim, o total não muda e a conta não aparece negativa.
-3. **Diferenças continuam visíveis.** Se o saldo do extrato for diferente do calculado, por exemplo por um resgate ou rendimento que não veio como linha, a diferença aparece na Conferência como "Ajuste pelo saldo do extrato", com o valor e a data. Nada fica escondido e nenhum lançamento é alterado.
+3. **Diferenças não travam nada, mas ficam registradas.** Se o saldo do extrato for diferente do calculado (centavos de rendimento, resgate ou rendimento que não veio como linha), o saldo do banco prevalece. O Dashboard e o Fluxo Diário continuam atualizando normalmente. A diferença fica numa lista "A confirmar no próximo extrato", com conta, data e valor, visível só para a equipe. Quando o próximo extrato chegar e o saldo bater, o item some sozinho. Se continuar diferente, ele segue na lista. Nenhum lançamento é alterado.
+   - Normalmente o extrato bate. Essas diferenças acontecem quase só em contas com aplicação automática, porque alguns bancos (como o Sicredi) não mandam no arquivo o saldo aplicado nem o rendimento do dia.
 4. **O botão "Informar saldo conferido" sai da tela.** Os dois saldos que eu digitei à mão para Dourados são removidos e trocados pelos saldos que vêm dos arquivos.
 5. As mensagens em vermelho de "em conta: diferença" deixam de aparecer quando a diferença for só a conta negativa coberta pela aplicação.
 
