@@ -17,6 +17,7 @@ export async function fetchAllRows<T = any>(
   builder: (q: any) => any,
   pageSize = 1000,
   selectCols = '*',
+  signal?: AbortSignal,
 ): Promise<T[]> {
   const all: any[] = [];
   const orders: OrderSpec[] = [];
@@ -51,7 +52,9 @@ export async function fetchAllRows<T = any>(
     // Unwrap so the cursor ordering is really sent to the server
     // (the proxy swallows .order() calls to re-sort in memory).
     let q: any = built?.__raw ?? built;
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     if (lastId !== null) q = q.gt('id', lastId);
+    if (signal && typeof q.abortSignal === 'function') q = q.abortSignal(signal);
     const { data, error } = await (q.order('id', { ascending: true }).limit(pageSize) as any);
     if (error) throw error;
     const rows = (data as any[]) ?? [];
