@@ -2,12 +2,11 @@ import { useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBankAccounts, useBankTransactions, useBankImports } from '@/hooks/useBankPilot';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
-import { summarize, accountBalances, lastDateByAccount } from '@/lib/bankStatements/bankCashflowEngine';
+import { summarize, accountBalances, anchorPending, lastDateByAccount } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, todayIso } from './shared';
 import { BankTransactionsTable, type TableFocus } from './BankTransactionsTable';
 import { BankAccountsImports } from './BankAccountsImports';
 import { CashflowConference } from './CashflowConference';
-import { BalanceAnchorControl } from './BalanceAnchorControl';
 import { useDataSource } from '@/hooks/useBankPilot';
 import { Landmark, ShieldCheck } from 'lucide-react';
 
@@ -102,12 +101,14 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
                     const checks: { label: string; ok: boolean; diff: number }[] = [];
                     if (last?.periodo_fim) {
                       const atFim = accountBalances(a, txs, last.periodo_fim);
-                      if (last.saldo_final_informado != null) { const d = atFim.emConta - Number(last.saldo_final_informado); checks.push({ label: 'em conta', ok: Math.abs(d) < 0.01, diff: d }); }
+                      const pend = anchorPending(a, txs).find(p => p.data === last.periodo_fim);
+                      if (pend) checks.push({ label: 'a confirmar no próximo extrato', ok: false, diff: pend.diff });
+                      else if (last.saldo_final_informado != null && !a.has_auto_invest) { const d = atFim.emConta - Number(last.saldo_final_informado); checks.push({ label: 'em conta', ok: Math.abs(d) < 0.01, diff: d }); }
                       if (last.saldo_aplicado_informado != null) { const d = atFim.total - Number(last.saldo_aplicado_informado); checks.push({ label: 'com aplicação', ok: Math.abs(d) < 0.01, diff: d }); }
                     }
                     return (
                       <tr key={a.id} className="border-t border-border">
-                        <td className="py-2 font-medium">{a.nome} <span className="text-xs text-muted-foreground">{a.banco}</span><BalanceAnchorControl schoolId={schoolId} account={a} /></td>
+                        <td className="py-2 font-medium">{a.nome} <span className="text-xs text-muted-foreground">{a.banco}</span></td>
                         <td>{fmtDate(lastDates.get(a.id))}</td>
                         <td className="text-right tabular-nums">{fmtBRL(b.emConta)}</td>
                         <td className="text-right tabular-nums">{a.has_auto_invest ? fmtBRL(b.aplicado) : '—'}</td>

@@ -37,7 +37,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
     const fim = active.reduce((s, a) => s + accountBalances(a, txs, to).total, 0);
     const genIn = g.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const genOut = g.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
-    // Ajustes de saldo conferido (resgate/rendimento que o extrato não trouxe como lançamento)
+    // Ajuste pelo saldo do extrato (resgate/rendimento que o extrato não trouxe como lançamento)
     const ajusteConferido = active.reduce((s, a) => s + anchorAdjustments(a, txs, from, to), 0);
     const diffSaldo = r2(fim - ini - (genIn - genOut) - ajusteConferido);
 
@@ -164,7 +164,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         {card('Entradas geradas', fmtBRL(data.genIn), `${data.g.filter(e => e.tipo === 'entrada').length} linhas`)}
         {card('Saídas geradas', fmtBRL(data.genOut), `${data.g.filter(e => e.tipo === 'saida').length} linhas`)}
         {card('Saldo final', fmtBRL(data.fim), `bancário em ${fmtDate(to)}`)}
-        {card('Fechamento do saldo', data.diffSaldo === 0 ? 'Fecha' : fmtBRL(data.diffSaldo), data.ajusteConferido ? `inclui ajuste de saldo conferido: ${fmtBRL(data.ajusteConferido)}` : 'inicial + entradas − saídas = final', data.diffSaldo !== 0)}
+        {card('Fechamento do saldo', data.diffSaldo === 0 ? 'Fecha' : fmtBRL(data.diffSaldo), data.ajusteConferido ? `inclui ajuste pelo saldo do extrato (a confirmar no próximo extrato): ${fmtBRL(data.ajusteConferido)}` : 'inicial + entradas − saídas = final', data.diffSaldo !== 0)}
       </div>
 
       {cfg.synced_through && <ActivationPreview schoolId={schoolId} cfg={cfg} gen={gen} bankTo={cfg.synced_through}

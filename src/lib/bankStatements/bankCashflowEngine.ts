@@ -83,9 +83,16 @@ export function accountBalances(acc: BankAccount, txs: BankTx[], upTo: string): 
       emConta += signed(t);
       if (isAutoInvest(t) && acc.has_auto_invest) aplicado -= signed(t);
     }
-    return { emConta: r2(emConta), aplicado: r2(aplicado), total: r2(emConta + aplicado) };
+    return cover(acc, emConta, aplicado);
   }
-  return rawAccountBalances(acc, txs, upTo);
+  const b = rawAccountBalances(acc, txs, upTo);
+  return cover(acc, b.emConta, b.aplicado);
+}
+
+/** Conta com aplicação automática: saldo negativo em conta é coberto pela aplicação (o total não muda). */
+function cover(acc: BankAccount, emConta: number, aplicado: number): AccountBalances {
+  if (acc.has_auto_invest && emConta < 0) { aplicado += emConta; emConta = 0; }
+  return { emConta: r2(emConta), aplicado: r2(aplicado), total: r2(emConta + aplicado) };
 }
 
 /** Saldos calculados só pelos lançamentos (sem saldos conferidos). */
@@ -101,6 +108,10 @@ export function rawAccountBalances(acc: BankAccount, txs: BankTx[], upTo: string
 }
 
 /** Soma dos ajustes de saldo conferido com data em [from, to]: diferença entre o conferido e o calculado. */
+export function anchorPending(acc: BankAccount, txs: BankTx[]): { data: string; diff: number }[] {
+  return (acc.anchors ?? []).map(a => ({ data: a.data, diff: anchorAdjustments(acc, txs, a.data, a.data) })).filter(x => x.diff !== 0);
+}
+
 export function anchorAdjustments(acc: BankAccount, txs: BankTx[], from: string, to: string): number {
   let s = 0;
   for (const a of acc.anchors ?? []) {

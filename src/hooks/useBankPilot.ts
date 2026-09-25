@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllRows } from '@/lib/fetchAll';
-import { autoTransferPairs, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type ReconStatus, type MovementKind, type BankSplit, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
+import { autoTransferPairs, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BalanceAnchor, type BankTx, type ReconStatus, type MovementKind, type BankSplit, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 
 export const BANK_PILOT_FEATURE = 'cashflow_bank_pilot';
 const db = supabase as any;
