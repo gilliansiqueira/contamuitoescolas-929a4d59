@@ -16,7 +16,11 @@ export interface BankAccount {
   has_auto_invest?: boolean;
   auto_invest_saldo_inicial?: number | null;
   auto_invest_saldo_data?: string | null;
+  /** Saldos conferidos pela equipe com o extrato (âncoras auditadas). */
+  anchors?: BalanceAnchor[];
 }
+
+export interface BalanceAnchor { id: string; data: string; saldo_conta: number; saldo_aplicado: number }
 
 export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar' | 'transferencia';
 export type SplitCategoria = 'normal' | 'operacao' | 'ignorar';
