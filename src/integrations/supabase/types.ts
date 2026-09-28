@@ -348,6 +348,7 @@ export type Database = {
           periodo_inicio: string | null
           saldo_aplicado_informado: number | null
           saldo_final_informado: number | null
+          saldo_retido_informado: number | null
           school_id: string
           total_entradas: number
           total_linhas: number
@@ -368,6 +369,7 @@ export type Database = {
           periodo_inicio?: string | null
           saldo_aplicado_informado?: number | null
           saldo_final_informado?: number | null
+          saldo_retido_informado?: number | null
           school_id: string
           total_entradas?: number
           total_linhas?: number
@@ -388,6 +390,7 @@ export type Database = {
           periodo_inicio?: string | null
           saldo_aplicado_informado?: number | null
           saldo_final_informado?: number | null
+          saldo_retido_informado?: number | null
           school_id?: string
           total_entradas?: number
           total_linhas?: number

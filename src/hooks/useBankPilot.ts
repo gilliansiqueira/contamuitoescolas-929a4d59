@@ -24,7 +24,7 @@ export function useBankAccounts(schoolId: string) {
     queryFn: async () => {
       const [{ data, error }, { data: imps, error: e2 }] = await Promise.all([
         db.from('bank_accounts').select('*').eq('school_id', schoolId).order('sort_order').order('created_at'),
-        db.from('bank_statement_imports').select('id, account_id, periodo_fim, saldo_final_informado, saldo_aplicado_informado, created_at')
+        db.from('bank_statement_imports').select('id, account_id, periodo_fim, saldo_final_informado, saldo_aplicado_informado, saldo_retido_informado, created_at')
           .eq('school_id', schoolId).gte('periodo_fim', '2026-09-01').not('saldo_final_informado', 'is', null).order('created_at'),
       ]);
       if (error) throw error;
@@ -34,11 +34,13 @@ export function useBankAccounts(schoolId: string) {
         const byDate = new Map<string, BalanceAnchor>();
         for (const i of (imps ?? []) as any[]) {
           if (i.account_id !== a.id) continue;
+          const retido = Number(i.saldo_retido_informado ?? 0);
           const conta = Number(i.saldo_final_informado);
           if (a.has_auto_invest && i.saldo_aplicado_informado == null) continue; // sem aplicado no arquivo: mantém o calculado
           // Total com aplicação informado (ex.: Bradesco soma CDB no saldo do arquivo) vale também sem aplicação automática.
           const total = i.saldo_aplicado_informado != null ? Number(i.saldo_aplicado_informado) : conta;
-          byDate.set(i.periodo_fim, { id: i.id, data: i.periodo_fim, saldo_conta: conta, saldo_aplicado: Math.round((total - conta) * 100) / 100 });
+          // Cheques retidos pelo banco: já estão nos lançamentos, então somam ao saldo disponível.
+          byDate.set(i.periodo_fim, { id: i.id, data: i.periodo_fim, saldo_conta: Math.round((conta + retido) * 100) / 100, saldo_aplicado: Math.round((total - conta) * 100) / 100, retido });
         }
         // Só o extrato mais recente vale como saldo oficial. Saldos de extratos anteriores costumam ser
         // "fotos" do meio do dia (o banco ainda lança depois), e usá-los criava diferenças falsas.
@@ -333,5 +335,19 @@ export function useSheetFluxoEntries(schoolId: string, from: string, to: string,
       'financial_entries', q => q.eq('school_id', schoolId).eq('origem', 'fluxo').gte('data', from).lte('data', to).order('data'),
       1000, 'id, data, descricao, valor, tipo, tipo_original, source_kind'),
     enabled: !!schoolId && enabled,
+  });
+}
+
+/** Informa o valor de cheques/depósitos retidos pelo banco no extrato mais recente da conta (soma ao saldo disponível). */
+export function useSetRetido(schoolId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ importId, valor }: { importId: string; valor: number | null }) => {
+      const { error } = await db.from('bank_statement_imports').update({ saldo_retido_informado: valor }).eq('id', importId).eq('school_id', schoolId);
+      if (error) throw error;
+      const { data: u } = await supabase.auth.getUser();
+      await db.from('audit_log').insert({ school_id: schoolId, action: 'bank_saldo_retido', description: `Cheques retidos no extrato ${importId}: ${valor ?? 0} por ${u.user?.email ?? 'desconhecido'}` });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bankAccounts', schoolId] }),
   });
 }

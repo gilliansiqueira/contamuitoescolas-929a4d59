@@ -20,7 +20,8 @@ export interface BankAccount {
   anchors?: BalanceAnchor[];
 }
 
-export interface BalanceAnchor { id: string; data: string; saldo_conta: number; saldo_aplicado: number }
+/** saldo_conta já inclui `retido` (cheques/depósitos que o banco ainda segura, informados na conferência). */
+export interface BalanceAnchor { id: string; data: string; saldo_conta: number; saldo_aplicado: number; retido?: number }
 
 export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar' | 'transferencia';
 export type SplitCategoria = 'normal' | 'operacao' | 'ignorar';
