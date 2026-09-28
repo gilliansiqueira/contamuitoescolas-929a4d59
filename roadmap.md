@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Aberto
+- [ ] Extrato do Itaú (09 - Setembro Itaú PF) não é lido na empresa Obras Nascimento — investigar o parser de PDF
 - [ ] Credencial da API PontoFopag (PONTOFOPAG_API_TOKEN) — pendente da Employer/ePays
 - [ ] Confirmar formato das respostas da API PontoFopag e limites de consulta antes de ligar a sincronização automática
 - [ ] Acompanhar o custo do servidor (créditos de "Cloud compute") nos próximos dias para ver se continua dentro dos 20 créditos grátis do mês
