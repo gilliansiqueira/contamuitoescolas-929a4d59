@@ -1,3 +1,4 @@
+import { BANK_SMALL_DIFF_TOLERANCE } from '@/lib/bankStatements/confirmedBalance';
 import { Fragment, useCallback, useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
@@ -306,7 +307,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             valueClassName={saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}
           />
           {confirmedForPeriod && <CompactStat label={`Saldo bancário em ${formatDateBR(confirmedForPeriod.date)}`} value={formatCurrency(confirmedForPeriod.balance)} valueClassName="text-success" />}
-          {confirmedForPeriod && Math.abs(bankDifference) >= 0.005 && <CompactStat label={Math.abs(bankDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir'} value={formatCurrency(Math.abs(bankDifference))} valueClassName="text-warning" />}
+          {confirmedForPeriod && Math.abs(bankDifference) >= 0.005 && <CompactStat label={Math.abs(bankDifference) <= BANK_SMALL_DIFF_TOLERANCE ? 'A confirmar no próximo extrato' : 'Diferença a conferir'} value={formatCurrency(Math.abs(bankDifference))} valueClassName="text-warning" />}
           <CompactStat label="Entrada prevista" value={formatCurrency(totals.entradaPrevista)} valueClassName="text-blue-600 dark:text-blue-300" />
           <CompactStat label="Entrada realizada" value={formatCurrency(totals.entradaRealizada)} valueClassName="text-primary" />
           <CompactStat label="Saída prevista" value={formatCurrency(totals.saidaPrevista)} valueClassName="text-orange-500" />
@@ -393,7 +394,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
       </div>
       {confirmedForPeriod && <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-xs">
         <span className="font-semibold">Saldo bancário conferido em {formatDateBR(confirmedForPeriod.date)}: {formatCurrency(confirmedForPeriod.balance)}.</span>{' '}
-        {Math.abs(bankDifference) >= 0.005 && <>{Math.abs(bankDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir com os extratos'}: {formatCurrency(Math.abs(bankDifference))}. </>}
+        {Math.abs(bankDifference) >= 0.005 && <>{Math.abs(bankDifference) <= BANK_SMALL_DIFF_TOLERANCE ? 'A confirmar no próximo extrato' : 'Diferença a conferir com os extratos'}: {formatCurrency(Math.abs(bankDifference))}. </>}
         Fechamento previsto: {formatCurrency(saldoFinalPeriodo)}.
       </div>}
 

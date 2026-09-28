@@ -1,3 +1,4 @@
+import { BANK_SMALL_DIFF_TOLERANCE } from '@/lib/bankStatements/confirmedBalance';
 import { useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import type { BankAccount } from '@/lib/bankStatements/bankCashflowEngine';
@@ -69,7 +70,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   const iniDiff = r2(p.next.ini - bankIni);
   const fimDiff = r2(p.next.fimReal - bankFim);
   // Diferenças pequenas (rendimento/centavos) ficam "A confirmar no próximo extrato" e não bloqueiam.
-  const SMALL_DIFF_TOLERANCE = 10;
+  const SMALL_DIFF_TOLERANCE = BANK_SMALL_DIFF_TOLERANCE;
   const fimSmall = fimDiff !== 0 && Math.abs(fimDiff) <= SMALL_DIFF_TOLERANCE;
   const fimOk = fimDiff === 0;
   const ok = movOk && iniDiff === 0 && (fimOk || fimSmall) && p.aClass.length === 0;

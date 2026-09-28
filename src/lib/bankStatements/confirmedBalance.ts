@@ -12,3 +12,5 @@ export function confirmedBankBalance(accounts: BankAccount[]): { date: string; b
   }, 0);
   return { date, balance: cents / 100 };
 }
+/** Diferença pequena (rendimento/centavos) que fica "A confirmar no próximo extrato" sem bloquear. */
+export const BANK_SMALL_DIFF_TOLERANCE = 15;
