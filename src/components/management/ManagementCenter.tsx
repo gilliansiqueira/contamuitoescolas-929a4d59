@@ -360,6 +360,9 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     return { ...def, value: matched.length, note };
   }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, mode, refDay, withMovementBase]);
 
+  // Quantidade do selo = empresas realmente filtradas (mesma regra do card).
+  const activeCardCount = activeCard ? filtered.length : 0;
+
   const openSchool = (id: string) => { const school = schoolById.get(id); if (school) onSelect(school); };
   const toggleGroup = (key: string) => setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   const changeResponsible = (schoolId: string, value: string) => setResponsible.mutate(
@@ -454,7 +457,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               })}
             </div>
             {activeCard && <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/[0.05] px-3 py-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Mostrando só: {activeCard.label} · {activeCard.value} empresa{activeCard.value === 1 ? '' : 's'}
+              <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Mostrando só: {activeCard.label} · {activeCardCount} empresa{activeCardCount === 1 ? '' : 's'}
                 <button type="button" onClick={() => setCardFilter(null)} aria-label={`Parar de filtrar por ${activeCard.label}`} className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/80"><X className="h-2.5 w-2.5" /></button>
               </span>
               <span className="text-[11px] text-muted-foreground">Clique no mesmo card para limpar, ou em outro card para trocar.</span>
