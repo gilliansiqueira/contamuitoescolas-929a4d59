@@ -14,6 +14,7 @@ import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, isOwnT
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
 import { useJustificationReasons, useSetJustification, useCloseReconDay, useReconDayClosures, needsJustification, JUSTIFICATION_START, type MissingJustification } from '@/hooks/useReconJustification';
 import { Tag, CalendarCheck } from 'lucide-react';
+import { resolveTipoMeta } from '@/lib/tipoMeta';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
 interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string; focus?: TableFocus | null }
@@ -34,7 +35,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [showAuto, setShowAuto] = useState(true);
   const [importFilter, setImportFilter] = useState<string | null>(null);
   useEffect(() => { if (focus) { setImportFilter(focus.importId); setCat('auto'); setAccountId('all'); setFrom(focus.from); setTo(focus.to); } }, [focus?.nonce]);
-  const [cat, setCat] = useState<'all' | 'mov' | 'operacao' | 'transf' | 'auto' | 'aclassificar' | 'ignorar' | 'dividido'>('all');
+  const [cat, setCat] = useState<'all' | 'mov' | 'receita' | 'despesa' | 'operacao' | 'transf' | 'auto' | 'aclassificar' | 'ignorar' | 'dividido'>('all');
   const [descTx, setDescTx] = useState<BankTx | null>(null);
   const [descText, setDescText] = useState('');
   const updText = useUpdateTxText(schoolId);
@@ -97,6 +98,16 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const setItem = useSetModelItem(schoolId);
   const setSplitItem = useSetSplitModelItem(schoolId);
   const itemName = useMemo(() => new Map(modelItems.map(i => [i.id, i.name])), [modelItems]);
+  // Mesma regra do tipo financeiro do modelo; o sentido do extrato não define Receita/Despesa.
+  const financialClass = (itemId?: string | null) => {
+    const item = modelItems.find(i => i.id === itemId);
+    return item ? resolveTipoMeta(item.name, [], [item]).classificacao : null;
+  };
+  const visibleParts = (t: BankTx) => t.splits?.filter(sp => sp.categoria === 'normal' && financialClass(sp.model_item_id) === cat) ?? [];
+  const matchesFinancial = (t: BankTx) => {
+    if (isAutoInvest(t) || isOwnTransfer(t) || t.movement_kind === 'ignorar' || isOperacao(t)) return false;
+    return t.splits?.length ? visibleParts(t).length > 0 : financialClass(t.model_item_id) === cat;
+  };
   const itemsFor = (tipo: string) => modelItems.filter(i => i.tipo === tipo);
   const operationItemsFor = (tipo: string) => itemsFor(tipo).filter(i => !['receita', 'despesa'].includes(i.name.trim().toLowerCase()));
   /** Neutros no consolidado não precisam de tipo financeiro. */
@@ -159,17 +170,18 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return txs
-      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter))
+       .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-  }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter]);
+   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems]);
   const autoCount = txs.filter(t => isAutoInvest(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to).length;
 
   const pend = rows.filter(r => r.recon_status === 'pendente');
-  const pendValor = pend.reduce((s, r) => s + Number(r.valor), 0);
+   const displayedValue = (r: BankTx) => cat === 'receita' || cat === 'despesa' ? r.splits?.length ? visibleParts(r).reduce((sum, sp) => sum + Number(sp.valor), 0) : Number(r.valor) : Number(r.valor);
+   const pendValor = pend.reduce((s, r) => s + displayedValue(r), 0);
   const conc = rows.filter(r => r.recon_status === 'conciliado');
-  const concValor = conc.reduce((s, r) => s + Number(r.valor), 0);
+   const concValor = conc.reduce((s, r) => s + displayedValue(r), 0);
   /** Conferência de soma pelo sentido do extrato (não é classificação financeira). */
-  const ignoredPart = (r: BankTx) => cat === 'ignorar' && r.splits?.length ? r.splits.filter(sp => sp.categoria === 'ignorar').reduce((s, sp) => s + Math.abs(Number(sp.valor)), 0) : Math.abs(Number(r.valor));
+   const ignoredPart = (r: BankTx) => cat === 'ignorar' && r.splits?.length ? r.splits.filter(sp => sp.categoria === 'ignorar').reduce((s, sp) => s + Math.abs(Number(sp.valor)), 0) : Math.abs(displayedValue(r));
   const cross = (list: BankTx[]) => { let e = 0, s2 = 0, ne = 0, ns = 0; for (const r of list) { const v = ignoredPart(r); if (r.tipo === 'entrada') { e += v; ne++; } else { s2 += v; ns++; } } return { e, s: s2, ne, ns, diff: Math.round((e - s2) * 100) / 100 }; };
   const CrossLine = ({ c }: { c: ReturnType<typeof cross> }) => <span className="inline-flex flex-wrap items-center gap-x-2"><span className="text-success">Entradas {fmtBRL(c.e)} ({c.ne})</span>·<span className="text-destructive">Saídas {fmtBRL(c.s)} ({c.ns})</span>·{c.diff === 0 ? <span className="font-semibold text-success">Diferença R$ 0,00 ✓ batem</span> : <span className="font-semibold text-warning">Diferença {fmtBRL(Math.abs(c.diff))} · sobra em {c.diff > 0 ? 'entradas' : 'saídas'}</span>}</span>;
 
@@ -226,7 +238,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
         <div className="w-44"><label className="text-xs text-muted-foreground">Categoria</label>
           <Select value={cat} onValueChange={v => setCat(v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="mov">Entrada / Saída</SelectItem><SelectItem value="operacao">Operações</SelectItem><SelectItem value="ignorar">Ignorados</SelectItem><SelectItem value="dividido">Divididos</SelectItem><SelectItem value="transf">Transferências internas</SelectItem><SelectItem value="auto">Aplicação automática</SelectItem><SelectItem value="aclassificar">Tipo financeiro: A classificar</SelectItem></SelectContent>
+             <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="receita">Receitas</SelectItem><SelectItem value="despesa">Despesas</SelectItem><SelectItem value="mov">Entrada / Saída (juntas)</SelectItem><SelectItem value="operacao">Operações</SelectItem><SelectItem value="ignorar">Ignorados</SelectItem><SelectItem value="dividido">Divididos</SelectItem><SelectItem value="transf">Transferências internas</SelectItem><SelectItem value="auto">Aplicação automática</SelectItem><SelectItem value="aclassificar">Tipo financeiro: A classificar</SelectItem></SelectContent>
           </Select>
         </div>
         <div><label className="text-xs text-muted-foreground">De</label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
@@ -317,7 +329,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
               <tr className={`group border-t border-border hover:bg-muted/20 ${isAutoInvest(t) ? 'opacity-70' : ''}`}>
                 <td className="sticky left-0 z-10 bg-card p-2 group-hover:bg-muted">
                   <div className="flex items-center gap-1">
-                    <Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} />
+                     <Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} />
                     {t.recon_status !== 'conciliado' && <Button size="sm" variant="ghost" className="h-7 px-1.5 text-success" onClick={() => apply([t.id], 'conciliado')} title="Conciliar"><Check className="h-4 w-4" /></Button>}
                     {!isAutoInvest(t) && !t.transfer_pair_id && <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => openSplit(t)} title={t.splits?.length ? 'Editar divisão' : 'Dividir valor'} aria-label="Dividir valor"><Split className="h-4 w-4" /></Button>}
                     <DropdownMenu>
@@ -342,7 +354,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
                 <td className="p-2 min-w-52" title="Origem: Extrato"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.is_forecast && (() => { const dias = Math.floor((Date.now() - new Date(t.data + 'T12:00:00').getTime()) / 86400000); return <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold ${dias > 7 ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`} title="Veio de 'Lançamentos futuros' do PDF. Será substituído pelo lançamento real quando o próximo OFX chegar.">{dias > 7 ? `Previsto há ${dias} dias — revisar` : 'Previsto · aguardando extrato'}</span>; })()}{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
                 <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="rounded bg-info/15 px-1.5 py-0.5 text-xs font-semibold text-info">Transferência interna</span> : (
-                  t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
+                   t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}{(cat === 'receita' || cat === 'despesa') && ` · ${fmtBRL(displayedValue(t))} nesta categoria`}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
                     <SelectTrigger className="h-7 w-40 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value="transferencia">Transferência entre contas</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
                    </Select>)}
@@ -363,7 +375,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2 text-[11px] leading-tight">{t.recon_by_email ? <><div className="max-w-36 truncate" title={t.recon_by_email}>{t.recon_by_email}</div><div className="text-muted-foreground whitespace-nowrap">{fmtDateTime(t.recon_at)}</div></> : <span className="text-muted-foreground">—</span>}</td>
                 <td className="p-2"><Button size="sm" variant="ghost" className={`h-7 px-1.5 ${t.recon_note ? 'text-primary' : 'text-muted-foreground'}`} title={t.recon_note || 'Adicionar observação'} aria-label="Observação" onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className={`h-4 w-4 ${t.recon_note ? 'fill-primary/20' : ''}`} /></Button></td>
               </tr>
-              {expanded.has(t.id) && t.splits?.map(sp => (
+               {(expanded.has(t.id) || cat === 'receita' || cat === 'despesa') && (cat === 'receita' || cat === 'despesa' ? visibleParts(t) : t.splits ?? []).map(sp => (
                 <tr key={sp.id} className={`text-xs ${cat === 'ignorar' && sp.categoria === 'ignorar' ? 'bg-warning/15 font-semibold' : 'bg-muted/20'}`}>
                   <td className="sticky left-0 bg-card" /><td /><td />
                   <td className="p-1.5 pl-6">↳ {sp.descricao || displayDesc(t)}</td>
