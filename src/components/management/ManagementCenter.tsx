@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import type { School } from '@/types/financial';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -252,6 +254,17 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
   const [cardFilter, setCardFilter] = useState<string | null>(null);
   const today = todaySaoPaulo();
+  const qc = useQueryClient();
+  const [toggleSchool, setToggleSchool] = useState<{ id: string; name: string; ativo: boolean } | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const { data: inactiveSchools = [] } = useQuery({
+    queryKey: ['schools', 'inactive'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from('schools').select('id, nome').eq('ativo', false).order('nome');
+      if (error) throw error;
+      return (data ?? []) as { id: string; nome: string }[];
+    },
+  });
   const { data: dailyRows = [], isLoading: dailyLoading } = useManagementDailyStatus(today, true);
   const { data: backlog = [], isLoading: backlogLoading } = useManagementBacklog(today, true);
   const { data: rows = [], isLoading, isError } = useManagementPortfolio(month, true);
@@ -403,6 +416,21 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       onError: error => toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o nome.'),
     });
   };
+  const confirmToggle = async () => {
+    if (!toggleSchool) return;
+    setToggling(true);
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await (supabase as any).from('schools').update({
+      ativo: toggleSchool.ativo,
+      inativado_em: toggleSchool.ativo ? null : new Date().toISOString(),
+      inativado_por: toggleSchool.ativo ? null : auth?.user?.id ?? null,
+    }).eq('id', toggleSchool.id);
+    setToggling(false);
+    if (error) { toast.error('Não foi possível salvar.'); return; }
+    toast.success(toggleSchool.ativo ? 'Empresa reativada.' : 'Empresa inativada. Histórico preservado.');
+    setToggleSchool(null);
+    qc.invalidateQueries();
+  };
   const createSchool = async () => {
     const name = newSchoolName.trim();
     if (!name) { toast.error('Digite o nome da empresa.'); return; }
@@ -523,9 +551,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                       {mode !== 'mes' ? <div className="space-y-1">{!daily ? <span className="text-muted-foreground">{dailyLoading ? '…' : '—'}</span> : !daily.statement_received ? <span className="inline-flex rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">Extrato não enviado</span> : progress == null ? <span className="text-[11px] text-muted-foreground">Sem movimento no dia</span> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-12 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span></div>}{mode === 'hoje' && daily && <p className="text-[10px] text-muted-foreground">{daily.reconciled_today} conciliados hoje · {relativeTime(daily.last_activity, today)}{isLateToday(daily) && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 font-semibold text-destructive-foreground">Atrasada</span>}</p>}</div> :
                       <div>{progress == null ? <button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"><ListChecks className="h-3 w-3" />{row.closing_percent == null ? 'Configurar etapas' : 'Indisponível'}</button> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-10 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span><button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="text-muted-foreground hover:text-primary" aria-label={`Configurar etapas de ${row.school_name}`}><ListChecks className="h-3.5 w-3.5" /></button></div>}</div>}
                       <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div>
-                      <Button variant="ghost" size="sm" onClick={() => openSchool(row.school_id)} className="h-7 justify-start px-1 text-xs text-primary lg:justify-center">Abrir <ArrowRight className="ml-1 h-3 w-3" /></Button>
+                      <div className="flex items-center gap-1"><Button variant="ghost" size="sm" onClick={() => openSchool(row.school_id)} className="h-7 justify-start px-1 text-xs text-primary lg:justify-center">Abrir <ArrowRight className="ml-1 h-3 w-3" /></Button>{isSuperAdmin && <Button variant="ghost" size="sm" onClick={() => setToggleSchool({ id: row.school_id, name: row.school_name, ativo: false })} className="h-7 px-1 text-[10px] text-muted-foreground">Inativar</Button>}</div>
                     </div>;
                   })}</div><div className="border-t px-3 py-3 text-[10px] text-muted-foreground">Mostrando {filtered.length} de {rows.length} empresas em {viewLabels[view].toLocaleLowerCase('pt-BR')}{activeCard ? ` · ${activeCard.label}` : ''}</div>
+                  {inactiveSchools.length > 0 && <div className="border-t px-3 py-3"><p className="mb-2 text-[11px] font-medium text-muted-foreground">Empresas inativas ({inactiveSchools.length}) — histórico preservado, fora da carteira e sem acesso do cliente</p><div className="flex flex-wrap gap-2">{inactiveSchools.map(s => <span key={s.id} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-2.5 pr-1 text-[11px]">{s.nome}<Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-primary" onClick={() => openSchool(s.id)}>Abrir</Button>{isSuperAdmin && <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-primary" onClick={() => setToggleSchool({ id: s.id, name: s.nome, ativo: true })}>Reativar</Button>}</span>)}</div></div>}
                 </>}
               </section>
               <aside className="h-fit rounded-lg border border-border bg-card p-3.5"><div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-sm font-medium">Prioridades de hoje</h2><span className="text-[10px] text-muted-foreground">{priorities.length} itens</span></div><div className="space-y-2">{priorities.length === 0 && <p className="rounded-md bg-muted/30 p-3 text-[11px] text-muted-foreground">Nenhuma prioridade encontrada para este período.</p>}{priorities.map(({ row, status, pending }) => <button key={row.school_id} type="button" onClick={() => { if (pending > 0) { setFocusSchoolId(row.school_id); setView('pending'); } else openSchool(row.school_id); }} className={`w-full rounded-md border-l-4 p-3 transition-transform hover:-translate-y-0.5 text-left ${status === 'atrasado' ? 'border-destructive bg-destructive/15 shadow-sm' : status === 'bloqueado' ? 'border-info bg-info/15 shadow-sm' : 'border-progress bg-progress/15 shadow-sm'}`}><strong className="block truncate text-[11px] font-medium">{row.school_name}</strong><span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{row.next_action || (status === 'bloqueado' ? 'Aguardando informações do cliente.' : pending > 0 ? `${pending} pendência${pending === 1 ? '' : 's'} de conciliação acumulada${pending === 1 ? '' : 's'} — ver quais.` : statusLabels[status])}</span><span className="mt-1.5 flex justify-between gap-2 text-[10px] text-muted-foreground"><span>{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Sem responsável'}</span><span>{statusLabels[status]}</span></span></button>)}</div></aside>
@@ -535,6 +564,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         )}
       </div>
 
+      <Dialog open={!!toggleSchool} onOpenChange={open => { if (!open) setToggleSchool(null); }}><DialogContent><DialogHeader><DialogTitle>{toggleSchool?.ativo ? 'Reativar' : 'Inativar'} {toggleSchool?.name}?</DialogTitle><DialogDescription>{toggleSchool?.ativo ? 'A empresa volta para a carteira da responsável e o cliente volta a ter acesso.' : 'Nada será apagado. A empresa sai da carteira e das porcentagens, e o cliente deixa de ter acesso. Você pode reativar quando quiser.'}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setToggleSchool(null)}>Cancelar</Button><Button onClick={() => void confirmToggle()} disabled={toggling}>{toggling ? 'Salvando…' : toggleSchool?.ativo ? 'Reativar' : 'Inativar'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
       <ClosingStepTemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
       <SchoolStepsDialog open={stepsSchool !== null} onOpenChange={open => { if (!open) setStepsSchool(null); }} schoolId={stepsSchool?.id ?? null} schoolName={stepsSchool?.name ?? ''} month={month} canEditTemplates={isSuperAdmin} onOpenTemplates={() => { setStepsSchool(null); setTemplatesOpen(true); }} />
