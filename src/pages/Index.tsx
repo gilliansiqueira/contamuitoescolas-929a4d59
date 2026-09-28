@@ -177,6 +177,7 @@ interface IndexBodyProps {
 function IndexBody({
   school, setSchool, isAdmin, isAdminAll, accessibleSchoolIds, profile, signOut, isDemo, isPresentationMode,
 }: IndexBodyProps) {
+  const { isSuperAdmin } = useAuth();
   const [appModule, setAppModule] = useState<AppModule>('projecao');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [realizadoView, setRealizadoView] = useState<RealizadoView>('relatorio');
