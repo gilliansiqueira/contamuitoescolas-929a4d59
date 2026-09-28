@@ -17,7 +17,7 @@ import {
   useDailyTasks,
   useSetDailyTaskStatus,
 } from '@/hooks/useClosingSteps';
-import { ReportChecklist } from '@/components/management/ReportChecklist';
+import { ReportChecklist, ReportAnalysis } from '@/components/management/ReportChecklist';
 
 function slugify(label: string) {
   return label
@@ -61,7 +61,7 @@ export function ClosingStepTemplatesDialog({ open, onOpenChange }: { open: boole
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" />Etapas padrão de fechamento</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" />Etapas padrão do relatório</DialogTitle>
           <DialogDescription>Estas etapas valem para todas as empresas e se repetem todo mês. Cada empresa pode desativar ou acrescentar etapas na própria configuração.</DialogDescription>
         </DialogHeader>
         <div className="max-h-[50vh] space-y-1.5 overflow-y-auto pr-1">
@@ -167,12 +167,25 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" />Relatório — {schoolName}</DialogTitle>
-          <DialogDescription>Acompanhe o passo a passo do relatório de {monthLabel} e ajuste as etapas desta empresa.</DialogDescription>
+          <DialogDescription>Acompanhe as tarefas de hoje e o relatório de {monthLabel} separadamente.</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[65vh] space-y-4 overflow-y-auto pr-1">
-          {schoolId && <DailyTasksSection schoolId={schoolId} />}
-          <section>
+          {schoolId && <div className="border-b border-border pb-4"><DailyTasksSection schoolId={schoolId} /></div>}
+          <section aria-label={`Relatório de ${monthLabel}`}>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relatório de {monthLabel}</h3>
+              <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => document.getElementById(`report-analysis-${schoolId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Criar texto da análise</Button>
+            </div>
+            {checklistLoading && <p className="py-4 text-center text-xs text-muted-foreground">Carregando…</p>}
+            {!checklistLoading && checklist.length === 0 && (
+              <div className="space-y-3"><p className="rounded-md bg-muted/30 p-4 text-center text-xs text-muted-foreground">Nenhuma etapa gerada para este mês. Ajuste as etapas abaixo e reabra esta janela.</p>{schoolId && <ReportAnalysis schoolId={schoolId} schoolName={schoolName} month={month} monthLabel={monthLabel} />}</div>
+            )}
+            {schoolId && checklist.length > 0 && (
+              <ReportChecklist schoolId={schoolId} schoolName={schoolName} month={month} monthLabel={monthLabel} checklist={checklist} templates={templates} />
+            )}
+          </section>
+          <section className="border-t border-border pt-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Etapas desta empresa</h3>
               {canEditTemplates && onOpenTemplates && (
@@ -220,16 +233,6 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
             </div>
           </section>
 
-          <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relatório de {monthLabel}</h3>
-            {checklistLoading && <p className="py-4 text-center text-xs text-muted-foreground">Carregando…</p>}
-            {!checklistLoading && checklist.length === 0 && (
-              <p className="rounded-md bg-muted/30 p-4 text-center text-xs text-muted-foreground">Nenhuma etapa gerada para este mês. Ajuste as etapas acima e reabra esta janela.</p>
-            )}
-            {schoolId && checklist.length > 0 && (
-              <ReportChecklist schoolId={schoolId} schoolName={schoolName} month={month} monthLabel={monthLabel} checklist={checklist} templates={templates} />
-            )}
-          </section>
         </div>
       </DialogContent>
     </Dialog>

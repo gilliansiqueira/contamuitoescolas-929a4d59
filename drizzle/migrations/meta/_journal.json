@@ -351,6 +351,13 @@
       "when": 1790629776361,
       "tag": "0049_report_steps_daily_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790630841426,
+      "tag": "0050_fix_monthly_report_automatic_source",
+      "breakpoints": true
     }
   ]
 }

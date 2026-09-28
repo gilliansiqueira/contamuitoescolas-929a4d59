@@ -69,8 +69,8 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
     <div className="space-y-3">
       <p className="text-[11px] text-muted-foreground">{done} de {checklist.length} etapas concluídas em {monthLabel}.</p>
       {groups.map(group => (
-        <div key={group.key} className="rounded-md border border-border">
-          <p className="border-b border-border bg-muted/30 px-2.5 py-1.5 text-[11px] font-semibold">{group.label}</p>
+         <div key={group.key} className={`rounded-md border ${group.key === 'envio' ? 'border-primary/40' : 'border-border'}`}>
+           <p className={`border-b px-2.5 py-1.5 text-[11px] font-semibold ${group.key === 'envio' ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-muted/30'}`}>{group.label}</p>
           <div className="divide-y divide-border">
             {grouped.get(group.key)!.map(item => {
               const tpl = templateByKey.get(item.step_key);
@@ -84,7 +84,7 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
                     <div className="mt-0.5 flex flex-wrap gap-1.5 text-[10px]">
                       <span className={`rounded-full px-1.5 py-0.5 ${kind === 'auto' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{KIND_LABEL[kind] ?? 'Manual'}</span>
                       {kind === 'hint' && hint !== undefined && <span className={`rounded-full px-1.5 py-0.5 ${hint ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{hint ? 'Já há dados lançados' : 'Ainda sem dados'}</span>}
-                      {item.completed_at && <span className="text-muted-foreground">{item.source === 'auto' ? 'Conferido pelo sistema' : 'Marcado'} em {new Date(item.completed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                       {item.completed_at && <span className="text-muted-foreground">{item.source === 'automatic' ? 'Conferido pelo sistema' : 'Marcado'} em {new Date(item.completed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
                     </div>
                   </div>
                   <Select value={item.status} onValueChange={value => setStatus.mutate({ id: item.id, status: value as ChecklistItem['status'] }, { onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar.') })}>
@@ -106,7 +106,7 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
   );
 }
 
-function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { schoolId: string; schoolName: string; month: string; monthLabel: string }) {
+export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { schoolId: string; schoolName: string; month: string; monthLabel: string }) {
   const qc = useQueryClient();
   const { entries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
@@ -163,15 +163,15 @@ function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { schoolId:
   };
 
   return (
-    <div className="space-y-2 border-t border-border bg-muted/10 p-2.5">
+     <div id={`report-analysis-${schoolId}`} className="scroll-mt-4 space-y-2 border-t border-border bg-primary/[0.04] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-medium">Texto da análise para o cliente</p>
+         <p className="text-xs font-semibold">Texto da análise para o cliente</p>
         <div className="flex gap-1.5">
           <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => void generate()} disabled={generating}>{generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}Gerar rascunho da análise</Button>
           <Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" onClick={() => { void navigator.clipboard.writeText(text); toast.success('Texto copiado.'); }} disabled={!text}><Copy className="h-3 w-3" />Copiar</Button>
         </div>
       </div>
-      <Textarea value={text} onChange={e => setText(e.target.value)} rows={7} className="text-xs" placeholder="Gere um rascunho ou escreva a análise do mês." />
+       <Textarea value={text} onChange={e => setText(e.target.value)} rows={7} className="text-xs" aria-label="Texto da análise para o cliente" placeholder="Gere um rascunho ou escreva a análise do mês." />
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] text-muted-foreground">Os números vêm do cálculo oficial do sistema; a IA só redige. O PDF é gerado no Relatório Realizado.</p>
         <Button size="sm" className="h-7 text-[11px]" onClick={() => save.mutate(text)} disabled={save.isPending}>Salvar texto</Button>
