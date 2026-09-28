@@ -347,10 +347,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="leading-none text-primary-foreground"><span className="block text-[10px] uppercase tracking-[0.16em] opacity-75">Conta</span><strong className="text-[17px] font-medium">Muito</strong></div>
         </div>
         <nav className="mt-6 flex-1 space-y-1 px-3" aria-label="Central de Clientes">
-          {navigation.map(item => <Button key={item.key} type="button" variant="ghost" onClick={() => { setFocusSchoolId(null); setView(item.key); }} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === item.key ? 'management-nav-active' : ''}`}><item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Button>)}
+          {navigation.map(item => <Button key={item.key} type="button" variant="ghost" onClick={() => { setFocusSchoolId(null); setCardFilter(null); setView(item.key); }} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === item.key ? 'management-nav-active' : ''}`}><item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Button>)}
           {isSuperAdmin && <>
             <p className="px-3 pb-1 pt-4 text-[10px] uppercase tracking-[0.14em] text-primary-foreground/70">Equipe</p>
-            <Button type="button" variant="ghost" onClick={() => setView('team_time')} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === 'team_time' ? 'management-nav-active' : ''}`}><Clock3 className="h-4 w-4 shrink-0" /><span>Ponto da Equipe</span></Button>
+            <Button type="button" variant="ghost" onClick={() => { setCardFilter(null); setView('team_time'); }} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === 'team_time' ? 'management-nav-active' : ''}`}><Clock3 className="h-4 w-4 shrink-0" /><span>Ponto da Equipe</span></Button>
           </>}
         </nav>
         <div className="management-profile mx-3 mb-4 flex items-center gap-2 border-t px-1 pt-4">
@@ -365,8 +365,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="flex items-center gap-1"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
         </header>
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:hidden" aria-label="Central de Clientes">
-          {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => { setFocusSchoolId(null); setView(item.key); }} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
-          {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => setView('team_time')} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
+          {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => { setFocusSchoolId(null); setCardFilter(null); setView(item.key); }} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
+          {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
         </nav>
 
         {view === 'team_time' && isSuperAdmin ? (
@@ -376,7 +376,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div><h1 className="text-2xl font-medium tracking-normal">Central de Clientes</h1><p className="mt-1 text-xs text-muted-foreground">Acompanhe a carteira e priorize o que precisa de atenção.</p></div>
             <div className="flex flex-wrap items-center gap-2">
-              <div role="tablist" aria-label="Visão da conciliação" className="flex rounded-md border border-border bg-card p-0.5">{(Object.keys(periodModeLabels) as PeriodMode[]).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{periodModeLabels[m]}</button>)}</div>
+              <div role="tablist" aria-label="Visão da conciliação" className="flex rounded-md border border-border bg-card p-0.5">{(Object.keys(periodModeLabels) as PeriodMode[]).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setCardFilter(null); }} className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{periodModeLabels[m]}</button>)}</div>
               {mode === 'mes' && <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Período" type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-[168px] bg-card pl-9 text-xs" /></label>}
               {isSuperAdmin && <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setTemplatesOpen(true)}><ListChecks className="h-3.5 w-3.5" />Etapas padrão</Button>}
               {isSuperAdmin && <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" />Nova empresa</Button>}
@@ -384,14 +384,26 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             </div>
           </div>
 
-          {view !== 'pending' && <div className="mb-3 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
-            {(summaryCards ?? [
-              { label: 'Empresas ativas', value: rows.length, note: 'Toda a carteira', icon: Building2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
-              { label: 'Atualizadas hoje', value: updatedToday, note: 'Dados até hoje', icon: CalendarDays, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success' },
-              { label: 'Conciliação pendente', value: pendingReconciliationCompanies, note: `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`, icon: AlertCircle, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
-              { label: 'Fechamento pendente', value: pendingClosing, note: `${deliveredReports} relatório${deliveredReports === 1 ? '' : 's'} entregue${deliveredReports === 1 ? '' : 's'}`, icon: FileCheck2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
-            ]).map(card => <div key={card.label} className={`rounded-lg border border-border border-t-4 p-4 shadow-sm ${card.strip}`}><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium text-foreground/80">{card.label}</span><span className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${card.tone}`}><card.icon className="h-4 w-4" /></span></div><p className={`mt-2 text-3xl font-semibold leading-none ${card.num}`}>{isLoading ? '—' : card.value}</p><p className="mt-1.5 text-[11px] text-muted-foreground">{card.note}</p></div>)}
-          </div>}
+          {view !== 'pending' && <>
+            <div className="mb-3 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+              {summaryCards.map(card => {
+                const isActive = activeCard?.key === card.key;
+                const empty = card.value === 0;
+                return <button key={card.key} type="button" aria-pressed={isActive} disabled={empty} title={empty ? 'Nenhuma empresa nesta situação' : `Mostrar só: ${card.label}`} onClick={() => setCardFilter(isActive ? null : card.key)} className={`relative rounded-lg border border-border border-t-4 p-4 text-left shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${card.strip} ${isActive ? 'ring-2 ring-primary ring-offset-2' : ''} ${empty ? 'cursor-not-allowed opacity-60' : 'hover:shadow-md'}`}>
+                  {isActive && <span className="absolute -top-2 right-2 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">filtrando</span>}
+                  <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium text-foreground/80">{card.label}</span><span className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${card.tone}`}><card.icon className="h-4 w-4" /></span></div>
+                  <p className={`mt-2 text-3xl font-semibold leading-none ${card.num}`}>{isLoading ? '—' : card.value}</p>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">{card.note}</p>
+                </button>;
+              })}
+            </div>
+            {activeCard && <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/[0.05] px-3 py-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Mostrando só: {activeCard.label} · {activeCard.value} empresa{activeCard.value === 1 ? '' : 's'}
+                <button type="button" onClick={() => setCardFilter(null)} aria-label={`Parar de filtrar por ${activeCard.label}`} className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/80"><X className="h-2.5 w-2.5" /></button>
+              </span>
+              <span className="text-[11px] text-muted-foreground">Clique no mesmo card para limpar, ou em outro card para trocar.</span>
+            </div>}
+          </>}
 
           <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5 sm:flex-row">
             <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar empresa ou responsável..." className="h-9 bg-muted/30 pl-9 text-xs" /></div>
@@ -428,7 +440,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                       <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div>
                       <Button variant="ghost" size="sm" onClick={() => openSchool(row.school_id)} className="h-7 justify-start px-1 text-xs text-primary lg:justify-center">Abrir <ArrowRight className="ml-1 h-3 w-3" /></Button>
                     </div>;
-                  })}</div><div className="border-t px-3 py-3 text-[10px] text-muted-foreground">Mostrando {filtered.length} de {rows.length} empresas em {viewLabels[view].toLocaleLowerCase('pt-BR')}</div>
+                  })}</div><div className="border-t px-3 py-3 text-[10px] text-muted-foreground">Mostrando {filtered.length} de {rows.length} empresas em {viewLabels[view].toLocaleLowerCase('pt-BR')}{activeCard ? ` · ${activeCard.label}` : ''}</div>
                 </>}
               </section>
               <aside className="h-fit rounded-lg border border-border bg-card p-3.5"><div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-sm font-medium">Prioridades de hoje</h2><span className="text-[10px] text-muted-foreground">{priorities.length} itens</span></div><div className="space-y-2">{priorities.length === 0 && <p className="rounded-md bg-muted/30 p-3 text-[11px] text-muted-foreground">Nenhuma prioridade encontrada para este período.</p>}{priorities.map(({ row, status, pending }) => <button key={row.school_id} type="button" onClick={() => { if (pending > 0) { setFocusSchoolId(row.school_id); setView('pending'); } else openSchool(row.school_id); }} className={`w-full rounded-md border-l-4 p-3 transition-transform hover:-translate-y-0.5 text-left ${status === 'atrasado' ? 'border-destructive bg-destructive/15 shadow-sm' : status === 'bloqueado' ? 'border-info bg-info/15 shadow-sm' : 'border-progress bg-progress/15 shadow-sm'}`}><strong className="block truncate text-[11px] font-medium">{row.school_name}</strong><span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{row.next_action || (status === 'bloqueado' ? 'Aguardando informações do cliente.' : pending > 0 ? `${pending} pendência${pending === 1 ? '' : 's'} de conciliação acumulada${pending === 1 ? '' : 's'} — ver quais.` : statusLabels[status])}</span><span className="mt-1.5 flex justify-between gap-2 text-[10px] text-muted-foreground"><span>{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Sem responsável'}</span><span>{statusLabels[status]}</span></span></button>)}</div></aside>
