@@ -345,7 +345,8 @@ export function useSetRetido(schoolId: string) {
     mutationFn: async ({ importId, valor }: { importId: string; valor: number | null }) => {
       const { error } = await db.from('bank_statement_imports').update({ saldo_retido_informado: valor }).eq('id', importId).eq('school_id', schoolId);
       if (error) throw error;
-      await db.from('audit_log').insert({ school_id: schoolId, action: 'bank_saldo_retido', details: { import_id: importId, valor } }).then(() => null, () => null);
+      const { data: u } = await supabase.auth.getUser();
+      await db.from('audit_log').insert({ school_id: schoolId, action: 'bank_saldo_retido', description: `Cheques retidos no extrato ${importId}: ${valor ?? 0} por ${u.user?.email ?? 'desconhecido'}` });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['bankAccounts', schoolId] }),
   });
