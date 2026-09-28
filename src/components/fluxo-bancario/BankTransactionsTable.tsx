@@ -36,6 +36,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [importFilter, setImportFilter] = useState<string | null>(null);
   useEffect(() => { if (focus) { setImportFilter(focus.importId); setCat('auto'); setAccountId('all'); setFrom(focus.from); setTo(focus.to); } }, [focus?.nonce]);
   const [cat, setCat] = useState<'all' | 'mov' | 'receita' | 'despesa' | 'operacao' | 'transf' | 'auto' | 'aclassificar' | 'ignorar' | 'dividido'>('all');
+  const financialFilter = cat === 'receita' || cat === 'despesa';
   const [descTx, setDescTx] = useState<BankTx | null>(null);
   const [descText, setDescText] = useState('');
   const updText = useUpdateTxText(schoolId);
@@ -181,7 +182,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const autoCount = txs.filter(t => isAutoInvest(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to).length;
 
   const pend = rows.filter(r => r.recon_status === 'pendente');
-   const displayedValue = (r: BankTx) => cat === 'receita' || cat === 'despesa' ? r.splits?.length ? visibleParts(r).reduce((sum, sp) => sum + Number(sp.valor), 0) : Number(r.valor) : Number(r.valor);
+   const displayedValue = (r: BankTx) => financialFilter && r.splits?.length ? visibleParts(r).reduce((sum, sp) => sum + Number(sp.valor), 0) : Number(r.valor);
    const pendValor = pend.reduce((s, r) => s + displayedValue(r), 0);
   const conc = rows.filter(r => r.recon_status === 'conciliado');
    const concValor = conc.reduce((s, r) => s + displayedValue(r), 0);
@@ -191,12 +192,12 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const CrossLine = ({ c }: { c: ReturnType<typeof cross> }) => <span className="inline-flex flex-wrap items-center gap-x-2"><span className="text-success">Entradas {fmtBRL(c.e)} ({c.ne})</span>·<span className="text-destructive">Saídas {fmtBRL(c.s)} ({c.ns})</span>·{c.diff === 0 ? <span className="font-semibold text-success">Diferença R$ 0,00 ✓ batem</span> : <span className="font-semibold text-warning">Diferença {fmtBRL(Math.abs(c.diff))} · sobra em {c.diff > 0 ? 'entradas' : 'saídas'}</span>}</span>;
 
   /** Totais da seleção atual — mesmo conjunto usado pelas ações em lote ([...selected]). */
-  const selRows = useMemo(() => [...selected].map(id => txs.find(t => t.id === id)).filter((t): t is BankTx => !!t), [selected, txs]);
+   const selRows = useMemo(() => rows.filter(t => selected.has(t.id)), [selected, rows]);
   const selByStatus = useMemo(() => {
     const map: Record<ReconStatus, { n: number; valor: number }> = { pendente: { n: 0, valor: 0 }, conciliado: { n: 0, valor: 0 }, nao_se_aplica: { n: 0, valor: 0 } };
-    for (const r of selRows) { const b = map[r.recon_status]; b.n += 1; b.valor += Number(r.valor); }
+    for (const r of selRows) { const b = map[r.recon_status]; b.n += 1; b.valor += displayedValue(r); }
     return map;
-  }, [selRows]);
+   }, [selRows, cat, modelItems]);
   const pairs = useMemo(() => suggestTransferPairs(txs.filter(t => t.data >= from && t.data <= to)), [txs, from, to]);
 
   const apply = async (ids: string[], st: ReconStatus, note?: string | null) => {
@@ -259,7 +260,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
           {importFilter && <Button size="sm" variant="secondary" onClick={() => { setImportFilter(null); setCat('all'); }}>Só deste extrato · limpar filtro ✕</Button>}
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
-          {selected.size > 0 && <>
+          {selRows.length > 0 && <>
           <Button size="sm" disabled={setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar ({selected.size})</Button>
           <Button size="sm" variant="outline" disabled={setJust.isPending} onClick={() => openJustify([...selected])}><Tag className="mr-1 h-4 w-4" />Justificar</Button>
           <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="outline" disabled={setKind.isPending}><Layers className="mr-1 h-4 w-4" />Classificar como ▾</Button></DropdownMenuTrigger><DropdownMenuContent align="start">
@@ -329,13 +330,13 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
               Nenhum lançamento de {fmtDate(from)} a {fmtDate(to)}.
               {lastTx && (lastTx < from || lastTx > to) && <Button size="sm" variant="link" onClick={() => { setFrom(`${lastTx.slice(0, 7)}-01`); setTo(lastTx); }}>Ver último extrato</Button>}
             </td></tr>}
-            {rows.map(t => (
+             {rows.map(t => (
               <Fragment key={t.id}>
               <tr className={`group border-t border-border hover:bg-muted/20 ${isAutoInvest(t) ? 'opacity-70' : ''}`}>
                 <td className="sticky left-0 z-10 bg-card p-2 group-hover:bg-muted">
                   <div className="flex items-center gap-1">
                      <Checkbox checked={selected.has(t.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })} />
-                    {t.recon_status !== 'conciliado' && <Button size="sm" variant="ghost" className="h-7 px-1.5 text-success" onClick={() => apply([t.id], 'conciliado')} title="Conciliar"><Check className="h-4 w-4" /></Button>}
+                     {t.recon_status !== 'conciliado' && <Button size="sm" variant="ghost" className="h-7 px-1.5 text-success" onClick={() => apply([t.id], 'conciliado')} title="Conciliar lançamento inteiro"><Check className="h-4 w-4" /></Button>}
                     {!isAutoInvest(t) && !t.transfer_pair_id && <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => openSplit(t)} title={t.splits?.length ? 'Editar divisão' : 'Dividir valor'} aria-label="Dividir valor"><Split className="h-4 w-4" /></Button>}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button size="sm" variant="ghost" className="h-7 px-1.5" aria-label="Mais ações"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
@@ -359,18 +360,18 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2 whitespace-nowrap">{accName.get(t.account_id) ?? '—'}</td>
                 <td className="p-2 min-w-52" title="Origem: Extrato"><div className="flex items-start gap-1"><div><span>{displayDesc(t)}</span>{t.is_forecast && (() => { const dias = Math.floor((Date.now() - new Date(t.data + 'T12:00:00').getTime()) / 86400000); return <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold ${dias > 7 ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`} title="Veio de 'Lançamentos futuros' do PDF. Será substituído pelo lançamento real quando o próximo OFX chegar.">{dias > 7 ? `Previsto há ${dias} dias — revisar` : 'Previsto · aguardando extrato'}</span>; })()}{t.descricao_editada && <p className="text-[11px] text-muted-foreground">Original do banco: {t.descricao}</p>}</div><Button size="sm" variant="ghost" className="h-6 px-1" title="Editar descrição" onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="h-3 w-3" /></Button></div></td>
                 <td className="p-2 whitespace-nowrap">{t.transfer_pair_id ? <span className="rounded bg-info/15 px-1.5 py-0.5 text-xs font-semibold text-info">Transferência interna</span> : (
-                   t.splits?.length ? <button type="button" className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}{(cat === 'receita' || cat === 'despesa') && ` · ${fmtBRL(displayedValue(t))} nesta categoria`}</button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
+                    t.splits?.length ? <Button type="button" size="sm" variant="ghost" className="h-auto gap-1 bg-muted px-1.5 py-0.5 text-xs font-semibold" onClick={() => setExpanded(s => { const n = new Set(s); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}>{expanded.has(t.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}Dividido em {t.splits.length}{financialFilter && ` · ${fmtBRL(displayedValue(t))} nesta categoria`}</Button> : <Select value={t.movement_kind ?? 'normal'} onValueChange={v => setCategory([t.id], v)}>
                     <SelectTrigger className="h-7 w-40 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="normal">{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</SelectItem><SelectItem value="operacao">Operação</SelectItem><SelectItem value="ignorar">Ignorar</SelectItem><SelectItem value="transferencia">Transferência entre contas</SelectItem><SelectItem value={t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate'}>{t.tipo === 'saida' ? 'Aplicação automática' : 'Resgate automático'}</SelectItem></SelectContent>
                    </Select>)}
-                  {!t.splits?.length && t.movement_kind === 'normal' && <span className="ml-2 text-xs font-semibold text-foreground">{t.tipo === 'entrada' ? 'Receita' : 'Despesa'}</span>}
+                   {!t.splits?.length && t.movement_kind === 'normal' && <span className="ml-2 text-xs font-semibold text-foreground">{financialClass(t.model_item_id) === 'receita' ? 'Receita' : financialClass(t.model_item_id) === 'despesa' ? 'Despesa' : 'A classificar'}</span>}
                   {!t.splits?.length && t.movement_kind === 'operacao' && <Select value={t.model_item_id ?? 'none'} onValueChange={v => applyItem([t.id], v === 'none' ? null : v)}>
                     <SelectTrigger className={`mt-1 h-7 w-48 text-xs ${!t.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Detalhar operação" /></SelectTrigger>
                     <SelectContent><SelectItem value="none">Detalhar operação</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
                   </Select>}
                   {t.transfer_pair_id && (() => { const o = txs.find(x => x.transfer_pair_id === t.transfer_pair_id && x.id !== t.id); const me = accName.get(t.account_id) ?? '?'; const other = o ? accName.get(o.account_id) ?? '?' : '?'; return <span className="ml-1 text-[10px] text-muted-foreground">{t.tipo === 'saida' ? `${me} → ${other}` : `${other} → ${me}`}</span>; })()}</td>
-                <td className="p-2 text-right tabular-nums text-success whitespace-nowrap">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
-                <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
+                 <td className="p-2 text-right tabular-nums text-success whitespace-nowrap">{t.tipo === 'entrada' ? fmtBRL(displayedValue(t)) : ''}</td>
+                 <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{t.tipo === 'saida' ? fmtBRL(displayedValue(t)) : ''}</td>
                 <td className="p-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(balances.get(t.id) ?? 0)}</td>
                 <td className="p-2"><StatusBadge status={t.recon_status} />
                   {t.recon_status === 'pendente' && t.justification_reason_id
@@ -380,11 +381,11 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2 text-[11px] leading-tight">{t.recon_by_email ? <><div className="max-w-36 truncate" title={t.recon_by_email}>{t.recon_by_email}</div><div className="text-muted-foreground whitespace-nowrap">{fmtDateTime(t.recon_at)}</div></> : <span className="text-muted-foreground">—</span>}</td>
                 <td className="p-2"><Button size="sm" variant="ghost" className={`h-7 px-1.5 ${t.recon_note ? 'text-primary' : 'text-muted-foreground'}`} title={t.recon_note || 'Adicionar observação'} aria-label="Observação" onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className={`h-4 w-4 ${t.recon_note ? 'fill-primary/20' : ''}`} /></Button></td>
               </tr>
-               {(expanded.has(t.id) || cat === 'receita' || cat === 'despesa') && (cat === 'receita' || cat === 'despesa' ? visibleParts(t) : t.splits ?? []).map(sp => (
+                 {(expanded.has(t.id) || financialFilter) && (financialFilter ? visibleParts(t) : t.splits ?? []).map(sp => (
                 <tr key={sp.id} className={`text-xs ${cat === 'ignorar' && sp.categoria === 'ignorar' ? 'bg-warning/15 font-semibold' : 'bg-muted/20'}`}>
                   <td className="sticky left-0 bg-card" /><td /><td />
                   <td className="p-1.5 pl-6">↳ {sp.descricao || displayDesc(t)}</td>
-                  <td className="p-1.5">{sp.categoria === 'normal' ? (t.tipo === 'entrada' ? 'Receita' : 'Despesa') : CAT_LABEL[sp.categoria]}
+                   <td className="p-1.5">{sp.categoria === 'normal' ? (financialClass(sp.model_item_id) === 'receita' ? 'Receita' : financialClass(sp.model_item_id) === 'despesa' ? 'Despesa' : 'A classificar') : CAT_LABEL[sp.categoria]}
                     {sp.categoria === 'operacao' && (
                     <Select value={sp.model_item_id ?? 'none'} onValueChange={v => setSplitItem.mutate({ splitId: sp.id, itemId: v === 'none' ? null : v }, { onError: (e: any) => toast.error(e.message ?? 'Erro') })}>
                       <SelectTrigger className={`mt-1 h-7 w-44 text-xs ${!sp.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Detalhar operação" /></SelectTrigger>
