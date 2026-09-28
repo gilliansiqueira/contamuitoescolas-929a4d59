@@ -1,0 +1,2 @@
+ALTER TABLE public.bank_statement_imports ADD COLUMN IF NOT EXISTS saldo_retido_informado numeric;
+COMMENT ON COLUMN public.bank_statement_imports.saldo_retido_informado IS 'Cheques/depositos retidos pelo banco na data do extrato (informado na conferencia). Soma ao saldo disponivel para o saldo oficial.';
