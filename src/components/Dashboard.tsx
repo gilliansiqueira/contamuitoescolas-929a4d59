@@ -7,6 +7,7 @@ import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import { useConfirmedBankBalance } from '@/hooks/useConfirmedBankBalance';
 import {
   buildMonthMovement,
   computeSaldoInicial,
@@ -83,6 +84,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const snapshotMap = useSnapshotMap(schoolId, 'projecao');
   const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
   const { ctx: movementCtx, isLoading: movementLoading } = usePeriodMovementCtx(schoolId);
+  const { confirmed: confirmedBalance } = useConfirmedBankBalance(schoolId);
   // O PDF só pode ser gerado quando TODOS os dados da tela terminaram de
   // carregar; caso contrário ele sairia com meses/operações parciais.
   const fetchingCount = useIsFetching();
@@ -599,6 +601,16 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     () => monthMovements.filter(m => m.parcial).map(m => ({ month: m.month, realizadoAte: m.realizadoAte })),
     [monthMovements]
   );
+  const lastSelectedMonth = selectedMonths[selectedMonths.length - 1];
+  const confirmedForPeriod = selectedMonth !== 'all' && lastSelectedMonth === confirmedBalance?.date.slice(0, 7)
+    && monthMovements.find(m => m.month === lastSelectedMonth)?.realizadoAte === confirmedBalance.date
+    ? confirmedBalance : null;
+  const displayedBalance = confirmedForPeriod?.balance ?? saldoFinalRealizado;
+  const balanceDifference = confirmedForPeriod ? Math.round((confirmedForPeriod.balance - saldoFinalRealizado) * 100) / 100 : 0;
+  const futureForecast = Math.round((saldoFinalRealizado - saldoFinal) * 100) / 100;
+  const balanceHint = confirmedForPeriod
+    ? `Conferido em ${confirmedForPeriod.date.split('-').reverse().join('/')} · fechamento previsto: ${formatCurrency(saldoFinal)}`
+    : `Fechamento previsto: ${formatCurrency(saldoFinal)}`;
 
   // ─── Dados do PDF nativo "Mês completo" (montado só no clique) ───
   const buildMesCompletoData = useCallback(async (): Promise<MesCompletoData> => {
@@ -1032,6 +1044,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
           {' — '}os dias seguintes são projeção. O mês só é consolidado como realizado após o fechamento.
         </div>
       )}
+      {confirmedForPeriod && (Math.abs(balanceDifference) >= 0.005 || Math.abs(futureForecast) >= 0.005) && (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs sm:px-4 sm:py-3">
+          <span className="font-semibold">Saldo bancário conferido em {confirmedForPeriod.date.split('-').reverse().join('/')}: {formatCurrency(displayedBalance)}.</span>{' '}
+          {Math.abs(futureForecast) >= 0.005 && <>Previsões após o extrato: {formatCurrency(futureForecast)}. </>}
+          {Math.abs(balanceDifference) >= 0.005 && <>{Math.abs(balanceDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir com os extratos'}: {formatCurrency(Math.abs(balanceDifference))}. </>}
+          Fechamento previsto: {formatCurrency(saldoFinal)}.
+        </div>
+      )}
 
       <UnclassifiedAlert
         entries={activeEntries.filter(e => selectedMonths.includes(e.data.slice(0, 7)))}
@@ -1073,10 +1093,10 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             <div className="col-span-2">
               <CompactStat
                 label="Saldo Final do Período"
-                value={formatCurrency(saldoFinalRealizado)}
+                 value={formatCurrency(displayedBalance)}
                 icon={<CalendarCheck className="w-3 h-3 text-muted-foreground shrink-0" />}
-                valueClassName={saldoFinalRealizado >= 0 ? 'text-success text-lg' : 'text-destructive text-lg'}
-                hint={`Projetado: ${formatCurrency(saldoFinal)}`}
+                 valueClassName={displayedBalance >= 0 ? 'text-success text-lg' : 'text-destructive text-lg'}
+                 hint={balanceHint}
               />
             </div>
           </div>
@@ -1085,7 +1105,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
             {[
               { icon: Wallet, label: 'Saldo Inicial', value: saldoInicialCalculado, color: 'text-foreground', projected: undefined as number | undefined },
               { icon: Target, label: 'Resultado', value: totalsRealizado.resultado, color: totalsRealizado.resultado >= 0 ? 'text-success' : 'text-destructive', projected: totals.resultado },
-              { icon: CalendarCheck, label: 'Saldo Final', value: saldoFinalRealizado, color: saldoFinalRealizado >= 0 ? 'text-success' : 'text-destructive', projected: saldoFinal },
+               { icon: CalendarCheck, label: confirmedForPeriod ? `Saldo conferido em ${confirmedForPeriod.date.split('-').reverse().join('/')}` : 'Saldo Final', value: displayedBalance, color: displayedBalance >= 0 ? 'text-success' : 'text-destructive', projected: saldoFinal },
             ].map((kpi, i) => (
               <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="glass-card rounded-xl p-4 sm:p-5">
                 <div className="flex items-center gap-2 mb-2">
@@ -1094,7 +1114,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
                 </div>
                 <p className={`text-xl sm:text-2xl font-display font-bold break-words ${kpi.color}`}>{formatCurrency(kpi.value)}</p>
                 {kpi.projected !== undefined && (
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Projetado: {formatCurrency(kpi.projected)}</p>
+                   <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Fechamento previsto: {formatCurrency(kpi.projected)}</p>
                 )}
               </motion.div>
             ))}
