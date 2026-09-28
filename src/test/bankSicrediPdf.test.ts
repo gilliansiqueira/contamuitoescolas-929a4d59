@@ -13,3 +13,17 @@ it('Sicredi Dourados 25/09: lançamentos, cheque bloqueado e saldos', () => {
   expect(r.avisos.join(' ')).not.toMatch(/não fecha/);
   expect(r.transactions.filter(t => t.futuro)).toHaveLength(1);
 });
+
+it('Sicredi: sinal negativo do saldo não inverte o recebimento', () => {
+  const r = parsePdfLines([
+    'Extrato (Período de 01/09/2026 a 28/09/2026)',
+    '14/09/2026 DEB.CTA.FATURA 030021947 -21.556,05 -23.456,05',
+    '14/09/2026 RECEBIMENTO PIX 17211744000158 INFLUX ENGLISH SC PIX_CRED 1.451,52 -22.004,53',
+    '14/09/2026 COMPRAS NACIONAIS MAHALO CUIABA BR VE0565385 -30,00 -22.034,53',
+  ]);
+  const t = r.transactions ?? (r as any).linhas;
+  const rec = t.find((x: any) => /INFLUX/.test(x.descricao));
+  expect(rec.tipo).toBe('entrada');
+  expect(rec.valor).toBe(1451.52);
+  expect(t.filter((x: any) => x.tipo === 'saida').length).toBe(2);
+});
