@@ -115,6 +115,21 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           efet.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const n = disp.get(k) ?? 0; if (n > 0) { existing.add(hashes[i]); disp.set(k, n - 1); } });
         }
       }
+      // OFX/CSV com identificador do banco: o mesmo lançamento pode já ter entrado por um PDF (sem identificador).
+      // Casa por data + valor + sentido com linhas sem bank_ref, uma correspondência por vez, e guarda o vínculo
+      // para gravar o identificador na linha antiga ao confirmar.
+      const linkRefs: { id: string; bankRef: string }[] = [];
+      if (result.formato !== 'pdf') {
+        const cand = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && x.t.bankRef && !existing.has(hashes[x.i]));
+        if (cand.length) {
+          const datas = cand.map(x => x.t.data).sort();
+          const { data: semRef } = await db.from('bank_transactions').select('id, data, valor, tipo').eq('account_id', accountId)
+            .eq('is_forecast', false).is('bank_ref', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const pool = new Map<string, string[]>();
+          (semRef ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]); });
+          cand.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef! }); } });
+        }
+      }
       const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
       const pats = patterns?.all ?? DEFAULT_AUTO_INVEST_PATTERNS;
       const own = ownNames.map(n => n.padrao);
