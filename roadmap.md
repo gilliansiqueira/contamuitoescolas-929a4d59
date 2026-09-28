@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Aberto
+- [ ] Conferir na prévia as cores da conciliação e a atualização da última alteração (Ather) na Central de Clientes
 - [ ] Credencial da API PontoFopag (PONTOFOPAG_API_TOKEN) — pendente da Employer/ePays
 - [ ] Confirmar formato das respostas da API PontoFopag e limites de consulta antes de ligar a sincronização automática
 - [ ] Acompanhar o custo do servidor (créditos de "Cloud compute") nos próximos dias para ver se continua dentro dos 20 créditos grátis do mês

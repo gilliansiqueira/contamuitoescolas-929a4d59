@@ -3,3 +3,4 @@
 - Empresa inativa = `schools.ativo=false` (trigger espelha em `school_management_settings.is_active`); `user_has_school_access` bloqueia clientes de empresas inativas — para encerrar clientes sem apagar histórico.
 - Pendências de conciliação com data >= 2026-10-01 exigem motivo da lista `recon_justification_reasons` (só super_admin edita); `close_recon_day` bloqueia o fechamento do dia no servidor — para cobrar explicação sem travar setembro.
 - Na sincronização bancária, `categoria=operacao` e `movement_kind=operacao` geram `tipo_nome='Operação'` mesmo sem item do modelo — para afetar somente o Caixa e nunca bloquear a ativação como “A classificar”.
+- A bolinha da Central combina conciliação diária, pendências anteriores e disponibilidade bancária (conta configurada + mês de início); a última alteração vem dos timestamps salvos pela carteira e é consultada periodicamente — para não confundir ausência de módulo com atraso nem data do lançamento com ação recente.

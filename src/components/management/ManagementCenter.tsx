@@ -11,6 +11,7 @@ import {
   useSetManagementResponsibleDisplayName,
   useManagementDailyStatus,
   useManagementBacklog,
+  useManagementBankAvailability,
   todaySaoPaulo,
   type DailyStatusRow,
   type PortfolioRow,
@@ -79,14 +80,21 @@ const statusStyles: Record<RowStatus, string> = {
   sem_etapas: 'bg-muted-foreground/70 text-background font-semibold',
 };
 
-const statusDotStyles: Record<RowStatus, string> = {
-  finalizado: 'bg-success ring-4 ring-success/20 shadow-[0_0_10px_hsl(var(--success)/0.7)]',
-  bloqueado: 'bg-info ring-4 ring-info/20 shadow-[0_0_10px_hsl(var(--info)/0.7)]',
-  atrasado: 'bg-destructive ring-4 ring-destructive/25 shadow-[0_0_12px_hsl(var(--destructive)/0.8)] animate-pulse',
-  atencao: 'bg-progress ring-4 ring-progress/25 shadow-[0_0_10px_hsl(var(--progress)/0.75)]',
-  em_dia: 'bg-success ring-4 ring-success/20 shadow-[0_0_10px_hsl(var(--success)/0.7)]',
-  sem_etapas: 'bg-muted-foreground/60 ring-4 ring-muted',
+type ReconDot = 'ok' | 'pending' | 'late' | 'unavailable';
+const reconDotStyles: Record<ReconDot, string> = {
+  ok: 'bg-success ring-4 ring-success/20',
+  pending: 'bg-progress ring-4 ring-progress/25',
+  late: 'bg-destructive ring-4 ring-destructive/25',
+  unavailable: 'bg-muted-foreground/60 ring-4 ring-muted',
 };
+const reconDotLabels: Record<ReconDot, string> = {
+  ok: 'Conciliação em dia', pending: 'Pendências do dia', late: 'Conciliação atrasada', unavailable: 'Conciliação indisponível',
+};
+
+function ReconStatusDot({ state, schoolName }: { state: ReconDot; schoolName: string }) {
+  const label = `${schoolName}: ${reconDotLabels[state]}`;
+  return <span role="img" aria-label={label} title={label} className={`inline-block h-3 w-3 shrink-0 rounded-full ${reconDotStyles[state]}`} />;
+}
 
 const rowAccent: Record<RowStatus, string> = {
   finalizado: 'border-l-success',
@@ -269,6 +277,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   });
   const { data: dailyRows = [], isLoading: dailyLoading } = useManagementDailyStatus(today, true);
   const { data: backlog = [], isLoading: backlogLoading } = useManagementBacklog(today, true);
+  const { data: bankStartMonths, isLoading: bankLoading } = useManagementBankAvailability(true);
   const { data: rows = [], isLoading, isError } = useManagementPortfolio(month, true);
   const { data: responsibleCandidates = [] } = useManagementResponsibleCandidates(isSuperAdmin);
   const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
@@ -296,6 +305,14 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const displayNameByUser = useMemo(() => new Map(displayNames.map(item => [item.user_id, item.display_name])), [displayNames]);
   const dailyBySchool = useMemo(() => new Map(dailyRows.map(d => [d.school_id, d])), [dailyRows]);
   const backlogBySchool = useMemo(() => { const m = new Map<string, number>(); backlog.forEach(b => m.set(b.school_id, (m.get(b.school_id) ?? 0) + 1)); return m; }, [backlog]);
+  const reconDotOf = (row: PortfolioRow): ReconDot => {
+    const daily = dailyBySchool.get(row.school_id);
+    const startMonth = bankStartMonths?.get(row.school_id);
+    if (dailyLoading || backlogLoading || bankLoading || !daily || !startMonth || startMonth > daily.ref_day.slice(0, 7)) return 'unavailable';
+    if (!daily.statement_received || backlog.some(item => item.school_id === row.school_id && item.data < daily.ref_day)) return 'late';
+    if (daily.recon_pending > 0) return 'pending';
+    return 'ok';
+  };
   const responsibleLabelOf = (row: PortfolioRow) => row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Sem responsável';
   const schoolInfo = useMemo(() => new Map(rows.map(row => [row.school_id, { school_id: row.school_id, school_name: row.school_name, responsible_user_id: row.responsible_user_id, responsibleLabel: responsibleLabelOf(row) }])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -536,7 +553,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                 <p className="truncate text-[11px] text-muted-foreground">{group.email}</p><div className="mt-4 grid grid-cols-2 gap-2 rounded-md bg-muted/30 p-2.5"><ProgressRing value={group.reconciliationPercent} label={mode === 'mes' ? 'Conciliação do mês' : 'Conciliação do dia'} tone="success" /><ProgressRing value={group.closingPercent} label="Fechamento" tone="warning" /></div>{mode === 'hoje' && <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]"><span className="rounded-full bg-muted px-2 py-0.5">{group.reconciledToday} conciliados hoje</span><span className="rounded-full bg-muted px-2 py-0.5">{relativeTime(group.lastActivity, today)}</span>{group.lateCount > 0 && <span className="rounded-full bg-destructive px-2 py-0.5 font-semibold text-destructive-foreground">{group.lateCount} atrasada(s)</span>}</div>}</div>
                 <div className="grid grid-cols-4 border-t border-border bg-muted/15 text-center text-[10px]"><div className="border-r border-border py-2.5"><strong className="block text-sm text-success">{group.statusCounts.finalizado}</strong><span className="text-muted-foreground">Finalizadas</span></div><div className="border-r border-border py-2.5"><strong className="block text-sm text-destructive">{group.statusCounts.atrasado}</strong><span className="text-muted-foreground">Atrasadas</span></div><div className="border-r border-border py-2.5"><strong className="block text-sm text-info">{group.statusCounts.bloqueado}</strong><span className="text-muted-foreground">Cliente</span></div><div className="py-2.5"><strong className="block text-sm text-warning">{group.pending}</strong><span className="text-muted-foreground">Pendências</span></div></div>
                 <Button variant="ghost" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="h-9 w-full justify-between rounded-none border-t px-4 text-xs"><span>{isOpen ? 'Ocultar empresas' : 'Ver empresas'}</span><ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></Button>
-                {isOpen && <div className="divide-y divide-border border-t">{group.rows.map(row => { const status = statusOf(row, month); return <div key={row.school_id} role="button" tabIndex={0} onClick={() => openSchool(row.school_id)} onKeyDown={e => { if (e.key === 'Enter') openSchool(row.school_id); }} className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/30"><div className="min-w-0"><p className="truncate text-xs font-medium">{row.school_name}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div><ArrowRight className="h-3 w-3 text-muted-foreground" /></div>; })}</div>}
+                 {isOpen && <div className="divide-y divide-border border-t">{group.rows.map(row => { const status = statusOf(row, month); return <div key={row.school_id} role="button" tabIndex={0} onClick={() => openSchool(row.school_id)} onKeyDown={e => { if (e.key === 'Enter') openSchool(row.school_id); }} className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/30"><div className="flex min-w-0 items-center gap-2.5"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><div className="min-w-0"><p className="truncate text-xs font-medium">{row.school_name}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div></div><ArrowRight className="h-3 w-3 text-muted-foreground" /></div>; })}</div>}
               </article>;
             })}</div>{!isLoading && responsibleGroups.length === 0 && <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">Nenhuma responsável encontrada.</div>}</section>
           ) : (
@@ -547,7 +564,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                   <div className="divide-y divide-border">{!isLoading && filtered.length === 0 && <p className="p-10 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>}{filtered.map(row => {
                     const status = statusOf(row, month); const daily = dailyBySchool.get(row.school_id); const progress = mode === 'mes' ? (row.closing_percent ?? row.reconciliation_percent) : dayPercent(daily); const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
                     return <div key={row.school_id} role="button" tabIndex={0} title="Abrir empresa" onClick={() => openSchool(row.school_id)} onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openSchool(row.school_id); } }} className={`cursor-pointer grid gap-3 border-l-4 px-3 py-3 text-xs transition-colors hover:bg-muted/30 lg:grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] lg:items-center ${rowAccent[status]}`}>
-                      <div className="flex min-w-0 items-center gap-2.5"><span className={`h-3 w-3 shrink-0 rounded-full ${statusDotStyles[status]}`} /><span className="truncate font-medium">{row.school_name}</span></div>
+                       <div className="flex min-w-0 items-center gap-2.5"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><span className="truncate font-medium">{row.school_name}</span></div>
                       <div className="min-w-0" onClick={e => e.stopPropagation()}>{isSuperAdmin && candidates.length > 1 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{candidates.map(candidate => <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
                       <span className="text-muted-foreground" title={lastActivityTitle(row.last_activity_at)}><span className="mr-1 lg:hidden">Última alteração:</span>{lastActivityLabel(row.last_activity_at)}</span>
                       {mode !== 'mes' ? <div className="space-y-1">{!daily ? <span className="text-muted-foreground">{dailyLoading ? '…' : '—'}</span> : !daily.statement_received ? <span className="inline-flex rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">Extrato não enviado</span> : progress == null ? <span className="text-[11px] text-muted-foreground">Sem movimento no dia</span> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-12 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span></div>}{mode === 'hoje' && daily && <p className="text-[10px] text-muted-foreground">{daily.reconciled_today} conciliados hoje · {relativeTime(daily.last_activity, today)}{isLateToday(daily) && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 font-semibold text-destructive-foreground">Atrasada</span>}</p>}</div> :

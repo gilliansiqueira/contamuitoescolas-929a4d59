@@ -35,6 +35,7 @@ export function useManagementPortfolio(month: string, enabled: boolean) {
   return useQuery({
     queryKey: ['management-portfolio', month],
     enabled: enabled && /^\d{4}-\d{2}$/.test(month),
+    refetchInterval: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_management_portfolio', { _month: month });
       if (error) throw error;
@@ -119,7 +120,7 @@ export function useManagementDailyStatus(day: string, enabled = true) {
   return useQuery({
     queryKey: ['management-daily-status', day],
     enabled,
-    refetchInterval: 120_000,
+    refetchInterval: 60_000,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc('get_management_daily_status', { _day: day });
       if (error) throw error;
@@ -135,7 +136,7 @@ export function useManagementBacklog(day: string, enabled = true) {
   return useQuery({
     queryKey: ['management-backlog', day],
     enabled,
-    refetchInterval: 120_000,
+    refetchInterval: 60_000,
     queryFn: async () => {
       const all: BacklogRow[] = [];
       for (let from = 0; ; from += 1000) {
@@ -146,6 +147,27 @@ export function useManagementBacklog(day: string, enabled = true) {
         if (rows.length < 1000) break;
       }
       return all;
+    },
+  });
+}
+
+/** Empresas com conta bancária configurada e mês de início da conferência. */
+export function useManagementBankAvailability(enabled = true) {
+  return useQuery({
+    queryKey: ['management-bank-availability'],
+    enabled,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const [sources, accounts] = await Promise.all([
+        supabase.from('school_data_sources').select('school_id, start_month, status'),
+        supabase.from('bank_accounts').select('school_id'),
+      ]);
+      if (sources.error) throw sources.error;
+      if (accounts.error) throw accounts.error;
+      const accountSchools = new Set((accounts.data ?? []).map(account => account.school_id));
+      return new Map((sources.data ?? [])
+        .filter(source => accountSchools.has(source.school_id) && source.status !== 'rascunho')
+        .map(source => [source.school_id, source.start_month]));
     },
   });
 }
