@@ -18,7 +18,7 @@ import {
 } from '@/hooks/useManagementPortfolio';
 import { ReconciliationBacklog } from '@/components/management/ReconciliationBacklog';
 import { useAddSchool } from '@/hooks/useFinancialData';
-import { useClosingStepTemplates, useEnsureMonthlyChecklist } from '@/hooks/useClosingSteps';
+import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { Button } from '@/components/ui/button';
