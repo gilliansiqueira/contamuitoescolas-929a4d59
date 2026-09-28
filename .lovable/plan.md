@@ -62,6 +62,7 @@ Continua valendo: ajustes por empresa (desativar, renomear, etapa extra) e gera�
 - Migration aditiva: coluna `check_kind` ('auto' | 'hint' | 'manual') e `group_key` em `closing_step_templates`; novas etapas inseridas e as 3 antigas desativadas (não apagadas; meses já gerados preservados).
 - `ensure_monthly_checklist` passa a avaliar condições automáticas (bank_transactions do mês sem pendência, upload_records do mês por tipo, existência de kpi_values / receivable_category_values / sales_data / conversion_data) e marcar `source='auto'`, sem sobrescrever marcações manuais.
 - Nova tabela `monthly_report_analyses` (school_id, month, texto, gerado_em, editado_por) com GRANT + RLS só equipe.
+- Tarefas do dia: nova tabela `daily_task_templates` (+ overrides por empresa) e `daily_task_checklist` (school_id, day, task_key, status, completed_by/at), com GRANT + RLS só equipe; função `ensure_daily_tasks(_school_id, _day)` idempotente; as 3 etapas antigas do fechamento viram modelo das tarefas diárias.
 - Edge Function `draft-monthly-analysis` com Lovable AI, recebendo os totais já calculados pelo frontend via SSOT.
 - Renomear rótulos em ManagementCenter.tsx e ClosingStepsDialog.tsx; novo painel ReportStepsPanel.
 
