@@ -45,6 +45,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface Props {
   schools: School[];
@@ -101,6 +102,38 @@ const periodModeLabels: Record<PeriodMode, string> = { hoje: 'Hoje (ao vivo)', o
 // Horários limite (São Paulo) para marcar a conciliação do dia como atrasada.
 const LATE_NO_STATEMENT_HOUR = 12;
 const LATE_INCOMPLETE_HOUR = 15;
+
+// Cada card do topo também é um filtro da lista: a regra que conta o número do
+// card é a mesma que decide quais empresas aparecem na tabela, então os dois
+// sempre batem.
+type CardMatch = (row: PortfolioRow, daily: DailyStatusRow | undefined, backlogCount: number) => boolean;
+interface CardDef { key: string; label: string; icon: LucideIcon; tone: string; strip: string; num: string; match: CardMatch }
+
+/** Dia (yyyy-mm-dd, fuso de São Paulo) de um timestamp; null quando não há. */
+function spDay(iso: string | null) {
+  return iso ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso)) : null;
+}
+
+function cardDefsFor(mode: PeriodMode, today: string): CardDef[] {
+  if (mode === 'mes') return [
+    { key: 'all', label: 'Empresas ativas', icon: Building2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: () => true },
+    { key: 'updated_today', label: 'Atualizadas hoje', icon: CalendarDays, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: row => row.data_updated_through === today },
+    { key: 'recon_pending', label: 'Conciliação pendente', icon: AlertCircle, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: row => row.reconciliation_pending > 0 },
+    { key: 'closing_pending', label: 'Fechamento pendente', icon: FileCheck2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: row => !row.period_closed || !row.report_delivered },
+  ];
+  if (mode === 'hoje') return [
+    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
+    { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
+    { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
+    { key: 'no_activity', label: 'Sem atividade hoje', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, daily) => !!daily && spDay(daily.last_activity) !== today },
+  ];
+  return [
+    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
+    { key: 'closed_100', label: 'Fecharam 100%', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
+    { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
+    { key: 'backlog', label: 'Pendências acumuladas', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, _daily, backlogCount) => backlogCount > 0 },
+  ];
+}
 
 function spHour() {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
@@ -196,6 +229,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [mode, setMode] = useState<PeriodMode>('ontem');
   const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
+  const [cardFilter, setCardFilter] = useState<string | null>(null);
   const today = todaySaoPaulo();
   const { data: dailyRows = [], isLoading: dailyLoading } = useManagementDailyStatus(today, true);
   const { data: backlog = [], isLoading: backlogLoading } = useManagementBacklog(today, true);
@@ -232,7 +266,11 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     [rows, displayNameByUser]);
   const reconValueOf = (row: PortfolioRow) => mode === 'mes' ? row.reconciliation_percent : dayPercent(dailyBySchool.get(row.school_id));
 
-  const filtered = useMemo(() => rows.filter(row => {
+  const cardDefs = useMemo(() => cardDefsFor(mode, today), [mode, today]);
+  const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
+
+  // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
+  const baseFiltered = useMemo(() => rows.filter(row => {
     const term = search.toLocaleLowerCase('pt-BR');
     const matchesSearch = row.school_name.toLocaleLowerCase('pt-BR').includes(term)
       || (row.responsible_email ?? '').toLocaleLowerCase('pt-BR').includes(term)
@@ -244,6 +282,11 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (situation === 'all' || status === situation);
   }), [displayNameByUser, month, rows, search, situation, view]);
+
+  const filtered = useMemo(() => {
+    if (!activeCard) return baseFiltered;
+    return baseFiltered.filter(row => activeCard.match(row, dailyBySchool.get(row.school_id), backlogBySchool.get(row.school_id) ?? 0));
+  }, [activeCard, baseFiltered, dailyBySchool, backlogBySchool]);
 
   const responsibleGroups = useMemo(() => {
     if (view !== 'responsible') return [];
@@ -277,11 +320,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayNameByUser, filtered, month, view, mode, dailyBySchool, backlogBySchool]);
 
-  const pendingClosing = rows.filter(row => !row.period_closed || !row.report_delivered).length;
-  const pendingReconciliationCompanies = rows.filter(row => row.reconciliation_pending > 0).length;
   const completedReconciliation = rows.filter(row => row.reconciliation_percent === 100).length;
   const deliveredReports = rows.filter(row => row.report_delivered).length;
-  const updatedToday = rows.filter(row => row.data_updated_through === new Date().toISOString().slice(0, 10)).length;
   const priorities = useMemo(() => filtered
     .map(row => ({ row, status: statusOf(row, month), pending: backlogBySchool.get(row.school_id) ?? 0 }))
     .filter(item => item.status === 'atrasado' || item.status === 'bloqueado' || item.pending > 0 || !!item.row.next_action)
