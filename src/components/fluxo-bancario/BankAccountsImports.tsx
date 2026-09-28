@@ -140,6 +140,10 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
 
   const confirmImport = async () => {
     if (!preview) return;
+    if (preview.result.bloqueiaImportacao) {
+      toast.error('A importação está bloqueada porque a leitura não fecha com o saldo do banco.');
+      return;
+    }
     setBusy(true);
     const { file, hash, result, hashes, existing, kinds } = preview;
     try {
@@ -324,6 +328,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
                 <div className="rounded-lg bg-muted/40 p-2"><p className="text-xs text-muted-foreground">Saídas</p><p className="font-semibold text-destructive">{fmtBRL(pSai)}</p></div>
               </div>
               {p.saldoFinalInformado !== undefined && <p className="text-xs text-muted-foreground">Saldo final informado pelo banco: {fmtBRL(p.saldoFinalInformado)}</p>}
+              {p.saldoAtualCabecalho !== undefined && p.saldoAtualCabecalho !== p.saldoFinalInformado && <p className="text-xs text-muted-foreground">Saldo atual no cabeçalho: {fmtBRL(p.saldoAtualCabecalho)} — não usado para criar lançamento.</p>}
               {preview.saldoCalc !== undefined && p.saldoFinalInformado !== undefined && p.saldoComAplicacaoInformado === undefined && p.saldoFinalInformado - preview.saldoCalc >= 0.01 && (
                 <div className="space-y-1 rounded-md bg-warning/15 p-2 text-xs text-warning">
                   <p className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" />O saldo do arquivo ({fmtBRL(p.saldoFinalInformado)}) é maior que o saldo em conta calculado ({fmtBRL(preview.saldoCalc)}): diferença de {fmtBRL(p.saldoFinalInformado - preview.saldoCalc)}. Alguns bancos (ex.: Bradesco) somam o valor aplicado no saldo do arquivo.</p>
@@ -361,7 +366,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           )}
           <DialogFooter>
             <Button variant="outline" disabled={busy} onClick={() => setPreview(null)}>Cancelar</Button>
-            <Button disabled={busy} onClick={confirmImport}>{busy ? 'Importando…' : 'Confirmar importação'}</Button>
+            <Button disabled={busy || !!p?.bloqueiaImportacao} onClick={confirmImport}>{p?.bloqueiaImportacao ? 'Importação bloqueada' : busy ? 'Importando…' : 'Confirmar importação'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

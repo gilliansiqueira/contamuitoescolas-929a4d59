@@ -1,1 +1,2 @@
 - Ponto da Equipe (PontoFopag): tabelas isoladas `team_time_*`, leitura só `is_super_admin()` via RLS e escrita só pela Edge Function `pontofopag-sync` (service_role); somente leitura na API, sem vínculo com dados financeiros — por isolamento e segurança.
+- PDFs bancários sem camada de texto usam OCR local apenas como fallback e só podem ser importados quando os lançamentos fecham com os saldos impressos — para impedir gravação de leitura visual incerta.
