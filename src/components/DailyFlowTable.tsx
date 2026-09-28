@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useMemo } from 'react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import { useConfirmedBankBalance } from '@/hooks/useConfirmedBankBalance';
 import { useEntries, useTypeClassifications } from '@/hooks/useFinancialData';
 import { getSaldoImpact } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
@@ -56,6 +57,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const { data: rawEntries = [] } = useEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
   const { ctx: movementCtx, isInModel } = usePeriodMovementCtx(schoolId);
+  const { confirmed: confirmedBalance } = useConfirmedBankBalance(schoolId);
 
   const historicalRows = movementCtx.historicalRows;
   const snapshotMap = movementCtx.snapshotMap;
@@ -246,6 +248,12 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   // Saldo final oficial vem da SSOT (invariante saldoInicial(M+1) = saldoFinal(M)).
   const saldoFinalPeriodo = saldoFinalPeriodoSSOT;
+  const lastMonth = months[months.length - 1];
+  const lastCutoff = dailyData.find(d => d.data === confirmedBalance?.date && d.isCutoff);
+  const confirmedForPeriod = selectedMonth !== 'all' && lastMonth === confirmedBalance?.date.slice(0, 7)
+    && lastCutoff ? confirmedBalance : null;
+  const bankDifference = confirmedForPeriod
+    ? Math.round((confirmedForPeriod.balance - lastCutoff.saldoFinalRealizado) * 100) / 100 : 0;
 
   const totals = useMemo(() => dailyData.reduce((acc, d) => ({
     entradaPrevista: acc.entradaPrevista + d.entradaPrevista,
@@ -292,10 +300,11 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             valueClassName={saldoInicialPeriodo >= 0 ? 'text-foreground' : 'text-destructive'}
           />
           <CompactStat
-            label="Saldo final"
+            label="Fechamento previsto"
             value={formatCurrency(saldoFinalPeriodo)}
             valueClassName={saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}
           />
+          {confirmedForPeriod && <CompactStat label={`Saldo bancário em ${formatDateBR(confirmedForPeriod.date)}`} value={formatCurrency(confirmedForPeriod.balance)} valueClassName="text-success" />}
           <CompactStat label="Entrada prevista" value={formatCurrency(totals.entradaPrevista)} valueClassName="text-blue-600 dark:text-blue-300" />
           <CompactStat label="Entrada realizada" value={formatCurrency(totals.entradaRealizada)} valueClassName="text-primary" />
           <CompactStat label="Saída prevista" value={formatCurrency(totals.saidaPrevista)} valueClassName="text-orange-500" />
@@ -373,13 +382,18 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
         <div className="glass-card rounded-xl p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Table2 className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium text-foreground">Saldo Final do Período</span>
+             <span className="text-sm font-medium text-foreground">Fechamento previsto do período</span>
           </div>
           <span className={`text-lg font-display font-bold ${saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}`}>
             {formatCurrency(saldoFinalPeriodo)}
           </span>
         </div>
       </div>
+      {confirmedForPeriod && <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-xs">
+        <span className="font-semibold">Saldo bancário conferido em {formatDateBR(confirmedForPeriod.date)}: {formatCurrency(confirmedForPeriod.balance)}.</span>{' '}
+        {Math.abs(bankDifference) >= 0.005 && <>{Math.abs(bankDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir com os extratos'}: {formatCurrency(Math.abs(bankDifference))}. </>}
+        Fechamento previsto: {formatCurrency(saldoFinalPeriodo)}.
+      </div>}
 
       <div className="glass-card rounded-xl overflow-hidden">
         <div className="p-4 border-b border-border/50">

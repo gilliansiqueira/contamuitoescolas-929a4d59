@@ -121,12 +121,20 @@ const LATE_INCOMPLETE_HOUR = 15;
 type CardMatch = (row: PortfolioRow, daily: DailyStatusRow | undefined, backlogCount: number) => boolean;
 interface CardDef { key: string; label: string; icon: LucideIcon; tone: string; strip: string; num: string; match: CardMatch }
 
+type DailyReconState = 'unavailable' | 'no_statement' | 'not_started' | 'in_progress' | 'done';
+function dailyReconState(daily: DailyStatusRow | undefined, bankAvailable: boolean): DailyReconState {
+  if (!bankAvailable || !daily) return 'unavailable';
+  if (!daily.statement_received) return 'no_statement';
+  if (daily.recon_required === 0 || daily.recon_pending === 0) return 'done';
+  return daily.reconciled_today > 0 ? 'in_progress' : 'not_started';
+}
+
 /** Dia (yyyy-mm-dd, fuso de São Paulo) de um timestamp; null quando não há. */
 function spDay(iso: string | null) {
   return iso ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso)) : null;
 }
 
-function cardDefsFor(mode: PeriodMode, today: string): CardDef[] {
+function cardDefsFor(mode: PeriodMode, today: string, available: (row: PortfolioRow, daily?: DailyStatusRow) => boolean): CardDef[] {
   if (mode === 'mes') return [
     { key: 'all', label: 'Empresas ativas', icon: Building2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: () => true },
     { key: 'updated_today', label: 'Atualizadas hoje', icon: CalendarDays, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: row => row.data_updated_through === today },
@@ -134,15 +142,16 @@ function cardDefsFor(mode: PeriodMode, today: string): CardDef[] {
     { key: 'closing_pending', label: 'Fechamento pendente', icon: FileCheck2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: row => !row.period_closed || !row.report_delivered },
   ];
   if (mode === 'hoje') return [
-    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
-    { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
-    { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
-    { key: 'no_activity', label: 'Sem atividade hoje', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, daily) => !!daily && spDay(daily.last_activity) !== today },
+     { key: 'no_statement', label: 'Extrato não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
+     { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
+     { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
+     { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'done' },
   ];
   return [
-    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
-    { key: 'closed_100', label: 'Fecharam 100%', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
-    { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
+     { key: 'no_statement', label: 'Extrato não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
+     { key: 'closed_100', label: 'Concluídas', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'done' },
+     { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
+     { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
     { key: 'backlog', label: 'Pendências acumuladas', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, _daily, backlogCount) => backlogCount > 0 },
   ];
 }
@@ -304,6 +313,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   }, [responsibleCandidates]);
   const displayNameByUser = useMemo(() => new Map(displayNames.map(item => [item.user_id, item.display_name])), [displayNames]);
   const dailyBySchool = useMemo(() => new Map(dailyRows.map(d => [d.school_id, d])), [dailyRows]);
+  const bankAvailable = (row: PortfolioRow, daily?: DailyStatusRow) => {
+    const start = bankStartMonths?.get(row.school_id);
+    return !!daily && !!start && start <= daily.ref_day.slice(0, 7);
+  };
   const backlogBySchool = useMemo(() => { const m = new Map<string, number>(); backlog.forEach(b => m.set(b.school_id, (m.get(b.school_id) ?? 0) + 1)); return m; }, [backlog]);
   const reconDotOf = (row: PortfolioRow): ReconDot => {
     const daily = dailyBySchool.get(row.school_id);
@@ -319,7 +332,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     [rows, displayNameByUser]);
   const reconValueOf = (row: PortfolioRow) => mode === 'mes' ? row.reconciliation_percent : dayPercent(dailyBySchool.get(row.school_id));
 
-  const cardDefs = useMemo(() => cardDefsFor(mode, today), [mode, today]);
+  const cardDefs = useMemo(() => cardDefsFor(mode, today, bankAvailable), [mode, today, bankStartMonths]);
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
@@ -390,8 +403,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const refDay = dailyRows[0]?.ref_day ?? null;
   const withMovementBase = useMemo(() => baseFiltered.filter(row => {
     const daily = dailyBySchool.get(row.school_id);
-    return !!daily && daily.recon_required > 0;
-  }).length, [baseFiltered, dailyBySchool]);
+    return !!daily && bankAvailable(row, daily) && daily.recon_required > 0;
+  }).length, [baseFiltered, dailyBySchool, bankStartMonths]);
 
   // O número do card conta as empresas que passam pela regra do card dentro dos
   // demais filtros já ativos — a mesma regra usada em `filtered`, por isso os
@@ -402,12 +415,12 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     const note = (() => {
       switch (def.key) {
         case 'no_statement': return mode === 'hoje' ? `Atrasa a partir das ${LATE_NO_STATEMENT_HOUR}h` : refDay ? `Extrato de ${formatDate(refDay)}` : 'Dia anterior';
-        case 'closed_100': return `de ${withMovementBase} com movimento`;
+        case 'closed_100': return `de ${withMovementBase} com movimento · sem movimento também concluída`;
         case 'left_pending': return `${dailyMatched.reduce((t, d) => t + d.recon_pending, 0)} lançamentos pendentes`;
         case 'backlog': return 'Todos os dias anteriores';
         case 'in_progress': return `${dailyMatched.filter(isLateToday).length} atrasada(s) agora`;
+        case 'not_started': return mode === 'hoje' ? 'Extrato recebido; nenhuma conciliação iniciada hoje' : 'Extrato recebido; nenhuma conciliação iniciada no dia';
         case 'done_today': return `${dailyMatched.reduce((t, d) => t + d.reconciled_today, 0)} lançamentos conciliados hoje`;
-        case 'no_activity': return 'Empresas sem uso da plataforma';
         case 'all': return 'Toda a carteira';
         case 'updated_today': return 'Dados até hoje';
         case 'recon_pending': return `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`;
@@ -553,7 +566,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                 <p className="truncate text-[11px] text-muted-foreground">{group.email}</p><div className="mt-4 grid grid-cols-2 gap-2 rounded-md bg-muted/30 p-2.5"><ProgressRing value={group.reconciliationPercent} label={mode === 'mes' ? 'Conciliação do mês' : 'Conciliação do dia'} tone="success" /><ProgressRing value={group.closingPercent} label="Fechamento" tone="warning" /></div>{mode === 'hoje' && <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]"><span className="rounded-full bg-muted px-2 py-0.5">{group.reconciledToday} conciliados hoje</span><span className="rounded-full bg-muted px-2 py-0.5">{relativeTime(group.lastActivity, today)}</span>{group.lateCount > 0 && <span className="rounded-full bg-destructive px-2 py-0.5 font-semibold text-destructive-foreground">{group.lateCount} atrasada(s)</span>}</div>}</div>
                 <div className="grid grid-cols-4 border-t border-border bg-muted/15 text-center text-[10px]"><div className="border-r border-border py-2.5"><strong className="block text-sm text-success">{group.statusCounts.finalizado}</strong><span className="text-muted-foreground">Finalizadas</span></div><div className="border-r border-border py-2.5"><strong className="block text-sm text-destructive">{group.statusCounts.atrasado}</strong><span className="text-muted-foreground">Atrasadas</span></div><div className="border-r border-border py-2.5"><strong className="block text-sm text-info">{group.statusCounts.bloqueado}</strong><span className="text-muted-foreground">Cliente</span></div><div className="py-2.5"><strong className="block text-sm text-warning">{group.pending}</strong><span className="text-muted-foreground">Pendências</span></div></div>
                 <Button variant="ghost" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="h-9 w-full justify-between rounded-none border-t px-4 text-xs"><span>{isOpen ? 'Ocultar empresas' : 'Ver empresas'}</span><ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></Button>
-                 {isOpen && <div className="divide-y divide-border border-t">{group.rows.map(row => { const status = statusOf(row, month); return <div key={row.school_id} role="button" tabIndex={0} onClick={() => openSchool(row.school_id)} onKeyDown={e => { if (e.key === 'Enter') openSchool(row.school_id); }} className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/30"><div className="flex min-w-0 items-center gap-2.5"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><div className="min-w-0"><p className="truncate text-xs font-medium">{row.school_name}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div></div><ArrowRight className="h-3 w-3 text-muted-foreground" /></div>; })}</div>}
+                 {isOpen && <div className="divide-y divide-border border-t">{group.rows.map(row => { const status = statusOf(row, month); const daily = dailyBySchool.get(row.school_id); const recon = dailyReconState(daily, bankAvailable(row, daily)); return <div key={row.school_id} role="button" tabIndex={0} onClick={() => openSchool(row.school_id)} onKeyDown={e => { if (e.key === 'Enter') openSchool(row.school_id); }} className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/30"><div className="flex min-w-0 items-center gap-2.5"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><div className="min-w-0"><p className="truncate text-xs font-medium">{row.school_name}</p><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span>{mode !== 'mes' && recon !== 'unavailable' && <p className="mt-1 text-[10px] text-muted-foreground">{recon === 'no_statement' ? 'Extrato não enviado' : recon === 'not_started' ? 'Aguardando início' : recon === 'in_progress' ? 'Conciliação em andamento' : 'Concluída'}</p>}</div></div><ArrowRight className="h-3 w-3 text-muted-foreground" /></div>; })}</div>}
               </article>;
             })}</div>{!isLoading && responsibleGroups.length === 0 && <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">Nenhuma responsável encontrada.</div>}</section>
           ) : (
@@ -562,12 +575,12 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                 {isError ? <p className="p-8 text-center text-sm text-destructive">Não foi possível carregar a carteira.</p> : <>
                   <div className="hidden grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] gap-3 border-b bg-muted/30 px-3 py-2.5 text-[11px] font-medium text-muted-foreground lg:grid"><span>Empresa</span><span>Responsável</span><span>Última alteração</span><span>Andamento</span><span>Situação</span><span /></div>
                   <div className="divide-y divide-border">{!isLoading && filtered.length === 0 && <p className="p-10 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>}{filtered.map(row => {
-                    const status = statusOf(row, month); const daily = dailyBySchool.get(row.school_id); const progress = mode === 'mes' ? (row.closing_percent ?? row.reconciliation_percent) : dayPercent(daily); const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
+                     const status = statusOf(row, month); const daily = dailyBySchool.get(row.school_id); const recon = dailyReconState(daily, bankAvailable(row, daily)); const progress = mode === 'mes' ? (row.closing_percent ?? row.reconciliation_percent) : dayPercent(daily); const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
                     return <div key={row.school_id} role="button" tabIndex={0} title="Abrir empresa" onClick={() => openSchool(row.school_id)} onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openSchool(row.school_id); } }} className={`cursor-pointer grid gap-3 border-l-4 px-3 py-3 text-xs transition-colors hover:bg-muted/30 lg:grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] lg:items-center ${rowAccent[status]}`}>
                        <div className="flex min-w-0 items-center gap-2.5"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><span className="truncate font-medium">{row.school_name}</span></div>
                       <div className="min-w-0" onClick={e => e.stopPropagation()}>{isSuperAdmin && candidates.length > 1 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{candidates.map(candidate => <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
                       <span className="text-muted-foreground" title={lastActivityTitle(row.last_activity_at)}><span className="mr-1 lg:hidden">Última alteração:</span>{lastActivityLabel(row.last_activity_at)}</span>
-                      {mode !== 'mes' ? <div className="space-y-1">{!daily ? <span className="text-muted-foreground">{dailyLoading ? '…' : '—'}</span> : !daily.statement_received ? <span className="inline-flex rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">Extrato não enviado</span> : progress == null ? <span className="text-[11px] text-muted-foreground">Sem movimento no dia</span> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-12 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span></div>}{mode === 'hoje' && daily && <p className="text-[10px] text-muted-foreground">{daily.reconciled_today} conciliados hoje · {relativeTime(daily.last_activity, today)}{isLateToday(daily) && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 font-semibold text-destructive-foreground">Atrasada</span>}</p>}</div> :
+                       {mode !== 'mes' ? <div className="space-y-1">{recon === 'unavailable' ? <span className="text-muted-foreground">{dailyLoading || bankLoading ? '…' : 'Indisponível'}</span> : recon === 'no_statement' ? <span className="inline-flex rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">Extrato não enviado</span> : <><span className={`text-[11px] font-medium ${recon === 'done' ? 'text-success' : recon === 'not_started' ? 'text-primary' : 'text-progress'}`}>{recon === 'done' ? daily?.recon_required === 0 ? 'Concluída · sem movimento' : 'Concluída' : recon === 'not_started' ? 'Aguardando início' : 'Conciliação em andamento'}</span>{progress != null && <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-12 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span></div>}</>}{mode === 'hoje' && daily && recon !== 'unavailable' && <p className="text-[10px] text-muted-foreground">{daily.reconciled_today} conciliados hoje · {relativeTime(daily.last_activity, today)}{isLateToday(daily) && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 font-semibold text-destructive-foreground">Atrasada</span>}</p>}</div> :
                       <div onClick={e => e.stopPropagation()}>{progress == null ? <button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"><ListChecks className="h-3 w-3" />{row.closing_percent == null ? 'Configurar etapas' : 'Indisponível'}</button> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-10 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span><button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="text-muted-foreground hover:text-primary" aria-label={`Configurar etapas de ${row.school_name}`}><ListChecks className="h-3.5 w-3.5" /></button></div>}</div>}
                       <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div>
                       <div className="flex justify-end" onClick={e => e.stopPropagation()}>{isSuperAdmin && <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label={`Mais opções de ${row.school_name}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem className="text-destructive" onClick={() => setToggleSchool({ id: row.school_id, name: row.school_name, ativo: false })}>Inativar empresa</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}</div>

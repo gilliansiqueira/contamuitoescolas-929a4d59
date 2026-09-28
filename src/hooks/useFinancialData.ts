@@ -7,7 +7,7 @@ import { syncWeekendAllowedSchools, setSchoolAllowsWeekend } from '@/lib/dateUti
 
 // Bump when the canonical fetch strategy changes so React Query does not keep
 // totals computed from old, non-deterministic paginated responses in memory.
-const DATA_FETCH_VERSION = 'stable-pagination-v3';
+const DATA_FETCH_VERSION = 'bank-forecast-separation-v4';
 
 // ─── Schools ────────────────────────────────────────
 export function useSchools() {
@@ -122,9 +122,12 @@ async function withCashflowSource(schoolId: string, entries: FinancialEntry[]): 
   const { data: cfg } = await db.from('school_data_sources')
     .select('status, dashboard_source, daily_flow_source, start_month').eq('school_id', schoolId).maybeSingle();
   if (!cfg || cfg.status !== 'ativo' || cfg.dashboard_source !== 'fluxo_caixa') return entries;
-  const rows = await fetchAllRows<CashflowOverlayRow>('bank_cashflow_entries', q => q.eq('school_id', schoolId).order('data'),
-    1000, 'id, data, descricao, valor, tipo, tipo_nome');
-  return applyCashflowOverlay(entries, rows, `${cfg.start_month}-01`, schoolId);
+  const [rows, forecasts] = await Promise.all([fetchAllRows<CashflowOverlayRow & { bank_transaction_id: string }>('bank_cashflow_entries', q => q.eq('school_id', schoolId).order('data'),
+    1000, 'id, bank_transaction_id, data, descricao, valor, tipo, tipo_nome'),
+    fetchAllRows<{ id: string }>('bank_transactions', q => q.eq('school_id', schoolId).eq('is_forecast', true), 1000, 'id'),
+  ]);
+  const forecastIds = new Set(forecasts.map(row => row.id));
+  return applyCashflowOverlay(entries, rows.map(row => ({ ...row, is_forecast: forecastIds.has(row.bank_transaction_id) })), `${cfg.start_month}-01`, schoolId);
 }
 
 // Colunas realmente usadas pelas telas (mapEntry). Buscar só estas reduz o
