@@ -1,32 +1,50 @@
-# Conciliação diária na Central de Clientes
+# Controle diário da conciliação na Central de Clientes
 
 ## Como funciona hoje (conferido)
-- A porcentagem de conciliação é **do mês inteiro**: pega todos os lançamentos bancários do mês escolhido e mostra quantos estão conciliados. Por isso ela quase não se mexe no dia a dia.
-- As pendências também são do mês inteiro, misturando conciliação com as etapas de fechamento, e sem mostrar **de que dia** é cada pendência.
+- A porcentagem de conciliação é **do mês inteiro** (todos os lançamentos bancários do mês), então quase não se mexe no dia a dia.
+- A aba **Pendências** só filtra a mesma tabela da Carteira: os cards do topo e as colunas continuam iguais, por isso parece que "não muda nada". E não mostra **quais** são as pendências nem de que dia.
 
-## O que muda
+## Ideia: seletor "Hoje | Dia anterior | Mês" no topo
+Um seletor com três visões, que troca os cards, a coluna de andamento e os anéis por responsável:
 
-### 1. Porcentagem que renova todo dia
-- Cada empresa passa a mostrar a **Conciliação do dia**: dos lançamentos do extrato do último dia útil (ex.: na segunda, os de sexta), quantos já foram conciliados.
-- Todo dia a conta recomeça. Se o extrato do dia ainda não foi subido, aparece "Extrato não enviado" (em vez de 0% ou 100%).
-- O card "Conciliação pendente" do topo passa a contar as empresas com o dia **não concluído**.
-- Em "Por responsável", o anel de conciliação de cada menina passa a ser o do dia.
-- A porcentagem do mês continua existindo no fechamento — não some nada.
+```text
+[ Hoje (ao vivo) ]  [ Dia anterior ]  [ Mês ]
+```
 
-### 2. Aba Pendências acumulando por dia
-- Mostra **só pendências de conciliação** (lançamentos ainda não conciliados), de dias anteriores a hoje, a partir de 01/09/2026.
-- Agrupada por **responsável → empresa → dia**. Exemplo: Thau — Boa Vista: sexta 5, quinta 2 = **7 pendências**.
-- Cada grupo mostra há quantos dias está pendente (a mais antiga em destaque) e o botão para abrir a empresa e resolver.
-- Filtro por responsável, para cobrar cada uma no dia seguinte.
-- Assim que um lançamento é conciliado, ele sai da lista automaticamente.
+### 1. Hoje (ao vivo) — cobrar dentro do próprio dia
+Para cada empresa e cada menina, mostra o que já aconteceu hoje:
+- **Extrato de ontem subido?** (sim / não)
+- **Conciliação de hoje**: quantos lançamentos ela já conciliou hoje e o % do extrato do dia.
+- **Última atividade na plataforma** (ex.: "há 12 min", "sem atividade hoje").
+- Selo **"Atrasada"** quando passar de um horário limite (sugestão: 12h sem extrato subido, ou 15h com conciliação abaixo de 100%). Os horários ficam ajustáveis.
+- Cards do topo: "Extratos não enviados", "Conciliação em andamento", "Concluídas hoje", "Sem atividade hoje".
+- Em "Por responsável": um cartão por menina com o andamento de hoje e há quanto tempo ela não usa a plataforma.
 
-### O que NÃO muda
-- Nenhum lançamento, saldo, Dashboard, Fluxo Diário ou relatório de cliente é alterado. É só leitura.
+### 2. Dia anterior — fechamento de ontem
+- % conciliado do extrato do último dia útil (na segunda, sexta). Recomeça todo dia.
+- Mostra quem fechou 100% e quem deixou pendência — base para cobrar de manhã.
+
+### 3. Mês — visão que existe hoje
+- Continua como está (% do mês e fechamento), nada some.
+
+## Aba Pendências nova (lista própria, não filtro)
+- Cards do topo passam a ser de pendências: **total pendente**, **empresas com pendência**, **pendência mais antiga (dias)**, **valor pendente**.
+- Lista agrupada **Responsável → Empresa → Dia**, acumulando dias anteriores (a partir de 01/09/2026). Ex.: Thau — Boa Vista: sexta 5 + quinta 2 = **7**.
+- Clicar numa empresa **abre as pendências dela na hora**: cada lançamento com data, descrição, valor, conta e há quantos dias está pendente.
+- Botão "Ir conciliar" leva direto ao Fluxo Bancário daquela empresa.
+- Filtros por responsável e por idade (1 dia, 2–3 dias, mais de 3 dias).
+- Conciliou → some da lista automaticamente.
+- O card "Prioridades de hoje" da Carteira passa a ser clicável e abre essas mesmas pendências.
+
+## O que NÃO muda
+- Nenhum lançamento, saldo, Dashboard, Fluxo Diário ou relatório de cliente é alterado — tudo só leitura.
 - Clientes continuam sem acesso a essa área.
 
 ## Detalhes técnicos
-- Nova função de leitura (security definer, mesma checagem `is_admin()` e mesmo escopo por responsável da `get_management_portfolio`): `get_management_daily_reconciliation(_day date)` → por empresa: dia de referência (último dia útil antes de `_day`, pulando sábado/domingo), total exigido (`recon_status <> 'nao_aplica'`, `is_forecast = false`), conciliados, pendentes, flag "sem extrato".
-- Nova função `get_management_reconciliation_backlog()` → linhas (school_id, responsável, data, qtde pendente, valor) de `bank_transactions` com `recon_status = 'pendente'`, `is_forecast = false`, `data >= '2026-09-01'` e `data < hoje (America/Sao_Paulo)`.
-- Migration apenas aditiva (só cria funções + GRANT EXECUTE para authenticated); `get_management_portfolio` fica intacta.
-- Frontend: novos hooks em `useManagementPortfolio.ts`; `ManagementCenter.tsx` usa o % do dia na carteira/cards/responsáveis e troca a view `pending` pela lista acumulada agrupada.
-- Validação: conferir com consulta direta os números de 2–3 empresas (ex.: Jurassic, Boa Vista) contra a tela.
+- Migration apenas aditiva (só funções `SECURITY DEFINER` + `GRANT EXECUTE` a authenticated), com a mesma checagem `is_admin()` e escopo por responsável de `get_management_portfolio` (que fica intacta):
+  - `get_management_reconciliation_day(_day date)` → por empresa: dia de referência (último dia útil antes de `_day`), exigidos (`recon_status <> 'nao_aplica'`, `is_forecast = false`), conciliados, pendentes, extrato recebido (existe `bank_statement_imports` com `periodo_fim >= referência`).
+  - `get_management_today_activity()` → por empresa/responsável: conciliados hoje (`bank_reconciliation_history.changed_at` hoje em America/Sao_Paulo), importações hoje (`bank_statement_imports.created_at`), última atividade (maior entre histórico de conciliação, importações e `audit_log`).
+  - `get_management_reconciliation_backlog()` → pendências `recon_status = 'pendente'`, `is_forecast = false`, `data >= '2026-09-01'` e `< hoje`, com id, empresa, responsável, data, descrição, valor, conta.
+- Horários limite do selo "Atrasada" como constantes no frontend nesta fase.
+- Frontend: hooks novos em `useManagementPortfolio.ts`; `ManagementCenter.tsx` ganha o seletor de visão, cards por visão, view `pending` própria com painel de detalhes, e navegação para o Fluxo Bancário da empresa.
+- Validação: conferir por consulta direta 2–3 empresas (ex.: Jurassic, Boa Vista) contra a tela, e testar a tela logado como adm@contamuito.
