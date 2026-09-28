@@ -23,7 +23,7 @@ describe('fotografia bancária e futuros', () => {
     ];
     const entries = applyCashflowOverlay([], rows, '2026-09-01', 'escola');
     expect(entries.map(e => [e.id, e.valor, e.origem, e.tipoRegistro])).toEqual([
-      ['bcf-1', 100, 'fluxo', 'realizado'], ['bcf-2', 1466.53, 'manual', 'projetado'],
+      ['bcf-1', 100, 'fluxo', 'realizado'], ['bcf-2', 1466.53, 'fluxo', 'projetado'],
     ]);
   });
 });

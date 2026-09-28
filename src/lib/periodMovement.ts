@@ -157,7 +157,7 @@ export function resolveMonthSource(
 export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): string | undefined {
   let cutoff: string | undefined;
   for (const e of ctx.entries) {
-    if (e.origem !== 'fluxo') continue;
+    if (e.origem !== 'fluxo' || e.tipoRegistro === 'projetado') continue;
     if (monthOf(e.dataProjetada) !== month) continue;
     if (!cutoff || e.dataProjetada > cutoff) cutoff = e.dataProjetada;
   }
@@ -187,7 +187,7 @@ export function includeEntryForMonth(
   source: MovementSource,
   todayStr: string,
   classifications: TypeClassification[],
-  opts: { fluxoCutoff?: string } = {}
+  opts: { fluxoCutoff?: string; fluxoForecastThrough?: string } = {}
 ): boolean {
   if (source === 'fluxo') {
     // Mês parcialmente realizado: o fluxo importado manda até o último dia
@@ -198,7 +198,7 @@ export function includeEntryForMonth(
     if (entry.origem === 'manual') return true;
     const cutoff = opts.fluxoCutoff;
     if (!cutoff) return false;
-    return entry.dataProjetada > cutoff;
+    return entry.dataProjetada > (opts.fluxoForecastThrough ?? cutoff);
   }
   if (source === 'historico') {
     // Mês histórico é encerrado: previsões de upload nativo (contas a pagar,
@@ -295,6 +295,12 @@ export function buildMonthMovement(
   const todayStr = ctx.todayStr ?? new Date().toISOString().slice(0, 10);
   const mov = emptyMovement(month, source);
   const fluxoCutoff = source === 'fluxo' ? computeFluxoCutoff(month, ctx) : undefined;
+  // O extrato pode conter débitos futuros: continuam projetados, mas impedem
+  // duplicar a projeção nativa do mesmo intervalo no fechamento do mês.
+  const fluxoForecastThrough = source === 'fluxo'
+    ? ctx.entries.filter(e => e.origem === 'fluxo' && monthOf(e.dataProjetada) === month)
+      .reduce((last, e) => e.dataProjetada > last ? e.dataProjetada : last, fluxoCutoff ?? '')
+    : undefined;
   mov.parcial = source === 'fluxo';
   mov.realizadoAte = fluxoCutoff;
   const byKey = new Map<string, PorTipoAgg>();
@@ -354,7 +360,7 @@ export function buildMonthMovement(
   // 2. Entries do mês
   const monthEntries = ctx.entries.filter(e => monthOf(e.dataProjetada) === month);
   for (const e of monthEntries) {
-    if (!includeEntryForMonth(e, source, todayStr, ctx.classifications, { fluxoCutoff })) continue;
+    if (!includeEntryForMonth(e, source, todayStr, ctx.classifications, { fluxoCutoff, fluxoForecastThrough })) continue;
     const valor = Number(e.valor) || 0;
     if (valor === 0) continue;
     const isRealizado = (e as any).tipoRegistro === 'realizado';

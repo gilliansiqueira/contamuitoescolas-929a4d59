@@ -608,6 +608,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const displayedBalance = confirmedForPeriod?.balance ?? saldoFinalRealizado;
   const balanceDifference = confirmedForPeriod ? Math.round((confirmedForPeriod.balance - saldoFinalRealizado) * 100) / 100 : 0;
   const futureForecast = Math.round((saldoFinalRealizado - saldoFinal) * 100) / 100;
+  const bankForecastAfterStatement = confirmedForPeriod ? monthMovements
+    .filter(m => m.month === lastSelectedMonth)
+    .flatMap(m => m.entriesConsiderados)
+    .filter(e => e.origem === 'fluxo' && e.tipoRegistro === 'projetado' && e.dataProjetada > confirmedForPeriod.date)
+    .reduce((total, e) => total + (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor), 0) : 0;
   const balanceHint = confirmedForPeriod
     ? `Conferido em ${confirmedForPeriod.date.split('-').reverse().join('/')} · fechamento previsto: ${formatCurrency(saldoFinal)}`
     : `Fechamento previsto: ${formatCurrency(saldoFinal)}`;
@@ -1047,7 +1052,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       {confirmedForPeriod && (Math.abs(balanceDifference) >= 0.005 || Math.abs(futureForecast) >= 0.005) && (
         <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs sm:px-4 sm:py-3">
           <span className="font-semibold">Saldo bancário conferido em {confirmedForPeriod.date.split('-').reverse().join('/')}: {formatCurrency(displayedBalance)}.</span>{' '}
-          {Math.abs(futureForecast) >= 0.005 && <>Previsões após o extrato: {formatCurrency(futureForecast)}. </>}
+          {Math.abs(bankForecastAfterStatement) >= 0.005 && <>Pagamentos futuros do extrato: {formatCurrency(Math.abs(bankForecastAfterStatement))}. </>}
           {Math.abs(balanceDifference) >= 0.005 && <>{Math.abs(balanceDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir com os extratos'}: {formatCurrency(Math.abs(balanceDifference))}. </>}
           Fechamento previsto: {formatCurrency(saldoFinal)}.
         </div>

@@ -35,7 +35,7 @@ export function applyCashflowOverlay(
     valor: Math.abs(Number(c.valor)),
     tipo: c.tipo,
     categoria: 'fluxo_realizado',
-    origem: (c.is_forecast ? 'manual' : 'fluxo') as FinancialEntry['origem'],
+    origem: 'fluxo' as FinancialEntry['origem'],
     school_id: schoolId,
     // "Ignorar" no banco: fora do Resultado, mas mexe no saldo (o dinheiro passou pela conta).
     tipoOriginal: c.tipo_nome === 'Ignorar' ? (c.tipo === 'entrada' ? IGNORADO_ENTRADA : IGNORADO_SAIDA) : c.tipo_nome,
