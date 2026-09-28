@@ -17,7 +17,7 @@ import {
   useDailyTasks,
   useSetDailyTaskStatus,
 } from '@/hooks/useClosingSteps';
-import { ReportChecklist } from '@/components/management/ReportChecklist';
+import { ReportChecklist, ReportAnalysis } from '@/components/management/ReportChecklist';
 
 function slugify(label: string) {
   return label
@@ -179,7 +179,7 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
             </div>
             {checklistLoading && <p className="py-4 text-center text-xs text-muted-foreground">Carregando…</p>}
             {!checklistLoading && checklist.length === 0 && (
-              <p className="rounded-md bg-muted/30 p-4 text-center text-xs text-muted-foreground">Nenhuma etapa gerada para este mês. Ajuste as etapas abaixo e reabra esta janela.</p>
+              <div className="space-y-3"><p className="rounded-md bg-muted/30 p-4 text-center text-xs text-muted-foreground">Nenhuma etapa gerada para este mês. Ajuste as etapas abaixo e reabra esta janela.</p>{schoolId && <ReportAnalysis schoolId={schoolId} schoolName={schoolName} month={month} monthLabel={monthLabel} />}</div>
             )}
             {schoolId && checklist.length > 0 && (
               <ReportChecklist schoolId={schoolId} schoolName={schoolName} month={month} monthLabel={monthLabel} checklist={checklist} templates={templates} />

@@ -106,7 +106,7 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
   );
 }
 
-function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { schoolId: string; schoolName: string; month: string; monthLabel: string }) {
+export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { schoolId: string; schoolName: string; month: string; monthLabel: string }) {
   const qc = useQueryClient();
   const { entries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
