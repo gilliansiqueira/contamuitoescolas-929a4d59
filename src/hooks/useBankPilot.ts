@@ -337,3 +337,16 @@ export function useSheetFluxoEntries(schoolId: string, from: string, to: string,
     enabled: !!schoolId && enabled,
   });
 }
+
+/** Informa o valor de cheques/depósitos retidos pelo banco no extrato mais recente da conta (soma ao saldo disponível). */
+export function useSetRetido(schoolId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ importId, valor }: { importId: string; valor: number | null }) => {
+      const { error } = await db.from('bank_statement_imports').update({ saldo_retido_informado: valor }).eq('id', importId).eq('school_id', schoolId);
+      if (error) throw error;
+      await db.from('audit_log').insert({ school_id: schoolId, action: 'bank_saldo_retido', details: { import_id: importId, valor } }).then(() => null, () => null);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bankAccounts', schoolId] }),
+  });
+}
