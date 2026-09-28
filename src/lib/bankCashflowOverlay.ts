@@ -13,6 +13,7 @@ export function dayBefore(d: string): string {
 
 export interface CashflowOverlayRow {
   id: string; data: string; descricao: string; valor: number; tipo: 'entrada' | 'saida'; tipo_nome: string;
+  is_forecast?: boolean;
 }
 
 /**
@@ -34,11 +35,11 @@ export function applyCashflowOverlay(
     valor: Math.abs(Number(c.valor)),
     tipo: c.tipo,
     categoria: 'fluxo_realizado',
-    origem: 'fluxo' as FinancialEntry['origem'],
+    origem: (c.is_forecast ? 'manual' : 'fluxo') as FinancialEntry['origem'],
     school_id: schoolId,
     // "Ignorar" no banco: fora do Resultado, mas mexe no saldo (o dinheiro passou pela conta).
     tipoOriginal: c.tipo_nome === 'Ignorar' ? (c.tipo === 'entrada' ? IGNORADO_ENTRADA : IGNORADO_SAIDA) : c.tipo_nome,
-    tipoRegistro: 'realizado',
+    tipoRegistro: c.is_forecast ? 'projetado' : 'realizado',
     editadoManualmente: false,
   } as FinancialEntry));
   return [...kept, ...added].sort((a, b) => a.data.localeCompare(b.data));
