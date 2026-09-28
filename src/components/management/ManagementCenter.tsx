@@ -296,14 +296,19 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const setDisplayName = useSetManagementResponsibleDisplayName();
   const addSchool = useAddSchool();
 
-  // Gera as etapas do mês para empresas que ainda não têm (idempotente)
+  // Gera as etapas do mês e roda as conferências automáticas (idempotente, uma vez por empresa/mês na sessão)
+  const ensuredRef = useRef(new Set<string>());
   useEffect(() => {
     if (stepTemplates.length === 0 || rows.length === 0) return;
-    rows.filter(row => row.closing_percent == null).forEach(row => {
+    rows.forEach(row => {
+      const key = `${row.school_id}:${month}`;
+      if (ensuredRef.current.has(key)) return;
+      ensuredRef.current.add(key);
       ensureChecklist.mutate({ schoolId: row.school_id, month });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, stepTemplates.length, month]);
+  const { data: dailyTasksBySchool = new Map<string, { done: number; total: number }>() } = useDailyTasksSummary(rows.map(row => row.school_id), today);
 
   const schoolById = useMemo(() => new Map(schools.map(school => [school.id, school])), [schools]);
   const candidatesBySchool = useMemo(() => {
