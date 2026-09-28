@@ -281,6 +281,41 @@ export type Database = {
           },
         ]
       }
+      bank_recon_day_closures: {
+        Row: {
+          closed_at: string
+          closed_by: string | null
+          closed_by_email: string | null
+          dia: string
+          id: string
+          school_id: string
+        }
+        Insert: {
+          closed_at?: string
+          closed_by?: string | null
+          closed_by_email?: string | null
+          dia: string
+          id?: string
+          school_id: string
+        }
+        Update: {
+          closed_at?: string
+          closed_by?: string | null
+          closed_by_email?: string | null
+          dia?: string
+          id?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_recon_day_closures_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_reconciliation_history: {
         Row: {
           changed_at: string
@@ -489,6 +524,10 @@ export type Database = {
           id: string
           import_id: string
           is_forecast: boolean
+          justification_note: string | null
+          justification_reason_id: string | null
+          justified_at: string | null
+          justified_by: string | null
           model_item_id: string | null
           movement_kind: string
           recon_at: string | null
@@ -512,6 +551,10 @@ export type Database = {
           id?: string
           import_id: string
           is_forecast?: boolean
+          justification_note?: string | null
+          justification_reason_id?: string | null
+          justified_at?: string | null
+          justified_by?: string | null
           model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null
@@ -535,6 +578,10 @@ export type Database = {
           id?: string
           import_id?: string
           is_forecast?: boolean
+          justification_note?: string | null
+          justification_reason_id?: string | null
+          justified_at?: string | null
+          justified_by?: string | null
           model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null
@@ -560,6 +607,13 @@ export type Database = {
             columns: ["import_id"]
             isOneToOne: false
             referencedRelation: "bank_statement_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_justification_reason_id_fkey"
+            columns: ["justification_reason_id"]
+            isOneToOne: false
+            referencedRelation: "recon_justification_reasons"
             referencedColumns: ["id"]
           },
           {
@@ -2210,6 +2264,30 @@ export type Database = {
           },
         ]
       }
+      recon_justification_reasons: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          sort_order: number
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          sort_order?: number
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       report_deliveries: {
         Row: {
           channel: string | null
@@ -3448,6 +3526,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      close_recon_day: {
+        Args: { _day: string; _school_id: string }
+        Returns: {
+          account_name: string
+          data: string
+          descricao: string
+          ok: boolean
+          tipo: string
+          transaction_id: string
+          valor: number
+        }[]
+      }
       current_user_school_id: { Args: never; Returns: string }
       demo_school_id: { Args: never; Returns: string }
       ensure_monthly_checklist: {
@@ -3501,6 +3591,8 @@ export type Database = {
           account_name: string
           data: string
           descricao: string
+          justification_note: string
+          reason_name: string
           school_id: string
           tipo: string
           transaction_id: string
