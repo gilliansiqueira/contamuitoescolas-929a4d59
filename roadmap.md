@@ -8,6 +8,7 @@
 - [ ] Rodar uma nova varredura de segurança antes de compartilhar o site amplamente
 
 ## Feito
+- [x] Cuiabá Goiabeiras: saldo bancário conferido de R$ 16.790,46 separado do fechamento previsto; pagamentos futuros e R$ 9,71 a confirmar identificados; Central diferencia extrato não enviado, aguardando início, em andamento e concluída
 - [x] Central de Clientes: bolinhas por conciliação (extrato não enviado e pendência antiga em vermelho) e última alteração incluindo conciliações; prévia verificada no computador e celular
 - [x] Cuiabá Goiabeiras: corrigir partes de Operação, vincular três transferências próprias e liberar a ativação sem alterar valores
 - [x] Leitura visual segura do PDF Itaú PF de Obras Nascimento, com conferência e bloqueio por divergência de saldo
