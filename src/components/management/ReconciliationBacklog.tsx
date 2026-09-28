@@ -25,6 +25,7 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
   const [age, setAge] = useState<Age>('all');
   const [openSchool, setOpenSchool] = useState<string | null>(focusSchoolId);
   const [openDays, setOpenDays] = useState<Set<string>>(new Set());
+  const [reasonFilter, setReasonFilter] = useState<string | null>(null);
 
   const responsibles = useMemo(() => {
     const m = new Map<string, string>();
