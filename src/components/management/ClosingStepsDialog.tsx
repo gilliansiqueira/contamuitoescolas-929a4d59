@@ -219,31 +219,14 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
           </section>
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checklist de {monthLabel}</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Relatório de {monthLabel}</h3>
             {checklistLoading && <p className="py-4 text-center text-xs text-muted-foreground">Carregando…</p>}
             {!checklistLoading && checklist.length === 0 && (
               <p className="rounded-md bg-muted/30 p-4 text-center text-xs text-muted-foreground">Nenhuma etapa gerada para este mês. Ajuste as etapas acima e reabra esta janela.</p>
             )}
-            <div className="space-y-1.5">
-              {checklist.map(item => (
-                <div key={item.id} className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-2">
-                  {item.status === 'completed'
-                    ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-                    : item.status === 'not_applicable'
-                      ? <MinusCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      : <Circle className="h-4 w-4 shrink-0 text-warning" />}
-                  <span className={`flex-1 text-xs ${item.status === 'completed' ? 'text-muted-foreground line-through' : ''}`}>{item.label}</span>
-                  <Select value={item.status} onValueChange={value => setStatus.mutate({ id: item.id, status: value as 'open' | 'completed' | 'not_applicable' }, { onError: error => toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar.') })}>
-                    <SelectTrigger className="h-7 w-[130px] text-[11px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open">Pendente</SelectItem>
-                      <SelectItem value="completed">Concluída</SelectItem>
-                      <SelectItem value="not_applicable">Não se aplica</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
+            {schoolId && checklist.length > 0 && (
+              <ReportChecklist schoolId={schoolId} schoolName={schoolName} month={month} monthLabel={monthLabel} checklist={checklist} templates={templates} />
+            )}
           </section>
         </div>
       </DialogContent>
