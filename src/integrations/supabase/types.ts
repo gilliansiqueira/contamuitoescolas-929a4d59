@@ -3448,6 +3448,20 @@ export type Database = {
           month: string
         }[]
       }
+      get_management_daily_status: {
+        Args: { _day: string }
+        Returns: {
+          imports_today: number
+          last_activity: string
+          recon_pending: number
+          recon_required: number
+          reconciled: number
+          reconciled_today: number
+          ref_day: string
+          school_id: string
+          statement_received: boolean
+        }[]
+      }
       get_management_portfolio: {
         Args: { _month: string }
         Returns: {
@@ -3466,6 +3480,18 @@ export type Database = {
           school_id: string
           school_name: string
           waiting_for_client: boolean
+        }[]
+      }
+      get_management_reconciliation_backlog: {
+        Args: { _day: string }
+        Returns: {
+          account_name: string
+          data: string
+          descricao: string
+          school_id: string
+          tipo: string
+          transaction_id: string
+          valor: number
         }[]
       }
       get_management_responsible_candidates: {
