@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 import { useSetReconStatus, useSetTransferPair, useSetMovementKind, useUpdateTxText, useSetSplits, fetchReconHistory, autoPairTransfers, useInvalidateBank, useOwnTransferNames, useSchoolModelItems, useSetModelItem, useSetSplitModelItem } from '@/hooks/useBankPilot';
 import { runningBalances, suggestTransferPairs, isAutoInvest, isOperacao, isOwnTransfer, suggestOwnName, detectOwnTransfer, displayDesc, type BankAccount, type BankTx, type ReconStatus, type SplitCategoria } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './shared';
+import { useJustificationReasons, useSetJustification, useCloseReconDay, useReconDayClosures, needsJustification, JUSTIFICATION_START, type MissingJustification } from '@/hooks/useReconJustification';
+import { Tag, CalendarCheck } from 'lucide-react';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
 interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string; focus?: TableFocus | null }
@@ -119,6 +121,36 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     toast.success(`"${v}" será reconhecido nos próximos extratos`); setRememberName(null); invalidateBank();
   };
   const setRecon = useSetReconStatus(schoolId);
+  const { data: reasons = [] } = useJustificationReasons();
+  const reasonName = useMemo(() => new Map(reasons.map(r => [r.id, r.nome])), [reasons]);
+  const setJust = useSetJustification(schoolId);
+  const closeDay = useCloseReconDay(schoolId);
+  const { data: closures = [] } = useReconDayClosures(schoolId);
+  const [justIds, setJustIds] = useState<string[] | null>(null);
+  const [justReason, setJustReason] = useState('');
+  const [justNote, setJustNote] = useState('');
+  const [missing, setMissing] = useState<MissingJustification[] | null>(null);
+  const today = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
+  const closeTarget = to > today ? today : to;
+  const lastClosure = closures.find(c => c.dia === closeTarget);
+  const openJustify = (ids: string[]) => {
+    const list = ids.map(id => txs.find(t => t.id === id)).filter((t): t is BankTx => !!t && t.recon_status === 'pendente');
+    if (!list.length) return toast.error('Selecione lançamentos pendentes');
+    setJustIds(list.map(t => t.id)); setJustReason(list.length === 1 ? list[0].justification_reason_id ?? '' : ''); setJustNote(list.length === 1 ? list[0].justification_note ?? '' : '');
+  };
+  const saveJustify = async () => {
+    if (!justIds || !justReason) return toast.error('Escolha um motivo');
+    try { await setJust.mutateAsync({ ids: justIds, reasonId: justReason, note: justNote }); toast.success(`${justIds.length} lançamento(s) justificado(s)`); setJustIds(null); setSelected(new Set()); }
+    catch (e: any) { toast.error(e.message ?? 'Erro ao justificar'); }
+  };
+  const runCloseDay = async () => {
+    try {
+      const miss = await closeDay.mutateAsync(closeTarget);
+      if (miss.length) { setMissing(miss); return; }
+      toast.success(`Conciliação de ${fmtDate(closeTarget)} finalizada`);
+    } catch (e: any) { toast.error(e.message ?? 'Erro ao finalizar'); }
+  };
+  const semJust = txs.filter(t => needsJustification(t) && t.data <= closeTarget).length;
   const setPair = useSetTransferPair(schoolId);
 
   const accName = useMemo(() => new Map(accounts.map(a => [a.id, a.nome])), [accounts]);
@@ -211,12 +243,26 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
           <Button size="sm" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar selecionados ({selected.size})</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'nao_se_aplica')}><Ban className="mr-1 h-4 w-4" />Não se aplica</Button>
+          <Button size="sm" variant="outline" disabled={!selected.size || setJust.isPending} onClick={() => openJustify([...selected])}><Tag className="mr-1 h-4 w-4" />Justificar</Button>
           <Button size="sm" variant="ghost" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'pendente')}><Undo2 className="mr-1 h-4 w-4" />Voltar a pendente</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !t.transfer_pair_id && !isAutoInvest(t); }), 'operacao')}><Layers className="mr-1 h-4 w-4" />Marcar como Operação</Button>
           <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => txs.find(x => x.id === id)?.movement_kind === 'operacao'), 'normal')}>Tirar de Operação</Button>
           <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !isAutoInvest(t) && !t.splits?.length && t.movement_kind !== 'transferencia'; }), 'transferencia')}><ArrowLeftRight className="mr-1 h-4 w-4" />Marcar como transferência</Button>
           <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && isOwnTransfer(t); }), 'normal')}>Tirar de transferência</Button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3 text-sm">
+        <div>
+          <span className="font-semibold">Fechamento do dia {fmtDate(closeTarget)}</span>
+          {closeTarget >= JUSTIFICATION_START
+            ? semJust > 0
+              ? <button type="button" className="ml-2 rounded bg-destructive px-1.5 py-0.5 text-xs font-semibold text-destructive-foreground" onClick={() => { setStatus('pendente'); setFrom(JUSTIFICATION_START); setTo(closeTarget); }}>{semJust} sem justificativa — ver</button>
+              : <span className="ml-2 text-xs text-success">todas as pendências justificadas</span>
+            : <span className="ml-2 text-xs text-muted-foreground">justificativa obrigatória a partir de {fmtDate(JUSTIFICATION_START)}</span>}
+          {lastClosure && <span className="ml-2 text-xs text-muted-foreground">· finalizado por {lastClosure.closed_by_email ?? '—'} em {fmtDateTime(lastClosure.closed_at)}</span>}
+        </div>
+        <Button size="sm" variant={lastClosure ? 'outline' : 'default'} disabled={closeDay.isPending} onClick={runCloseDay}><CalendarCheck className="mr-1 h-4 w-4" />{lastClosure ? 'Finalizar de novo' : 'Finalizar conciliação do dia'}</Button>
       </div>
 
       {(operationPending > 0 || transferPending > 0 || splitPending > 0) && (
@@ -270,6 +316,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                       <DropdownMenuTrigger asChild><Button size="sm" variant="ghost" className="h-7 px-1.5" aria-label="Mais ações"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
                         {t.recon_status !== 'nao_se_aplica' && <DropdownMenuItem onClick={() => apply([t.id], 'nao_se_aplica')}><Ban className="mr-2 h-4 w-4" />Não se aplica</DropdownMenuItem>}
+                        {t.recon_status === 'pendente' && <DropdownMenuItem onClick={() => openJustify([t.id])}><Tag className="mr-2 h-4 w-4" />Justificar pendência</DropdownMenuItem>}
                         {t.recon_status !== 'pendente' && <DropdownMenuItem onClick={() => apply([t.id], 'pendente')}><Undo2 className="mr-2 h-4 w-4" />Desfazer (pendente)</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className="mr-2 h-4 w-4" />Observação</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="mr-2 h-4 w-4" />Editar descrição</DropdownMenuItem>
@@ -301,7 +348,11 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2 text-right tabular-nums text-success whitespace-nowrap">{t.tipo === 'entrada' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{t.tipo === 'saida' ? fmtBRL(Number(t.valor)) : ''}</td>
                 <td className="p-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(balances.get(t.id) ?? 0)}</td>
-                <td className="p-2"><StatusBadge status={t.recon_status} /></td>
+                <td className="p-2"><StatusBadge status={t.recon_status} />
+                  {t.recon_status === 'pendente' && t.justification_reason_id
+                    ? <button type="button" onClick={() => openJustify([t.id])} className="mt-1 block max-w-40 truncate rounded bg-info/15 px-1.5 py-0.5 text-left text-[10px] font-semibold text-info" title={`${reasonName.get(t.justification_reason_id) ?? ''}${t.justification_note ? ` — ${t.justification_note}` : ''}${t.justified_at ? ` · ${fmtDateTime(t.justified_at)}` : ''}`}>{reasonName.get(t.justification_reason_id) ?? 'Justificado'}</button>
+                    : needsJustification(t) && <button type="button" onClick={() => openJustify([t.id])} className="mt-1 block rounded bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground">Sem justificativa</button>}
+                </td>
                 <td className="p-2 text-[11px] leading-tight">{t.recon_by_email ? <><div className="max-w-36 truncate" title={t.recon_by_email}>{t.recon_by_email}</div><div className="text-muted-foreground whitespace-nowrap">{fmtDateTime(t.recon_at)}</div></> : <span className="text-muted-foreground">—</span>}</td>
                 <td className="p-2"><Button size="sm" variant="ghost" className={`h-7 px-1.5 ${t.recon_note ? 'text-primary' : 'text-muted-foreground'}`} title={t.recon_note || 'Adicionar observação'} aria-label="Observação" onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className={`h-4 w-4 ${t.recon_note ? 'fill-primary/20' : ''}`} /></Button></td>
               </tr>
@@ -326,6 +377,40 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           </tbody>
         </table>
       </div>
+
+      <Dialog open={!!justIds} onOpenChange={o => !o && setJustIds(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Justificar {justIds?.length ?? 0} pendência(s)</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><label className="text-xs text-muted-foreground">Motivo</label>
+              <Select value={justReason} onValueChange={setJustReason}>
+                <SelectTrigger><SelectValue placeholder="Escolha o motivo" /></SelectTrigger>
+                <SelectContent>{reasons.filter(r => r.ativo).map(r => <SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><label className="text-xs text-muted-foreground">Observação (opcional)</label>
+              <Input value={justNote} maxLength={200} onChange={e => setJustNote(e.target.value)} placeholder="Ex.: cliente vai mandar o comprovante amanhã" />
+              <p className="mt-1 text-right text-[10px] text-muted-foreground">{justNote.length}/200</p>
+            </div>
+          </div>
+          <DialogFooter><Button variant="ghost" onClick={() => setJustIds(null)}>Cancelar</Button><Button disabled={!justReason || setJust.isPending} onClick={saveJustify}>Salvar justificativa</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!missing} onOpenChange={o => !o && setMissing(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Não dá para finalizar: {missing?.length} pendência(s) sem justificativa</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Toda pendência a partir de {fmtDate(JUSTIFICATION_START)} precisa de um motivo antes de finalizar o dia.</p>
+          <div className="max-h-80 overflow-auto rounded border border-border">
+            <table className="w-full text-xs"><thead className="bg-muted text-muted-foreground"><tr><th className="p-2 text-left">Data</th><th className="p-2 text-left">Conta</th><th className="p-2 text-left">Descrição</th><th className="p-2 text-right">Valor</th></tr></thead>
+              <tbody>{missing?.map(m => <tr key={m.transaction_id} className="border-t border-border"><td className="p-2">{fmtDate(m.data)}</td><td className="p-2">{m.account_name ?? '—'}</td><td className="p-2">{m.descricao}</td><td className={`p-2 text-right tabular-nums ${m.tipo === 'entrada' ? 'text-success' : 'text-destructive'}`}>{m.tipo === 'entrada' ? '' : '-'}{fmtBRL(Number(m.valor))}</td></tr>)}</tbody></table>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setMissing(null)}>Fechar</Button>
+            <Button onClick={() => { const ids = (missing ?? []).map(m => m.transaction_id); setMissing(null); openJustify(ids); }}>Justificar todas</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!noteTx} onOpenChange={o => !o && setNoteTx(null)}>
         <DialogContent>
