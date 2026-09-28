@@ -67,8 +67,12 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
 
   const movOk = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov) === 0;
   const iniDiff = r2(p.next.ini - bankIni);
-  const fimOk = r2(p.next.fimReal - bankFim) === 0;
-  const ok = movOk && iniDiff === 0 && fimOk && p.aClass.length === 0;
+  const fimDiff = r2(p.next.fimReal - bankFim);
+  // Diferenças pequenas (rendimento/centavos) ficam "A confirmar no próximo extrato" e não bloqueiam.
+  const SMALL_DIFF_TOLERANCE = 10;
+  const fimSmall = fimDiff !== 0 && Math.abs(fimDiff) <= SMALL_DIFF_TOLERANCE;
+  const fimOk = fimDiff === 0;
+  const ok = movOk && iniDiff === 0 && (fimOk || fimSmall) && p.aClass.length === 0;
   const active = cfg.status === 'ativo';
 
   const row = (label: string, v: number, bank?: number) => (
@@ -120,8 +124,10 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {p.aClass.length === 0 ? 'Nenhuma movimentação a classificar' : `${p.aClass.length} movimentações ainda a classificar`}</li>
           <li>{iniDiff === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {iniDiff === 0 ? 'Saldo inicial igual ao saldo do banco' : `Saldo inicial difere do banco em ${fmtBRL(iniDiff)}`}</li>
-          <li>{fimOk ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-destructive" />}
-            {fimOk ? (retidoTotal ? `Saldo final bate com o banco (inclui ${fmtBRL(retidoTotal)} em cheques retidos)` : 'Saldo final igual ao saldo do banco') : `Saldo final difere do banco em ${fmtBRL(p.next.fimReal - bankFim)}`}</li>
+          <li>{fimOk ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className={`mr-1 inline h-4 w-4 ${fimSmall ? 'text-warning' : 'text-destructive'}`} />}
+            {fimOk ? (retidoTotal ? `Saldo final bate com o banco (inclui ${fmtBRL(retidoTotal)} em cheques retidos)` : 'Saldo final igual ao saldo do banco')
+              : fimSmall ? `Saldo final: ${fmtBRL(Math.abs(fimDiff))} a confirmar no próximo extrato (rendimento/centavos)${retidoTotal ? ` · inclui ${fmtBRL(retidoTotal)} em cheques retidos` : ''} — não bloqueia a ativação`
+              : `Saldo final difere do banco em ${fmtBRL(fimDiff)}`}</li>
           {(p.adjust !== 0 || r2(p.planIniReal - bankIni) !== 0) && <li className="text-muted-foreground">Informativo: o histórico antigo terminava agosto com {fmtBRL(p.planIni)} (projetado) e {fmtBRL(p.planIniReal)} (realizado); a diferença entre eles ({fmtBRL(p.planIniReal - p.planIni)}) vem de previsões antigas que nunca viraram realizado. Agosto não é alterado; com o Fluxo de Caixa, setembro começa pelo saldo do banco nos dois.</li>}
         </ul>
         {(!fimOk || retidoTotal !== 0) && latest.length > 0 && (
