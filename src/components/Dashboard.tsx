@@ -1,3 +1,4 @@
+import { BANK_SMALL_DIFF_TOLERANCE } from '@/lib/bankStatements/confirmedBalance';
 import { useMemo, useRef, useState, useCallback } from 'react';
 import { useQuery, useIsFetching } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -1053,7 +1054,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
         <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs sm:px-4 sm:py-3">
           <span className="font-semibold">Saldo bancário conferido em {confirmedForPeriod.date.split('-').reverse().join('/')}: {formatCurrency(displayedBalance)}.</span>{' '}
           {Math.abs(bankForecastAfterStatement) >= 0.005 && <>Pagamentos futuros do extrato: {formatCurrency(Math.abs(bankForecastAfterStatement))}. </>}
-          {Math.abs(balanceDifference) >= 0.005 && <>{Math.abs(balanceDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir com os extratos'}: {formatCurrency(Math.abs(balanceDifference))}. </>}
+          {Math.abs(balanceDifference) >= 0.005 && <>{Math.abs(balanceDifference) <= BANK_SMALL_DIFF_TOLERANCE ? 'A confirmar no próximo extrato' : 'Diferença a conferir com os extratos'}: {formatCurrency(Math.abs(balanceDifference))}. </>}
           Fechamento previsto: {formatCurrency(saldoFinal)}.
         </div>
       )}
