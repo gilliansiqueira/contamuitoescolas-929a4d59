@@ -48,4 +48,12 @@ describe('PDF Itaú somente-imagem', () => {
     const txs = parseItauImageText(OCR).transactions;
     expect(await computeDedupHashes('itau-pf', txs)).toEqual(await computeDedupHashes('itau-pf', txs));
   });
+
+  it('corrige somente sentidos determinados pelos saldos e rendimento sem vírgula do OCR', () => {
+    const noisy = OCR.replace('0,16', '016').replace('5,18', '518').replace('SEGURO CARTAO 0000 -12,43', 'SEGURO CARTAO 0000 12,43');
+    const r = parseItauImageText(noisy);
+    expect(r.bloqueiaImportacao).toBe(false);
+    expect(r.transactions.find(t => t.descricao.includes('SEGURO'))?.tipo).toBe('saida');
+    expect(r.transactions.find(t => t.data === '2026-09-04' && t.descricao.includes('REND'))?.valor).toBe(0.16);
+  });
 });
