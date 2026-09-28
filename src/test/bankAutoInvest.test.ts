@@ -65,6 +65,18 @@ describe('divisão com Ignorar', () => {
   });
 });
 
+describe('divisão com Operação', () => {
+  it('fica fora de receita/despesa e continua no saldo', () => {
+    const acc: any = { id: 'a', nome: 'A', banco: 'X', agencia: null, conta: null, saldo_inicial: 0, saldo_inicial_data: '2026-08-31', ativa: true };
+    const t: any = { id: '1', account_id: 'a', import_id: 'i', transfer_pair_id: null, recon_status: 'pendente', recon_by_email: null, recon_at: null, recon_note: null, created_at: 'x', data: '2026-09-02', descricao: 'Fatura', valor: 1000, tipo: 'saida', movement_kind: 'normal',
+      splits: [{ id: 's1', valor: 700, categoria: 'normal', descricao: null, note: null, sort_order: 1 }, { id: 's2', valor: 300, categoria: 'operacao', descricao: null, note: null, sort_order: 2 }] };
+    const s = _sum([acc], [t], '2026-09-01', '2026-09-30', '2026-09-30');
+    expect(s.saidasRealizadas).toBe(700);
+    expect(s.operacoesOut).toBe(300);
+    expect(s.saldoAtual).toBe(-1000);
+  });
+});
+
 import { detectOwnTransfer } from '@/lib/bankStatements/bankCashflowEngine';
 describe('transferência entre contas próprias', () => {
   it('reconhece razão social e não pega sobrenome', () => {

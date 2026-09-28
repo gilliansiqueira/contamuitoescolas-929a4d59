@@ -8,6 +8,7 @@
 - [ ] Rodar uma nova varredura de segurança antes de compartilhar o site amplamente
 
 ## Feito
+- [x] Cuiabá Goiabeiras: corrigir partes de Operação, vincular três transferências próprias e liberar a ativação sem alterar valores
 - [x] Leitura visual segura do PDF Itaú PF de Obras Nascimento, com conferência e bloqueio por divergência de saldo
 - [x] Área "Ponto da Equipe" criada (tabelas team_time_*, função server-side, tela, menu só para super administrador)
 - [x] Servidor de dados recuperado após o incidente de indisponibilidade
