@@ -344,6 +344,13 @@
       "when": 1790624743593,
       "tag": "0048_management_portfolio_recent_saved_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1790629776361,
+      "tag": "0049_report_steps_daily_tasks",
+      "breakpoints": true
     }
   ]
 }
