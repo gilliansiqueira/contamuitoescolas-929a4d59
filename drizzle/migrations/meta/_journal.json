@@ -281,6 +281,13 @@
       "when": 1790365299573,
       "tag": "0039_team_time_pontofopag",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790604846149,
+      "tag": "0040_bank_default_item_accept_plural",
+      "breakpoints": true
     }
   ]
 }
