@@ -347,7 +347,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="leading-none text-primary-foreground"><span className="block text-[10px] uppercase tracking-[0.16em] opacity-75">Conta</span><strong className="text-[17px] font-medium">Muito</strong></div>
         </div>
         <nav className="mt-6 flex-1 space-y-1 px-3" aria-label="Central de Clientes">
-          {navigation.map(item => <Button key={item.key} type="button" variant="ghost" onClick={() => setView(item.key)} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === item.key ? 'management-nav-active' : ''}`}><item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Button>)}
+          {navigation.map(item => <Button key={item.key} type="button" variant="ghost" onClick={() => { setFocusSchoolId(null); setView(item.key); }} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === item.key ? 'management-nav-active' : ''}`}><item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Button>)}
           {isSuperAdmin && <>
             <p className="px-3 pb-1 pt-4 text-[10px] uppercase tracking-[0.14em] text-primary-foreground/70">Equipe</p>
             <Button type="button" variant="ghost" onClick={() => setView('team_time')} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === 'team_time' ? 'management-nav-active' : ''}`}><Clock3 className="h-4 w-4 shrink-0" /><span>Ponto da Equipe</span></Button>
@@ -365,7 +365,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="flex items-center gap-1"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
         </header>
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:hidden" aria-label="Central de Clientes">
-          {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => setView(item.key)} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
+          {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => { setFocusSchoolId(null); setView(item.key); }} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
           {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => setView('team_time')} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
         </nav>
 
