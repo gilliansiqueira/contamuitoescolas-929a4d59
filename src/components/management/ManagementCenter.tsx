@@ -330,7 +330,12 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         key, email,
         label: key === '__none' ? 'Não definida' : (displayNameByUser.get(key) ?? nameFromEmail(email)),
         rows: [...groupRows].sort((a, b) => a.school_name.localeCompare(b.school_name, 'pt-BR')),
-        reconciliationPercent: avg(groupRows.map(row => reconValueOf(row)).filter((value): value is number => value != null)),
+        reconciliationPercent: mode === 'mes'
+          ? avg(groupRows.map(row => reconValueOf(row)).filter((value): value is number => value != null))
+          : avg(groupRows.map(row => dailyBySchool.get(row.school_id)).filter((d): d is DailyStatusRow => !!d)
+              .map(d => !d.statement_received ? 0 : d.recon_required === 0 ? 100 : (d.reconciled / d.recon_required) * 100)),
+        withStatement: groupRows.filter(row => dailyBySchool.get(row.school_id)?.statement_received).length,
+        withBank: groupRows.filter(row => !!dailyBySchool.get(row.school_id)).length,
         closingPercent: avg(groupRows.map(row => row.closing_percent).filter((value): value is number => value != null)),
         statusCounts, pending: mode === 'mes' ? pending : groupRows.reduce((t, row) => t + (backlogBySchool.get(row.school_id) ?? 0), 0),
         reconciledToday: groupRows.reduce((t, row) => t + (dailyBySchool.get(row.school_id)?.reconciled_today ?? 0), 0),
