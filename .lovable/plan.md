@@ -14,7 +14,8 @@ A regra "diferenças de até R$ 10,00 ficam em 'a confirmar no próximo extrato'
 2. Conferir no extrato do Sicredi e do BB se os R$ 9,67 e os R$ 0,04 são mesmo rendimento. Para isso, vou comparar o saldo aplicado que o banco informa com o valor que o sistema calcula.
 3. Se for só isso, o botão "Aprovar e ativar" libera na prévia e aparece o aviso amarelo "a confirmar no próximo extrato". Os lançamentos não mudam.
 4. Importar o OFX da Stone que você mandou ("Comprovante_de_Extrato_2.ofx"). Ele vai até 28/09 e o resultado deve continuar batendo.
-5. Pedir sua autorização para publicar no site oficial. Isso inclui a tolerância de R$ 10 e as outras mudanças que estão esperando.
+5. A regra dos R$ 10 vale para todas as empresas, não só para São Carlos e Cuiabá. Vou conferir que nenhuma empresa tem limite próprio diferente. A regra é somada por empresa: se a soma das contas passar de R$ 10, a aprovação continua travada.
+6. Pedir sua autorização para publicar no site oficial. Isso inclui a regra de R$ 10 e as outras mudanças que estão esperando.
 
 ## Detalhes técnicos
 - ActivationPreview.tsx: `ok = movOk && iniDiff === 0 && (fimOk || fimSmall) && aClass.length === 0`, com `SMALL_DIFF_TOLERANCE = 10`, que só existe na prévia.
