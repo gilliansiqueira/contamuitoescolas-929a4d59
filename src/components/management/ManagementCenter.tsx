@@ -45,6 +45,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface Props {
   schools: School[];
@@ -101,6 +102,38 @@ const periodModeLabels: Record<PeriodMode, string> = { hoje: 'Hoje (ao vivo)', o
 // Horários limite (São Paulo) para marcar a conciliação do dia como atrasada.
 const LATE_NO_STATEMENT_HOUR = 12;
 const LATE_INCOMPLETE_HOUR = 15;
+
+// Cada card do topo também é um filtro da lista: a regra que conta o número do
+// card é a mesma que decide quais empresas aparecem na tabela, então os dois
+// sempre batem.
+type CardMatch = (row: PortfolioRow, daily: DailyStatusRow | undefined, backlogCount: number) => boolean;
+interface CardDef { key: string; label: string; icon: LucideIcon; tone: string; strip: string; num: string; match: CardMatch }
+
+/** Dia (yyyy-mm-dd, fuso de São Paulo) de um timestamp; null quando não há. */
+function spDay(iso: string | null) {
+  return iso ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso)) : null;
+}
+
+function cardDefsFor(mode: PeriodMode, today: string): CardDef[] {
+  if (mode === 'mes') return [
+    { key: 'all', label: 'Empresas ativas', icon: Building2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: () => true },
+    { key: 'updated_today', label: 'Atualizadas hoje', icon: CalendarDays, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: row => row.data_updated_through === today },
+    { key: 'recon_pending', label: 'Conciliação pendente', icon: AlertCircle, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: row => row.reconciliation_pending > 0 },
+    { key: 'closing_pending', label: 'Fechamento pendente', icon: FileCheck2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: row => !row.period_closed || !row.report_delivered },
+  ];
+  if (mode === 'hoje') return [
+    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
+    { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
+    { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
+    { key: 'no_activity', label: 'Sem atividade hoje', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, daily) => !!daily && spDay(daily.last_activity) !== today },
+  ];
+  return [
+    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
+    { key: 'closed_100', label: 'Fecharam 100%', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
+    { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
+    { key: 'backlog', label: 'Pendências acumuladas', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, _daily, backlogCount) => backlogCount > 0 },
+  ];
+}
 
 function spHour() {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
@@ -196,6 +229,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [mode, setMode] = useState<PeriodMode>('ontem');
   const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
+  const [cardFilter, setCardFilter] = useState<string | null>(null);
   const today = todaySaoPaulo();
   const { data: dailyRows = [], isLoading: dailyLoading } = useManagementDailyStatus(today, true);
   const { data: backlog = [], isLoading: backlogLoading } = useManagementBacklog(today, true);
@@ -232,7 +266,11 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     [rows, displayNameByUser]);
   const reconValueOf = (row: PortfolioRow) => mode === 'mes' ? row.reconciliation_percent : dayPercent(dailyBySchool.get(row.school_id));
 
-  const filtered = useMemo(() => rows.filter(row => {
+  const cardDefs = useMemo(() => cardDefsFor(mode, today), [mode, today]);
+  const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
+
+  // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
+  const baseFiltered = useMemo(() => rows.filter(row => {
     const term = search.toLocaleLowerCase('pt-BR');
     const matchesSearch = row.school_name.toLocaleLowerCase('pt-BR').includes(term)
       || (row.responsible_email ?? '').toLocaleLowerCase('pt-BR').includes(term)
@@ -244,6 +282,11 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (situation === 'all' || status === situation);
   }), [displayNameByUser, month, rows, search, situation, view]);
+
+  const filtered = useMemo(() => {
+    if (!activeCard) return baseFiltered;
+    return baseFiltered.filter(row => activeCard.match(row, dailyBySchool.get(row.school_id), backlogBySchool.get(row.school_id) ?? 0));
+  }, [activeCard, baseFiltered, dailyBySchool, backlogBySchool]);
 
   const responsibleGroups = useMemo(() => {
     if (view !== 'responsible') return [];
@@ -277,11 +320,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayNameByUser, filtered, month, view, mode, dailyBySchool, backlogBySchool]);
 
-  const pendingClosing = rows.filter(row => !row.period_closed || !row.report_delivered).length;
-  const pendingReconciliationCompanies = rows.filter(row => row.reconciliation_pending > 0).length;
   const completedReconciliation = rows.filter(row => row.reconciliation_percent === 100).length;
   const deliveredReports = rows.filter(row => row.report_delivered).length;
-  const updatedToday = rows.filter(row => row.data_updated_through === new Date().toISOString().slice(0, 10)).length;
   const priorities = useMemo(() => filtered
     .map(row => ({ row, status: statusOf(row, month), pending: backlogBySchool.get(row.school_id) ?? 0 }))
     .filter(item => item.status === 'atrasado' || item.status === 'bloqueado' || item.pending > 0 || !!item.row.next_action)
@@ -290,19 +330,38 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       return weight(a) - weight(b) || b.pending - a.pending;
     }).slice(0, 4), [filtered, month, backlogBySchool]);
   const refDay = dailyRows[0]?.ref_day ?? null;
-  const dailyInScope = rows.map(row => dailyBySchool.get(row.school_id)).filter((d): d is DailyStatusRow => !!d);
-  const withMovement = dailyInScope.filter(d => d.recon_required > 0);
-  const summaryCards = mode === 'mes' ? null : mode === 'ontem' ? [
-    { label: 'Extratos não enviados', value: dailyInScope.filter(d => !d.statement_received).length, note: refDay ? `Extrato de ${formatDate(refDay)}` : 'Dia anterior', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
-    { label: 'Fecharam 100%', value: withMovement.filter(d => d.recon_pending === 0).length, note: `de ${withMovement.length} com movimento`, icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success' },
-    { label: 'Deixaram pendência', value: withMovement.filter(d => d.recon_pending > 0).length, note: `${withMovement.reduce((t, d) => t + d.recon_pending, 0)} lançamentos pendentes`, icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
-    { label: 'Pendências acumuladas', value: backlog.length, note: 'Todos os dias anteriores', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
-  ] : [
-    { label: 'Extratos não enviados', value: dailyInScope.filter(d => !d.statement_received).length, note: `Atrasa a partir das ${LATE_NO_STATEMENT_HOUR}h`, icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
-    { label: 'Conciliação em andamento', value: withMovement.filter(d => d.recon_pending > 0).length, note: `${dailyInScope.filter(isLateToday).length} atrasada(s) agora`, icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
-    { label: 'Concluídas hoje', value: withMovement.filter(d => d.recon_pending === 0).length, note: `${dailyInScope.reduce((t, d) => t + d.reconciled_today, 0)} lançamentos conciliados hoje`, icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success' },
-    { label: 'Sem atividade hoje', value: dailyInScope.filter(d => !d.last_activity || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(d.last_activity)) !== today).length, note: 'Empresas sem uso da plataforma', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
-  ];
+  const withMovementBase = useMemo(() => baseFiltered.filter(row => {
+    const daily = dailyBySchool.get(row.school_id);
+    return !!daily && daily.recon_required > 0;
+  }).length, [baseFiltered, dailyBySchool]);
+
+  // O número do card conta as empresas que passam pela regra do card dentro dos
+  // demais filtros já ativos — a mesma regra usada em `filtered`, por isso os
+  // dois sempre batem.
+  const summaryCards = useMemo(() => cardDefs.map(def => {
+    const matched = baseFiltered.filter(row => def.match(row, dailyBySchool.get(row.school_id), backlogBySchool.get(row.school_id) ?? 0));
+    const dailyMatched = matched.map(row => dailyBySchool.get(row.school_id)).filter((d): d is DailyStatusRow => !!d);
+    const note = (() => {
+      switch (def.key) {
+        case 'no_statement': return mode === 'hoje' ? `Atrasa a partir das ${LATE_NO_STATEMENT_HOUR}h` : refDay ? `Extrato de ${formatDate(refDay)}` : 'Dia anterior';
+        case 'closed_100': return `de ${withMovementBase} com movimento`;
+        case 'left_pending': return `${dailyMatched.reduce((t, d) => t + d.recon_pending, 0)} lançamentos pendentes`;
+        case 'backlog': return 'Todos os dias anteriores';
+        case 'in_progress': return `${dailyMatched.filter(isLateToday).length} atrasada(s) agora`;
+        case 'done_today': return `${dailyMatched.reduce((t, d) => t + d.reconciled_today, 0)} lançamentos conciliados hoje`;
+        case 'no_activity': return 'Empresas sem uso da plataforma';
+        case 'all': return 'Toda a carteira';
+        case 'updated_today': return 'Dados até hoje';
+        case 'recon_pending': return `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`;
+        case 'closing_pending': return `${deliveredReports} relatório${deliveredReports === 1 ? '' : 's'} entregue${deliveredReports === 1 ? '' : 's'}`;
+        default: return '';
+      }
+    })();
+    return { ...def, value: matched.length, note };
+  }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, mode, refDay, withMovementBase]);
+
+  // Quantidade do selo = empresas realmente filtradas (mesma regra do card).
+  const activeCardCount = activeCard ? filtered.length : 0;
 
   const openSchool = (id: string) => { const school = schoolById.get(id); if (school) onSelect(school); };
   const toggleGroup = (key: string) => setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
@@ -347,10 +406,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="leading-none text-primary-foreground"><span className="block text-[10px] uppercase tracking-[0.16em] opacity-75">Conta</span><strong className="text-[17px] font-medium">Muito</strong></div>
         </div>
         <nav className="mt-6 flex-1 space-y-1 px-3" aria-label="Central de Clientes">
-          {navigation.map(item => <Button key={item.key} type="button" variant="ghost" onClick={() => { setFocusSchoolId(null); setView(item.key); }} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === item.key ? 'management-nav-active' : ''}`}><item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Button>)}
+          {navigation.map(item => <Button key={item.key} type="button" variant="ghost" onClick={() => { setFocusSchoolId(null); setCardFilter(null); setView(item.key); }} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === item.key ? 'management-nav-active' : ''}`}><item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></Button>)}
           {isSuperAdmin && <>
             <p className="px-3 pb-1 pt-4 text-[10px] uppercase tracking-[0.14em] text-primary-foreground/70">Equipe</p>
-            <Button type="button" variant="ghost" onClick={() => setView('team_time')} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === 'team_time' ? 'management-nav-active' : ''}`}><Clock3 className="h-4 w-4 shrink-0" /><span>Ponto da Equipe</span></Button>
+            <Button type="button" variant="ghost" onClick={() => { setCardFilter(null); setView('team_time'); }} className={`management-nav-item h-10 w-full justify-start gap-2.5 px-3 text-xs ${view === 'team_time' ? 'management-nav-active' : ''}`}><Clock3 className="h-4 w-4 shrink-0" /><span>Ponto da Equipe</span></Button>
           </>}
         </nav>
         <div className="management-profile mx-3 mb-4 flex items-center gap-2 border-t px-1 pt-4">
@@ -365,8 +424,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="flex items-center gap-1"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
         </header>
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:hidden" aria-label="Central de Clientes">
-          {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => { setFocusSchoolId(null); setView(item.key); }} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
-          {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => setView('team_time')} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
+          {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => { setFocusSchoolId(null); setCardFilter(null); setView(item.key); }} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
+          {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
         </nav>
 
         {view === 'team_time' && isSuperAdmin ? (
@@ -376,7 +435,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div><h1 className="text-2xl font-medium tracking-normal">Central de Clientes</h1><p className="mt-1 text-xs text-muted-foreground">Acompanhe a carteira e priorize o que precisa de atenção.</p></div>
             <div className="flex flex-wrap items-center gap-2">
-              <div role="tablist" aria-label="Visão da conciliação" className="flex rounded-md border border-border bg-card p-0.5">{(Object.keys(periodModeLabels) as PeriodMode[]).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{periodModeLabels[m]}</button>)}</div>
+              <div role="tablist" aria-label="Visão da conciliação" className="flex rounded-md border border-border bg-card p-0.5">{(Object.keys(periodModeLabels) as PeriodMode[]).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setCardFilter(null); }} className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{periodModeLabels[m]}</button>)}</div>
               {mode === 'mes' && <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Período" type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-[168px] bg-card pl-9 text-xs" /></label>}
               {isSuperAdmin && <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setTemplatesOpen(true)}><ListChecks className="h-3.5 w-3.5" />Etapas padrão</Button>}
               {isSuperAdmin && <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" />Nova empresa</Button>}
@@ -384,14 +443,26 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             </div>
           </div>
 
-          {view !== 'pending' && <div className="mb-3 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
-            {(summaryCards ?? [
-              { label: 'Empresas ativas', value: rows.length, note: 'Toda a carteira', icon: Building2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
-              { label: 'Atualizadas hoje', value: updatedToday, note: 'Dados até hoje', icon: CalendarDays, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success' },
-              { label: 'Conciliação pendente', value: pendingReconciliationCompanies, note: `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`, icon: AlertCircle, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
-              { label: 'Fechamento pendente', value: pendingClosing, note: `${deliveredReports} relatório${deliveredReports === 1 ? '' : 's'} entregue${deliveredReports === 1 ? '' : 's'}`, icon: FileCheck2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
-            ]).map(card => <div key={card.label} className={`rounded-lg border border-border border-t-4 p-4 shadow-sm ${card.strip}`}><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium text-foreground/80">{card.label}</span><span className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${card.tone}`}><card.icon className="h-4 w-4" /></span></div><p className={`mt-2 text-3xl font-semibold leading-none ${card.num}`}>{isLoading ? '—' : card.value}</p><p className="mt-1.5 text-[11px] text-muted-foreground">{card.note}</p></div>)}
-          </div>}
+          {view !== 'pending' && <>
+            <div className="mb-3 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+              {summaryCards.map(card => {
+                const isActive = activeCard?.key === card.key;
+                const empty = card.value === 0;
+                return <button key={card.key} type="button" aria-pressed={isActive} disabled={empty} title={empty ? 'Nenhuma empresa nesta situação' : `Mostrar só: ${card.label}`} onClick={() => setCardFilter(isActive ? null : card.key)} className={`relative rounded-lg border border-border border-t-4 p-4 text-left shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${card.strip} ${isActive ? 'ring-2 ring-primary ring-offset-2' : ''} ${empty ? 'cursor-not-allowed opacity-60' : 'hover:shadow-md'}`}>
+                  {isActive && <span className="absolute -top-2 right-2 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">filtrando</span>}
+                  <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium text-foreground/80">{card.label}</span><span className={`flex h-8 w-8 items-center justify-center rounded-lg shadow-sm ${card.tone}`}><card.icon className="h-4 w-4" /></span></div>
+                  <p className={`mt-2 text-3xl font-semibold leading-none ${card.num}`}>{isLoading ? '—' : card.value}</p>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">{card.note}</p>
+                </button>;
+              })}
+            </div>
+            {activeCard && <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/[0.05] px-3 py-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Mostrando só: {activeCard.label} · {activeCardCount} empresa{activeCardCount === 1 ? '' : 's'}
+                <button type="button" onClick={() => setCardFilter(null)} aria-label={`Parar de filtrar por ${activeCard.label}`} className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/80"><X className="h-2.5 w-2.5" /></button>
+              </span>
+              <span className="text-[11px] text-muted-foreground">Clique no mesmo card para limpar, ou em outro card para trocar.</span>
+            </div>}
+          </>}
 
           <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5 sm:flex-row">
             <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar empresa ou responsável..." className="h-9 bg-muted/30 pl-9 text-xs" /></div>
@@ -428,7 +499,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                       <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div>
                       <Button variant="ghost" size="sm" onClick={() => openSchool(row.school_id)} className="h-7 justify-start px-1 text-xs text-primary lg:justify-center">Abrir <ArrowRight className="ml-1 h-3 w-3" /></Button>
                     </div>;
-                  })}</div><div className="border-t px-3 py-3 text-[10px] text-muted-foreground">Mostrando {filtered.length} de {rows.length} empresas em {viewLabels[view].toLocaleLowerCase('pt-BR')}</div>
+                  })}</div><div className="border-t px-3 py-3 text-[10px] text-muted-foreground">Mostrando {filtered.length} de {rows.length} empresas em {viewLabels[view].toLocaleLowerCase('pt-BR')}{activeCard ? ` · ${activeCard.label}` : ''}</div>
                 </>}
               </section>
               <aside className="h-fit rounded-lg border border-border bg-card p-3.5"><div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-sm font-medium">Prioridades de hoje</h2><span className="text-[10px] text-muted-foreground">{priorities.length} itens</span></div><div className="space-y-2">{priorities.length === 0 && <p className="rounded-md bg-muted/30 p-3 text-[11px] text-muted-foreground">Nenhuma prioridade encontrada para este período.</p>}{priorities.map(({ row, status, pending }) => <button key={row.school_id} type="button" onClick={() => { if (pending > 0) { setFocusSchoolId(row.school_id); setView('pending'); } else openSchool(row.school_id); }} className={`w-full rounded-md border-l-4 p-3 transition-transform hover:-translate-y-0.5 text-left ${status === 'atrasado' ? 'border-destructive bg-destructive/15 shadow-sm' : status === 'bloqueado' ? 'border-info bg-info/15 shadow-sm' : 'border-progress bg-progress/15 shadow-sm'}`}><strong className="block truncate text-[11px] font-medium">{row.school_name}</strong><span className="mt-1 block text-[11px] leading-snug text-muted-foreground">{row.next_action || (status === 'bloqueado' ? 'Aguardando informações do cliente.' : pending > 0 ? `${pending} pendência${pending === 1 ? '' : 's'} de conciliação acumulada${pending === 1 ? '' : 's'} — ver quais.` : statusLabels[status])}</span><span className="mt-1.5 flex justify-between gap-2 text-[10px] text-muted-foreground"><span>{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Sem responsável'}</span><span>{statusLabels[status]}</span></span></button>)}</div></aside>
