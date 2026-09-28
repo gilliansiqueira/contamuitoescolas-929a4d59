@@ -164,7 +164,7 @@ export function parseSpreadsheet(text: string, fallbackMonth: string) {
     if (!grupo) { warnings.push(`Linha ${idx + 1} ignorada (sem centro de custo)`); return; }
 
     const data = parseDataTexto(parts[1], fallbackMonth);
-    if (!data) { warnings.push(`Linha ${idx + 1} ignorada (data inválida: "${parts[1]}")`); return; }
+    if (!data) { warnings.push(`Linha ${idx + 1} ignorada: a 2ª coluna deveria ser a data, mas veio "${parts[1]}". Ordem esperada: centro de custo, data, descrição, tipo, valor — ou o relatório "Contas pagas" completo.`); return; }
 
     const descricao = parts[2];
     if (!descricao) { warnings.push(`Linha ${idx + 1} ignorada (sem descrição)`); return; }
