@@ -547,10 +547,12 @@ async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
 
 async function readPdfImageText(buf: ArrayBuffer): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist');
-  const { createWorker } = await import('tesseract.js');
+  const { createWorker, PSM } = await import('tesseract.js');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
   const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
   const worker = await createWorker('por');
+  // O extrato é uma única tabela; este modo preserva data, descrição e valor na mesma linha.
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
   const parts: string[] = [];
   try {
     for (let p = 1; p <= pdf.numPages; p++) {
