@@ -168,12 +168,12 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const pendValor = pend.reduce((s, r) => s + Number(r.valor), 0);
   const conc = rows.filter(r => r.recon_status === 'conciliado');
   const concValor = conc.reduce((s, r) => s + Number(r.valor), 0);
-  const nsa = rows.filter(r => r.recon_status === 'nao_se_aplica');
-  const nsaValor = nsa.reduce((s, r) => s + Number(r.valor), 0);
+  /** Conferência de soma pelo sentido do extrato (não é classificação financeira). */
+  const cross = (list: BankTx[]) => { let e = 0, s2 = 0, ne = 0, ns = 0; for (const r of list) { const v = Math.abs(Number(r.valor)); if (r.tipo === 'entrada') { e += v; ne++; } else { s2 += v; ns++; } } return { e, s: s2, ne, ns, diff: Math.round((e - s2) * 100) / 100 }; };
+  const CrossLine = ({ c }: { c: ReturnType<typeof cross> }) => <span className="inline-flex flex-wrap items-center gap-x-2"><span className="text-success">Entradas {fmtBRL(c.e)} ({c.ne})</span>·<span className="text-destructive">Saídas {fmtBRL(c.s)} ({c.ns})</span>·{c.diff === 0 ? <span className="font-semibold text-success">Diferença R$ 0,00 ✓ batem</span> : <span className="font-semibold text-warning">Diferença {fmtBRL(Math.abs(c.diff))} · sobra em {c.diff > 0 ? 'entradas' : 'saídas'}</span>}</span>;
 
   /** Totais da seleção atual — mesmo conjunto usado pelas ações em lote ([...selected]). */
   const selRows = useMemo(() => [...selected].map(id => txs.find(t => t.id === id)).filter((t): t is BankTx => !!t), [selected, txs]);
-  const selTotal = selRows.reduce((s, r) => s + Number(r.valor), 0);
   const selByStatus = useMemo(() => {
     const map: Record<ReconStatus, { n: number; valor: number }> = { pendente: { n: 0, valor: 0 }, conciliado: { n: 0, valor: 0 }, nao_se_aplica: { n: 0, valor: 0 } };
     for (const r of selRows) { const b = map[r.recon_status]; b.n += 1; b.valor += Number(r.valor); }
@@ -219,7 +219,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
         <div className="w-40"><label className="text-xs text-muted-foreground">Situação</label>
           <Select value={status} onValueChange={v => setStatus(v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="pendente">Só pendentes</SelectItem><SelectItem value="conciliado">Conciliados</SelectItem><SelectItem value="nao_se_aplica">Não se aplica</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="pendente">Só pendentes</SelectItem><SelectItem value="conciliado">Conciliados</SelectItem></SelectContent>
           </Select>
         </div>
         <div className="w-44"><label className="text-xs text-muted-foreground">Categoria</label>
@@ -235,20 +235,27 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {rows.length} lançamentos · <span className="font-semibold text-success">Conciliados {conc.length} ({fmtBRL(concValor)})</span> · <span className="font-semibold text-warning">Pendentes {pend.length} ({fmtBRL(pendValor)})</span> · Não se aplica {nsa.length} ({fmtBRL(nsaValor)})
+          {rows.length} lançamentos · <span className="font-semibold text-success">Conciliados {conc.length} ({fmtBRL(concValor)})</span> · <span className="font-semibold text-warning">Pendentes {pend.length} ({fmtBRL(pendValor)})</span> · <CrossLine c={cross(rows)} />
         </p>
         <div className="flex flex-wrap gap-2">
           {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
           {importFilter && <Button size="sm" variant="secondary" onClick={() => { setImportFilter(null); setCat('all'); }}>Só deste extrato · limpar filtro ✕</Button>}
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
-          <Button size="sm" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar selecionados ({selected.size})</Button>
-          <Button size="sm" variant="outline" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'nao_se_aplica')}><Ban className="mr-1 h-4 w-4" />Não se aplica</Button>
-          <Button size="sm" variant="outline" disabled={!selected.size || setJust.isPending} onClick={() => openJustify([...selected])}><Tag className="mr-1 h-4 w-4" />Justificar</Button>
-          <Button size="sm" variant="ghost" disabled={!selected.size || setRecon.isPending} onClick={() => apply([...selected], 'pendente')}><Undo2 className="mr-1 h-4 w-4" />Voltar a pendente</Button>
-          <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !t.transfer_pair_id && !isAutoInvest(t); }), 'operacao')}><Layers className="mr-1 h-4 w-4" />Marcar como Operação</Button>
-          <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => txs.find(x => x.id === id)?.movement_kind === 'operacao'), 'normal')}>Tirar de Operação</Button>
-          <Button size="sm" variant="outline" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !isAutoInvest(t) && !t.splits?.length && t.movement_kind !== 'transferencia'; }), 'transferencia')}><ArrowLeftRight className="mr-1 h-4 w-4" />Marcar como transferência</Button>
-          <Button size="sm" variant="ghost" disabled={!selected.size || setKind.isPending} onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && isOwnTransfer(t); }), 'normal')}>Tirar de transferência</Button>
+          {selected.size > 0 && <>
+          <Button size="sm" disabled={setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar ({selected.size})</Button>
+          <Button size="sm" variant="outline" disabled={setJust.isPending} onClick={() => openJustify([...selected])}><Tag className="mr-1 h-4 w-4" />Justificar</Button>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="outline" disabled={setKind.isPending}><Layers className="mr-1 h-4 w-4" />Classificar como ▾</Button></DropdownMenuTrigger><DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !t.transfer_pair_id && !isAutoInvest(t) && t.movement_kind !== 'normal'; }), 'normal')}>Receita/Despesa normal</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !t.transfer_pair_id && !isAutoInvest(t); }), 'operacao')}><Layers className="mr-2 h-4 w-4" />Operação</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !isAutoInvest(t) && !t.splits?.length && t.movement_kind !== 'transferencia'; }), 'transferencia')}><ArrowLeftRight className="mr-2 h-4 w-4" />Transferência entre contas</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && !t.transfer_pair_id && !isAutoInvest(t); }), 'ignorar')}><Ban className="mr-2 h-4 w-4" />Ignorar</DropdownMenuItem>
+          </DropdownMenuContent></DropdownMenu>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="ghost"><Undo2 className="mr-1 h-4 w-4" />Desfazer ▾</Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => apply([...selected], 'pendente')}>Voltar a pendente</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCategory([...selected].filter(id => txs.find(x => x.id === id)?.movement_kind === 'operacao'), 'normal')}>Tirar de Operação</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCategory([...selected].filter(id => { const t = txs.find(x => x.id === id); return t && isOwnTransfer(t); }), 'normal')}>Tirar de transferência</DropdownMenuItem>
+          </DropdownMenuContent></DropdownMenu>
+          </>}
         </div>
       </div>
 
@@ -277,11 +284,11 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm" data-testid="barra-selecionados">
           <span className="font-semibold text-foreground">
-            Selecionados: {selected.size} lançamento{selected.size > 1 ? 's' : ''} · Total {fmtBRL(selTotal)}
+            Selecionados: {selected.size}
           </span>
+          <CrossLine c={cross(selRows)} />
           {selByStatus.conciliado.n > 0 && <span className="font-semibold text-success">Conciliados: {selByStatus.conciliado.n} ({fmtBRL(selByStatus.conciliado.valor)})</span>}
           {selByStatus.pendente.n > 0 && <span className="font-semibold text-warning">A conciliar: {selByStatus.pendente.n} ({fmtBRL(selByStatus.pendente.valor)})</span>}
-          {selByStatus.nao_se_aplica.n > 0 && <span className="font-semibold text-muted-foreground">Não se aplica: {selByStatus.nao_se_aplica.n} ({fmtBRL(selByStatus.nao_se_aplica.valor)})</span>}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Limpar seleção ✕</Button>
         </div>
       )}
@@ -315,7 +322,6 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button size="sm" variant="ghost" className="h-7 px-1.5" aria-label="Mais ações"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="start">
-                        {t.recon_status !== 'nao_se_aplica' && <DropdownMenuItem onClick={() => apply([t.id], 'nao_se_aplica')}><Ban className="mr-2 h-4 w-4" />Não se aplica</DropdownMenuItem>}
                         {t.recon_status === 'pendente' && <DropdownMenuItem onClick={() => openJustify([t.id])}><Tag className="mr-2 h-4 w-4" />Justificar pendência</DropdownMenuItem>}
                         {t.recon_status !== 'pendente' && <DropdownMenuItem onClick={() => apply([t.id], 'pendente')}><Undo2 className="mr-2 h-4 w-4" />Desfazer (pendente)</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className="mr-2 h-4 w-4" />Observação</DropdownMenuItem>
