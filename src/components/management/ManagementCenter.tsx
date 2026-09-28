@@ -330,19 +330,35 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       return weight(a) - weight(b) || b.pending - a.pending;
     }).slice(0, 4), [filtered, month, backlogBySchool]);
   const refDay = dailyRows[0]?.ref_day ?? null;
-  const dailyInScope = rows.map(row => dailyBySchool.get(row.school_id)).filter((d): d is DailyStatusRow => !!d);
-  const withMovement = dailyInScope.filter(d => d.recon_required > 0);
-  const summaryCards = mode === 'mes' ? null : mode === 'ontem' ? [
-    { label: 'Extratos não enviados', value: dailyInScope.filter(d => !d.statement_received).length, note: refDay ? `Extrato de ${formatDate(refDay)}` : 'Dia anterior', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
-    { label: 'Fecharam 100%', value: withMovement.filter(d => d.recon_pending === 0).length, note: `de ${withMovement.length} com movimento`, icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success' },
-    { label: 'Deixaram pendência', value: withMovement.filter(d => d.recon_pending > 0).length, note: `${withMovement.reduce((t, d) => t + d.recon_pending, 0)} lançamentos pendentes`, icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
-    { label: 'Pendências acumuladas', value: backlog.length, note: 'Todos os dias anteriores', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
-  ] : [
-    { label: 'Extratos não enviados', value: dailyInScope.filter(d => !d.statement_received).length, note: `Atrasa a partir das ${LATE_NO_STATEMENT_HOUR}h`, icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
-    { label: 'Conciliação em andamento', value: withMovement.filter(d => d.recon_pending > 0).length, note: `${dailyInScope.filter(isLateToday).length} atrasada(s) agora`, icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
-    { label: 'Concluídas hoje', value: withMovement.filter(d => d.recon_pending === 0).length, note: `${dailyInScope.reduce((t, d) => t + d.reconciled_today, 0)} lançamentos conciliados hoje`, icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success' },
-    { label: 'Sem atividade hoje', value: dailyInScope.filter(d => !d.last_activity || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(d.last_activity)) !== today).length, note: 'Empresas sem uso da plataforma', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
-  ];
+  const withMovementBase = useMemo(() => baseFiltered.filter(row => {
+    const daily = dailyBySchool.get(row.school_id);
+    return !!daily && daily.recon_required > 0;
+  }).length, [baseFiltered, dailyBySchool]);
+
+  // O número do card conta as empresas que passam pela regra do card dentro dos
+  // demais filtros já ativos — a mesma regra usada em `filtered`, por isso os
+  // dois sempre batem.
+  const summaryCards = useMemo(() => cardDefs.map(def => {
+    const matched = baseFiltered.filter(row => def.match(row, dailyBySchool.get(row.school_id), backlogBySchool.get(row.school_id) ?? 0));
+    const dailyMatched = matched.map(row => dailyBySchool.get(row.school_id)).filter((d): d is DailyStatusRow => !!d);
+    const note = (() => {
+      switch (def.key) {
+        case 'no_statement': return mode === 'hoje' ? `Atrasa a partir das ${LATE_NO_STATEMENT_HOUR}h` : refDay ? `Extrato de ${formatDate(refDay)}` : 'Dia anterior';
+        case 'closed_100': return `de ${withMovementBase} com movimento`;
+        case 'left_pending': return `${dailyMatched.reduce((t, d) => t + d.recon_pending, 0)} lançamentos pendentes`;
+        case 'backlog': return 'Todos os dias anteriores';
+        case 'in_progress': return `${dailyMatched.filter(isLateToday).length} atrasada(s) agora`;
+        case 'done_today': return `${dailyMatched.reduce((t, d) => t + d.reconciled_today, 0)} lançamentos conciliados hoje`;
+        case 'no_activity': return 'Empresas sem uso da plataforma';
+        case 'all': return 'Toda a carteira';
+        case 'updated_today': return 'Dados até hoje';
+        case 'recon_pending': return `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`;
+        case 'closing_pending': return `${deliveredReports} relatório${deliveredReports === 1 ? '' : 's'} entregue${deliveredReports === 1 ? '' : 's'}`;
+        default: return '';
+      }
+    })();
+    return { ...def, value: matched.length, note };
+  }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, mode, refDay, withMovementBase]);
 
   const openSchool = (id: string) => { const school = schoolById.get(id); if (school) onSelect(school); };
   const toggleGroup = (key: string) => setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
