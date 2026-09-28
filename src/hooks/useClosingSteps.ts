@@ -7,6 +7,8 @@ export interface ClosingStepTemplate {
   label: string;
   sort_order: number;
   active: boolean;
+  check_kind?: string;
+  group_key?: string | null;
 }
 
 export interface SchoolStepOverride {
@@ -39,7 +41,7 @@ export function useClosingStepTemplates(enabled: boolean) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('closing_step_templates')
-        .select('id, step_key, label, sort_order, active')
+        .select('id, step_key, label, sort_order, active, check_kind, group_key')
         .order('sort_order')
         .order('label');
       if (error) throw error;
@@ -145,6 +147,7 @@ export function useEnsureMonthlyChecklist() {
     onSuccess: (_inserted, { schoolId, month }) => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
+      queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
     },
   });
 }
@@ -162,6 +165,7 @@ export function useSetChecklistStatus(schoolId: string | null, month: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
+      queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
     },
   });
 }

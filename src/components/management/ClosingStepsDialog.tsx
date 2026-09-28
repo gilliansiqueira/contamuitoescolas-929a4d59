@@ -16,6 +16,7 @@ import {
   useSchoolStepOverrides,
   useSetChecklistStatus,
 } from '@/hooks/useClosingSteps';
+import { ReportChecklist } from '@/components/management/ReportChecklist';
 
 function slugify(label: string) {
   return label
@@ -119,7 +120,6 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
   const { data: checklist = [], isLoading: checklistLoading } = useMonthlyChecklist(open ? schoolId : null, month);
   const saveOverride = useSaveSchoolStepOverride(schoolId);
   const deleteOverride = useDeleteSchoolStepOverride(schoolId);
-  const setStatus = useSetChecklistStatus(schoolId, month);
   const ensure = useEnsureMonthlyChecklist();
   const [extraLabel, setExtraLabel] = useState('');
 
@@ -163,10 +163,10 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" />Etapas de fechamento — {schoolName}</DialogTitle>
-          <DialogDescription>Ajuste as etapas desta empresa e acompanhe o checklist de {monthLabel}.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" />Relatório — {schoolName}</DialogTitle>
+          <DialogDescription>Acompanhe o passo a passo do relatório de {monthLabel} e ajuste as etapas desta empresa.</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
