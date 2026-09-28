@@ -431,13 +431,23 @@ export function parseItauImageText(text: string): BankParseResult {
   const saldoAtualCabecalho = saldoHeaderMatch ? parseBRNumber(saldoHeaderMatch[1]) : undefined;
   let saldoAnterior: number | undefined;
   const saldosDiarios = new Map<string, number>();
-  const txs: ParsedBankTx[] = [];
+  type VisualTx = ParsedBankTx & { sinalExplicito: boolean };
+  const visualTxs: VisualTx[] = [];
 
   for (const line of lines) {
     const dm = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(.+)$/);
     if (!dm) continue;
     const data = toIsoDate(dm[1]);
-    const valueMatch = dm[2].match(moneyAtEnd);
+    let valueMatch = dm[2].match(moneyAtEnd);
+    // Em valores muito pequenos e verdes, o OCR do PDF do Itaú pode apagar a vírgula
+    // ("0,16" vira "016"). Só aceitamos essa correção em rendimento identificado.
+    if (!valueMatch && /rend pago aplic aut mais/i.test(stripAccents(dm[2]))) {
+      const compact = dm[2].match(/\b(\d{3})\s*$/);
+      if (compact) {
+        const corrected = `${compact[1][0]},${compact[1].slice(1)}`;
+        valueMatch = Object.assign([compact[0], corrected], { index: compact.index ?? 0, input: dm[2], groups: undefined }) as RegExpMatchArray;
+      }
+    }
     if (!data || !valueMatch) continue;
     const valor = parseBRNumber(valueMatch[1]);
     const descricao = dm[2].slice(0, valueMatch.index).trim();
@@ -445,10 +455,10 @@ export function parseItauImageText(text: string): BankParseResult {
     if (/saldo anterior/.test(plain)) { saldoAnterior = valor; continue; }
     if (/saldo total disponivel dia/.test(plain)) { saldosDiarios.set(data, valor); continue; }
     if (!descricao || valor === 0 || /saldo/.test(plain)) continue;
-    txs.push({ data, descricao, valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada' });
+    visualTxs.push({ data, descricao, valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada', sinalExplicito: /^\s*-/.test(valueMatch[1]) });
   }
 
-  if (saldoAnterior === undefined || saldosDiarios.size === 0 || txs.length === 0) {
+  if (saldoAnterior === undefined || saldosDiarios.size === 0 || visualTxs.length === 0) {
     throw new Error('Não foi possível ler com segurança o saldo e os lançamentos deste PDF do Itaú. Nada foi importado.');
   }
 
@@ -457,10 +467,29 @@ export function parseItauImageText(text: string): BankParseResult {
   const datasSaldo = [...saldosDiarios.keys()].sort();
   let ultimaData = '';
   for (const dataSaldo of datasSaldo) {
-    txs.filter(t => t.data > ultimaData && t.data <= dataSaldo).forEach(t => {
-      saldoCalculado += t.tipo === 'entrada' ? t.valor : -t.valor;
-    });
+    const trecho = visualTxs.filter(t => t.data > ultimaData && t.data <= dataSaldo);
     const informado = saldosDiarios.get(dataSaldo) ?? 0;
+    const semSinal = trecho.filter(t => !t.sinalExplicito);
+    // Quando a imagem apaga um sinal, os saldos oficiais tornam o sentido determinístico.
+    // Testamos as combinações e só aceitamos se houver uma única solução exata.
+    const possibilidades: Array<Array<'entrada' | 'saida'>> = [];
+    if (semSinal.length <= 12) {
+      for (let mask = 0; mask < 2 ** semSinal.length; mask++) {
+        const kinds = semSinal.map((_, i) => (mask & (1 << i)) ? 'saida' as const : 'entrada' as const);
+        let candidato = saldoCalculado;
+        let u = 0;
+        trecho.forEach(t => {
+          const tipo = t.sinalExplicito ? t.tipo : kinds[u++];
+          candidato += tipo === 'entrada' ? t.valor : -t.valor;
+        });
+        if (Math.abs(candidato - informado) < 0.005) possibilidades.push(kinds);
+      }
+    }
+    if (possibilidades.length === 1) {
+      let u = 0;
+      trecho.forEach(t => { if (!t.sinalExplicito) t.tipo = possibilidades[0][u++]; });
+    }
+    trecho.forEach(t => { saldoCalculado += t.tipo === 'entrada' ? t.valor : -t.valor; });
     const diferenca = Math.round((saldoCalculado - informado) * 100) / 100;
     if (Math.abs(diferenca) >= 0.01) {
       divergencias.push(`${dataSaldo.split('-').reverse().join('/')}: diferença de R$ ${fmtBR(Math.abs(diferenca))} entre as linhas reconhecidas e o saldo do banco.`);
@@ -480,6 +509,7 @@ export function parseItauImageText(text: string): BankParseResult {
       : []),
     ...divergencias,
   ];
+  const txs = visualTxs.map(({ sinalExplicito: _sinal, ...tx }) => tx);
   const result = finish('pdf', txs, {
     banco: 'Itaú',
     periodoInicio: periodo ? toIsoDate(periodo[1]) ?? undefined : undefined,
