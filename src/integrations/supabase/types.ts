@@ -722,27 +722,36 @@ export type Database = {
       closing_step_templates: {
         Row: {
           active: boolean
+          check_kind: string
           created_at: string
+          group_key: string | null
           id: string
           label: string
+          link_tab: string | null
           sort_order: number
           step_key: string
           updated_at: string
         }
         Insert: {
           active?: boolean
+          check_kind?: string
           created_at?: string
+          group_key?: string | null
           id?: string
           label: string
+          link_tab?: string | null
           sort_order?: number
           step_key: string
           updated_at?: string
         }
         Update: {
           active?: boolean
+          check_kind?: string
           created_at?: string
+          group_key?: string | null
           id?: string
           label?: string
+          link_tab?: string | null
           sort_order?: number
           step_key?: string
           updated_at?: string
@@ -895,6 +904,92 @@ export type Database = {
           school_id?: string
           sort_order?: number
           tipo?: string
+        }
+        Relationships: []
+      }
+      daily_task_checklist: {
+        Row: {
+          check_kind: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          day: string
+          id: string
+          label: string
+          school_id: string
+          sort_order: number
+          source: string
+          status: string
+          task_key: string
+          updated_at: string
+        }
+        Insert: {
+          check_kind?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          day: string
+          id?: string
+          label: string
+          school_id: string
+          sort_order?: number
+          source?: string
+          status?: string
+          task_key: string
+          updated_at?: string
+        }
+        Update: {
+          check_kind?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          day?: string
+          id?: string
+          label?: string
+          school_id?: string
+          sort_order?: number
+          source?: string
+          status?: string
+          task_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_task_checklist_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_task_templates: {
+        Row: {
+          active: boolean
+          check_kind: string
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+          task_key: string
+        }
+        Insert: {
+          active?: boolean
+          check_kind?: string
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+          task_key: string
+        }
+        Update: {
+          active?: boolean
+          check_kind?: string
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          task_key?: string
         }
         Relationships: []
       }
@@ -1863,6 +1958,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "monthly_closing_cycles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_report_analyses: {
+        Row: {
+          content: string
+          edited_by: string | null
+          generated_at: string | null
+          id: string
+          month: string
+          school_id: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          edited_by?: string | null
+          generated_at?: string | null
+          id?: string
+          month: string
+          school_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          edited_by?: string | null
+          generated_at?: string | null
+          id?: string
+          month?: string
+          school_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_report_analyses_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
@@ -3540,6 +3673,10 @@ export type Database = {
       }
       current_user_school_id: { Args: never; Returns: string }
       demo_school_id: { Args: never; Returns: string }
+      ensure_daily_tasks: {
+        Args: { _day: string; _school_id: string }
+        Returns: number
+      }
       ensure_monthly_checklist: {
         Args: { _month: string; _school_id: string }
         Returns: number
@@ -3612,6 +3749,13 @@ export type Database = {
         Returns: {
           display_name: string
           user_id: string
+        }[]
+      }
+      get_report_step_hints: {
+        Args: { _month: string; _school_id: string }
+        Returns: {
+          has_data: boolean
+          step_key: string
         }[]
       }
       has_role: {

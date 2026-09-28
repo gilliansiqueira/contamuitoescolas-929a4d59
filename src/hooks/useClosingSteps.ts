@@ -7,6 +7,8 @@ export interface ClosingStepTemplate {
   label: string;
   sort_order: number;
   active: boolean;
+  check_kind?: string;
+  group_key?: string | null;
 }
 
 export interface SchoolStepOverride {
@@ -39,7 +41,7 @@ export function useClosingStepTemplates(enabled: boolean) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('closing_step_templates')
-        .select('id, step_key, label, sort_order, active')
+        .select('id, step_key, label, sort_order, active, check_kind, group_key')
         .order('sort_order')
         .order('label');
       if (error) throw error;
@@ -145,6 +147,7 @@ export function useEnsureMonthlyChecklist() {
     onSuccess: (_inserted, { schoolId, month }) => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
+      queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
     },
   });
 }
@@ -162,6 +165,84 @@ export function useSetChecklistStatus(schoolId: string | null, month: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
+      queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
+    },
+  });
+}
+
+// ---------- Tarefas do dia ----------
+export interface DailyTask {
+  id: string;
+  school_id: string;
+  day: string;
+  task_key: string;
+  label: string;
+  sort_order: number;
+  check_kind: string;
+  status: 'open' | 'completed' | 'not_applicable';
+  source: string;
+  completed_at: string | null;
+}
+
+/** Gera (idempotente) e resume as tarefas do dia de várias empresas. */
+export function useDailyTasksSummary(schoolIds: string[], day: string) {
+  const key = [...schoolIds].sort().join(',');
+  return useQuery({
+    queryKey: ['daily-tasks-summary', key, day],
+    enabled: schoolIds.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(day),
+    staleTime: 60_000,
+    queryFn: async () => {
+      await Promise.all(schoolIds.map(id => supabase.rpc('ensure_daily_tasks', { _school_id: id, _day: day })));
+      const { data, error } = await supabase
+        .from('daily_task_checklist')
+        .select('school_id, status')
+        .eq('day', day)
+        .in('school_id', schoolIds);
+      if (error) throw error;
+      const map = new Map<string, { done: number; total: number }>();
+      (data ?? []).forEach(row => {
+        const cur = map.get(row.school_id) ?? { done: 0, total: 0 };
+        cur.total += 1;
+        if (row.status !== 'open') cur.done += 1;
+        map.set(row.school_id, cur);
+      });
+      return map;
+    },
+  });
+}
+
+export function useDailyTasks(schoolId: string | null, day: string) {
+  return useQuery({
+    queryKey: ['daily-tasks', schoolId, day],
+    enabled: !!schoolId,
+    queryFn: async () => {
+      await supabase.rpc('ensure_daily_tasks', { _school_id: schoolId!, _day: day });
+      const { data, error } = await supabase
+        .from('daily_task_checklist')
+        .select('id, school_id, day, task_key, label, sort_order, check_kind, status, source, completed_at')
+        .eq('school_id', schoolId!)
+        .eq('day', day)
+        .order('sort_order');
+      if (error) throw error;
+      return (data ?? []) as DailyTask[];
+    },
+  });
+}
+
+export function useSetDailyTaskStatus(schoolId: string | null, day: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: DailyTask['status'] }) => {
+      const { data: auth } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from('daily_task_checklist')
+        .update({ status, source: 'manual', completed_by: status === 'open' ? null : auth.user?.id ?? null, completed_at: status === 'open' ? null : new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['daily-tasks', schoolId, day] });
+      queryClient.invalidateQueries({ queryKey: ['daily-tasks-summary'] });
     },
   });
 }
