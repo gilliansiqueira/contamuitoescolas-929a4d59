@@ -305,6 +305,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             valueClassName={saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}
           />
           {confirmedForPeriod && <CompactStat label={`Saldo bancário em ${formatDateBR(confirmedForPeriod.date)}`} value={formatCurrency(confirmedForPeriod.balance)} valueClassName="text-success" />}
+          {confirmedForPeriod && Math.abs(bankDifference) >= 0.005 && <CompactStat label={Math.abs(bankDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir'} value={formatCurrency(Math.abs(bankDifference))} valueClassName="text-warning" />}
           <CompactStat label="Entrada prevista" value={formatCurrency(totals.entradaPrevista)} valueClassName="text-blue-600 dark:text-blue-300" />
           <CompactStat label="Entrada realizada" value={formatCurrency(totals.entradaRealizada)} valueClassName="text-primary" />
           <CompactStat label="Saída prevista" value={formatCurrency(totals.saidaPrevista)} valueClassName="text-orange-500" />
