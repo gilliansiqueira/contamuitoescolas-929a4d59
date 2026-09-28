@@ -147,7 +147,7 @@ export function useMonthlyChecklistSummary(month: string, enabled: boolean) {
         const { data, error } = await supabase.from('monthly_closing_checklist')
           .select('school_id, step_key, status').eq('month', month).order('id').range(from, from + 999);
         if (error) throw error;
-        for (const item of data ?? []) bySchool.set(item.school_id, [...(bySchool.get(item.school_id) ?? []), item]);
+        for (const item of data ?? []) bySchool.set(item.school_id, [...(bySchool.get(item.school_id) ?? []), { step_key: item.step_key, status: item.status as ChecklistItem['status'] }]);
         if (!data || data.length < 1000) break;
       }
       return bySchool;

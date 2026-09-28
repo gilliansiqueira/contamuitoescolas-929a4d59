@@ -101,7 +101,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   // Mesma regra do tipo financeiro do modelo; o sentido do extrato não define Receita/Despesa.
   const financialClass = (itemId?: string | null) => {
     const item = modelItems.find(i => i.id === itemId);
-    return item ? resolveTipoMeta(item.name, [], [item]).classificacao : null;
+    return item && (item.tipo === 'entrada' || item.tipo === 'saida' || item.tipo === 'ignorar')
+      ? resolveTipoMeta(item.name, [], [{ ...item, tipo: item.tipo }]).classificacao : null;
   };
   const visibleParts = (t: BankTx) => t.splits?.filter(sp => sp.categoria === 'normal' && financialClass(sp.model_item_id) === cat) ?? [];
   const matchesFinancial = (t: BankTx) => {
