@@ -288,6 +288,13 @@
       "when": 1790604846149,
       "tag": "0040_bank_default_item_accept_plural",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790606154026,
+      "tag": "0041_management_daily_reconciliation",
+      "breakpoints": true
     }
   ]
 }
