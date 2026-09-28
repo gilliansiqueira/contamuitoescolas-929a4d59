@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Aberto
-- [ ] Extrato do Itaú (09 - Setembro Itaú PF) não é lido na empresa Obras Nascimento — investigar o parser de PDF
+- [ ] Extrato do Itaú PF (Obras Nascimento): aguardando o arquivo oficial do banco — o PDF enviado é um print da tela, sem texto para ler
 - [ ] Credencial da API PontoFopag (PONTOFOPAG_API_TOKEN) — pendente da Employer/ePays
 - [ ] Confirmar formato das respostas da API PontoFopag e limites de consulta antes de ligar a sincronização automática
 - [ ] Acompanhar o custo do servidor (créditos de "Cloud compute") nos próximos dias para ver se continua dentro dos 20 créditos grátis do mês
@@ -16,3 +16,5 @@
 - [x] Site oficial republicado com a área "Ponto da Equipe" (arquivo principal publicado: assets/index-cqrBBjDJ.js; a área está no bloco Index-BXmUQo3n.js)
 - [x] Cartão de crédito e endereço de cobrança confirmados neste espaço de trabalho
 - [x] Lista do que pedir à Employer/ePays entregue
+- [x] Cards clicáveis da Central de Clientes (opção 1) publicados no site oficial
+- [x] Aviso claro quando o extrato enviado for print da tela/foto sem texto
