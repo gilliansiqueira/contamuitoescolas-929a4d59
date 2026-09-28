@@ -3469,6 +3469,7 @@ export type Database = {
           closing_due_day: number
           closing_percent: number
           data_updated_through: string
+          last_activity_at: string
           next_action: string
           period_closed: boolean
           reconciliation_pending: number

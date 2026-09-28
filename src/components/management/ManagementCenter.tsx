@@ -158,6 +158,27 @@ function relativeTime(iso: string | null, today: string) {
   return mins < 60 ? `Ativa há ${mins} min` : `Ativa há ${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
 }
 
+/** Tempo decorrido desde a última alteração na empresa (ex.: "há 2 h", "há 3 dias"). */
+function lastActivityLabel(iso: string | null) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  const mins = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+  if (mins < 2) return 'agora mesmo';
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'ontem';
+  if (days < 30) return `há ${days} dias`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? 'há 1 mês' : `há ${months} meses`;
+}
+
+function lastActivityTitle(iso: string | null) {
+  if (!iso) return 'Nenhuma alteração registrada';
+  return `Última alteração em ${new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+}
+
 const displayNameSchema = z.string().trim().min(1, 'Digite um nome.').max(60, 'Use no máximo 60 caracteres.');
 
 function nameFromEmail(email: string) {
@@ -487,13 +508,13 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(240px,.7fr)]">
               <section className="overflow-hidden rounded-lg border border-border bg-card">
                 {isError ? <p className="p-8 text-center text-sm text-destructive">Não foi possível carregar a carteira.</p> : <>
-                  <div className="hidden grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] gap-3 border-b bg-muted/30 px-3 py-2.5 text-[11px] font-medium text-muted-foreground lg:grid"><span>Empresa</span><span>Responsável</span><span>Atualizado até</span><span>Andamento</span><span>Situação</span><span /></div>
+                  <div className="hidden grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] gap-3 border-b bg-muted/30 px-3 py-2.5 text-[11px] font-medium text-muted-foreground lg:grid"><span>Empresa</span><span>Responsável</span><span>Última alteração</span><span>Andamento</span><span>Situação</span><span /></div>
                   <div className="divide-y divide-border">{!isLoading && filtered.length === 0 && <p className="p-10 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>}{filtered.map(row => {
                     const status = statusOf(row, month); const daily = dailyBySchool.get(row.school_id); const progress = mode === 'mes' ? (row.closing_percent ?? row.reconciliation_percent) : dayPercent(daily); const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
                     return <div key={row.school_id} className={`grid gap-3 border-l-4 px-3 py-3 text-xs transition-colors hover:bg-muted/30 lg:grid-cols-[1.3fr_1fr_.8fr_1fr_1fr_.55fr] lg:items-center ${rowAccent[status]}`}>
                       <div className="flex min-w-0 items-center gap-2.5"><span className={`h-3 w-3 shrink-0 rounded-full ${statusDotStyles[status]}`} /><span className="truncate font-medium">{row.school_name}</span></div>
                       <div className="min-w-0">{isSuperAdmin && candidates.length > 1 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{candidates.map(candidate => <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
-                      <span className="text-muted-foreground"><span className="mr-1 lg:hidden">Atualizado:</span>{formatDate(row.data_updated_through)}</span>
+                      <span className="text-muted-foreground" title={lastActivityTitle(row.last_activity_at)}><span className="mr-1 lg:hidden">Última alteração:</span>{lastActivityLabel(row.last_activity_at)}</span>
                       {mode !== 'mes' ? <div className="space-y-1">{!daily ? <span className="text-muted-foreground">{dailyLoading ? '…' : '—'}</span> : !daily.statement_received ? <span className="inline-flex rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">Extrato não enviado</span> : progress == null ? <span className="text-[11px] text-muted-foreground">Sem movimento no dia</span> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-12 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span></div>}{mode === 'hoje' && daily && <p className="text-[10px] text-muted-foreground">{daily.reconciled_today} conciliados hoje · {relativeTime(daily.last_activity, today)}{isLateToday(daily) && <span className="ml-1 rounded-full bg-destructive px-1.5 py-0.5 font-semibold text-destructive-foreground">Atrasada</span>}</p>}</div> :
                       <div>{progress == null ? <button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"><ListChecks className="h-3 w-3" />{row.closing_percent == null ? 'Configurar etapas' : 'Indisponível'}</button> : <div className="flex items-center gap-2"><Progress value={progress} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-10 text-right text-xs font-bold ${tone?.text ?? ''}`}>{progress}%</span><button type="button" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="text-muted-foreground hover:text-primary" aria-label={`Configurar etapas de ${row.school_name}`}><ListChecks className="h-3.5 w-3.5" /></button></div>}</div>}
                       <div><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div>

@@ -8,6 +8,7 @@ export interface PortfolioRow {
   responsible_email: string | null;
   closing_due_day: number;
   data_updated_through: string | null;
+  last_activity_at: string | null;
   reconciliation_percent: number | null;
   reconciliation_pending: number;
   closing_percent: number | null;
