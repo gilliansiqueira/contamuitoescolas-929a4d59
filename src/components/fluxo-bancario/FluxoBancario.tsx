@@ -29,7 +29,9 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const [focus, setFocus] = useState<TableFocus | null>(null);
   const hasInMonth = txs.some(t => t.data.startsWith(selectedMonth.slice(0, 7)));
   const lastTxDate = txs.reduce((m, t) => (t.data > m ? t.data : m), '');
-  const { from, to } = monthRange(selectedMonth);
+  // "Todos os meses" (all) não é um mês válido: usa o mês do último lançamento (ou o atual).
+  const effMonth = /^\d{4}-\d{2}/.test(selectedMonth) ? selectedMonth : (lastTxDate || today).slice(0, 7);
+  const { from, to } = monthRange(effMonth);
   const tableRange = !hasInMonth && lastTxDate ? monthRange(lastTxDate) : { from, to };
   const active = accounts.filter(a => a.ativa);
 
