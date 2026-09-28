@@ -18,7 +18,7 @@ import {
 } from '@/hooks/useManagementPortfolio';
 import { ReconciliationBacklog } from '@/components/management/ReconciliationBacklog';
 import { useAddSchool } from '@/hooks/useFinancialData';
-import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary } from '@/hooks/useClosingSteps';
+import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { Button } from '@/components/ui/button';
@@ -111,6 +111,14 @@ const viewLabels: Record<ManagementView, string> = {
 
 type PeriodMode = 'hoje' | 'ontem' | 'mes';
 const periodModeLabels: Record<PeriodMode, string> = { hoje: 'Hoje (ao vivo)', ontem: 'Dia anterior', mes: 'Mês' };
+const reportGroups = [
+  { key: 'projecao', label: 'Projeção', icon: CalendarDays, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
+  { key: 'despesas', label: 'Análise de despesas', icon: FileCheck2, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
+  { key: 'kpis', label: 'KPIs', icon: ListChecks, tone: 'text-info-foreground bg-info', strip: 'border-t-info bg-info/[0.07]', num: 'text-info' },
+  { key: 'receitas', label: 'Vendas e receitas', icon: Building2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
+  { key: 'contatos', label: 'Contatos e matrículas', icon: Users, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
+  { key: 'envio', label: 'Texto e entrega', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
+] as const;
 // Horários limite (São Paulo) para marcar a conciliação do dia como atrasada.
 const LATE_NO_STATEMENT_HOUR = 12;
 const LATE_INCOMPLETE_HOUR = 15;
@@ -291,6 +299,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { data: responsibleCandidates = [] } = useManagementResponsibleCandidates(isSuperAdmin);
   const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
   const { data: stepTemplates = [] } = useClosingStepTemplates(true);
+  const { data: monthlySteps, isLoading: monthlyStepsLoading } = useMonthlyChecklistSummary(month, view === 'closing');
   const ensureChecklist = useEnsureMonthlyChecklist();
   const setResponsible = useSetManagementResponsible(month);
   const setDisplayName = useSetManagementResponsibleDisplayName();
@@ -337,7 +346,24 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     [rows, displayNameByUser]);
   const reconValueOf = (row: PortfolioRow) => mode === 'mes' ? row.reconciliation_percent : dayPercent(dailyBySchool.get(row.school_id));
 
-  const cardDefs = useMemo(() => cardDefsFor(mode, today, bankAvailable), [mode, today, bankStartMonths]);
+  const reportStage = useMemo(() => {
+    const bySchool = new Map<string, string>();
+    if (!monthlySteps) return bySchool;
+    const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
+    for (const row of rows) {
+      const steps = monthlySteps.get(row.school_id) ?? [];
+      if (row.report_delivered) { bySchool.set(row.school_id, 'entregue'); continue; }
+      if (steps.length === 0) { bySchool.set(row.school_id, 'sem_etapas'); continue; }
+      const first = reportGroups.find(g => steps.some(s => s.status === 'open' && (groupByKey.get(s.step_key) === g.key || (g.key === 'receitas' && groupByKey.get(s.step_key) === 'vendas'))));
+      bySchool.set(row.school_id, first?.key ?? (steps.some(s => s.status === 'open') ? 'extras' : 'entregue'));
+    }
+    return bySchool;
+  }, [monthlySteps, rows, stepTemplates]);
+  const cardDefs = useMemo(() => view === 'closing' ? [
+    ...reportGroups.map(g => ({ ...g, match: (row: PortfolioRow) => reportStage.get(row.school_id) === g.key })),
+    { key: 'sem_etapas', label: 'Outras pendências', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'sem_etapas' || reportStage.get(row.school_id) === 'extras' },
+    { key: 'entregue', label: 'Entregues', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'entregue' },
+  ] : cardDefsFor(mode, today, bankAvailable), [view, mode, today, bankStartMonths, reportStage]);
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
@@ -348,7 +374,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       || (row.responsible_user_id ? (displayNameByUser.get(row.responsible_user_id) ?? '').toLocaleLowerCase('pt-BR').includes(term) : false);
     const status = statusOf(row, month);
     const matchesView = view === 'portfolio'
-      || (view === 'closing' && (!row.period_closed || !row.report_delivered))
+      || view === 'closing'
       || (view === 'pending' && (row.reconciliation_pending > 0 || row.checklist_pending > 0 || row.waiting_for_client))
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (mode !== 'mes' || situation === 'all' || status === situation);
@@ -433,8 +459,9 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         default: return '';
       }
     })();
-    return { ...def, value: matched.length, note };
-  }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, mode, refDay, withMovementBase]);
+     const reportNote = view === 'closing' ? def.key === 'entregue' ? 'Relatórios entregues' : def.key === 'sem_etapas' ? 'Sem etapas geradas ou extras pendentes' : `${matched.length} aguardando esta etapa` : note;
+     return { ...def, value: matched.length, note: reportNote };
+   }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, mode, refDay, withMovementBase, view]);
 
   // Quantidade do selo = empresas realmente filtradas (mesma regra do card).
   const activeCardCount = activeCard ? filtered.length : 0;
@@ -535,14 +562,14 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           </div>
 
           {view !== 'pending' && <>
-             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+              <div className={`mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${view === 'closing' ? 'xl:grid-cols-4' : 'xl:grid-cols-5'}`}>
               {summaryCards.map(card => {
                 const isActive = activeCard?.key === card.key;
                 const empty = card.value === 0;
                  return <button key={card.key} type="button" aria-pressed={isActive} disabled={empty} title={empty ? 'Nenhuma empresa nesta situação' : `Mostrar só: ${card.label}`} onClick={() => setCardFilter(isActive ? null : card.key)} className={`relative min-w-0 rounded-lg border border-border border-t-4 p-3 text-left shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${card.strip} ${isActive ? 'ring-2 ring-primary ring-offset-2' : ''} ${empty ? 'cursor-not-allowed opacity-60' : 'hover:shadow-md'}`}>
                   {isActive && <span className="absolute -top-2 right-2 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">filtrando</span>}
                    <div className="flex min-h-8 items-start justify-between gap-1.5"><span className="text-xs font-medium leading-tight text-foreground/80">{card.label}</span><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm ${card.tone}`}><card.icon className="h-3.5 w-3.5" /></span></div>
-                   <p className={`mt-1 text-2xl font-semibold leading-none ${card.num}`}>{isLoading ? '—' : card.value}</p>
+                    <p className={`mt-1 text-2xl font-semibold leading-none ${card.num}`}>{isLoading || (view === 'closing' && monthlyStepsLoading) ? '—' : card.value}</p>
                    <p className="mt-1 min-h-7 text-[10px] leading-snug text-muted-foreground">{card.note}</p>
                 </button>;
               })}

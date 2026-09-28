@@ -7,3 +7,6 @@
 - O saldo conferido do banco soma as âncoras das contas ativas na mesma data e aparece separado do fechamento previsto; débitos futuros do extrato seguem como previsão no motor mensal, não estendem o corte realizado e substituem projeções anteriores no intervalo — para impedir duplicidade sem transformar previsão em realizado.
 - Central separa Tarefas do dia (`daily_task_*`, `ensure_daily_tasks`) do Relatório mensal (`closing_step_templates` com `check_kind`/`group_key`; `ensure_monthly_checklist` só marca automático, nunca desfaz marcação da equipe; etapa `envio_cliente` grava `report_deliveries`) — para acompanhar rotina e entrega sem misturar.
 - Rascunho da análise mensal (`draft-monthly-analysis`) recebe só totais da SSOT calculados no frontend; a IA apenas redige — para nenhum número vir da IA.
+<!-- LOVABLE:BEGIN -->
+- Cards de Relatórios contam a primeira etapa mensal aberta por empresa; filtros Receita/Despesa do banco usam `resolveTipoMeta` e exibem só as partes correspondentes sem alterar o lançamento ou o saldo — para manter uma contagem exclusiva por etapa e a SSOT financeira.
+<!-- LOVABLE:END -->
