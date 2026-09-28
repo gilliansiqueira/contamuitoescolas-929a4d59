@@ -67,7 +67,7 @@ export function useSetJustification(schoolId: string) {
         if (error) throw error;
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bankTxs', schoolId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bankTransactions', schoolId] }),
   });
 }
 
