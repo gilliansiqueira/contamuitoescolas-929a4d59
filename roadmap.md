@@ -1,7 +1,6 @@
 # Roadmap
 
 ## Aberto
-- [ ] Conferir na prévia as cores da conciliação e a atualização da última alteração (Ather) na Central de Clientes
 - [ ] Credencial da API PontoFopag (PONTOFOPAG_API_TOKEN) — pendente da Employer/ePays
 - [ ] Confirmar formato das respostas da API PontoFopag e limites de consulta antes de ligar a sincronização automática
 - [ ] Acompanhar o custo do servidor (créditos de "Cloud compute") nos próximos dias para ver se continua dentro dos 20 créditos grátis do mês
@@ -9,6 +8,7 @@
 - [ ] Rodar uma nova varredura de segurança antes de compartilhar o site amplamente
 
 ## Feito
+- [x] Central de Clientes: bolinhas por conciliação (extrato não enviado e pendência antiga em vermelho) e última alteração incluindo conciliações; prévia verificada no computador e celular
 - [x] Cuiabá Goiabeiras: corrigir partes de Operação, vincular três transferências próprias e liberar a ativação sem alterar valores
 - [x] Leitura visual segura do PDF Itaú PF de Obras Nascimento, com conferência e bloqueio por divergência de saldo
 - [x] Área "Ponto da Equipe" criada (tabelas team_time_*, função server-side, tela, menu só para super administrador)
