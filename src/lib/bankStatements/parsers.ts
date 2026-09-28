@@ -23,6 +23,11 @@ export interface BankParseResult {
   saldoDisponivelInformado?: number;
   /** Saldo total (em conta + aplicação automática), lido do próprio arquivo quando existir. */
   saldoComAplicacaoInformado?: number;
+  /** Saldo atual destacado no cabeçalho, quando diferente do último saldo diário do quadro. */
+  saldoAtualCabecalho?: number;
+  /** Impede confirmar quando a leitura visual não fecha com os saldos impressos. */
+  bloqueiaImportacao?: boolean;
+  divergencias?: string[];
   transactions: ParsedBankTx[];
   avisos: string[];
 }
@@ -407,6 +412,89 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   return { ...r, ...saldos, periodoInicio: efet[0] ?? r.periodoInicio, periodoFim: saldos.periodoFim ?? efet[efet.length - 1] ?? r.periodoFim };
 }
 
+/**
+ * Itaú também entrega o extrato pelo navegador como PDF somente-imagem. Esta rotina recebe
+ * exclusivamente o texto reconhecido da imagem e aceita o resultado apenas quando os saldos
+ * diários impressos fecham com os lançamentos. Dados do titular são deliberadamente ignorados.
+ */
+export function parseItauImageText(text: string): BankParseResult {
+  const normalized = text.replace(/\u00a0/g, ' ');
+  const lines = normalized.split(/\r?\n/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const joined = stripAccents(normalized).toLowerCase();
+  if (!joined.includes('itau') || !joined.includes('extrato') || !joined.includes('lancamentos')) {
+    throw new Error('A imagem não foi reconhecida como um extrato do Itaú. Nada foi importado.');
+  }
+
+  const moneyAtEnd = /(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*$/;
+  const saldoHeaderMatch = normalized.match(/saldo em conta[\s\S]{0,180}?R\$\s*(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  const periodo = normalized.match(/per[ií]odo de visualiza[cç][aã]o:\s*de\s*(\d{2}\/\d{2}\/\d{4})\s*at[eé]\s*(\d{2}\/\d{2}\/\d{4})/i);
+  const saldoAtualCabecalho = saldoHeaderMatch ? parseBRNumber(saldoHeaderMatch[1]) : undefined;
+  let saldoAnterior: number | undefined;
+  const saldosDiarios = new Map<string, number>();
+  const txs: ParsedBankTx[] = [];
+
+  for (const line of lines) {
+    const dm = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(.+)$/);
+    if (!dm) continue;
+    const data = toIsoDate(dm[1]);
+    const valueMatch = dm[2].match(moneyAtEnd);
+    if (!data || !valueMatch) continue;
+    const valor = parseBRNumber(valueMatch[1]);
+    const descricao = dm[2].slice(0, valueMatch.index).trim();
+    const plain = stripAccents(descricao).toLowerCase();
+    if (/saldo anterior/.test(plain)) { saldoAnterior = valor; continue; }
+    if (/saldo total disponivel dia/.test(plain)) { saldosDiarios.set(data, valor); continue; }
+    if (!descricao || valor === 0 || /saldo/.test(plain)) continue;
+    txs.push({ data, descricao, valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada' });
+  }
+
+  if (saldoAnterior === undefined || saldosDiarios.size === 0 || txs.length === 0) {
+    throw new Error('Não foi possível ler com segurança o saldo e os lançamentos deste PDF do Itaú. Nada foi importado.');
+  }
+
+  const divergencias: string[] = [];
+  let saldoCalculado = saldoAnterior;
+  const datasSaldo = [...saldosDiarios.keys()].sort();
+  let ultimaData = '';
+  for (const dataSaldo of datasSaldo) {
+    txs.filter(t => t.data > ultimaData && t.data <= dataSaldo).forEach(t => {
+      saldoCalculado += t.tipo === 'entrada' ? t.valor : -t.valor;
+    });
+    const informado = saldosDiarios.get(dataSaldo) ?? 0;
+    const diferenca = Math.round((saldoCalculado - informado) * 100) / 100;
+    if (Math.abs(diferenca) >= 0.01) {
+      divergencias.push(`${dataSaldo.split('-').reverse().join('/')}: diferença de R$ ${fmtBR(Math.abs(diferenca))} entre as linhas reconhecidas e o saldo do banco.`);
+    }
+    saldoCalculado = informado;
+    ultimaData = dataSaldo;
+  }
+
+  const ultimoSaldo = saldosDiarios.get(datasSaldo[datasSaldo.length - 1]);
+  const diferencaCabecalho = saldoAtualCabecalho !== undefined && ultimoSaldo !== undefined
+    ? Math.round((saldoAtualCabecalho - ultimoSaldo) * 100) / 100
+    : 0;
+  const avisos = [
+    'Este PDF do Itaú é uma imagem. A leitura visual exige conferência de todas as linhas antes da importação.',
+    ...(Math.abs(diferencaCabecalho) >= 0.01
+      ? [`O saldo atual do cabeçalho (${fmtBR(saldoAtualCabecalho ?? 0)}) difere em R$ ${fmtBR(Math.abs(diferencaCabecalho))} do último saldo diário (${fmtBR(ultimoSaldo ?? 0)}). Essa diferença não foi criada como lançamento.`]
+      : []),
+    ...divergencias,
+  ];
+  const result = finish('pdf', txs, {
+    banco: 'Itaú',
+    periodoInicio: periodo ? toIsoDate(periodo[1]) ?? undefined : undefined,
+    periodoFim: datasSaldo[datasSaldo.length - 1],
+    saldoFinalInformado: ultimoSaldo,
+    saldoAtualCabecalho,
+    bloqueiaImportacao: divergencias.length > 0,
+    divergencias,
+    avisos,
+  });
+  result.periodoInicio = periodo ? toIsoDate(periodo[1]) ?? result.periodoInicio : result.periodoInicio;
+  result.periodoFim = datasSaldo[datasSaldo.length - 1] ?? (periodo ? toIsoDate(periodo[2]) ?? result.periodoFim : result.periodoFim);
+  return result;
+}
+
 async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
@@ -427,6 +515,32 @@ async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   return out;
 }
 
+async function readPdfImageText(buf: ArrayBuffer): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist');
+  const { createWorker } = await import('tesseract.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+  const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+  const worker = await createWorker('por');
+  const parts: string[] = [];
+  try {
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const viewport = page.getViewport({ scale: 3 });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('Não foi possível preparar a leitura visual do PDF.');
+      await page.render({ canvasContext: context, viewport }).promise;
+      const result = await worker.recognize(canvas);
+      parts.push(result.data.text);
+    }
+  } finally {
+    await worker.terminate();
+  }
+  return parts.join('\n');
+}
+
 /** Bancos brasileiros costumam gerar OFX/CSV em Windows-1252; UTF-8 é usado só quando o arquivo é UTF-8 válido. */
 export function decodeBankText(buf: ArrayBuffer): string {
   try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
@@ -439,11 +553,13 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
   if (name.endsWith('.csv') || name.endsWith('.txt')) return parseCSV(decodeBankText(await file.arrayBuffer()));
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) return parseXLSX(await file.arrayBuffer());
   if (name.endsWith('.pdf')) {
-    const lines = await readPdfLines(await file.arrayBuffer());
+    const buffer = await file.arrayBuffer();
+    const lines = await readPdfLines(buffer.slice(0));
     // PDF "print da tela"/foto não tem camada de texto: nada é legível e a conferência
     // ficaria vazia sem explicação. Avisamos o que enviar no lugar.
     if (lines.join('').replace(/\s+/g, '').length < 40) {
-      throw new Error('Este PDF não tem texto para ler — é um print da tela ou uma foto do extrato. Envie o arquivo oficial do banco: OFX (melhor leitura, é o que usamos hoje no Itaú) ou o PDF exportado pelo banco, não a tela impressa.');
+      const recognized = await readPdfImageText(buffer);
+      return parseItauImageText(recognized);
     }
     return parsePdfLines(lines);
   }

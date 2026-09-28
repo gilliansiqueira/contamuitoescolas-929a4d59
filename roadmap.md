@@ -1,7 +1,6 @@
 # Roadmap
 
 ## Aberto
-- [ ] Extrato do Itaú PF (Obras Nascimento): aguardando o arquivo oficial do banco — o PDF enviado é um print da tela, sem texto para ler
 - [ ] Credencial da API PontoFopag (PONTOFOPAG_API_TOKEN) — pendente da Employer/ePays
 - [ ] Confirmar formato das respostas da API PontoFopag e limites de consulta antes de ligar a sincronização automática
 - [ ] Acompanhar o custo do servidor (créditos de "Cloud compute") nos próximos dias para ver se continua dentro dos 20 créditos grátis do mês
@@ -9,6 +8,7 @@
 - [ ] Rodar uma nova varredura de segurança antes de compartilhar o site amplamente
 
 ## Feito
+- [x] Leitura visual segura do PDF Itaú PF de Obras Nascimento, com conferência e bloqueio por divergência de saldo
 - [x] Área "Ponto da Equipe" criada (tabelas team_time_*, função server-side, tela, menu só para super administrador)
 - [x] Servidor de dados recuperado após o incidente de indisponibilidade
 - [x] Verificado: sem tarefas agendadas (pg_cron não instalado) — a lentidão vinha do tamanho da instância
