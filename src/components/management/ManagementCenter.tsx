@@ -158,6 +158,27 @@ function relativeTime(iso: string | null, today: string) {
   return mins < 60 ? `Ativa há ${mins} min` : `Ativa há ${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
 }
 
+/** Tempo decorrido desde a última alteração na empresa (ex.: "há 2 h", "há 3 dias"). */
+function lastActivityLabel(iso: string | null) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  const mins = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+  if (mins < 2) return 'agora mesmo';
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'ontem';
+  if (days < 30) return `há ${days} dias`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? 'há 1 mês' : `há ${months} meses`;
+}
+
+function lastActivityTitle(iso: string | null) {
+  if (!iso) return 'Nenhuma alteração registrada';
+  return `Última alteração em ${new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`;
+}
+
 const displayNameSchema = z.string().trim().min(1, 'Digite um nome.').max(60, 'Use no máximo 60 caracteres.');
 
 function nameFromEmail(email: string) {
