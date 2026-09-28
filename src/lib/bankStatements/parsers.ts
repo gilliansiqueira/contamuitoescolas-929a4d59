@@ -438,7 +438,15 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
   if (name.endsWith('.ofx')) return parseOFX(decodeBankText(await file.arrayBuffer()));
   if (name.endsWith('.csv') || name.endsWith('.txt')) return parseCSV(decodeBankText(await file.arrayBuffer()));
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) return parseXLSX(await file.arrayBuffer());
-  if (name.endsWith('.pdf')) return parsePdfLines(await readPdfLines(await file.arrayBuffer()));
+  if (name.endsWith('.pdf')) {
+    const lines = await readPdfLines(await file.arrayBuffer());
+    // PDF "print da tela"/foto não tem camada de texto: nada é legível e a conferência
+    // ficaria vazia sem explicação. Avisamos o que enviar no lugar.
+    if (lines.join('').replace(/\s+/g, '').length < 40) {
+      throw new Error('Este PDF não tem texto para ler — é um print da tela ou uma foto do extrato. Envie o arquivo oficial do banco: OFX (melhor leitura, é o que usamos hoje no Itaú) ou o PDF exportado pelo banco, não a tela impressa.');
+    }
+    return parsePdfLines(lines);
+  }
   throw new Error('Formato não suportado. Use OFX, CSV, Excel ou PDF.');
 }
 
