@@ -173,6 +173,10 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
        .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
    }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems]);
+   useEffect(() => {
+     const visible = new Set(rows.map(r => r.id));
+     setSelected(current => [...current].some(id => !visible.has(id)) ? new Set([...current].filter(id => visible.has(id))) : current);
+   }, [rows]);
   const autoCount = txs.filter(t => isAutoInvest(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to).length;
 
   const pend = rows.filter(r => r.recon_status === 'pendente');
