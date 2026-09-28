@@ -22,7 +22,7 @@ const db = supabase as any;
 interface Props { schoolId: string; accounts: BankAccount[]; txs?: BankTx[]; onViewAuto?: (importId: string, from: string, to: string) => void }
 
 interface Preview {
-  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; saldoAplicado: string; saldoCalc?: number;
+  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; linkRefs?: { id: string; bankRef: string }[]; saldoAplicado: string; saldoCalc?: number;
 }
 
 const lastDayPrevMonth = (() => { const d = new Date(); const x = new Date(d.getFullYear(), d.getMonth(), 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; })();
@@ -115,6 +115,21 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           efet.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const n = disp.get(k) ?? 0; if (n > 0) { existing.add(hashes[i]); disp.set(k, n - 1); } });
         }
       }
+      // OFX/CSV com identificador do banco: o mesmo lançamento pode já ter entrado por um PDF (sem identificador).
+      // Casa por data + valor + sentido com linhas sem bank_ref, uma correspondência por vez, e guarda o vínculo
+      // para gravar o identificador na linha antiga ao confirmar.
+      const linkRefs: { id: string; bankRef: string }[] = [];
+      if (result.formato !== 'pdf') {
+        const cand = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && x.t.bankRef && !existing.has(hashes[x.i]));
+        if (cand.length) {
+          const datas = cand.map(x => x.t.data).sort();
+          const { data: semRef } = await db.from('bank_transactions').select('id, data, valor, tipo').eq('account_id', accountId)
+            .eq('is_forecast', false).is('bank_ref', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const pool = new Map<string, string[]>();
+          (semRef ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]); });
+          cand.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef! }); } });
+        }
+      }
       const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
       const pats = patterns?.all ?? DEFAULT_AUTO_INVEST_PATTERNS;
       const own = ownNames.map(n => n.padrao);
@@ -132,7 +147,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const movN = result.transactions.reduce((a, t, i) => (t.futuro || existing.has(hashes[i]) || (acc.saldo_inicial_data && t.data <= acc.saldo_inicial_data)) ? a : a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
         saldoCalc = Math.round((Number(acc.saldo_inicial ?? 0) + movG + movN) * 100) / 100;
       }
-      setPreview({ file, hash, result, hashes, existing, kinds, saldoAplicado: '', saldoCalc });
+      setPreview({ file, hash, result, hashes, existing, kinds, linkRefs, saldoAplicado: '', saldoCalc });
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao ler o arquivo');
     } finally { setBusy(false); }
@@ -168,6 +183,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const { error } = await db.from('bank_transactions').upsert(chunk, { onConflict: 'account_id,dedup_hash', ignoreDuplicates: true });
         if (error) { await db.from('bank_statement_imports').delete().eq('id', imp.id); throw error; }
       }
+      for (const l of preview.linkRefs ?? []) await db.from('bank_transactions').update({ bank_ref: l.bankRef }).eq('id', l.id).is('bank_ref', null);
       try { const np = await autoPairTransfers(schoolId); if (np) toast.info(`${np} transferência(s) entre contas pareadas com a outra ponta`); } catch { /* pareamento é opcional */ }
       { const autoN = novos.filter(n => n.k === 'auto_aplicacao' || n.k === 'auto_resgate').length;
         const trN = novos.filter(n => n.k === 'transferencia').length; if (trN) toast.info(`${trN} lançamento(s) pré-marcados como transferência entre contas`);
