@@ -2870,33 +2870,42 @@ export type Database = {
       schools: {
         Row: {
           allow_weekend_entries: boolean
+          ativo: boolean
           created_at: string
           expense_detail_enabled: boolean
           expense_detail_label: string
           financial_model_template_id: string | null
           id: string
+          inativado_em: string | null
+          inativado_por: string | null
           nome: string
           saldo_inicial: number
           saldo_inicial_data: string | null
         }
         Insert: {
           allow_weekend_entries?: boolean
+          ativo?: boolean
           created_at?: string
           expense_detail_enabled?: boolean
           expense_detail_label?: string
           financial_model_template_id?: string | null
           id?: string
+          inativado_em?: string | null
+          inativado_por?: string | null
           nome: string
           saldo_inicial?: number
           saldo_inicial_data?: string | null
         }
         Update: {
           allow_weekend_entries?: boolean
+          ativo?: boolean
           created_at?: string
           expense_detail_enabled?: boolean
           expense_detail_label?: string
           financial_model_template_id?: string | null
           id?: string
+          inativado_em?: string | null
+          inativado_por?: string | null
           nome?: string
           saldo_inicial?: number
           saldo_inicial_data?: string | null
