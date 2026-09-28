@@ -44,6 +44,10 @@ Continua valendo: ajustes por empresa (desativar, renomear, etapa extra) e gera�
 
 ## Tela
 - Tela inicial da Central: mesma estrutura de hoje, só troca "Fechamento" por **Relatório** (percentual e cards).
+- Colunas da tabela, sem repetição:
+  - **Andamento** passa a mostrar o **percentual do Relatório** do mês (barra + "5 de 9 etapas"), em vez de repetir a conciliação.
+  - **Conciliação do dia** fica como único lugar da conciliação: selo (Extrato não enviado / Aguardando início / Em andamento / Concluída / Indisponível) + "X conciliados hoje".
+  - Sai o texto repetido "Ativa há X min" (o tempo já aparece em Última alteração).
 - Aba **Relatório** (antiga Fechamento): painel do mês da empresa, agrupado em Projeção, Despesas, KPIs, Receitas, Vendas, Contatos/Matrículas e Envio, com selo Automático/Manual, quem marcou e quando.
 - Cada etapa tem atalho para a tela onde a tarefa é feita (Simulação, Importação, Indicadores etc.).
 - A marca "Relatório entregue" da Central fica ligada à etapa 7.
