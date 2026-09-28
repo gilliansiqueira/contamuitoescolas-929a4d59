@@ -133,7 +133,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
         {(!fimOk || retidoTotal !== 0) && latest.length > 0 && (
           <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
             <p className="font-medium">Cheques retidos pelo banco</p>
-            <p className="mb-2 text-xs text-muted-foreground">Se o extrato mostra cheques depositados que o banco ainda segura, informe o valor retido na conta. Ele soma ao saldo disponível (o dinheiro já está nos lançamentos) e some sozinho quando o próximo extrato vier com o cheque liberado. Só libera a ativação se a diferença bater exatamente.</p>
+            <p className="mb-2 text-xs text-muted-foreground">Se o extrato mostra cheques depositados que o banco ainda segura, informe o valor retido na conta. Ele soma ao saldo disponível (o dinheiro já está nos lançamentos) e some sozinho quando o próximo extrato vier com o cheque liberado. Sobras de até R$ 10,00 (rendimento/centavos) ficam "a confirmar no próximo extrato" e não bloqueiam.</p>
             <div className="space-y-1.5">
               {latest.map(({ acc, anc }) => (
                 <div key={acc.id} className="flex flex-wrap items-center gap-2">
