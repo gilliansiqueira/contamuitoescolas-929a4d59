@@ -330,6 +330,13 @@
       "when": 1790622932025,
       "tag": "0046_available_months_include_bank",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790623375454,
+      "tag": "0047_bank_cashflow_operation_classification",
+      "breakpoints": true
     }
   ]
 }
