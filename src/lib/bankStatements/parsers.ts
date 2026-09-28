@@ -557,7 +557,8 @@ async function readPdfImageText(buf: ArrayBuffer): Promise<string> {
   try {
     for (let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
-      const viewport = page.getViewport({ scale: 3 });
+      // Aproxima 300 dpi para preservar vírgulas e sinais em valores pequenos.
+      const viewport = page.getViewport({ scale: 4.2 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
