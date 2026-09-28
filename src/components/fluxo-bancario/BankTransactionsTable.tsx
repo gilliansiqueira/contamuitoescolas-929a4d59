@@ -242,7 +242,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           </Select>
         </div>
         <div className="w-44"><label className="text-xs text-muted-foreground">Categoria</label>
-          <Select value={cat} onValueChange={v => setCat(v as any)}>
+          <Select value={cat} onValueChange={v => { setSelected(new Set()); setCat(v as typeof cat); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
              <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="receita">Receitas</SelectItem><SelectItem value="despesa">Despesas</SelectItem><SelectItem value="mov">Entrada / Saída (juntas)</SelectItem><SelectItem value="operacao">Operações</SelectItem><SelectItem value="ignorar">Ignorados</SelectItem><SelectItem value="dividido">Divididos</SelectItem><SelectItem value="transf">Transferências internas</SelectItem><SelectItem value="auto">Aplicação automática</SelectItem><SelectItem value="aclassificar">Tipo financeiro: A classificar</SelectItem></SelectContent>
           </Select>
@@ -305,7 +305,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <span className="font-semibold text-foreground">
             Selecionados: {selected.size}
           </span>
-          <CrossLine c={cross(selRows)} />
+           <CrossLine c={cross(selRows)} />
+           {financialFilter && selRows.some(t => !!t.splits?.length) && <span className="text-xs text-muted-foreground">Os totais mostram apenas as partes desta categoria; conciliar atua no lançamento inteiro.</span>}
           {selByStatus.conciliado.n > 0 && <span className="font-semibold text-success">Conciliados: {selByStatus.conciliado.n} ({fmtBRL(selByStatus.conciliado.valor)})</span>}
           {selByStatus.pendente.n > 0 && <span className="font-semibold text-warning">A conciliar: {selByStatus.pendente.n} ({fmtBRL(selByStatus.pendente.valor)})</span>}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Limpar seleção ✕</Button>
