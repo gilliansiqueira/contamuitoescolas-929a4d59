@@ -121,12 +121,20 @@ const LATE_INCOMPLETE_HOUR = 15;
 type CardMatch = (row: PortfolioRow, daily: DailyStatusRow | undefined, backlogCount: number) => boolean;
 interface CardDef { key: string; label: string; icon: LucideIcon; tone: string; strip: string; num: string; match: CardMatch }
 
+type DailyReconState = 'unavailable' | 'no_statement' | 'not_started' | 'in_progress' | 'done';
+function dailyReconState(daily: DailyStatusRow | undefined, bankAvailable: boolean): DailyReconState {
+  if (!bankAvailable || !daily) return 'unavailable';
+  if (!daily.statement_received) return 'no_statement';
+  if (daily.recon_required === 0 || daily.recon_pending === 0) return 'done';
+  return daily.reconciled_today > 0 ? 'in_progress' : 'not_started';
+}
+
 /** Dia (yyyy-mm-dd, fuso de São Paulo) de um timestamp; null quando não há. */
 function spDay(iso: string | null) {
   return iso ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso)) : null;
 }
 
-function cardDefsFor(mode: PeriodMode, today: string): CardDef[] {
+function cardDefsFor(mode: PeriodMode, today: string, available: (row: PortfolioRow, daily?: DailyStatusRow) => boolean): CardDef[] {
   if (mode === 'mes') return [
     { key: 'all', label: 'Empresas ativas', icon: Building2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: () => true },
     { key: 'updated_today', label: 'Atualizadas hoje', icon: CalendarDays, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: row => row.data_updated_through === today },
@@ -134,15 +142,16 @@ function cardDefsFor(mode: PeriodMode, today: string): CardDef[] {
     { key: 'closing_pending', label: 'Fechamento pendente', icon: FileCheck2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: row => !row.period_closed || !row.report_delivered },
   ];
   if (mode === 'hoje') return [
-    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
-    { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
-    { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
-    { key: 'no_activity', label: 'Sem atividade hoje', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, daily) => !!daily && spDay(daily.last_activity) !== today },
+     { key: 'no_statement', label: 'Extrato não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
+     { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
+     { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
+     { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'done' },
   ];
   return [
-    { key: 'no_statement', label: 'Extratos não enviados', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (_row, daily) => !!daily && !daily.statement_received },
-    { key: 'closed_100', label: 'Fecharam 100%', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending === 0 },
-    { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (_row, daily) => !!daily && daily.recon_required > 0 && daily.recon_pending > 0 },
+     { key: 'no_statement', label: 'Extrato não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
+     { key: 'closed_100', label: 'Concluídas', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'done' },
+     { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
+     { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
     { key: 'backlog', label: 'Pendências acumuladas', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, _daily, backlogCount) => backlogCount > 0 },
   ];
 }
@@ -304,6 +313,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   }, [responsibleCandidates]);
   const displayNameByUser = useMemo(() => new Map(displayNames.map(item => [item.user_id, item.display_name])), [displayNames]);
   const dailyBySchool = useMemo(() => new Map(dailyRows.map(d => [d.school_id, d])), [dailyRows]);
+  const bankAvailable = (row: PortfolioRow, daily?: DailyStatusRow) => {
+    const start = bankStartMonths?.get(row.school_id);
+    return !!daily && !!start && start <= daily.ref_day.slice(0, 7);
+  };
   const backlogBySchool = useMemo(() => { const m = new Map<string, number>(); backlog.forEach(b => m.set(b.school_id, (m.get(b.school_id) ?? 0) + 1)); return m; }, [backlog]);
   const reconDotOf = (row: PortfolioRow): ReconDot => {
     const daily = dailyBySchool.get(row.school_id);
@@ -319,7 +332,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     [rows, displayNameByUser]);
   const reconValueOf = (row: PortfolioRow) => mode === 'mes' ? row.reconciliation_percent : dayPercent(dailyBySchool.get(row.school_id));
 
-  const cardDefs = useMemo(() => cardDefsFor(mode, today), [mode, today]);
+  const cardDefs = useMemo(() => cardDefsFor(mode, today, bankAvailable), [mode, today, bankStartMonths]);
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
@@ -406,8 +419,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         case 'left_pending': return `${dailyMatched.reduce((t, d) => t + d.recon_pending, 0)} lançamentos pendentes`;
         case 'backlog': return 'Todos os dias anteriores';
         case 'in_progress': return `${dailyMatched.filter(isLateToday).length} atrasada(s) agora`;
+        case 'not_started': return mode === 'hoje' ? 'Extrato recebido; nenhuma conciliação iniciada hoje' : 'Extrato recebido; nenhuma conciliação iniciada no dia';
         case 'done_today': return `${dailyMatched.reduce((t, d) => t + d.reconciled_today, 0)} lançamentos conciliados hoje`;
-        case 'no_activity': return 'Empresas sem uso da plataforma';
         case 'all': return 'Toda a carteira';
         case 'updated_today': return 'Dados até hoje';
         case 'recon_pending': return `${completedReconciliation} já concluída${completedReconciliation === 1 ? '' : 's'}`;
