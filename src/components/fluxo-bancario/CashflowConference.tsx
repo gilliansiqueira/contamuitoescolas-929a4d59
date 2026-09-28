@@ -186,7 +186,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
         {card('Fechamento do saldo', data.diffSaldo === 0 ? 'Fecha' : fmtBRL(data.diffSaldo), data.ajusteConferido ? `inclui ajuste pelo saldo do extrato (a confirmar no próximo extrato): ${fmtBRL(data.ajusteConferido)}` : data.transitoValor ? `inclui transferências em trânsito: ${fmtBRL(data.transitoValor)} (${data.transito.map(t => `${accName.get(t.account_id) ?? ''} ${fmtDate(t.data)}`).join(', ')})` : 'inicial + entradas − saídas = final', data.diffSaldo !== 0)}
       </div>
 
-      {cfg.synced_through && <ActivationPreview schoolId={schoolId} cfg={cfg} gen={gen} bankTo={cfg.synced_through}
+      {cfg.synced_through && <ActivationPreview schoolId={schoolId} cfg={cfg} gen={gen} bankTo={cfg.synced_through} accounts={active}
         holder={(() => { const today = new Date().toISOString().slice(0, 10); if (cfg.synced_through! >= today) return undefined; const h = active.filter(a => (lastExtract.get(a.id) ?? '') <= cfg.synced_through!).map(a => a.nome); return h.length ? h.join(', ') : undefined; })()}
         bankIni={active.reduce((s, a) => s + accountBalances(a, txs, dayBefore(`${cfg.start_month}-01`)).total, 0)}
         bankFim={active.reduce((s, a) => s + accountBalances(a, txs, cfg.synced_through!).total, 0)} />}

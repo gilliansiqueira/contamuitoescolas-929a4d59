@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import type { BankAccount } from '@/lib/bankStatements/bankCashflowEngine';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, AlertTriangle, Power, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSchool, usePaymentDelayRules, useTypeClassifications, useRawEntriesFromBaseDate } from '@/hooks/useFinancialData';
 import { useSchoolModel } from '@/hooks/useSchoolModel';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
-import { useSetDataSourceStatus, type CashflowEntry, type DataSourceConfig } from '@/hooks/useBankPilot';
+import { useSetDataSourceStatus, useSetRetido, type CashflowEntry, type DataSourceConfig } from '@/hooks/useBankPilot';
 import { projectEntries } from '@/lib/projectionEngine';
 import { applyCashflowOverlay } from '@/lib/bankCashflowOverlay';
 import { buildMonthMovement, computeSaldoInicial, computeSaldoInicialRealizado } from '@/lib/periodMovement';
@@ -13,12 +15,22 @@ import { fmtBRL, fmtDate } from './shared';
 
 interface Props {
   schoolId: string; cfg: DataSourceConfig; gen: CashflowEntry[];
-  bankIni: number; bankFim: number; bankTo: string; holder?: string;
+  bankIni: number; bankFim: number; bankTo: string; holder?: string; accounts?: BankAccount[];
 }
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Prévia: como o Dashboard e o Fluxo Diário ficariam com o Fluxo de Caixa, usando os motores oficiais. */
-export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo, holder }: Props) {
+export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo, holder, accounts = [] }: Props) {
+  const setRetido = useSetRetido(schoolId);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const latest = accounts.map(a => ({ acc: a, anc: (a.anchors ?? [])[0] })).filter(x => x.anc && x.anc.data <= bankTo);
+  const retidoTotal = r2(latest.reduce((s, x) => s + Number(x.anc!.retido ?? 0), 0));
+  const parseBR = (v: string) => { const n = Number(v.replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) ? r2(n) : NaN; };
+  const saveRetido = (importId: string, raw: string) => {
+    const v = raw.trim() === '' ? null : parseBR(raw);
+    if (v !== null && (isNaN(v) || v < 0)) { toast.error('Valor inválido'); return; }
+    setRetido.mutate({ importId, valor: v || null }, { onSuccess: () => toast.success('Valor retido salvo'), onError: (e: any) => toast.error(e.message ?? 'Erro') });
+  };
   const month = cfg.start_month;
   const start = `${month}-01`;
   const { data: school } = useSchool(schoolId);
@@ -98,6 +110,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {p.ign !== 0 && row('Ignorados (banco) — só no saldo', p.ign)}
             {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
             {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.next.fimReal, bankFim)}
+            {retidoTotal !== 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>dos quais cheques retidos pelo banco (liberam nos próximos dias)</td><td className="text-right text-xs tabular-nums">{fmtBRL(retidoTotal)}</td></tr>}
           </tbody></table></div>
 
         <ul className="space-y-1 text-sm">
@@ -108,9 +121,26 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
           <li>{iniDiff === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {iniDiff === 0 ? 'Saldo inicial igual ao saldo do banco' : `Saldo inicial difere do banco em ${fmtBRL(iniDiff)}`}</li>
           <li>{fimOk ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-destructive" />}
-            {fimOk ? 'Saldo final igual ao saldo do banco' : `Saldo final difere do banco em ${fmtBRL(p.next.fimReal - bankFim)}`}</li>
+            {fimOk ? (retidoTotal ? `Saldo final bate com o banco (inclui ${fmtBRL(retidoTotal)} em cheques retidos)` : 'Saldo final igual ao saldo do banco') : `Saldo final difere do banco em ${fmtBRL(p.next.fimReal - bankFim)}`}</li>
           {(p.adjust !== 0 || r2(p.planIniReal - bankIni) !== 0) && <li className="text-muted-foreground">Informativo: o histórico antigo terminava agosto com {fmtBRL(p.planIni)} (projetado) e {fmtBRL(p.planIniReal)} (realizado); a diferença entre eles ({fmtBRL(p.planIniReal - p.planIni)}) vem de previsões antigas que nunca viraram realizado. Agosto não é alterado; com o Fluxo de Caixa, setembro começa pelo saldo do banco nos dois.</li>}
         </ul>
+        {(!fimOk || retidoTotal !== 0) && latest.length > 0 && (
+          <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+            <p className="font-medium">Cheques retidos pelo banco</p>
+            <p className="mb-2 text-xs text-muted-foreground">Se o extrato mostra cheques depositados que o banco ainda segura, informe o valor retido na conta. Ele soma ao saldo disponível (o dinheiro já está nos lançamentos) e some sozinho quando o próximo extrato vier com o cheque liberado. Só libera a ativação se a diferença bater exatamente.</p>
+            <div className="space-y-1.5">
+              {latest.map(({ acc, anc }) => (
+                <div key={acc.id} className="flex flex-wrap items-center gap-2">
+                  <span className="w-40 truncate">{acc.nome}</span>
+                  <span className="text-xs text-muted-foreground">extrato {fmtDate(anc!.data)}</span>
+                  <Input className="h-8 w-36" placeholder="0,00" value={draft[anc!.id] ?? (anc!.retido ? String(anc!.retido.toFixed(2)).replace('.', ',') : '')}
+                    onChange={e => setDraft(d => ({ ...d, [anc!.id]: e.target.value }))} />
+                  <Button size="sm" variant="outline" disabled={setRetido.isPending || draft[anc!.id] === undefined} onClick={() => saveRetido(anc!.id, draft[anc!.id] ?? '')}>Salvar</Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {!active && !ok && <p className="text-xs text-muted-foreground">O botão de ativar libera quando saldo inicial, movimento e saldo final baterem com o banco e não houver nada a classificar.</p>}
       </>)}
     </section>
