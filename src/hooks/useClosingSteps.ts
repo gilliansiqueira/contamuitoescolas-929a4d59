@@ -136,6 +136,25 @@ export function useMonthlyChecklist(schoolId: string | null, month: string) {
   });
 }
 
+/** Snapshot de etapas do mês para os cards da carteira; a página de dados evita o limite de 1.000 linhas. */
+export function useMonthlyChecklistSummary(month: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['monthly-checklist-summary', month],
+    enabled: enabled && /^\d{4}-\d{2}$/.test(month),
+    queryFn: async () => {
+      const bySchool = new Map<string, Pick<ChecklistItem, 'step_key' | 'status'>[]>();
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from('monthly_closing_checklist')
+          .select('school_id, step_key, status').eq('month', month).order('id').range(from, from + 999);
+        if (error) throw error;
+        for (const item of data ?? []) bySchool.set(item.school_id, [...(bySchool.get(item.school_id) ?? []), item]);
+        if (!data || data.length < 1000) break;
+      }
+      return bySchool;
+    },
+  });
+}
+
 export function useEnsureMonthlyChecklist() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -146,6 +165,7 @@ export function useEnsureMonthlyChecklist() {
     },
     onSuccess: (_inserted, { schoolId, month }) => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-checklist-summary', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
     },
@@ -164,6 +184,7 @@ export function useSetChecklistStatus(schoolId: string | null, month: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-checklist-summary', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
     },
