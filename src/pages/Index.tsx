@@ -49,13 +49,14 @@ const UsersConfig = lazyNamed(() => import('@/components/UsersConfig'), 'UsersCo
 const HistoricoFinanceiroConfig = lazyNamed(() => import('@/components/HistoricoFinanceiroConfig'), 'HistoricoFinanceiroConfig');
 const ModelosFinanceirosManager = lazyNamed(() => import('@/components/ModelosFinanceirosManager'), 'ModelosFinanceirosManager');
 const EmpresaModeloConfig = lazyNamed(() => import('@/components/EmpresaModeloConfig'), 'EmpresaModeloConfig');
+const ReconReasonsConfig = lazyNamed(() => import('@/components/fluxo-bancario/ReconReasonsConfig'), 'ReconReasonsConfig');
 const FluxoBancario = lazyNamed(() => import('@/components/fluxo-bancario/FluxoBancario'), 'FluxoBancario');
 
 const ScreenLoading = () => (
   <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>
 );
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -81,6 +82,7 @@ const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
   { key: 'upload', label: 'Upload de Dados' },
   { key: 'uploads_history', label: 'Histórico de Uploads' },
   { key: 'audit_history', label: 'Histórico de Alterações' },
+  { key: 'recon_reasons', label: 'Motivos de justificativa', adminOnly: true },
   { key: 'guide', label: 'Guia & Regras' },
   { key: 'export', label: 'Exportar / Importar' },
   { key: 'comparison', label: 'Projetado vs Real' },
@@ -92,7 +94,7 @@ const SIDEBAR_COLLAPSED_KEY = 'cm-sidebar-collapsed';
 const Index = () => {
   const { isPresentationMode } = usePresentation();
   const { isDemo, demoSchoolId } = useDemoMode();
-  const { isAdmin: realIsAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
+  const { isAdmin: realIsAdmin, isSuperAdmin, isAdminAll, profile, accessibleSchoolIds, signOut } = useAuth();
   const isAdmin = isDemo ? false : realIsAdmin;
   const { data: allSchools = [], isError: schoolsError, isFetching: schoolsFetching, refetch: refetchSchools } = useSchools();
   const [school, setSchool] = useState<School | null>(null);
@@ -198,7 +200,7 @@ function IndexBody({
     });
   }, []);
 
-  const settingsTabs = settingsTabsBase.filter(t => !t.adminOnly || isAdmin);
+  const settingsTabs = settingsTabsBase.filter(t => (!t.adminOnly || isAdmin) && (t.key !== 'recon_reasons' || (isSuperAdmin && !isDemo)));
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
   const canSeeAdminTabs = isAdmin && !isPresentationMode && !isDemo;
   const { data: bankPilotEnabled = false } = useSchoolFeature(school.id, BANK_PILOT_FEATURE, canSeeAdminTabs);
@@ -303,7 +305,7 @@ function IndexBody({
     },
   ].filter(g => g.items.length > 0);
 
-  const configKeys: Tab[] = ['users', 'saldo_inicial', 'empresa_modelo', 'modelos_financeiros', 'historico_financeiro', 'payment_delays', 'guide'];
+  const configKeys: Tab[] = ['users', 'saldo_inicial', 'empresa_modelo', 'modelos_financeiros', 'historico_financeiro', 'payment_delays', 'recon_reasons', 'guide'];
   const footerGroup: SidebarGroup | null = (!isPresentationMode && isAdmin)
     ? {
         key: 'configuracoes',
@@ -417,6 +419,7 @@ function IndexBody({
                     </ExportPdfSection>
                   )}
                   {activeTab === 'guide' && <UploadGuide schoolId={school.id} />}
+                  {activeTab === 'recon_reasons' && isSuperAdmin && <ReconReasonsConfig />}
                   {activeTab === 'comparison' && (
                     <ExportPdfSection fileName="projetado-vs-real">
                       <ProjectedVsReal schoolId={school.id} />

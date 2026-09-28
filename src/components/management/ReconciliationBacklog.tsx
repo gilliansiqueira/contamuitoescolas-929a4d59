@@ -25,6 +25,7 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
   const [age, setAge] = useState<Age>('all');
   const [openSchool, setOpenSchool] = useState<string | null>(focusSchoolId);
   const [openDays, setOpenDays] = useState<Set<string>>(new Set());
+  const [reasonFilter, setReasonFilter] = useState<string | null>(null);
 
   const responsibles = useMemo(() => {
     const m = new Map<string, string>();
@@ -104,11 +105,25 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
               </button>
               {isOpen && <div className="border-t bg-muted/10 px-4 py-3">
                 <div className="mb-2 flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">{s.total} lançamentos · {brl(s.value)}</span><Button size="sm" className="h-7 text-xs" onClick={() => onOpenSchool(s.info.school_id)}>Ir conciliar <ArrowRight className="ml-1 h-3 w-3" /></Button></div>
-                <div className="space-y-1.5">{s.days.map(([d, items]) => {
+                {(() => {
+                  const all = s.days.flatMap(([, it]) => it);
+                  const byR = new Map<string, number>();
+                  for (const i of all) { const k = i.reason_name ?? (i.data >= '2026-10-01' ? 'Sem justificativa' : 'Setembro (não exige)'); byR.set(k, (byR.get(k) ?? 0) + 1); }
+                  if (byR.size <= 1 && byR.has('Setembro (não exige)')) return null;
+                  return <div className="mb-2 flex flex-wrap gap-1">{[...byR.entries()].sort((x, y) => y[1] - x[1]).map(([k, n]) => {
+                    const on = reasonFilter === `${s.info.school_id}|${k}`;
+                    const tone = k === 'Sem justificativa' ? 'bg-destructive text-destructive-foreground' : k.startsWith('Setembro') ? 'bg-muted text-muted-foreground' : 'bg-info/15 text-info';
+                    return <button key={k} type="button" onClick={() => setReasonFilter(on ? null : `${s.info.school_id}|${k}`)} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tone} ${on ? 'ring-2 ring-primary' : ''}`}>{n} {k.toLowerCase()}</button>;
+                  })}</div>;
+                })()}
+                <div className="space-y-1.5">{s.days.map(([d, dayItems]) => {
+                  const rf = reasonFilter?.startsWith(`${s.info.school_id}|`) ? reasonFilter.slice(s.info.school_id.length + 1) : null;
+                  const items = rf ? dayItems.filter(i => (i.reason_name ?? (i.data >= '2026-10-01' ? 'Sem justificativa' : 'Setembro (não exige)')) === rf) : dayItems;
+                  if (!items.length) return null;
                   const k = `${s.info.school_id}|${d}`; const dayOpen = openDays.has(k) || s.days.length === 1;
                   return <div key={d} className="rounded-md border border-border bg-card">
                     <button type="button" onClick={() => toggleDay(k)} className="flex w-full items-center justify-between px-3 py-2 text-xs"><span className="font-medium"><span className="capitalize">{fmt(d)}</span> <span className="ml-1 text-muted-foreground">há {ageOf(d, today)} dia{ageOf(d, today) === 1 ? '' : 's'}</span></span><span className="flex items-center gap-1"><strong>{items.length}</strong><ChevronDown className={`h-3 w-3 transition-transform ${dayOpen ? 'rotate-180' : ''}`} /></span></button>
-                    {dayOpen && <div className="divide-y divide-border border-t">{items.map(i => <div key={i.transaction_id} className="grid grid-cols-[1fr_auto] gap-2 px-3 py-1.5 text-[11px] sm:grid-cols-[2fr_1fr_auto]"><span className="truncate" title={i.descricao}>{i.descricao}</span><span className="hidden truncate text-muted-foreground sm:block">{i.account_name ?? '—'}</span><span className={`text-right font-medium tabular-nums ${i.tipo === 'entrada' ? 'text-success' : 'text-destructive'}`}>{i.tipo === 'entrada' ? '' : '-'}{brl(Math.abs(i.valor))}</span></div>)}</div>}
+                    {dayOpen && <div className="divide-y divide-border border-t">{items.map(i => <div key={i.transaction_id} className="grid grid-cols-[1fr_auto] gap-2 px-3 py-1.5 text-[11px] sm:grid-cols-[2fr_1fr_auto]"><span className="truncate" title={`${i.descricao}${i.reason_name ? ` — ${i.reason_name}${i.justification_note ? `: ${i.justification_note}` : ''}` : ''}`}>{i.descricao}{i.reason_name && <span className="ml-1 text-info">· {i.reason_name}</span>}</span><span className="hidden truncate text-muted-foreground sm:block">{i.account_name ?? '—'}</span><span className={`text-right font-medium tabular-nums ${i.tipo === 'entrada' ? 'text-success' : 'text-destructive'}`}>{i.tipo === 'entrada' ? '' : '-'}{brl(Math.abs(i.valor))}</span></div>)}</div>}
                   </div>;
                 })}</div>
               </div>}

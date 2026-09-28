@@ -107,7 +107,7 @@ export interface DailyStatusRow {
   statement_received: boolean; reconciled_today: number; imports_today: number; last_activity: string | null;
 }
 export interface BacklogRow {
-  transaction_id: string; school_id: string; data: string; descricao: string; valor: number; tipo: string; account_name: string | null;
+  transaction_id: string; school_id: string; data: string; descricao: string; valor: number; tipo: string; account_name: string | null; reason_name?: string | null; justification_note?: string | null;
 }
 
 /** Data de hoje no fuso de São Paulo (yyyy-mm-dd). */

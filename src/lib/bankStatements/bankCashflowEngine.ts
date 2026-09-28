@@ -51,6 +51,9 @@ export interface BankTx {
   created_at: string;
   movement_kind?: MovementKind;
   splits?: BankSplit[];
+  justification_reason_id?: string | null;
+  justification_note?: string | null;
+  justified_at?: string | null;
 }
 
 export const signed = (t: Pick<BankTx, 'valor' | 'tipo'>) => (t.tipo === 'entrada' ? Number(t.valor) : -Number(t.valor));
