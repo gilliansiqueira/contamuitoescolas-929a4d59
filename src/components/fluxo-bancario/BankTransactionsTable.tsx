@@ -159,7 +159,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return txs
-      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : catOf(t) === cat)) && (!importFilter || t.import_id === importFilter))
+      .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter]);
   const autoCount = txs.filter(t => isAutoInvest(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to).length;
@@ -169,7 +169,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const conc = rows.filter(r => r.recon_status === 'conciliado');
   const concValor = conc.reduce((s, r) => s + Number(r.valor), 0);
   /** Conferência de soma pelo sentido do extrato (não é classificação financeira). */
-  const cross = (list: BankTx[]) => { let e = 0, s2 = 0, ne = 0, ns = 0; for (const r of list) { const v = Math.abs(Number(r.valor)); if (r.tipo === 'entrada') { e += v; ne++; } else { s2 += v; ns++; } } return { e, s: s2, ne, ns, diff: Math.round((e - s2) * 100) / 100 }; };
+  const ignoredPart = (r: BankTx) => cat === 'ignorar' && r.splits?.length ? r.splits.filter(sp => sp.categoria === 'ignorar').reduce((s, sp) => s + Math.abs(Number(sp.valor)), 0) : Math.abs(Number(r.valor));
+  const cross = (list: BankTx[]) => { let e = 0, s2 = 0, ne = 0, ns = 0; for (const r of list) { const v = ignoredPart(r); if (r.tipo === 'entrada') { e += v; ne++; } else { s2 += v; ns++; } } return { e, s: s2, ne, ns, diff: Math.round((e - s2) * 100) / 100 }; };
   const CrossLine = ({ c }: { c: ReturnType<typeof cross> }) => <span className="inline-flex flex-wrap items-center gap-x-2"><span className="text-success">Entradas {fmtBRL(c.e)} ({c.ne})</span>·<span className="text-destructive">Saídas {fmtBRL(c.s)} ({c.ns})</span>·{c.diff === 0 ? <span className="font-semibold text-success">Diferença R$ 0,00 ✓ batem</span> : <span className="font-semibold text-warning">Diferença {fmtBRL(Math.abs(c.diff))} · sobra em {c.diff > 0 ? 'entradas' : 'saídas'}</span>}</span>;
 
   /** Totais da seleção atual — mesmo conjunto usado pelas ações em lote ([...selected]). */
@@ -363,7 +364,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                 <td className="p-2"><Button size="sm" variant="ghost" className={`h-7 px-1.5 ${t.recon_note ? 'text-primary' : 'text-muted-foreground'}`} title={t.recon_note || 'Adicionar observação'} aria-label="Observação" onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className={`h-4 w-4 ${t.recon_note ? 'fill-primary/20' : ''}`} /></Button></td>
               </tr>
               {expanded.has(t.id) && t.splits?.map(sp => (
-                <tr key={sp.id} className="bg-muted/20 text-xs">
+                <tr key={sp.id} className={`text-xs ${cat === 'ignorar' && sp.categoria === 'ignorar' ? 'bg-warning/15 font-semibold' : 'bg-muted/20'}`}>
                   <td className="sticky left-0 bg-card" /><td /><td />
                   <td className="p-1.5 pl-6">↳ {sp.descricao || displayDesc(t)}</td>
                   <td className="p-1.5">{sp.categoria === 'normal' ? (t.tipo === 'entrada' ? 'Receita' : 'Despesa') : CAT_LABEL[sp.categoria]}
