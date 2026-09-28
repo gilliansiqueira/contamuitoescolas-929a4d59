@@ -128,16 +128,34 @@ export interface SheetRow {
   valor: string;
 }
 
-/** Colunas: centro de custo, data, descrição, tipo, valor. */
+/**
+ * Colunas: centro de custo, data, descrição, tipo, valor.
+ * Também aceita o relatório "Contas pagas":
+ * data de pagamento, nome, categoria, centro de custo, valor, banco (sempre despesa).
+ */
 export function parseSpreadsheet(text: string, fallbackMonth: string) {
   const rows: SheetRow[] = [];
   const warnings: string[] = [];
   const lines = text.split('\n').filter(l => l.trim());
+  const isDate = (s: string) => /^\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}$|^\d{4}-\d{2}-\d{2}$/.test((s || '').trim());
 
   lines.forEach((raw, idx) => {
     const parts = raw.split(/\t|;/).map(p => p.trim());
     const first = (parts[0] || '').toLowerCase();
-    if (idx === 0 && (first.includes('centro') || first.includes('grupo'))) return; // cabeçalho
+    if (idx === 0 && (first.includes('centro') || first.includes('grupo') || first.includes('data'))) return; // cabeçalho
+
+    // Layout "Contas pagas": data primeiro, centro de custo na 4ª coluna.
+    if (isDate(parts[0]) && parts.length >= 5) {
+      const data = parseDataTexto(parts[0], fallbackMonth);
+      const nome = parts[1];
+      const categoria = parts[2];
+      const grupo = parts[3] || 'Sem Centro de Custo Definido';
+      const descricao = [nome, categoria].filter(Boolean).join(' — ');
+      if (!descricao) { warnings.push(`Linha ${idx + 1} ignorada (sem nome/categoria)`); return; }
+      rows.push({ grupo, data, descricao, tipo: 'despesa', valor: formatBRL(parseValorTexto(parts[4])) });
+      return;
+    }
+
     if (parts.length < 3) {
       warnings.push(`Linha ${idx + 1} ignorada (menos de 3 colunas)`);
       return;
@@ -146,7 +164,7 @@ export function parseSpreadsheet(text: string, fallbackMonth: string) {
     if (!grupo) { warnings.push(`Linha ${idx + 1} ignorada (sem centro de custo)`); return; }
 
     const data = parseDataTexto(parts[1], fallbackMonth);
-    if (!data) { warnings.push(`Linha ${idx + 1} ignorada (data inválida: "${parts[1]}")`); return; }
+    if (!data) { warnings.push(`Linha ${idx + 1} ignorada: a 2ª coluna deveria ser a data, mas veio "${parts[1]}". Ordem esperada: centro de custo, data, descrição, tipo, valor — ou o relatório "Contas pagas" completo.`); return; }
 
     const descricao = parts[2];
     if (!descricao) { warnings.push(`Linha ${idx + 1} ignorada (sem descrição)`); return; }
