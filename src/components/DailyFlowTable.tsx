@@ -98,7 +98,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   const adjustedProjectedEntries = useMemo(
     () => projectedEntries.filter(e => {
-      if (e.origem === 'fluxo' || e.impacto === 0) return false;
+      if ((e.origem === 'fluxo' && e.tipoRegistro !== 'projetado') || e.impacto === 0) return false;
       return monthHasData(e);
     }),
     [projectedEntries, monthHasData]
@@ -106,7 +106,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   const realizedEntries = useMemo(
     () => rawEntries
-      .filter(e => e.origem === 'fluxo')
+       .filter(e => e.origem === 'fluxo' && e.tipoRegistro !== 'projetado')
       .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }) as ProjectedEntry)
       .filter(e => e.impacto !== 0),
     [rawEntries, classifications]
@@ -249,9 +249,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   // Saldo final oficial vem da SSOT (invariante saldoInicial(M+1) = saldoFinal(M)).
   const saldoFinalPeriodo = saldoFinalPeriodoSSOT;
   const lastMonth = months[months.length - 1];
-  const lastCutoff = dailyData.find(d => d.data === confirmedBalance?.date && d.isCutoff);
+   const lastCutoff = dailyData.find(d => d.data === confirmedBalance?.date);
   const confirmedForPeriod = selectedMonth !== 'all' && lastMonth === confirmedBalance?.date.slice(0, 7)
-    && lastCutoff ? confirmedBalance : null;
+     && lastCutoff && projectedEntries.some(e => e.origem === 'fluxo' && e.tipoRegistro !== 'projetado' && e.dataProjetada === confirmedBalance.date)
+     ? confirmedBalance : null;
   const bankDifference = confirmedForPeriod
     ? Math.round((confirmedForPeriod.balance - lastCutoff.saldoFinalRealizado) * 100) / 100 : 0;
 
@@ -305,6 +306,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
             valueClassName={saldoFinalPeriodo >= 0 ? 'text-primary' : 'text-destructive'}
           />
           {confirmedForPeriod && <CompactStat label={`Saldo bancário em ${formatDateBR(confirmedForPeriod.date)}`} value={formatCurrency(confirmedForPeriod.balance)} valueClassName="text-success" />}
+          {confirmedForPeriod && Math.abs(bankDifference) >= 0.005 && <CompactStat label={Math.abs(bankDifference) <= 10 ? 'A confirmar no próximo extrato' : 'Diferença a conferir'} value={formatCurrency(Math.abs(bankDifference))} valueClassName="text-warning" />}
           <CompactStat label="Entrada prevista" value={formatCurrency(totals.entradaPrevista)} valueClassName="text-blue-600 dark:text-blue-300" />
           <CompactStat label="Entrada realizada" value={formatCurrency(totals.entradaRealizada)} valueClassName="text-primary" />
           <CompactStat label="Saída prevista" value={formatCurrency(totals.saidaPrevista)} valueClassName="text-orange-500" />
