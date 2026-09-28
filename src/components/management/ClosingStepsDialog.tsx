@@ -14,7 +14,8 @@ import {
   useSaveClosingStepTemplate,
   useSaveSchoolStepOverride,
   useSchoolStepOverrides,
-  useSetChecklistStatus,
+  useDailyTasks,
+  useSetDailyTaskStatus,
 } from '@/hooks/useClosingSteps';
 import { ReportChecklist } from '@/components/management/ReportChecklist';
 
@@ -169,7 +170,8 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
           <DialogDescription>Acompanhe o passo a passo do relatório de {monthLabel} e ajuste as etapas desta empresa.</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+        <div className="max-h-[65vh] space-y-4 overflow-y-auto pr-1">
+          {schoolId && <DailyTasksSection schoolId={schoolId} />}
           <section>
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Etapas desta empresa</h3>
@@ -231,5 +233,39 @@ export function SchoolStepsDialog({ open, onOpenChange, schoolId, schoolName, mo
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function todaySP() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+}
+
+function DailyTasksSection({ schoolId }: { schoolId: string }) {
+  const day = todaySP();
+  const { data: tasks = [], isLoading } = useDailyTasks(schoolId, day);
+  const setStatus = useSetDailyTaskStatus(schoolId, day);
+  const done = tasks.filter(t => t.status !== 'open').length;
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tarefas do dia — {new Date(`${day}T12:00:00`).toLocaleDateString('pt-BR')} ({done} de {tasks.length})</h3>
+      {isLoading && <p className="py-2 text-center text-xs text-muted-foreground">Carregando…</p>}
+      <div className="divide-y divide-border rounded-md border border-border">
+        {tasks.map(task => (
+          <div key={task.id} className="flex items-center gap-2 px-2.5 py-2">
+            {task.status === 'completed' ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : task.status === 'not_applicable' ? <MinusCircle className="h-4 w-4 shrink-0 text-muted-foreground" /> : <Circle className="h-4 w-4 shrink-0 text-warning" />}
+            <span className={`flex-1 text-xs ${task.status === 'completed' ? 'text-muted-foreground line-through' : ''}`}>{task.label}</span>
+            {task.check_kind === 'auto' && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">Automático</span>}
+            <Select value={task.status} onValueChange={value => setStatus.mutate({ id: task.id, status: value as 'open' | 'completed' | 'not_applicable' }, { onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar.') })}>
+              <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open">Pendente</SelectItem>
+                <SelectItem value="completed">Concluída</SelectItem>
+                <SelectItem value="not_applicable">Não se aplica</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
