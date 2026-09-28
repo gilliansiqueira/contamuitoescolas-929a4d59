@@ -1,7 +1,22 @@
-# Relatório Mensal: etapas de entrega na Central de Clientes
+# Tarefas do dia e Relatório mensal na Central de Clientes
 
 ## Objetivo
-Trocar "Fechamento" por **Relatório** e trocar as 3 etapas genéricas de hoje (Subir extratos, Conciliar movimentação, Verificar Contas a Pagar) pelas etapas reais da entrega do relatório. A equipe e a gestão acompanham cada passo, e o sistema marca sozinho o que ele consegue conferir.
+Separar duas listas de acompanhamento:
+- **Tarefas do dia** (rotina diária): conciliação, agendamento de contas a pagar, baixas no sistema e fechamento de caixa para o cliente.
+- **Relatório** (entrega mensal): o passo a passo abaixo.
+
+A tela inicial da Central fica praticamente igual; só o nome "Fechamento" vira **Relatório**. Os detalhes das etapas ficam dentro da aba que hoje se chama Fechamento (renomeada para Relatório). As 3 etapas genéricas de hoje saem do Relatório e passam para Tarefas do dia.
+
+## Tarefas do dia (lista diária, modelo padrão por empresa)
+
+```text
+1. Conciliação do dia ............ automático (sem pendências do dia no Fluxo Bancário)
+2. Agendamento de contas a pagar . manual
+3. Baixas no sistema ............. manual
+4. Fechamento de caixa enviado ao cliente ... manual
+```
+- Geradas todo dia útil como pendentes, com quem marcou e quando; ajustes por empresa (desativar, renomear, tarefa extra) no mesmo modelo do Relatório.
+- Na Central, a coluna de conciliação do dia continua como está; ao lado, um contador "Tarefas do dia: 3 de 4", e o detalhe abre dentro da ficha da empresa.
 
 ## Etapas (modelo padrão para todas as empresas)
 
@@ -28,8 +43,8 @@ Tipos de etapa:
 Continua valendo: ajustes por empresa (desativar, renomear, etapa extra) e geração automática todo mês como pendente.
 
 ## Tela
-- Na Central, a coluna/percentual passa a se chamar **Relatório** (ex.: "5 de 9 etapas").
-- Ao clicar, abre o painel do relatório do mês da empresa, agrupado em Projeção, Despesas, KPIs, Receitas, Vendas, Contatos/Matrículas e Envio, com selo Automático/Manual, quem marcou e quando.
+- Tela inicial da Central: mesma estrutura de hoje, só troca "Fechamento" por **Relatório** (percentual e cards).
+- Aba **Relatório** (antiga Fechamento): painel do mês da empresa, agrupado em Projeção, Despesas, KPIs, Receitas, Vendas, Contatos/Matrículas e Envio, com selo Automático/Manual, quem marcou e quando.
 - Cada etapa tem atalho para a tela onde a tarefa é feita (Simulação, Importação, Indicadores etc.).
 - A marca "Relatório entregue" da Central fica ligada à etapa 7.
 
