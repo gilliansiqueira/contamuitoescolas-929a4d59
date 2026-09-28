@@ -352,8 +352,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
     for (const row of rows) {
       const steps = monthlySteps.get(row.school_id) ?? [];
-      if (steps.length === 0) { bySchool.set(row.school_id, 'sem_etapas'); continue; }
       if (row.report_delivered) { bySchool.set(row.school_id, 'entregue'); continue; }
+      if (steps.length === 0) { bySchool.set(row.school_id, 'sem_etapas'); continue; }
       const first = reportGroups.find(g => steps.some(s => s.status === 'open' && (groupByKey.get(s.step_key) === g.key || (g.key === 'receitas' && groupByKey.get(s.step_key) === 'vendas'))));
       bySchool.set(row.school_id, first?.key ?? (steps.some(s => s.status === 'open') ? 'extras' : 'entregue'));
     }
@@ -361,7 +361,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   }, [monthlySteps, rows, stepTemplates]);
   const cardDefs = useMemo(() => view === 'closing' ? [
     ...reportGroups.map(g => ({ ...g, match: (row: PortfolioRow) => reportStage.get(row.school_id) === g.key })),
-    { key: 'sem_etapas', label: 'Sem etapas', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'sem_etapas' || reportStage.get(row.school_id) === 'extras' },
+    { key: 'sem_etapas', label: 'Outras pendências', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'sem_etapas' || reportStage.get(row.school_id) === 'extras' },
     { key: 'entregue', label: 'Entregues', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'entregue' },
   ] : cardDefsFor(mode, today, bankAvailable), [view, mode, today, bankStartMonths, reportStage]);
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
