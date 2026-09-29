@@ -118,7 +118,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       // OFX/CSV com identificador do banco: o mesmo lançamento pode já ter entrado por um PDF (sem identificador).
       // Casa por data + valor + sentido com linhas sem bank_ref, uma correspondência por vez, e guarda o vínculo
       // para gravar o identificador na linha antiga ao confirmar.
-      const linkRefs: { id: string; bankRef: string }[] = [];
+      const linkRefs: { id: string; bankRef: string; replace?: boolean }[] = [];
       // Mesmo número do banco já gravado na conta (ex.: linha vinda do PDF que recebeu o identificador depois) = já existe.
       {
         const comRef = result.transactions.map((t, i) => ({ t, i })).filter(x => x.t.bankRef && !existing.has(hashes[x.i]));
