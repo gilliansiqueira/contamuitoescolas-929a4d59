@@ -100,6 +100,10 @@ export function parseOFX(content: string): BankParseResult {
     if (valor > 0 && BLOCKED_DEPOSIT_RE.test(memo)) { bloqN++; bloqT += valor; continue; }
     txs.push({ data, descricao: memo || 'Transação', valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada', bankRef: fitid || undefined });
   }
+  // FITID só identifica o lançamento se for único no arquivo e não for só zeros (CEF/Sisprime repetem).
+  const freq = new Map<string, number>();
+  for (const t of txs) if (t.bankRef) freq.set(t.bankRef, (freq.get(t.bankRef) ?? 0) + 1);
+  for (const t of txs) if (t.bankRef && (freq.get(t.bankRef)! > 1 || /^0+$/.test(t.bankRef))) t.bankRef = undefined;
   const bal = content.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
   const avail = content.match(/<AVAILBAL>[\s\S]*?<BALAMT>([^<\r\n]+)/i)?.[1];
   let saldoFinal = bal ? parseBRNumber(bal) : undefined;
