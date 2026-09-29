@@ -124,6 +124,13 @@ export function parseOFX(content: string): BankParseResult {
   if (dtStart && (!r.periodoInicio || dtStart < r.periodoInicio)) r.periodoInicio = dtStart;
   const hoje = new Date().toISOString().slice(0, 10);
   if (dtEnd && dtEnd <= hoje && (!r.periodoFim || dtEnd > r.periodoFim)) r.periodoFim = dtEnd;
+  // Saldo com data posterior ao extrato (ex.: Inter informa o saldo do dia do download): não é o saldo do fim do período.
+  const asOf = toIsoDate(content.match(/<LEDGERBAL>[\s\S]*?<DTASOF>([^<\r\n]+)/i)?.[1] ?? '');
+  if (asOf && r.periodoFim && asOf > r.periodoFim && r.saldoFinalInformado !== undefined) {
+    avisosExtra.push(`O saldo do arquivo (R$ ${r.saldoFinalInformado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) é de ${asOf.split('-').reverse().join('/')}, depois do fim do extrato; não usado na conferência.`);
+    r.saldoAtualCabecalho = r.saldoFinalInformado;
+    r.saldoFinalInformado = undefined;
+  }
   r.avisos = [...avisoBloqueados(bloqN, bloqT), ...avisosExtra];
   return r;
 }
