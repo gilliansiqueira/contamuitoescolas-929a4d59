@@ -126,10 +126,10 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           const refs = Array.from(new Set(comRef.map(x => x.t.bankRef!)));
           const achados = new Set<string>();
           for (let k = 0; k < refs.length; k += 200) {
-            const { data: rows } = await db.from('bank_transactions').select('bank_ref').eq('account_id', accountId).in('bank_ref', refs.slice(k, k + 200));
-            (rows ?? []).forEach((r: any) => r.bank_ref && achados.add(r.bank_ref));
+            const { data: rows } = await db.from('bank_transactions').select('bank_ref, data, valor, tipo').eq('account_id', accountId).in('bank_ref', refs.slice(k, k + 200));
+            (rows ?? []).forEach((r: any) => r.bank_ref && achados.add(`${r.bank_ref}|${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`));
           }
-          comRef.forEach(({ t, i }) => { if (achados.has(t.bankRef!)) existing.add(hashes[i]); });
+          comRef.forEach(({ t, i }) => { if (achados.has(`${t.bankRef}|${t.data}|${t.tipo}|${t.valor.toFixed(2)}`)) existing.add(hashes[i]); });
         }
       }
       if (result.formato !== 'pdf') {
