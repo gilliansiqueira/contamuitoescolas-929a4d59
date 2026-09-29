@@ -18,11 +18,16 @@ Os lançamentos gravados de cada conta chegam aos saldos do banco:
 1. Abrir São Braz na prévia (Fluxo Bancário, Conferência e Fluxo Diário) e achar em qual quadro aparecem os R$ 189.064,88.
 2. Refazer a conta desse quadro conta por conta e dia por dia. Assim localizo as linhas exatas que somam os R$ 28.057,54: previsões, saídas futuras, transferências próprias sem par, conta fora do cálculo ou data errada.
 3. Corrigir a causa com o menor ajuste possível, dentro das regras oficiais de cálculo. Se for dado errado, corrijo o dado e registro no histórico. Se for regra da tela, corrijo a regra e crio um teste.
-4. Conferir na tela que o consolidado de 28/09 fecha em R$ 217.122,42, com o Sicredi TS em R$ 212.417,85 nessa data.
+4. Conferir na tela que o consolidado de 28/09 fecha em R$ 213.683,27 (sem o Bradesco), com o Sicredi TS em R$ 212.417,85 nessa data.
 5. Explicar a causa com as linhas responsáveis e publicar, se houver mudança no sistema.
 
-## Ponto para a equipe
-O Bradesco não tem nenhum extrato em setembro. O sistema usa só o saldo inicial de R$ 3.439,15. Se houve movimento no Bradesco no mês, é preciso enviar o extrato dele.
+## Bradesco (conta bloqueada por decisão da Justiça)
+- Não vou apagar a conta, porque isso perderia o histórico. Vou marcar o Bradesco como **conta inativa**. Assim ela sai do saldo consolidado e da conferência, e deixa de exigir extrato. O saldo de R$ 3.439,15 continua registrado.
+- Com isso, o total esperado de São Braz em 28/09 passa a ser **R$ 213.683,27** (Stone + Sicredi TS + Sicredi PRAC). Depois de tirar o Bradesco, ainda sobra uma diferença de **R$ 24.618,39** para explicar.
+- Quando o caso for resolvido, a conta pode ser reativada e volta a entrar no cálculo.
+
+## Quem faz
+Eu faço todos os passos acima. A equipe não precisa verificar nada. No fim, mostro a causa e os valores conferidos na tela.
 
 ## Detalhes técnicos
 - Contas ativas: saldo_inicial em 31/08. Não há registros em bank_account_balances nem previsões (is_forecast) para essa empresa.
