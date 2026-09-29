@@ -356,6 +356,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                           : !t.transfer_pair_id && <DropdownMenuItem onClick={() => setCategory([t.id], t.tipo === 'saida' ? 'auto_aplicacao' : 'auto_resgate')}><PiggyBank className="mr-2 h-4 w-4" />Marcar como aplicação automática</DropdownMenuItem>}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openHistory(t)}><History className="mr-2 h-4 w-4" />Histórico</DropdownMenuItem>
+                        {t.recon_status !== 'conciliado' && <DropdownMenuItem className="text-destructive" onClick={() => { setDelTx(t); setDelReason(''); }}><Trash2 className="mr-2 h-4 w-4" />Excluir lançamento</DropdownMenuItem>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
