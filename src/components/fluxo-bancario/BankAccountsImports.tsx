@@ -31,7 +31,7 @@ const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: 
 export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }: Props) {
   const autoByImport = new Map<string, number>();
   for (const t of txs) if (t.movement_kind === 'auto_aplicacao' || t.movement_kind === 'auto_resgate') autoByImport.set(t.import_id, (autoByImport.get(t.import_id) ?? 0) + 1);
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const { data: imports = [] } = useBankImports(schoolId);
   const invalidate = useInvalidateBank(schoolId);
   const [form, setForm] = useState<typeof emptyForm | null>(null);
@@ -378,11 +378,15 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               {p.saldoAtualCabecalho !== undefined && p.saldoAtualCabecalho !== p.saldoFinalInformado && <p className="text-xs text-muted-foreground">Saldo atual no cabeçalho: {fmtBRL(p.saldoAtualCabecalho)} — não usado para criar lançamento.</p>}
               {preview.saldoCalc !== undefined && p.saldoFinalInformado !== undefined && p.saldoComAplicacaoInformado === undefined && p.saldoFinalInformado - preview.saldoCalc >= 0.01 && (
                 <div className="space-y-1 rounded-md bg-warning/15 p-2 text-xs text-warning">
-                  <p className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" />O saldo do arquivo ({fmtBRL(p.saldoFinalInformado)}) é maior que o saldo em conta calculado ({fmtBRL(preview.saldoCalc)}): diferença de {fmtBRL(p.saldoFinalInformado - preview.saldoCalc)}. Alguns bancos (ex.: Bradesco) somam o valor aplicado no saldo do arquivo.</p>
-                  <Button size="sm" variant="outline" onClick={() => setPreview({ ...preview, result: { ...p, saldoFinalInformado: preview.saldoCalc, saldoComAplicacaoInformado: p.saldoFinalInformado } })}>
-                    Tratar {fmtBRL(p.saldoFinalInformado - preview.saldoCalc)} como aplicação
-                  </Button>
-                  <p className="text-muted-foreground">Se não for aplicação, confira o saldo inicial da conta antes de importar.</p>
+                  <p className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" />O saldo do arquivo ({fmtBRL(p.saldoFinalInformado)}) é maior que o saldo em conta calculado ({fmtBRL(preview.saldoCalc)}): diferença de {fmtBRL(p.saldoFinalInformado - preview.saldoCalc)}.</p>
+                  {isSuperAdmin ? (<>
+                    <Button size="sm" variant="outline" onClick={() => setPreview({ ...preview, result: { ...p, saldoFinalInformado: preview.saldoCalc, saldoComAplicacaoInformado: p.saldoFinalInformado } })}>
+                      Tratar {fmtBRL(p.saldoFinalInformado - preview.saldoCalc)} como aplicação
+                    </Button>
+                    <p className="text-muted-foreground">Se não for aplicação, confira o saldo inicial da conta antes de importar.</p>
+                  </>) : (
+                    <p className="text-muted-foreground">Não confirme a importação. Chame a supervisão para conferir essa diferença.</p>
+                  )}
                 </div>
               )}
               {p.saldoComAplicacaoInformado !== undefined && !accounts.find(a => a.id === accountId)?.has_auto_invest && <p className="text-xs text-muted-foreground">Em conta {fmtBRL(p.saldoFinalInformado ?? 0)} · total com aplicação {fmtBRL(p.saldoComAplicacaoInformado)}.</p>}
