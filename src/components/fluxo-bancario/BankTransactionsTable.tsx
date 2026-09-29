@@ -29,6 +29,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noteTx, setNoteTx] = useState<BankTx | null>(null);
+  const [delTx, setDelTx] = useState<BankTx | null>(null);
+  const [delReason, setDelReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [history, setHistory] = useState<{ tx: BankTx; rows: Awaited<ReturnType<typeof fetchReconHistory>> } | null>(null);
   const [showPairs, setShowPairs] = useState(false);
@@ -434,6 +437,25 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <DialogFooter>
             <Button variant="ghost" onClick={() => setMissing(null)}>Fechar</Button>
             <Button onClick={() => { const ids = (missing ?? []).map(m => m.transaction_id); setMissing(null); openJustify(ids); }}>Justificar todas</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!delTx} onOpenChange={o => !o && setDelTx(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Excluir lançamento</DialogTitle></DialogHeader>
+          {delTx && <p className="text-sm">{fmtDate(delTx.data)} · {accName.get(delTx.account_id) ?? ''} · {displayDesc(delTx)} · <strong>{fmtBRL(Number(delTx.valor))}</strong></p>}
+          <p className="text-xs text-muted-foreground">Use só quando o mesmo movimento entrou duas vezes (ex.: valor provisório do banco que mudou no dia seguinte). A exclusão fica registrada no histórico.</p>
+          <Textarea value={delReason} onChange={e => setDelReason(e.target.value)} rows={2} placeholder="Motivo (obrigatório)" />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDelTx(null)}>Cancelar</Button>
+            <Button variant="destructive" disabled={!delReason.trim() || deleting} onClick={async () => {
+              if (!delTx) return; setDeleting(true);
+              const { error } = await (supabase as any).rpc('delete_bank_tx', { _tx_id: delTx.id, _motivo: delReason.trim() });
+              setDeleting(false);
+              if (error) { toast.error(error.message); return; }
+              toast.success('Lançamento excluído'); setDelTx(null); setDelReason(''); invalidateBank();
+            }}>Excluir</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
