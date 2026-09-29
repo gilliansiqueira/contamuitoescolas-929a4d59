@@ -22,7 +22,7 @@ const db = supabase as any;
 interface Props { schoolId: string; accounts: BankAccount[]; txs?: BankTx[]; onViewAuto?: (importId: string, from: string, to: string) => void }
 
 interface Preview {
-  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; linkRefs?: { id: string; bankRef: string }[]; saldoAplicado: string; saldoCalc?: number;
+  file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; linkRefs?: { id: string; bankRef: string; replace?: boolean }[]; saldoAplicado: string; saldoCalc?: number;
 }
 
 const lastDayPrevMonth = (() => { const d = new Date(); const x = new Date(d.getFullYear(), d.getMonth(), 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; })();
@@ -142,6 +142,21 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           (semRef ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]); });
           cand.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef! }); } });
         }
+        // Bancos (ex.: Bradesco) renumeram o FITID a cada download: casa por data + valor + sentido + descrição
+        // com linhas cujo bank_ref não aparece neste arquivo, consumindo cada linha existente uma única vez.
+        const cand2 = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && x.t.bankRef && !existing.has(hashes[x.i]));
+        if (cand2.length) {
+          const refsArquivo = new Set(result.transactions.map(t => t.bankRef).filter(Boolean));
+          const norm = (s: string) => String(s ?? '').toUpperCase().replace(/\s+/g, ' ').trim();
+          const datas = cand2.map(x => x.t.data).sort();
+          const { data: comRefRows } = await db.from('bank_transactions').select('id, data, valor, tipo, descricao, bank_ref').eq('account_id', accountId)
+            .eq('is_forecast', false).not('bank_ref', 'is', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const pool = new Map<string, string[]>();
+          (comRefRows ?? []).filter((r: any) => !refsArquivo.has(r.bank_ref)).forEach((r: any) => {
+            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}|${norm(r.descricao)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]);
+          });
+          cand2.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${norm(t.descricao)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef!, replace: true }); } });
+        }
       }
       const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
       const pats = patterns?.all ?? DEFAULT_AUTO_INVEST_PATTERNS;
@@ -196,7 +211,10 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const { error } = await db.from('bank_transactions').upsert(chunk, { onConflict: 'account_id,dedup_hash', ignoreDuplicates: true });
         if (error) { await db.from('bank_statement_imports').delete().eq('id', imp.id); throw error; }
       }
-      for (const l of preview.linkRefs ?? []) await db.from('bank_transactions').update({ bank_ref: l.bankRef }).eq('id', l.id).is('bank_ref', null);
+      for (const l of preview.linkRefs ?? []) {
+        const q = db.from('bank_transactions').update({ bank_ref: l.bankRef }).eq('id', l.id);
+        await (l.replace ? q : q.is('bank_ref', null));
+      }
       try { const np = await autoPairTransfers(schoolId); if (np) toast.info(`${np} transferência(s) entre contas pareadas com a outra ponta`); } catch { /* pareamento é opcional */ }
       { const autoN = novos.filter(n => n.k === 'auto_aplicacao' || n.k === 'auto_resgate').length;
         const trN = novos.filter(n => n.k === 'transferencia').length; if (trN) toast.info(`${trN} lançamento(s) pré-marcados como transferência entre contas`);
