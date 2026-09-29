@@ -119,6 +119,19 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       // Casa por data + valor + sentido com linhas sem bank_ref, uma correspondência por vez, e guarda o vínculo
       // para gravar o identificador na linha antiga ao confirmar.
       const linkRefs: { id: string; bankRef: string }[] = [];
+      // Mesmo número do banco já gravado na conta (ex.: linha vinda do PDF que recebeu o identificador depois) = já existe.
+      {
+        const comRef = result.transactions.map((t, i) => ({ t, i })).filter(x => x.t.bankRef && !existing.has(hashes[x.i]));
+        if (comRef.length) {
+          const refs = Array.from(new Set(comRef.map(x => x.t.bankRef!)));
+          const achados = new Set<string>();
+          for (let k = 0; k < refs.length; k += 200) {
+            const { data: rows } = await db.from('bank_transactions').select('bank_ref, data, valor, tipo').eq('account_id', accountId).in('bank_ref', refs.slice(k, k + 200));
+            (rows ?? []).forEach((r: any) => r.bank_ref && achados.add(`${r.bank_ref}|${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`));
+          }
+          comRef.forEach(({ t, i }) => { if (achados.has(`${t.bankRef}|${t.data}|${t.tipo}|${t.valor.toFixed(2)}`)) existing.add(hashes[i]); });
+        }
+      }
       if (result.formato !== 'pdf') {
         const cand = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && x.t.bankRef && !existing.has(hashes[x.i]));
         if (cand.length) {
