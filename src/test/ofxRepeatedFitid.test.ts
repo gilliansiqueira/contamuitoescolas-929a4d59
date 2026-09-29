@@ -18,3 +18,12 @@ describe('OFX com FITID repetido', () => {
     expect(new Set(h).size).toBe(r.transactions.length);
   });
 });
+describe('OFX com saldo de data posterior', () => {
+  it('não usa saldo do dia do download como saldo final', () => {
+    const r = parseOFX('<DTEND>20260928<STMTTRN><DTPOSTED>20260928<TRNAMT>5<FITID>a<MEMO>x</STMTTRN><LEDGERBAL><BALAMT>43229.54<DTASOF>20260929</LEDGERBAL>');
+    expect(r.saldoFinalInformado).toBeUndefined();
+    expect(r.saldoAtualCabecalho).toBe(43229.54);
+    const ok = parseOFX('<STMTTRN><DTPOSTED>20260925<TRNAMT>5<FITID>a<MEMO>x</STMTTRN><LEDGERBAL><BALAMT>45.92<DTASOF>20260925030000</LEDGERBAL>');
+    expect(ok.saldoFinalInformado).toBe(45.92);
+  });
+});
