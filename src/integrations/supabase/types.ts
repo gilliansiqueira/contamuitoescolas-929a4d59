@@ -3672,6 +3672,10 @@ export type Database = {
         }[]
       }
       current_user_school_id: { Args: never; Returns: string }
+      delete_bank_tx: {
+        Args: { _motivo: string; _tx_id: string }
+        Returns: undefined
+      }
       demo_school_id: { Args: never; Returns: string }
       ensure_daily_tasks: {
         Args: { _day: string; _school_id: string }
