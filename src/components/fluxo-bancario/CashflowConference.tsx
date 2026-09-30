@@ -79,7 +79,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       const bi = accountBalances(a, txs, dayBefore(from)), bf = accountBalances(a, txs, to);
       return { a, ini: bi.total, fim: bf.total, n: at.length, ent: at.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0),
         sai: at.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0), last: txs.filter(t => t.account_id === a.id).reduce((m, t) => t.data > m ? t.data : m, '') };
-    });
+    }).map(c => ({ ...c, lastBal: c.last && c.last > to ? accountBalances(c.a, txs, c.last).total : null }));
 
     // Período comum: só compara com a planilha até o último dia lançado nela
     const sheetMax = sheet.reduce((m, e) => e.data > m ? e.data : m, '');
@@ -233,7 +233,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       <section>
         <h3 className="mb-2 text-sm font-semibold">Por conta</h3>
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted-foreground"><tr><th>Conta</th><th>Atualizada até</th><th className="text-right">Saldo inicial</th><th className="text-right">Entradas</th><th className="text-right">Saídas</th><th className="text-right">Saldo final</th><th className="text-right">Lançamentos</th></tr></thead>
+          <thead className="text-left text-xs text-muted-foreground"><tr><th>Conta</th><th>Atualizada até</th><th className="text-right">Saldo inicial</th><th className="text-right">Entradas</th><th className="text-right">Saídas</th><th className="text-right">Saldo em {fmtDate(to)}</th><th className="text-right">Lançamentos</th></tr></thead>
           <tbody>{data.porConta.map(c => (
             <tr key={c.a.id} className="border-t border-border"><td className="py-1.5">{c.a.nome}</td>
               {c.n === 0
@@ -242,6 +242,16 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
               <td className="text-right tabular-nums">{fmtBRL(c.ini)}</td><td className="text-right tabular-nums text-success">{fmtBRL(c.ent)}</td><td className="text-right tabular-nums text-destructive">{fmtBRL(c.sai)}</td><td className="text-right tabular-nums font-semibold">{fmtBRL(c.fim)}</td><td className="text-right">{c.n}</td></tr>
           ))}</tbody>
         </table>
+        {data.porConta.filter(c => c.lastBal != null).map(c => {
+          const behind = data.porConta.filter(o => o.a.id !== c.a.id && (!o.last || o.last < c.last)).map(o => o.a.nome);
+          return (
+            <p key={c.a.id} className="mt-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5 text-warning" />
+              {c.a.nome} tem movimento até {fmtDate(c.last)} (saldo {fmtBRL(c.lastBal!)}). Os saldos acima param em {fmtDate(to)} para não misturar datas
+              {behind.length ? <>; envie {behind.join(' e ')} até {fmtDate(c.last)} para avançar o corte.</> : '.'}
+            </p>
+          );
+        })}
       </section></AccordionContent></AccordionItem>
 
         <AccordionItem value="types"><AccordionTrigger className="text-sm">Comparação por tipo financeiro</AccordionTrigger><AccordionContent>
