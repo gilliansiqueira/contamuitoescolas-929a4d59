@@ -355,7 +355,9 @@ export function parsePdfLines(lines: string[]): BankParseResult {
       continue;
     }
     if (!inFuturos && /\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && !/anterior/i.test(dm[2])) {
-      const v = lastVal(dm[2]) ?? (!isBB && pv ? parseBRNumber(pv) : undefined); if (v !== undefined) { saldoConta = v; saldoContaData = data; }
+      const v = lastVal(dm[2]) ?? (!isBB && pv ? parseBRNumber(pv) : undefined);
+      // Alguns PDFs (BB "Extrato de Conta Corrente") listam do dia mais novo para o mais antigo: vale o saldo mais recente.
+      if (v !== undefined && (!saldoContaData || data >= saldoContaData)) { saldoConta = v; saldoContaData = data; }
       continue;
     }
     let vals = [...dm[2].matchAll(VAL)].map(m => m[1]);
@@ -390,6 +392,12 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     if (Math.abs(dif) >= 0.01) avisoFecha = [`Atenção: a leitura do PDF não fecha com o saldo final do extrato (diferença de ${dif.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Confira as linhas antes de importar.`];
   }
   const saldos: Partial<BankParseResult> = {};
+  // BB: sem movimento depois do último saldo, o extrato cobre até a data de emissão/impressão.
+  if (isBB && saldoContaData && !inFuturos) {
+    const em = all.match(/data de emissao.*?(\d{2}\/\d{2}\/\d{4})/i)?.[1] ?? all.match(/impresso .{0,80}? em (\d{2}\/\d{2}\/\d{4})/i)?.[1];
+    const emIso = em ? toIsoDate(em) : null;
+    if (emIso && emIso > saldoContaData && !txs.some(t => t.data > saldoContaData!)) saldoContaData = emIso;
+  }
   if (saldoConta !== undefined && saldoContaData) {
     saldos.saldoFinalInformado = saldoConta;
     saldos.periodoFim = saldoContaData;
