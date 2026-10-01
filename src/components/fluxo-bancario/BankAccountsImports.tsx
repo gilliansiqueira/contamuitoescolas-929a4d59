@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useBankImports, useInvalidateBank, useAutoInvestPatterns, useOwnTransferNames, useSetMovementKind, autoPairTransfers } from '@/hooks/useBankPilot';
 import { Checkbox } from '@/components/ui/checkbox';
-import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, type BankParseResult } from '@/lib/bankStatements/parsers';
+import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, type BankParseResult } from '@/lib/bankStatements/parsers';
 import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 
@@ -96,9 +96,22 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       if (!result.transactions.length) result.avisos = [...result.avisos, `Sem movimentação no período (${result.periodoInicio?.split('-').reverse().join('/') ?? '?'} a ${result.periodoFim.split('-').reverse().join('/')}). O extrato fica registrado e a conta passa a valer até essa data.`];
       const hashes = await computeDedupHashes(accountId, result.transactions);
       const existing = new Set<string>();
+      const existingRow = new Map<string, { data: string; tipo: string; valor: number }>();
       for (let i = 0; i < hashes.length; i += 200) {
-        const { data } = await db.from('bank_transactions').select('dedup_hash').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
-        (data ?? []).forEach((r: any) => existing.add(r.dedup_hash));
+        const { data } = await db.from('bank_transactions').select('dedup_hash, data, tipo, valor').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
+        (data ?? []).forEach((r: any) => { existing.add(r.dedup_hash); existingRow.set(r.dedup_hash, r); });
+      }
+      // Código do banco reaproveitado em outro lançamento (ex.: Itaú renumera a cada download):
+      // só é duplicado se data, sentido e valor também baterem; senão vira lançamento novo.
+      for (let i = 0; i < hashes.length; i++) {
+        const t = result.transactions[i];
+        const row = existingRow.get(hashes[i]);
+        if (!t.bankRef || !row || sameRefTx(row, t)) continue;
+        const alt = await refCollisionHash(accountId, t);
+        hashes[i] = alt;
+        const { data: altRow } = await db.from('bank_transactions').select('id').eq('account_id', accountId).eq('dedup_hash', alt).maybeSingle();
+        if (altRow) existing.add(alt);
+        t.bankRef = undefined; // não regravar o código antigo no lançamento novo
       }
       // PDF sem identificador do banco: não regravar o que já veio por outro arquivo (ex.: OFX)
       // com mesma data, valor e sentido — contando ocorrências, para não descartar lançamentos iguais legítimos.

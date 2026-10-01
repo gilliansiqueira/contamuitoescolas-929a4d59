@@ -697,6 +697,16 @@ export const normalizeDesc = (s: string) => stripAccents(s.toLowerCase()).replac
  * para que lançamentos iguais no mesmo dia não sejam descartados e extratos
  * sobrepostos não dupliquem.
  */
+/** Hash alternativo quando o código do banco já pertence a OUTRO lançamento (Itaú renumera a cada download). */
+export function refCollisionHash(accountId: string, t: ParsedBankTx): Promise<string> {
+  return sha256(`${accountId}|ref|${t.bankRef}|${t.data}|${t.tipo}|${t.valor.toFixed(2)}`);
+}
+
+/** O lançamento gravado com o mesmo código é de fato o mesmo? (data, sentido e valor iguais) */
+export function sameRefTx(row: { data: string; tipo: string; valor: number | string }, t: ParsedBankTx): boolean {
+  return row.data === t.data && row.tipo === t.tipo && Math.abs(Number(row.valor) - t.valor) < 0.005;
+}
+
 export async function computeDedupHashes(accountId: string, txs: ParsedBankTx[]): Promise<string[]> {
   const seen = new Map<string, number>();
   return Promise.all(txs.map(t => {
