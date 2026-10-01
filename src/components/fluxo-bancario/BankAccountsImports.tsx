@@ -355,7 +355,15 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               <div><Label>Agência</Label><Input value={form.agencia} onChange={e => setForm({ ...form, agencia: e.target.value })} /></div>
               <div><Label>Conta</Label><Input value={form.conta} onChange={e => setForm({ ...form, conta: e.target.value })} /></div>
               <div><Label>Saldo inicial</Label><Input value={form.saldo} onChange={e => setForm({ ...form, saldo: e.target.value })} placeholder="1.500,50" /></div>
-              <div><Label>Data do saldo</Label><Input type="date" value={form.saldoData} onChange={e => setForm({ ...form, saldoData: e.target.value })} /></div>
+              <div><Label>Data do saldo (fim do dia)</Label><Input type="date" value={form.saldoData} onChange={e => setForm({ ...form, saldoData: e.target.value })} /></div>
+              <p className="col-span-2 -mt-1 text-xs text-muted-foreground">Use o "Saldo anterior" do extrato com a data do dia anterior ao primeiro lançamento (ex.: 31/08 para extrato que começa em 01/09).</p>
+              {(() => {
+                if (!form.id || !form.saldoData) return null;
+                const sameDay = txs.filter(t => t.account_id === form.id && t.data === form.saldoData && !t.is_forecast);
+                if (!sameDay.length) return null;
+                const net = sameDay.reduce((s, t) => s + (t.tipo === 'entrada' ? 1 : -1) * Number(t.valor), 0);
+                return <p className="col-span-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">{sameDay.length} lançamento(s) de {fmtDate(form.saldoData)} ({fmtBRL(net)}) serão desconsiderados, porque já estariam dentro deste saldo. Se o saldo é o "Saldo anterior", use o dia anterior.</p>;
+              })()}
               <label className="col-span-2 flex items-center gap-2 text-sm"><Checkbox checked={form.auto} onCheckedChange={v => setForm({ ...form, auto: !!v })} />Esta conta tem aplicação automática</label>
               {form.auto && <>
                 <div><Label>Saldo aplicado inicial</Label><Input value={form.autoSaldo} onChange={e => setForm({ ...form, autoSaldo: e.target.value })} placeholder="122.078,73" /></div>
