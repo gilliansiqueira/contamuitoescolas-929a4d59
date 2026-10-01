@@ -71,6 +71,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const genIn = inMonth.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const genOut = inMonth.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
+    const opSemSub = inMonth.filter(e => e.tipo_nome === 'Operação').length;
     const ign = inMonth.filter(e => e.tipo_nome === 'Ignorar').reduce((s, e) => s + sgn(e), 0);
     // Só o que já aconteceu de fato; débitos futuros (previsão) ficam à parte.
     const afterAll = gen.filter(e => e.data > monthEnd && e.data <= bankTo);
@@ -82,7 +83,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const afterNet = r2(bankFim - bankFimMonth);
     const bankRec = inMonth.filter(e => e.tipo_nome === 'Receita').reduce((s, e) => s + sgn(e), 0);
     const bankDesp = -inMonth.filter(e => e.tipo_nome === 'Despesa').reduce((s, e) => s + sgn(e), 0);
-    return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
+    return { opSemSub, next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
       monthEnd, cut, after, afterNet, afterForecast, afterForecastNet, bankFimMonth, bankRec, bankDesp };
   }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim, bankFimMonthProp, forecastTxIds]);
 
@@ -100,6 +101,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   const despDiff = r2(p.next.mov.despesasRealizadas - p.bankDesp);
   const todo: string[] = [];
   if (p.aClass.length) todo.push(`Classificar ${p.aClass.length} movimentação(ões) que estão como "A classificar".`);
+  if (p.opSemSub) todo.push(`Aviso (não bloqueia): ${p.opSemSub} operação(ões) sem subcategoria — escolha o item para o card aparecer com o nome certo no Dashboard.`);
   if (holder) todo.push(`Subir o extrato de ${holder} até ${fmtDate(p.monthEnd)} (mesmo sem movimento).`);
   if (iniDiff !== 0) todo.push(`Conferir o saldo inicial das contas: o sistema começa ${fmtBRL(iniDiff)} diferente do banco.`);
   if (!movOk) {

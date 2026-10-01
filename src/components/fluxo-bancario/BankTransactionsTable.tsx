@@ -371,8 +371,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                    </Select>)}
                    {!t.splits?.length && t.movement_kind === 'normal' && <span className="ml-2 text-xs font-semibold text-foreground">{financialClass(t.model_item_id) === 'receita' ? 'Receita' : financialClass(t.model_item_id) === 'despesa' ? 'Despesa' : 'A classificar'}</span>}
                   {!t.splits?.length && t.movement_kind === 'operacao' && <Select value={t.model_item_id ?? 'none'} onValueChange={v => applyItem([t.id], v === 'none' ? null : v)}>
-                    <SelectTrigger className={`mt-1 h-7 w-48 text-xs ${!t.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Detalhar operação" /></SelectTrigger>
-                    <SelectContent><SelectItem value="none">Detalhar operação</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
+                    <SelectTrigger className={`mt-1 h-7 w-48 text-xs ${!t.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Escolha a subcategoria" /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">Escolha a subcategoria</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
                   </Select>}
                   {t.transfer_pair_id && (() => { const o = txs.find(x => x.transfer_pair_id === t.transfer_pair_id && x.id !== t.id); const me = accName.get(t.account_id) ?? '?'; const other = o ? accName.get(o.account_id) ?? '?' : '?'; return <span className="ml-1 text-[10px] text-muted-foreground">{t.tipo === 'saida' ? `${me} → ${other}` : `${other} → ${me}`}</span>; })()}</td>
                  <td className="p-2 text-right tabular-nums text-success whitespace-nowrap">{t.tipo === 'entrada' ? fmtBRL(displayedValue(t)) : ''}</td>
@@ -393,8 +393,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                    <td className="p-1.5">{sp.categoria === 'normal' ? (financialClass(sp.model_item_id) === 'receita' ? 'Receita' : financialClass(sp.model_item_id) === 'despesa' ? 'Despesa' : 'A classificar') : CAT_LABEL[sp.categoria]}
                     {sp.categoria === 'operacao' && (
                     <Select value={sp.model_item_id ?? 'none'} onValueChange={v => setSplitItem.mutate({ splitId: sp.id, itemId: v === 'none' ? null : v }, { onError: (e: any) => toast.error(e.message ?? 'Erro') })}>
-                      <SelectTrigger className={`mt-1 h-7 w-44 text-xs ${!sp.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Detalhar operação" /></SelectTrigger>
-                      <SelectContent><SelectItem value="none">Detalhar operação</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
+                      <SelectTrigger className={`mt-1 h-7 w-44 text-xs ${!sp.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Escolha a subcategoria" /></SelectTrigger>
+                      <SelectContent><SelectItem value="none">Escolha a subcategoria</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
                     </Select>)}</td>
                   <td className="p-1.5 text-right tabular-nums text-success">{t.tipo === 'entrada' ? fmtBRL(Number(sp.valor)) : ''}</td>
                   <td className="p-1.5 text-right tabular-nums text-destructive">{t.tipo === 'saida' ? fmtBRL(Number(sp.valor)) : ''}</td>
