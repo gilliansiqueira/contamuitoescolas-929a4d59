@@ -576,7 +576,8 @@ export function parseCaixaImageText(text: string): BankParseResult {
   // Fechamento por dia: usa "SALDO DIA" quando reconhecido; senão, o saldo impresso na própria linha
   // (na Caixa, cada linha traz o saldo de fechamento do dia).
   const fechamento = new Map<string, number>(saldosDia);
-  for (const r of rows) if (!fechamento.has(r.data)) fechamento.set(r.data, r.saldoLinha);
+  // rows já está em ordem de horário: o último lançamento do dia traz o saldo de fechamento.
+  for (const r of rows) if (!saldosDia.has(r.data)) fechamento.set(r.data, r.saldoLinha);
   let saldo = saldoAnterior;
   for (const dia of [...new Set(rows.map(r => r.data))].sort()) {
     rows.filter(r => r.data === dia).forEach(r => { saldo += r.tipo === 'entrada' ? r.valor : -r.valor; });

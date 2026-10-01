@@ -31,3 +31,12 @@ it('Caixa Pinheirinho: OCR sem 3 linhas SALDO DIA ainda confere pelo saldo da li
   expect(r.saldoFinalInformado).toBe(352.02);
   expect(r.bloqueiaImportacao).toBe(false);
 });
+
+it('Caixa Pinheirinho: sem SALDO DIA em 30/09 usa o saldo do último lançamento do dia', () => {
+  const txt = _rf('src/test/fixtures/caixa_pinheirinho_ocr.txt', 'utf8').split('\n')
+    .filter(l => !/^30\/09\/2026 - 00:00:00 000000 SALDO DIA/.test(l)).join('\n');
+  const r = _pc(txt);
+  expect(r.transactions).toHaveLength(6);
+  expect(r.bloqueiaImportacao).toBe(false);
+  expect(r.saldoFinalInformado).toBe(352.02);
+});
