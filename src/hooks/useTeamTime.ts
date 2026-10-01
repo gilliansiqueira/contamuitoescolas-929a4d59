@@ -79,3 +79,17 @@ export function buildSampleData(today: string): TeamTimeData {
   const run: TeamSyncRun = { id: 'sample', status: 'success', started_at: new Date().toISOString(), finished_at: new Date().toISOString(), message: null };
   return { employees, daily, occurrences, hourBank, lastRun: run, lastSuccess: run };
 }
+
+/** Grava o Relatório de Cartão Ponto já conferido (sem CPF/PIS) pela função do servidor. */
+export function useTeamTimeImportReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { arquivo: string; periodoInicio: string; periodoFim: string; funcionarios: unknown[] }) => {
+      const { data, error } = await supabase.functions.invoke('pontofopag-sync', { body: { action: 'import_report', ...payload } });
+      if (error) throw error;
+      if (data?.status !== 'success') throw new Error(data?.message ?? data?.error ?? 'Erro ao gravar');
+      return data as { counts: { funcionarios: number; dias: number; ocorrencias: number } };
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['team-time'] }),
+  });
+}
