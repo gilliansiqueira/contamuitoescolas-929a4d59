@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, CheckCircle2, Clock3, KeyRound, Loader2, RefreshCw, ShieldAlert, UserCheck, UserX, Users, Timer, ListChecks, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
+import { ImportCartaoPonto } from './ImportCartaoPonto';
 
 const SIT_LABEL: Record<TeamSituacao, string> = {
   regular: 'Regular', atraso: 'Atraso', sem_marcacao: 'Sem marcação', incompleta: 'Marcação incompleta',
@@ -70,7 +71,7 @@ export function TeamTimePanel() {
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Não foi possível carregar os dados do ponto.</div>
       ) : status === 'nao_configurada' && !data?.employees.length ? (
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-6">
-          <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-sm font-semibold">Integração não configurada</h2><p className="mt-1 text-xs text-muted-foreground">Aguardando a credencial oficial da API PontoFopag (Employer/ePays). Assim que ela for cadastrada com segurança, o botão “Atualizar agora” passa a trazer as colaboradoras, marcações, ocorrências e banco de horas.</p>{isPreviewEnv() && <Button size="sm" variant="outline" className="mt-3" onClick={() => setSample(true)}>Ver com dados de exemplo</Button>}</div></div>
+          <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-sm font-semibold">Integração não configurada</h2><p className="mt-1 text-xs text-muted-foreground">Aguardando a credencial oficial da API PontoFopag (Employer/ePays). Enquanto isso, use “Importar relatório de ponto (PDF)” com o Relatório de Cartão Ponto exportado do PontoFopag.</p>{isPreviewEnv() && <Button size="sm" variant="outline" className="mt-3" onClick={() => setSample(true)}>Ver com dados de exemplo</Button>}</div></div>
         </div>
       ) : !data?.employees.length ? (
         <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">Nenhuma colaboradora recebida do PontoFopag até agora.</div>
@@ -104,6 +105,7 @@ function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, samp
           <span className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${badge.c}`}><badge.i className={`h-3.5 w-3.5 ${status === 'sincronizando' ? 'animate-spin' : ''}`} />{badge.t}</span>
           {sample ? <Button size="sm" variant="outline" className="h-9" onClick={() => setSample(false)}>Sair do exemplo</Button>
             : <Button size="sm" className="h-9 gap-1.5" onClick={onSync} disabled={syncing}><RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />Atualizar agora</Button>}
+          {!sample && <ImportCartaoPonto />}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-muted-foreground">

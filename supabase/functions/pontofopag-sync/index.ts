@@ -69,6 +69,9 @@ Deno.serve(async (req) => {
   const { data: isSuper } = await userClient.rpc("is_super_admin");
   if (!isSuper) return json({ error: "Acesso restrito." }, 403);
 
+  const body = await req.json().catch(() => ({})) as Row;
+  if (body.action === "import_report") return importReport(body, admin, u.user.id);
+
   const today = spDate();
   const monthStart = today.slice(0, 8) + "01";
 
@@ -142,3 +145,47 @@ Deno.serve(async (req) => {
     return json({ configured: true, status: "error", message }, 200);
   }
 });
+
+// Importação do "Relatório de Cartão Ponto" (PDF lido no navegador). CPF/PIS nunca chegam aqui.
+const ISO = /^\d{4}-\d{2}-\d{2}$/; const HM = /^\d{1,3}:\d{2}$/;
+const SITS = new Set(["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando"]);
+const str = (v: unknown, max = 120) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+const hm = (v: unknown) => typeof v === "string" && HM.test(v) ? v : null;
+async function importReport(body: Row, admin: ReturnType<typeof createClient>, userId: string) {
+  const ini = String(body.periodoInicio ?? ""), fim = String(body.periodoFim ?? "");
+  const funcs = Array.isArray(body.funcionarios) ? body.funcionarios as Row[] : [];
+  if (!ISO.test(ini) || !ISO.test(fim) || ini > fim || !funcs.length || funcs.length > 500) return json({ error: "Relatório inválido." }, 400);
+  const now = new Date().toISOString();
+  const employees: Row[] = [], daily: Row[] = [], occ: Row[] = [];
+  for (const f of funcs) {
+    const codigo = str(f.codigo, 20); if (!codigo || !/^\d+$/.test(codigo)) return json({ error: "Código de funcionário inválido." }, 400);
+    const ext = `pf-${codigo}`;
+    employees.push({ external_id: ext, matricula: str(f.matricula, 20), nome: str(f.nome) ?? "Sem nome", cargo: str(f.funcao), departamento: str(f.departamento), ativo: true, synced_at: now });
+    for (const d of (Array.isArray(f.dias) ? f.dias as Row[] : [])) {
+      const dia = String(d.dia ?? ""); if (!ISO.test(dia) || dia < ini || dia > fim) continue;
+      const marc = (Array.isArray(d.marcacoes) ? d.marcacoes : []).filter((m: unknown) => hm(m)).slice(0, 12) as string[];
+      const obs = str(d.observacao);
+      const sit = SITS.has(String(d.situacao)) ? String(d.situacao) : "aguardando";
+      if (!str(d.jornada) && !marc.length && !obs) continue; // folga sem registro
+      const faltas = hm(d.faltas);
+      daily.push({ employee_external_id: ext, dia, horario_previsto: str(d.jornada, 60), primeira_marcacao: marc[0] ?? null, ultima_marcacao: marc.length > 1 ? marc[marc.length - 1] : null, marcacoes: marc, horas_trabalhadas: hm(d.trabalhadas), horas_extras: hm(d.extras), situacao: sit, ocorrencia: obs ?? (faltas ? `Faltas ${faltas} (relatório)` : null), synced_at: now });
+      if (obs) occ.push({ external_key: `relatorio_pdf|${ext}|${dia}|${norm(obs)}`, employee_external_id: ext, dia, tipo: obs, descricao: null, origem: "relatorio_pdf", synced_at: now });
+    }
+  }
+  const { data: run } = await admin.from("team_time_sync_runs").insert({ trigger: "relatorio_pdf", status: "running", requested_by: userId, reference_date: fim, message: str(body.arquivo, 200) }).select("id").single();
+  try {
+    const ids = employees.map(e => e.external_id as string);
+    let r = await admin.from("team_time_employees").upsert(employees, { onConflict: "external_id" }); if (r.error) throw r.error;
+    r = await admin.from("team_time_daily").delete().in("employee_external_id", ids).gte("dia", ini).lte("dia", fim); if (r.error) throw r.error;
+    r = await admin.from("team_time_occurrences").delete().eq("origem", "relatorio_pdf").in("employee_external_id", ids).gte("dia", ini).lte("dia", fim); if (r.error) throw r.error;
+    for (let i = 0; i < daily.length; i += 500) { r = await admin.from("team_time_daily").insert(daily.slice(i, i + 500)); if (r.error) throw r.error; }
+    if (occ.length) { r = await admin.from("team_time_occurrences").insert(occ); if (r.error) throw r.error; }
+    const counts = { funcionarios: employees.length, dias: daily.length, ocorrencias: occ.length };
+    await admin.from("team_time_sync_runs").update({ status: "success", finished_at: new Date().toISOString(), counts }).eq("id", run!.id);
+    return json({ status: "success", counts });
+  } catch (e) {
+    const message = (e as { message?: string })?.message ?? "Erro ao gravar";
+    await admin.from("team_time_sync_runs").update({ status: "error", finished_at: new Date().toISOString(), message }).eq("id", run!.id);
+    return json({ status: "error", message }, 200);
+  }
+}
