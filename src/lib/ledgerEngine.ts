@@ -255,6 +255,12 @@ export function resolveEntryLedgerRule(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): LedgerRule {
+  // Operação escolhida no Fluxo Bancário (com item do modelo): sempre só Caixa,
+  // prevalece sobre type_classifications/DEFAULT_MAPPINGS/modelo.
+  const to = entry.tipoOriginal ?? '';
+  if (to.startsWith('Operação (banco): ')) {
+    return { impactaCaixa: true, entraNoResultado: false, operacaoSinal: entry.tipo === 'entrada' ? 'somar' : 'subtrair', label: to.slice('Operação (banco): '.length) };
+  }
   // Origens projetadas (sponte, cheque, cartao, contas_pagar) usam o tipo
   // nativo — exceto quando a categoria é exatamente uma Operação (empréstimo,
   // distribuição de lucros, aplicação...), que nunca entra em Despesa/Receita.
