@@ -77,15 +77,28 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
       monthEnd, cut, after, afterNet, bankFimMonth, bankRec, bankDesp };
   }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim]);
 
-  const movOk = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov) === 0;
+  const movDiff = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov);
+  const movOk = movDiff === 0;
   const iniDiff = r2(p.next.ini - bankIni);
-  const fimDiff = r2(p.next.fimReal - bankFim);
+  const fimDiff = r2(p.next.fimReal - p.bankFimMonth);
   // Diferenças pequenas (rendimento/centavos) ficam "A confirmar no próximo extrato" e não bloqueiam.
   const SMALL_DIFF_TOLERANCE = BANK_SMALL_DIFF_TOLERANCE;
   const fimSmall = fimDiff !== 0 && Math.abs(fimDiff) <= SMALL_DIFF_TOLERANCE;
   const fimOk = fimDiff === 0;
   const ok = movOk && iniDiff === 0 && (fimOk || fimSmall) && p.aClass.length === 0;
   const active = cfg.status === 'ativo';
+  const recDiff = r2(p.next.mov.receitasRealizadas - p.bankRec);
+  const despDiff = r2(p.next.mov.despesasRealizadas - p.bankDesp);
+  const todo: string[] = [];
+  if (p.aClass.length) todo.push(`Classificar ${p.aClass.length} movimentação(ões) que estão como "A classificar".`);
+  if (holder) todo.push(`Subir o extrato de ${holder} até ${fmtDate(p.monthEnd)} (mesmo sem movimento).`);
+  if (iniDiff !== 0) todo.push(`Conferir o saldo inicial das contas: o sistema começa ${fmtBRL(iniDiff)} diferente do banco.`);
+  if (!movOk) {
+    if (recDiff !== 0) todo.push(`Receitas: o Dashboard tem ${fmtBRL(recDiff)} de diferença em relação às receitas do banco. Conferir se os itens do modelo dessas entradas estão no modelo financeiro da empresa.`);
+    if (despDiff !== 0) todo.push(`Despesas: o Dashboard tem ${fmtBRL(despDiff)} de diferença em relação às despesas do banco. Conferir se os itens do modelo dessas saídas estão no modelo financeiro da empresa.`);
+    if (recDiff === 0 && despDiff === 0) todo.push(`Operações/ignorados: diferença de ${fmtBRL(movDiff)} no movimento. Conferir transferências e itens marcados como Operação.`);
+  }
+  if (!fimOk && !fimSmall && movOk && iniDiff === 0) todo.push(`Saldo final difere ${fmtBRL(fimDiff)} do saldo do banco em ${fmtDate(p.cut)}: conferir saldos informados nos extratos e cheques retidos.`);
 
   const row = (label: string, v: number, bank?: number) => (
     <tr className="border-t border-border"><td className="py-1.5">{label}</td>
