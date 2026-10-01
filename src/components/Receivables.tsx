@@ -112,7 +112,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                   {items.map(e => (
                     <div key={e.id} className="px-3 py-2 flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-medium text-foreground">{formatDate(e.dataProjetada)}</p>
+                        <p className="text-[11px] font-medium text-foreground">{formatDate(e.dataProjetada)}{e.dataOriginal && e.dataOriginal !== e.dataProjetada && <span className="block text-[10px] font-normal text-muted-foreground">vence {formatDate(e.dataOriginal)}</span>}</p>
                         <p className="text-[10px] text-muted-foreground truncate max-w-[170px]">{e.descricao}</p>
                       </div>
                       <div className="text-right shrink-0">
@@ -137,7 +137,7 @@ export function Receivables({ schoolId, selectedMonth }: ReceivablesProps) {
                 </tr></thead>
                 <tbody>{items.map(e => (
                   <tr key={e.id} className="border-t border-border/30 hover:bg-surface/50">
-                    <td className="px-4 py-2 font-medium">{formatDate(e.dataProjetada)}</td>
+                    <td className="px-4 py-2 font-medium">{formatDate(e.dataProjetada)}{e.dataOriginal && e.dataOriginal !== e.dataProjetada && <span className="block text-[10px] font-normal text-muted-foreground">vence {formatDate(e.dataOriginal)}</span>}</td>
                     <td className="px-4 py-2 max-w-[250px] truncate text-muted-foreground">{e.descricao}</td>
                     <td className="px-4 py-2 text-center">
                       <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
