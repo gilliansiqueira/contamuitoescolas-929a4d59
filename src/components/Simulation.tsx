@@ -249,6 +249,19 @@ export function Simulation({ schoolId }: SimulationProps) {
     return map;
   }, [entries, classifications]);
 
+  // Operações projetadas (ex.: Empréstimo) — impactam só o caixa (impacto do SSOT)
+  const operacoesPorMes = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const e of entries) {
+      if (e.origem === 'fluxo') continue;
+      if (e.tipoRegistro !== 'projetado') continue;
+      if (getEffectiveClassification(e, classifications) !== 'operacao') continue;
+      const mes = (e.dataProjetada || e.data).slice(0, 7);
+      map[mes] = (map[mes] || 0) + (e.impacto || 0);
+    }
+    return map;
+  }, [entries, classifications]);
+
   // Ajustes manuais (entradas/saídas específicas) — não entram em "Receita simulada"
   const { data: dbAdjustments = [] } = useQuery({
     queryKey: ['simulation_adjustments', schoolId],
@@ -341,11 +354,11 @@ export function Simulation({ schoolId }: SimulationProps) {
       const res = (sistemaProjetadoPorMes[m] || 0) + (simuladoPorMes[m] || 0)
         + (entradasExtrasPorMes[m] || 0)
         - (contasPagarPorMes[m] || 0) - (saidasExtrasPorMes[m] || 0);
-      acc += res;
+      acc += res + (operacoesPorMes[m] || 0);
       final[m] = acc;
     }
     return { saldoInicialPorMes: inicial, saldoFinalPorMes: final };
-  }, [saldoInicialCalculado, months, sistemaProjetadoPorMes, simuladoPorMes, contasPagarPorMes, entradasExtrasPorMes, saidasExtrasPorMes]);
+  }, [saldoInicialCalculado, months, sistemaProjetadoPorMes, simuladoPorMes, contasPagarPorMes, entradasExtrasPorMes, saidasExtrasPorMes, operacoesPorMes]);
 
 
   return (
@@ -576,6 +589,12 @@ export function Simulation({ schoolId }: SimulationProps) {
                 <td className="px-2 py-2 text-muted-foreground">Saídas específicas</td>
                 {months.map(m => (
                   <td key={m} className="px-2 py-2 text-right text-destructive">{formatCurrency(saidasExtrasPorMes[m] || 0)}</td>
+                ))}
+              </tr>
+              <tr className="border-t border-border/30">
+                <td className="px-2 py-2 text-muted-foreground" title="Ex.: Empréstimo. Afeta só o caixa, não entra no resultado">Operações (só caixa)</td>
+                {months.map(m => (
+                  <td key={m} className="px-2 py-2 text-right text-muted-foreground">{formatCurrency(operacoesPorMes[m] || 0)}</td>
                 ))}
               </tr>
               <tr className="border-t-2 border-border bg-muted/40 font-bold">

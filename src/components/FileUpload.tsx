@@ -1098,6 +1098,14 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
                   <span className="text-destructive font-semibold">
                     Despesas: {formatCurrency(totals.despesas)}
                   </span>
+                  {(totals.operacoesIn > 0 || totals.operacoesOut > 0) && (
+                    <span className="text-muted-foreground font-semibold" title="Operações (ex.: Empréstimo) afetam só o Caixa, não entram em Despesas nem no Resultado">
+                      Operações: {formatCurrency(totals.operacoesIn + totals.operacoesOut)}
+                    </span>
+                  )}
+                  <span className="text-foreground font-semibold">
+                    Total do arquivo: {formatCurrency(totals.receitas + totals.despesas + totals.operacoesIn + totals.operacoesOut)}
+                  </span>
                 </div>
               </div>
 
