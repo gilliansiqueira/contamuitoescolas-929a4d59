@@ -53,9 +53,9 @@ import { fetchAllRows } from '@/lib/fetchAll';
 
 
 import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
+import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 // Ignorados do banco se anulam e só mexem no saldo: não viram card de operação.
 const IGNORADOS_BANCO_LABELS = new Set([IGNORADO_ENTRADA, IGNORADO_SAIDA]);
-import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 
 interface DashboardProps {
   schoolId: string;
