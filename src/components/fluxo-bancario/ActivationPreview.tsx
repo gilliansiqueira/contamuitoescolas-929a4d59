@@ -71,7 +71,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const genIn = inMonth.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const genOut = inMonth.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
-    const opSemSub = inMonth.filter(e => e.tipo_nome === 'Operação').length;
+    const opSemSub = inMonth.filter(e => e.tipo_nome === 'Operação' && !e.model_item_id).length;
     const ign = inMonth.filter(e => e.tipo_nome === 'Ignorar').reduce((s, e) => s + sgn(e), 0);
     // Só o que já aconteceu de fato; débitos futuros (previsão) ficam à parte.
     const afterAll = gen.filter(e => e.data > monthEnd && e.data <= bankTo);
