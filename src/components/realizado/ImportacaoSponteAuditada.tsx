@@ -234,8 +234,11 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
   // ── Step 4: replacement simulation
   const goToReplace = () => {
     const minDate = parsed.reduce((m, r) => (r.dataVencimento < m ? r.dataVencimento : m), parsed[0].dataVencimento);
+    // Nunca remover previsões anteriores a hoje (preserva o histórico do mês corrente/anteriores).
+    const today = new Date().toISOString().slice(0, 10);
+    const desde = minDate < today ? today : minDate;
     const sistemaCandidatos = (allEntries as FinancialEntry[]).filter(e => e.origem === 'sponte');
-    const sim = simulateReplacement(sistemaCandidatos, parsed, { origem: 'sponte', desde: minDate });
+    const sim = simulateReplacement(sistemaCandidatos, parsed, { origem: 'sponte', desde });
     setReplaceSim(sim);
     setStep(4);
   };
