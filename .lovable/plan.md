@@ -1,19 +1,20 @@
-# Floripa Ingleses – diferença de R$ 50,00 (Itaú)
+# Floripa Ingleses: diferença de R$ 50,00 (Itaú)
 
-## O que já foi confirmado nos dados
-- A diferença é só na conta **Itaú**. O Asaas fecha certinho em R$ 2.444,91 em 01/10.
-- Itaú: o extrato de 01/10 termina em **-R$ 2.574,76**. O sistema chega em **-R$ 2.624,76**, ou seja, R$ 50,00 a menos.
-- O último extrato importado (de 24/09 a 01/10) tem **R$ 6.348,19 de entradas**. No sistema, o mesmo período soma **R$ 6.298,19**. As saídas batem centavo por centavo (R$ 13.698,93).
-- Conclusão: **falta um recebimento de R$ 50,00** entre 24/09 e 01/10. A importação descartou esse recebimento achando que era repetido. No sistema, o único Pix de R$ 50 nesse período é o da Manuela, em 29/09.
-- Nenhum lançamento a mais, nenhuma saída errada e o saldo inicial está certo.
+## Causa confirmada
+- O Asaas está certo. A diferença fica só no Itaú: o sistema mostra -R$ 2.624,76 e o extrato de 01/10 mostra -R$ 2.574,76.
+- Ficou faltando o **Pix recebido de LEONARDO PADILHA CARVALHO, de R$ 50,00, em 30/09**.
+- Motivo: o Itaú muda a numeração dos lançamentos a cada download.
+  - No extrato de 30/09, o código 20260930014 era o pagamento CASAN de R$ 311,81.
+  - No extrato de 01/10, o mesmo código passou a ser o Pix do Leonardo, e o CASAN virou 20260930013.
+  - O sistema viu o código repetido e descartou o Pix achando que já existia. É o mesmo problema que já corrigimos no Bradesco de Dourados.
 
-## O que falta
-1. Abrir o arquivo do extrato de 01/10, que está salvo no sistema, e achar a linha exata de R$ 50,00 que não entrou (nome, data).
-2. Conferir por que ela foi tratada como repetida. A suspeita é que dois Pix de R$ 50 no mesmo dia, com descrição parecida, foram vistos como um só.
-3. Incluir esse recebimento no Itaú de Floripa Ingleses, deixando registrado no histórico, e atualizar o fluxo. O saldo deve fechar em -R$ 2.574,76.
-4. Se a causa for a regra que identifica repetidos, ajustar para que dois Pix diferentes de mesmo valor e mesma data nunca sejam juntados, e criar um teste automático para isso. Vale para todas as empresas.
+## Correção
+1. Incluir o Pix de R$ 50,00 do Leonardo (30/09) no Itaú de Floripa Ingleses, ligado ao extrato de 01/10, registrar no histórico e atualizar o fluxo. O saldo deve fechar em -R$ 2.574,76.
+2. Para todas as empresas, na importação do Itaú, um lançamento só será considerado repetido se também tiver a mesma data, o mesmo valor, o mesmo sentido e a mesma descrição. O código do banco sozinho não basta.
+3. Criar um teste automático com os dois casos reais: o CASAN e o Leonardo usando o mesmo código.
+4. Conferir nas outras empresas com Itaú se algum lançamento foi descartado do mesmo jeito: comparar as entradas e saídas de cada arquivo com o que ficou gravado no sistema.
 
 ## Detalhes técnicos
-- Comparar `bank_statement_imports` 01/10 (total_linhas 41 x 40 no banco) com o OFX do storage, por FITID/bank_ref.
-- Inserção pelo mesmo caminho de importação (import_id do arquivo de 01/10), com `audit_log` e `sync_bank_cashflow_school`.
-- Revisar a deduplicação do Itaú/OFX em `parsers`/importação para considerar FITID e nome do pagador.
+- Na conferência de duplicados em `BankAccountsImports`/`parsers` (`computeDedupHashes`), quando um `bank_ref` já gravado tiver data, valor, tipo ou descrição diferentes, o lançamento deve ser tratado como novo.
+- Para a inclusão, usar `run_sql` com o `import_id` do arquivo de 01/10 e `bank_ref` nulo, para não colidir com o código antigo. Depois, registrar em `audit_log` e rodar `sync_bank_cashflow_school`.
+- Receita, Despesa, Resultado e as regras da SSOT não mudam.
