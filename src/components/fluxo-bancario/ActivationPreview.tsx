@@ -58,13 +58,24 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
       const ini = computeSaldoInicial(month, c, opts);
       return { mov, ini, fimReal: ini + mov.saldoMovimentoRealizado };
     };
-    const genIn = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
-    const genOut = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+    // Mesma janela nas duas colunas: o mês comparado com o banco até o fim do mês.
+    const [yy, mm] = month.split('-').map(Number);
+    const monthEnd = `${month}-${String(new Date(yy, mm, 0).getDate()).padStart(2, '0')}`;
+    const cut = bankTo < monthEnd ? bankTo : monthEnd;
+    const inMonth = gen.filter(e => e.data >= start && e.data <= cut);
+    const sgn = (e: CashflowEntry) => (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor);
+    const genIn = inMonth.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
+    const genOut = inMonth.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
-    const ign = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo_nome === 'Ignorar')
-      .reduce((s, e) => s + (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor), 0);
-    return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass };
-  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni]);
+    const ign = inMonth.filter(e => e.tipo_nome === 'Ignorar').reduce((s, e) => s + sgn(e), 0);
+    const after = gen.filter(e => e.data > monthEnd && e.data <= bankTo);
+    const afterNet = r2(after.reduce((s, e) => s + sgn(e), 0));
+    const bankFimMonth = r2(bankFim - afterNet);
+    const bankRec = inMonth.filter(e => e.tipo_nome === 'Receita').reduce((s, e) => s + sgn(e), 0);
+    const bankDesp = -inMonth.filter(e => e.tipo_nome === 'Despesa').reduce((s, e) => s + sgn(e), 0);
+    return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
+      monthEnd, cut, after, afterNet, bankFimMonth, bankRec, bankDesp };
+  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim]);
 
   const movOk = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov) === 0;
   const iniDiff = r2(p.next.ini - bankIni);
