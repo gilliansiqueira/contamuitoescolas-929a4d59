@@ -122,12 +122,23 @@ async function withCashflowSource(schoolId: string, entries: FinancialEntry[]): 
   const { data: cfg } = await db.from('school_data_sources')
     .select('status, dashboard_source, daily_flow_source, start_month').eq('school_id', schoolId).maybeSingle();
   if (!cfg || cfg.status !== 'ativo' || cfg.dashboard_source !== 'fluxo_caixa') return entries;
-  const [rows, forecasts] = await Promise.all([fetchAllRows<CashflowOverlayRow & { bank_transaction_id: string }>('bank_cashflow_entries', q => q.eq('school_id', schoolId).order('data'),
-    1000, 'id, bank_transaction_id, data, descricao, valor, tipo, tipo_nome'),
+  const [rows, forecasts] = await Promise.all([fetchAllRows<CashflowOverlayRow & { bank_transaction_id: string; model_item_id: string | null }>('bank_cashflow_entries', q => q.eq('school_id', schoolId).order('data'),
+    1000, 'id, bank_transaction_id, data, descricao, valor, tipo, tipo_nome, model_item_id'),
     fetchAllRows<{ id: string }>('bank_transactions', q => q.eq('school_id', schoolId).eq('is_forecast', true), 1000, 'id'),
   ]);
   const forecastIds = new Set(forecasts.map(row => row.id));
-  return applyCashflowOverlay(entries, rows.map(row => ({ ...row, is_forecast: forecastIds.has(row.bank_transaction_id) })), `${cfg.start_month}-01`, schoolId);
+  // Nome do item do modelo das operações (Antecipação, Pró-Labore...) para rotular os cards.
+  const itemIds = [...new Set(rows.filter(r => r.tipo_nome === 'Operação' && r.model_item_id).map(r => r.model_item_id as string))];
+  const itemName = new Map<string, string>();
+  for (let i = 0; i < itemIds.length; i += 200) {
+    const { data } = await db.from('financial_model_template_items').select('id, name').in('id', itemIds.slice(i, i + 200));
+    for (const it of data ?? []) itemName.set(it.id, it.name);
+  }
+  return applyCashflowOverlay(entries, rows.map(row => ({
+    ...row,
+    is_forecast: forecastIds.has(row.bank_transaction_id),
+    item_nome: row.model_item_id ? itemName.get(row.model_item_id) ?? null : null,
+  })), `${cfg.start_month}-01`, schoolId);
 }
 
 // Colunas realmente usadas pelas telas (mapEntry). Buscar só estas reduz o
