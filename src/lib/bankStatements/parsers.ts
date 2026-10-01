@@ -589,7 +589,7 @@ export function parseCaixaImageText(text: string): BankParseResult {
   const ultimoSaldo = saldosDia.get(dias[dias.length - 1])!;
   if (dias[dias.length - 1] >= rows[rows.length - 1].data && Math.abs(saldo - ultimoSaldo) >= 0.01 && !divergencias.length)
     divergencias.push(`Saldo final não fecha: calculado R$ ${fmtBR(saldo)}, banco R$ ${fmtBR(ultimoSaldo)}.`);
-  const txs = rows.map(({ hora: _h, ...t }) => t);
+  const txs = rows.map(({ hora: _h, saldoLinha: _s, ...t }) => t);
   const fim = periodo ? toIsoDate(periodo[2]) ?? dias[dias.length - 1] : dias[dias.length - 1];
   const result = finish('pdf', txs, {
     banco: 'Caixa',

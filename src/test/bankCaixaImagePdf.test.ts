@@ -20,3 +20,14 @@ describe('Caixa PDF somente-imagem (Pinheirinho)', () => {
     expect(r.bloqueiaImportacao).toBe(true);
   });
 });
+
+import { readFileSync as _rf } from 'fs';
+import { parseCaixaImageText as _pc } from '@/lib/bankStatements/parsers';
+it('Caixa Pinheirinho: OCR sem 3 linhas SALDO DIA ainda confere pelo saldo da linha', () => {
+  const txt = _rf('src/test/fixtures/caixa_pinheirinho_ocr.txt', 'utf8').split('\n')
+    .filter(l => !/^(25|14|09)\/09\/2026 - 00:00:00 000000 SALDO DIA/.test(l)).join('\n');
+  const r = _pc(txt);
+  expect(r.transactions).toHaveLength(6);
+  expect(r.saldoFinalInformado).toBe(352.02);
+  expect(r.bloqueiaImportacao).toBe(false);
+});
