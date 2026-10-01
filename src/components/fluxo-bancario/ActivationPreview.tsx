@@ -149,6 +149,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
             {row(`Saldo realizado em ${fmtDate(p.cut)}`, p.next.fimReal, p.bankFimMonth)}
             {p.after.length > 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>Movimento do mês seguinte já no extrato ({p.after.length} lançamentos até {fmtDate(bankTo)}) — entra no próximo mês, não é diferença. Saldo do banco em {fmtDate(bankTo)}: {fmtBRL(bankFim)}</td><td className="text-right text-xs tabular-nums">{fmtBRL(p.afterNet)}</td></tr>}
+            {p.afterForecast.length > 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>Débitos/créditos futuros do extrato ({p.afterForecast.length} lançamentos) — previsão, não entra na comparação.</td><td className="text-right text-xs tabular-nums">{fmtBRL(p.afterForecastNet)}</td></tr>}
             {retidoTotal !== 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>dos quais cheques retidos pelo banco (liberam nos próximos dias)</td><td className="text-right text-xs tabular-nums">{fmtBRL(retidoTotal)}</td></tr>}
           </tbody></table></div>
 
