@@ -10,3 +10,4 @@
 <!-- LOVABLE:BEGIN -->
 - Cards de Relatórios contam a primeira etapa mensal aberta por empresa; filtros Receita/Despesa do banco usam `resolveTipoMeta` e exibem só as partes correspondentes sem alterar o lançamento ou o saldo — para manter uma contagem exclusiva por etapa e a SSOT financeira.
 <!-- LOVABLE:END -->
+- No overlay do Fluxo Bancário, `tipo_nome='Operação'` vira 'Operações (banco) - entrada/saída' (DEFAULT_MAPPINGS: só Caixa) — para nunca cair no fallback 'saida' = despesa.

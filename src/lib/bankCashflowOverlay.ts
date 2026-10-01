@@ -4,6 +4,15 @@ export const IGNORADO_ENTRADA = 'Movimentações ignoradas (banco) - entrada';
 export const IGNORADO_SAIDA = 'Movimentações ignoradas (banco) - saída';
 export const AJUSTE_ENTRADA = 'Ajuste de saldo inicial (banco) - entrada';
 export const AJUSTE_SAIDA = 'Ajuste de saldo inicial (banco) - saída';
+export const OPERACAO_ENTRADA = 'Operações (banco) - entrada';
+export const OPERACAO_SAIDA = 'Operações (banco) - saída';
+
+function overlayTipoOriginal(tipoNome: string, tipo: 'entrada' | 'saida'): string {
+  if (tipoNome === 'Ignorar') return tipo === 'entrada' ? IGNORADO_ENTRADA : IGNORADO_SAIDA;
+  // "Operação" do banco: só Caixa, nunca Resultado (sem cair no fallback 'saida' = despesa).
+  if (tipoNome === 'Operação') return tipo === 'entrada' ? OPERACAO_ENTRADA : OPERACAO_SAIDA;
+  return tipoNome;
+}
 
 /** Dia anterior a 'YYYY-MM-DD'. */
 export function dayBefore(d: string): string {
@@ -38,7 +47,7 @@ export function applyCashflowOverlay(
     origem: 'fluxo' as FinancialEntry['origem'],
     school_id: schoolId,
     // "Ignorar" no banco: fora do Resultado, mas mexe no saldo (o dinheiro passou pela conta).
-    tipoOriginal: c.tipo_nome === 'Ignorar' ? (c.tipo === 'entrada' ? IGNORADO_ENTRADA : IGNORADO_SAIDA) : c.tipo_nome,
+    tipoOriginal: overlayTipoOriginal(c.tipo_nome, c.tipo),
     tipoRegistro: c.is_forecast ? 'projetado' : 'realizado',
     editadoManualmente: false,
   } as FinancialEntry));
