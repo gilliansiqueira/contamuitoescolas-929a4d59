@@ -138,7 +138,8 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {row('Operações fora do resultado', m.operacoesIn - m.operacoesOut - p.ign)}
             {p.ign !== 0 && row('Ignorados (banco) — só no saldo', p.ign)}
             {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
-            {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.next.fimReal, bankFim)}
+            {row(`Saldo realizado em ${fmtDate(p.cut)}`, p.next.fimReal, p.bankFimMonth)}
+            {p.after.length > 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>Movimento do mês seguinte já no extrato ({p.after.length} lançamentos até {fmtDate(bankTo)}) — entra no próximo mês, não é diferença. Saldo do banco em {fmtDate(bankTo)}: {fmtBRL(bankFim)}</td><td className="text-right text-xs tabular-nums">{fmtBRL(p.afterNet)}</td></tr>}
             {retidoTotal !== 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>dos quais cheques retidos pelo banco (liberam nos próximos dias)</td><td className="text-right text-xs tabular-nums">{fmtBRL(retidoTotal)}</td></tr>}
           </tbody></table></div>
 
@@ -172,7 +173,14 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             </div>
           </div>
         )}
-        {!active && !ok && <p className="text-xs text-muted-foreground">O botão de ativar libera quando saldo inicial, movimento e saldo final baterem com o banco e não houver nada a classificar.</p>}
+        {!active && !ok && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+            <p className="font-medium">O que falta para liberar o botão</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {todo.length ? todo.map((t, i) => <li key={i}>{t}</li>) : <li>Conferir os avisos acima.</li>}
+            </ul>
+          </div>
+        )}
       </>)}
     </section>
   );
