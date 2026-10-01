@@ -30,3 +30,10 @@ describe('overlay Fluxo Bancário — Operação', () => {
     expect(getSaldoImpact(e, [])).toBe(10181.42);
   });
 });
+
+import { resolveEntryTipoKey as _rk } from '@/lib/ledgerEngine';
+it('operações do banco com itens diferentes ficam em grupos separados', () => {
+  const mk = (n: string) => ({ tipo: 'saida', categoria: 'fluxo_realizado', origem: 'fluxo', tipoOriginal: `Operação (banco): ${n}` } as any);
+  const keys = ['Pró-Labore', 'Saída Aporte', 'Saída Empréstimo'].map(n => _rk(mk(n), []));
+  expect(new Set(keys).size).toBe(3);
+});

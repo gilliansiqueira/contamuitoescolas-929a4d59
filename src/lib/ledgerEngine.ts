@@ -182,6 +182,8 @@ export function resolveEntryTipoKey(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): string {
+  // Operação do Fluxo Bancário com item: cada item é um grupo próprio (Pró-Labore, Saída Aporte...).
+  if (entry.tipoOriginal?.startsWith('Operação (banco): ')) return entry.tipoOriginal;
   const candidates = [entry.tipoOriginal, entry.categoria, entry.tipo].filter(
     (s): s is string => !!s && s.trim() !== ''
   );
