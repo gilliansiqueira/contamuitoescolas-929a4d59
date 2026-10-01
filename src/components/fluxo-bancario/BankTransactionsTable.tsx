@@ -63,6 +63,16 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     if (!splitTx) return;
     try {
       await setSplitsM.mutateAsync({ txId: splitTx.id, parts: clear ? [] : parts.map(p => ({ valor: parseBR(p.valor), categoria: p.categoria, descricao: p.descricao, note: p.note })) });
+      if (!clear) {
+        // Parte de Operação com nome igual a um item do modelo já recebe a subcategoria.
+        const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        const { data: created } = await supabase.from('bank_transaction_splits').select('id, categoria, descricao, model_item_id').eq('transaction_id', splitTx.id);
+        for (const sp of created ?? []) {
+          if (sp.categoria !== 'operacao' || sp.model_item_id || !sp.descricao) continue;
+          const it = operationItemsFor(splitTx.tipo).find(i => norm(i.name) === norm(sp.descricao));
+          if (it) await setSplitItem.mutateAsync({ splitId: sp.id, itemId: it.id });
+        }
+      }
       toast.success(clear ? 'Divisão desfeita' : 'Lançamento dividido'); setSplitTx(null);
     } catch (e: any) { toast.error(e.message ?? 'Erro ao dividir'); }
   };
@@ -120,6 +130,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const unclassified = (t: BankTx) => needsItem(t) && (t.splits?.length ? t.splits.some(sp => sp.categoria !== 'ignorar' && !sp.model_item_id) : !t.model_item_id);
   const operationPending = txs.filter(t => t.movement_kind === 'operacao' && !t.model_item_id).length;
   const transferPending = txs.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id).length;
+  const opSemSub = (t: BankTx) => t.splits?.length ? t.splits.some(sp => sp.categoria === 'operacao' && !sp.model_item_id) : (t.movement_kind === 'operacao' && !t.model_item_id && !t.transfer_pair_id);
   const splitPending = txs.filter(t => t.splits?.some(sp => sp.categoria === 'operacao' && !sp.model_item_id)).length;
   const applyItem = async (ids: string[], itemId: string | null) => {
     if (!ids.length) return;
@@ -160,6 +171,11 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     catch (e: any) { toast.error(e.message ?? 'Erro ao justificar'); }
   };
   const runCloseDay = async () => {
+    const semSub = txs.filter(t => t.data <= closeTarget && opSemSub(t));
+    if (semSub.length) {
+      toast.error(`Escolha a subcategoria de ${semSub.length} operação(ões) antes de finalizar o dia: ${semSub.slice(0, 5).map(t => `${fmtDate(t.data)} ${fmtBRL(Number(t.valor))}`).join('; ')}${semSub.length > 5 ? '…' : ''}`, { duration: 10000 });
+      return;
+    }
     try {
       const miss = await closeDay.mutateAsync(closeTarget);
       if (miss.length) { setMissing(miss); return; }
@@ -205,6 +221,10 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
 
   const apply = async (ids: string[], st: ReconStatus, note?: string | null) => {
     if (!ids.length) return;
+    if (st === 'conciliado') {
+      const semSub = txs.filter(t => ids.includes(t.id) && opSemSub(t));
+      if (semSub.length) { toast.error(`Escolha a subcategoria da operação antes de conciliar (${semSub.length} lançamento(s)).`); return; }
+    }
     try {
       await setRecon.mutateAsync({ ids, status: st, note });
       toast.success(`${ids.length} lançamento(s): ${STATUS_LABEL[st]}`);
