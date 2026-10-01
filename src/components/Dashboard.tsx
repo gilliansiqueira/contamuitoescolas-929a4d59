@@ -52,6 +52,9 @@ import { useChartPresets, ChartScroller } from '@/components/mobile/chartPresets
 import { fetchAllRows } from '@/lib/fetchAll';
 
 
+import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
+// Ignorados do banco se anulam e só mexem no saldo: não viram card de operação.
+const IGNORADOS_BANCO_LABELS = new Set([IGNORADO_ENTRADA, IGNORADO_SAIDA]);
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
 
 interface DashboardProps {
@@ -967,7 +970,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
     // Espelha exatamente os mesmos itens exibidos em "Operações Financeiras"
     // no Dashboard; o PDF não reclassifica nem reconstrói esses valores.
     const reportOperations = tipoAggregations
-      .filter(item => !item.entraNoResultado && item.impactaCaixa)
+      .filter(item => !item.entraNoResultado && item.impactaCaixa && !IGNORADOS_BANCO_LABELS.has(item.label))
       .map(item => ({ label: item.label, valor: item.valor, isEntrada: item.isEntrada }));
 
     return {
@@ -1177,17 +1180,17 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       )}
 
       {/* Operações Financeiras */}
-      {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).length > 0 && (
+      {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa && !IGNORADOS_BANCO_LABELS.has(a.label)).length > 0 && (
         <MobileSection
           title="Operações Financeiras"
           icon={<Coins className="w-3.5 h-3.5" />}
-          summary={`${tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).length} itens`}
+          summary={`${tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa && !IGNORADOS_BANCO_LABELS.has(a.label)).length} itens`}
         >
           <h3 className="hidden sm:flex text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 items-center gap-2">
             <Coins className="w-4 h-4" /> Operações Financeiras
           </h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-            {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa).map((a, i) => {
+            {tipoAggregations.filter(a => !a.entraNoResultado && a.impactaCaixa && !IGNORADOS_BANCO_LABELS.has(a.label)).map((a, i) => {
               const Icon = a.isEntrada ? ArrowUp : ArrowDown;
               const color = a.isEntrada ? 'text-success' : 'text-destructive';
               const accent = a.isEntrada ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive';
