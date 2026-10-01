@@ -13,6 +13,12 @@ O mesmo lançamento dividido tem outras duas partes nessa situação:
 1. Escolher a subcategoria nas três partes, usando o nome que já está escrito em cada uma: Antecipação, Compra da Escola e Distribuição de Lucros. A alteração fica registrada no histórico.
 2. Com isso, o card Antecipação passa a mostrar **R$ 70.113,53**, e cada uma das outras duas partes ganha o seu próprio card.
 3. Para não repetir: ao dividir um lançamento, a parte marcada como Operação já vem com a subcategoria preenchida quando o nome digitado for igual a um item do modelo.
+4. Aviso para obrigar o preenchimento correto:
+   - Ao marcar "Operação" sem escolher a subcategoria, aparece a mensagem "Escolha a subcategoria da operação".
+   - A caixa fica destacada em amarelo, tanto no lançamento inteiro quanto em cada parte de um lançamento dividido.
+   - O botão de conciliar o lançamento fica travado até a subcategoria ser escolhida.
+   - "Finalizar conciliação do dia" também fica travado e lista as operações sem subcategoria.
+   - A prévia de ativação continua mostrando o aviso.
 
 Resultado, saldo e totais não mudam.
 
