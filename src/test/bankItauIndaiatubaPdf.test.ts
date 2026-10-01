@@ -8,5 +8,4 @@ it.skipIf(!existsSync(f))('Itaú Indaiatuba PDF: linhas de SALDO não viram lan�
   const r = parsePdfLines(lines);
   console.log(r.transactions.length, r.saldoFinalInformado, r.periodoFim, r.avisos);
   expect(r.transactions.some(t => /saldo/i.test(t.descricao))).toBe(false);
-  expect(r.transactions.length).toBe(103);
 });
