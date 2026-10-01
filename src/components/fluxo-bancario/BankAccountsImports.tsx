@@ -175,6 +175,12 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const movN = result.transactions.reduce((a, t, i) => (t.futuro || existing.has(hashes[i]) || (acc.saldo_inicial_data && t.data <= acc.saldo_inicial_data)) ? a : a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
         saldoCalc = Math.round((Number(acc.saldo_inicial ?? 0) + movG + movN) * 100) / 100;
       }
+      // Bradesco OFX com aplicação: o saldo do arquivo é o total (conta + aplicação). Em conta = calculado.
+      if (acc?.has_auto_invest && /bradesco/i.test(`${acc.banco} ${result.banco ?? ''}`) && saldoCalc !== undefined && result.saldoFinalInformado! - saldoCalc >= 0.01) {
+        result.avisos = [...(result.avisos ?? []), `Saldo do arquivo (${fmtBRL(result.saldoFinalInformado!)}) tratado como total com aplicação: em conta ${fmtBRL(saldoCalc)}.`];
+        result.saldoComAplicacaoInformado = result.saldoFinalInformado;
+        result.saldoFinalInformado = saldoCalc;
+      }
       setPreview({ file, hash, result, hashes, existing, kinds, linkRefs, saldoAplicado: '', saldoCalc });
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao ler o arquivo');
