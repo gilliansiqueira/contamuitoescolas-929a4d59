@@ -83,8 +83,8 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const bankRec = inMonth.filter(e => e.tipo_nome === 'Receita').reduce((s, e) => s + sgn(e), 0);
     const bankDesp = -inMonth.filter(e => e.tipo_nome === 'Despesa').reduce((s, e) => s + sgn(e), 0);
     return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
-      monthEnd, cut, after, afterNet, bankFimMonth, bankRec, bankDesp };
-  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim]);
+      monthEnd, cut, after, afterNet, afterForecast, afterForecastNet, bankFimMonth, bankRec, bankDesp };
+  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim, bankFimMonthProp, forecastTxIds]);
 
   const movDiff = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov);
   const movOk = movDiff === 0;
