@@ -544,6 +544,61 @@ export function parseItauImageText(text: string): BankParseResult {
   return result;
 }
 
+/**
+ * Caixa "Extrato por período" (pdfmake, somente-imagem). Lê só o texto reconhecido e
+ * aceita apenas se, dia a dia, saldo anterior + lançamentos = "SALDO DIA" impresso.
+ */
+export function parseCaixaImageText(text: string): BankParseResult {
+  const lines = text.replace(/\u00a0/g, ' ').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const money = '(\\d{1,3}(?:\\.\\d{3})*,\\d{2})\\s*([CD])';
+  const ant = text.match(new RegExp(`saldo anterior[^\\n]*?R\\$\\s*${money}`, 'i'));
+  const periodo = text.match(/per[ií]odo dos lan[cç]amentos\s*(\d{2}\/\d{2}\/\d{4})\s*at[eé]\s*(\d{2}\/\d{2}\/\d{4})/i);
+  if (!ant) throw new Error('Não foi possível ler o saldo anterior deste PDF da Caixa. Nada foi importado.');
+  const signed = (v: string, cd: string) => (cd.toUpperCase() === 'D' ? -1 : 1) * parseBRNumber(v);
+  const saldoAnterior = signed(ant[1], ant[2]);
+  const rowRe = new RegExp(`^(\\d{2}\\/\\d{2}\\/\\d{4})\\s*-\\s*(\\d{2}:\\d{2}:\\d{2})\\s+(\\d+)\\s+(.+?)\\s+${money}\\s+${money}$`, 'i');
+  const saldosDia = new Map<string, number>();
+  const rows: Array<ParsedBankTx & { hora: string }> = [];
+  for (const line of lines) {
+    const m = line.match(rowRe);
+    if (!m) continue;
+    const data = toIsoDate(m[1]);
+    if (!data) continue;
+    const desc = m[4].replace(/\s*\*\*[\d./*]+\s*$/, '').trim();
+    if (/^saldo dia/i.test(stripAccents(desc))) { saldosDia.set(data, signed(m[7], m[8])); continue; }
+    const valor = parseBRNumber(m[5]);
+    if (!valor) continue;
+    rows.push({ data, hora: m[2], descricao: desc, valor, tipo: m[6].toUpperCase() === 'D' ? 'saida' : 'entrada' });
+  }
+  if (rows.length === 0 || saldosDia.size === 0) throw new Error('Não foi possível ler com segurança os lançamentos deste PDF da Caixa. Nada foi importado.');
+  rows.sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
+  const divergencias: string[] = [];
+  let saldo = saldoAnterior;
+  const dias = [...saldosDia.keys()].sort();
+  for (const dia of dias) {
+    rows.filter(r => r.data === dia).forEach(r => { saldo += r.tipo === 'entrada' ? r.valor : -r.valor; });
+    const diff = Math.round((saldo - (saldosDia.get(dia) ?? 0)) * 100) / 100;
+    if (Math.abs(diff) >= 0.01) divergencias.push(`${dia.split('-').reverse().join('/')}: diferença de R$ ${fmtBR(Math.abs(diff))} entre as linhas reconhecidas e o saldo do banco.`);
+    saldo = saldosDia.get(dia) ?? saldo;
+  }
+  const semSaldo = rows.filter(r => !saldosDia.has(r.data));
+  if (semSaldo.length) divergencias.push(`${semSaldo.length} lançamento(s) sem "SALDO DIA" correspondente para conferir.`);
+  const txs = rows.map(({ hora: _h, ...t }) => t);
+  const fim = periodo ? toIsoDate(periodo[2]) ?? dias[dias.length - 1] : dias[dias.length - 1];
+  const result = finish('pdf', txs, {
+    banco: 'Caixa',
+    periodoInicio: periodo ? toIsoDate(periodo[1]) ?? undefined : undefined,
+    periodoFim: fim,
+    saldoFinalInformado: saldosDia.get(dias[dias.length - 1]),
+    bloqueiaImportacao: divergencias.length > 0,
+    divergencias,
+    avisos: ['Este PDF da Caixa é uma imagem. A leitura visual exige conferência de todas as linhas antes da importação.', ...divergencias],
+  });
+  if (periodo) result.periodoInicio = toIsoDate(periodo[1]) ?? result.periodoInicio;
+  result.periodoFim = fim ?? result.periodoFim;
+  return result;
+}
+
 async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
@@ -611,6 +666,8 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
     // ficaria vazia sem explicação. Avisamos o que enviar no lugar.
     if (lines.join('').replace(/\s+/g, '').length < 40) {
       const recognized = await readPdfImageText(buffer);
+      const plain = stripAccents(recognized).toLowerCase();
+      if (plain.includes('caixa') && plain.includes('saldo dia')) return parseCaixaImageText(recognized);
       return parseItauImageText(recognized);
     }
     return parsePdfLines(lines);
