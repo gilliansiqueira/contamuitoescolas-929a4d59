@@ -558,7 +558,7 @@ export function parseCaixaImageText(text: string): BankParseResult {
   const saldoAnterior = signed(ant[1], ant[2]);
   const rowRe = new RegExp(`^(\\d{2}\\/\\d{2}\\/\\d{4})\\s*-\\s*(\\d{2}:\\d{2}:\\d{2})\\s+(\\d+)\\s+(.+?)\\s+${money}\\s+${money}$`, 'i');
   const saldosDia = new Map<string, number>();
-  const rows: Array<ParsedBankTx & { hora: string }> = [];
+  const rows: Array<ParsedBankTx & { hora: string; saldoLinha: number }> = [];
   for (const line of lines) {
     const m = line.match(rowRe);
     if (!m) continue;
@@ -568,22 +568,28 @@ export function parseCaixaImageText(text: string): BankParseResult {
     if (/^saldo dia/i.test(stripAccents(desc))) { saldosDia.set(data, signed(m[7], m[8])); continue; }
     const valor = parseBRNumber(m[5]);
     if (!valor) continue;
-    rows.push({ data, hora: m[2], descricao: desc, valor, tipo: m[6].toUpperCase() === 'D' ? 'saida' : 'entrada' });
+    rows.push({ data, hora: m[2], descricao: desc, valor, tipo: m[6].toUpperCase() === 'D' ? 'saida' : 'entrada', saldoLinha: signed(m[7], m[8]) });
   }
   if (rows.length === 0 || saldosDia.size === 0) throw new Error('Não foi possível ler com segurança os lançamentos deste PDF da Caixa. Nada foi importado.');
   rows.sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
   const divergencias: string[] = [];
+  // Fechamento por dia: usa "SALDO DIA" quando reconhecido; senão, o saldo impresso na própria linha
+  // (na Caixa, cada linha traz o saldo de fechamento do dia).
+  const fechamento = new Map<string, number>(saldosDia);
+  for (const r of rows) if (!fechamento.has(r.data)) fechamento.set(r.data, r.saldoLinha);
   let saldo = saldoAnterior;
-  const dias = [...saldosDia.keys()].sort();
-  for (const dia of dias) {
+  for (const dia of [...new Set(rows.map(r => r.data))].sort()) {
     rows.filter(r => r.data === dia).forEach(r => { saldo += r.tipo === 'entrada' ? r.valor : -r.valor; });
-    const diff = Math.round((saldo - (saldosDia.get(dia) ?? 0)) * 100) / 100;
-    if (Math.abs(diff) >= 0.01) divergencias.push(`${dia.split('-').reverse().join('/')}: diferença de R$ ${fmtBR(Math.abs(diff))} entre as linhas reconhecidas e o saldo do banco.`);
-    saldo = saldosDia.get(dia) ?? saldo;
+    saldo = Math.round(saldo * 100) / 100;
+    const esperado = fechamento.get(dia)!;
+    const diff = Math.round((saldo - esperado) * 100) / 100;
+    if (Math.abs(diff) >= 0.01) { divergencias.push(`${dia.split('-').reverse().join('/')}: diferença de R$ ${fmtBR(Math.abs(diff))} entre as linhas reconhecidas e o saldo do banco.`); saldo = esperado; }
   }
-  const semSaldo = rows.filter(r => !saldosDia.has(r.data));
-  if (semSaldo.length) divergencias.push(`${semSaldo.length} lançamento(s) sem "SALDO DIA" correspondente para conferir.`);
-  const txs = rows.map(({ hora: _h, ...t }) => t);
+  const dias = [...saldosDia.keys()].sort();
+  const ultimoSaldo = saldosDia.get(dias[dias.length - 1])!;
+  if (dias[dias.length - 1] >= rows[rows.length - 1].data && Math.abs(saldo - ultimoSaldo) >= 0.01 && !divergencias.length)
+    divergencias.push(`Saldo final não fecha: calculado R$ ${fmtBR(saldo)}, banco R$ ${fmtBR(ultimoSaldo)}.`);
+  const txs = rows.map(({ hora: _h, saldoLinha: _s, ...t }) => t);
   const fim = periodo ? toIsoDate(periodo[2]) ?? dias[dias.length - 1] : dias[dias.length - 1];
   const result = finish('pdf', txs, {
     banco: 'Caixa',
