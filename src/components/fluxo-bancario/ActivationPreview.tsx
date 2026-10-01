@@ -17,11 +17,15 @@ import { fmtBRL, fmtDate } from './shared';
 interface Props {
   schoolId: string; cfg: DataSourceConfig; gen: CashflowEntry[];
   bankIni: number; bankFim: number; bankTo: string; holder?: string; accounts?: BankAccount[];
+  /** Saldo do banco calculado direto no fim do mês (ou no corte, se antes). */
+  bankFimMonth?: number;
+  /** Lançamentos do extrato que são previsão (débitos futuros). */
+  forecastTxIds?: Set<string>;
 }
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Prévia: como o Dashboard e o Fluxo Diário ficariam com o Fluxo de Caixa, usando os motores oficiais. */
-export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo, holder, accounts = [] }: Props) {
+export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo, holder, accounts = [], bankFimMonth: bankFimMonthProp, forecastTxIds }: Props) {
   const setRetido = useSetRetido(schoolId);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const latest = accounts.map(a => ({ acc: a, anc: (a.anchors ?? [])[0] })).filter(x => x.anc && x.anc.data <= bankTo);
@@ -68,14 +72,19 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     const genOut = inMonth.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
     const ign = inMonth.filter(e => e.tipo_nome === 'Ignorar').reduce((s, e) => s + sgn(e), 0);
-    const after = gen.filter(e => e.data > monthEnd && e.data <= bankTo);
-    const afterNet = r2(after.reduce((s, e) => s + sgn(e), 0));
-    const bankFimMonth = r2(bankFim - afterNet);
+    // Só o que já aconteceu de fato; débitos futuros (previsão) ficam à parte.
+    const afterAll = gen.filter(e => e.data > monthEnd && e.data <= bankTo);
+    const after = afterAll.filter(e => !forecastTxIds?.has(e.bank_transaction_id));
+    const afterForecast = afterAll.filter(e => forecastTxIds?.has(e.bank_transaction_id));
+    const afterForecastNet = r2(afterForecast.reduce((s, e) => s + sgn(e), 0));
+    // Saldo do banco no fim do mês calculado direto (não voltando a partir do dia seguinte).
+    const bankFimMonth = r2(bankFimMonthProp ?? (bankFim - after.reduce((s, e) => s + sgn(e), 0)));
+    const afterNet = r2(bankFim - bankFimMonth);
     const bankRec = inMonth.filter(e => e.tipo_nome === 'Receita').reduce((s, e) => s + sgn(e), 0);
     const bankDesp = -inMonth.filter(e => e.tipo_nome === 'Despesa').reduce((s, e) => s + sgn(e), 0);
     return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
-      monthEnd, cut, after, afterNet, bankFimMonth, bankRec, bankDesp };
-  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim]);
+      monthEnd, cut, after, afterNet, afterForecast, afterForecastNet, bankFimMonth, bankRec, bankDesp };
+  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim, bankFimMonthProp, forecastTxIds]);
 
   const movDiff = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov);
   const movOk = movDiff === 0;
@@ -140,6 +149,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
             {row(`Saldo realizado em ${fmtDate(p.cut)}`, p.next.fimReal, p.bankFimMonth)}
             {p.after.length > 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>Movimento do mês seguinte já no extrato ({p.after.length} lançamentos até {fmtDate(bankTo)}) — entra no próximo mês, não é diferença. Saldo do banco em {fmtDate(bankTo)}: {fmtBRL(bankFim)}</td><td className="text-right text-xs tabular-nums">{fmtBRL(p.afterNet)}</td></tr>}
+            {p.afterForecast.length > 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>Débitos/créditos futuros do extrato ({p.afterForecast.length} lançamentos) — previsão, não entra na comparação.</td><td className="text-right text-xs tabular-nums">{fmtBRL(p.afterForecastNet)}</td></tr>}
             {retidoTotal !== 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>dos quais cheques retidos pelo banco (liberam nos próximos dias)</td><td className="text-right text-xs tabular-nums">{fmtBRL(retidoTotal)}</td></tr>}
           </tbody></table></div>
 

@@ -189,7 +189,9 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
       {cfg.synced_through && <ActivationPreview schoolId={schoolId} cfg={cfg} gen={gen} bankTo={cfg.synced_through} accounts={active}
         holder={(() => { const today = new Date().toISOString().slice(0, 10); if (cfg.synced_through! >= today) return undefined; const h = active.filter(a => (lastExtract.get(a.id) ?? '') <= cfg.synced_through!).map(a => a.nome); return h.length ? h.join(', ') : undefined; })()}
         bankIni={active.reduce((s, a) => s + accountBalances(a, txs, dayBefore(`${cfg.start_month}-01`)).total, 0)}
-        bankFim={active.reduce((s, a) => s + accountBalances(a, txs, cfg.synced_through!).total, 0)} />}
+        bankFim={active.reduce((s, a) => s + accountBalances(a, txs, cfg.synced_through!).total, 0)}
+        bankFimMonth={(() => { const [y, m] = cfg.start_month.split('-').map(Number); const end = `${cfg.start_month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; const d = cfg.synced_through! < end ? cfg.synced_through! : end; return active.reduce((s, a) => s + accountBalances(a, txs, d).total, 0); })()}
+        forecastTxIds={new Set(txs.filter(t => t.is_forecast).map(t => t.id))} />}
 
 
       {(data.dups.length > 0 || data.splitDiff.length > 0 || data.semPar.length + data.pairOut.length > 0) && (
