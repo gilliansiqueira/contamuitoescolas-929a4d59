@@ -6,11 +6,16 @@ export const AJUSTE_ENTRADA = 'Ajuste de saldo inicial (banco) - entrada';
 export const AJUSTE_SAIDA = 'Ajuste de saldo inicial (banco) - saída';
 export const OPERACAO_ENTRADA = 'Operações (banco) - entrada';
 export const OPERACAO_SAIDA = 'Operações (banco) - saída';
+/** Prefixo de operação do banco com item do modelo: sempre só Caixa (ver ledgerEngine). */
+export const OPERACAO_ITEM_PREFIX = 'Operação (banco): ';
 
-function overlayTipoOriginal(tipoNome: string, tipo: 'entrada' | 'saida'): string {
+function overlayTipoOriginal(tipoNome: string, tipo: 'entrada' | 'saida', itemNome?: string | null): string {
   if (tipoNome === 'Ignorar') return tipo === 'entrada' ? IGNORADO_ENTRADA : IGNORADO_SAIDA;
-  // "Operação" do banco: só Caixa, nunca Resultado (sem cair no fallback 'saida' = despesa).
-  if (tipoNome === 'Operação') return tipo === 'entrada' ? OPERACAO_ENTRADA : OPERACAO_SAIDA;
+  // "Operação" do banco: só Caixa, nunca Resultado; mantém o nome do item escolhido.
+  if (tipoNome === 'Operação') {
+    if (itemNome && itemNome.trim()) return `${OPERACAO_ITEM_PREFIX}${itemNome.trim()}`;
+    return tipo === 'entrada' ? OPERACAO_ENTRADA : OPERACAO_SAIDA;
+  }
   return tipoNome;
 }
 
@@ -23,6 +28,7 @@ export function dayBefore(d: string): string {
 export interface CashflowOverlayRow {
   id: string; data: string; descricao: string; valor: number; tipo: 'entrada' | 'saida'; tipo_nome: string;
   is_forecast?: boolean;
+  item_nome?: string | null;
 }
 
 /**
