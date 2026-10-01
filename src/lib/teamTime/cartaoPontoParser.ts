@@ -58,6 +58,7 @@ export function parseCartaoPonto(tokens: PdfToken[]): CartaoRelatorio {
   // Colunas (x) lidas do cabeçalho; valores padrão do layout PontoFopag.
   let col = { marcIni: 165, marcFim: 345, trab: 365, extra: 405, falta: 450, obs: 495 };
   const dayLines: { line: Line; dia: CartaoDia }[] = [];
+  const orphans: { line: Line; t: string }[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i]; const t = text(l);
@@ -99,9 +100,12 @@ export function parseCartaoPonto(tokens: PdfToken[]): CartaoRelatorio {
     }
     // Observação impressa um pouco acima/abaixo da linha do dia (ex.: "Férias").
     if (l.items.every(x => x.x >= col.obs) && t) {
-      const near = dayLines.filter(d => d.line.page === l.page && Math.abs(d.line.y - l.y) <= 4).sort((a, b) => Math.abs(a.line.y - l.y) - Math.abs(b.line.y - l.y))[0];
-      if (near && !near.dia.observacao) near.dia.observacao = t;
+      orphans.push({ line: l, t });
     }
+  }
+  for (const { line: l, t } of orphans) {
+    const near = dayLines.filter(d => d.line.page === l.page && Math.abs(d.line.y - l.y) <= 4).sort((a, b) => Math.abs(a.line.y - l.y) - Math.abs(b.line.y - l.y))[0];
+    if (near && !near.dia.observacao) near.dia.observacao = t;
   }
 
   for (const f of out.funcionarios) {
