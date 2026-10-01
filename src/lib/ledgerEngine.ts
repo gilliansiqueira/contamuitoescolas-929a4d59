@@ -73,8 +73,8 @@ export const DEFAULT_MAPPINGS: Record<string, LedgerRule> = {
   'movimentacoes ignoradas (banco) - saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Movimentações ignoradas (banco) - saída' },
   'ajuste de saldo inicial (banco) - entrada': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar', label: 'Ajuste de saldo inicial (banco) - entrada' },
   'ajuste de saldo inicial (banco) - saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Ajuste de saldo inicial (banco) - saída' },
-  'operacoes (banco) - entrada': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar', label: 'Operações (banco) - entrada' },
-  'operacoes (banco) - saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Operações (banco) - saída' },
+  'operacoes (banco) - entrada': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'somar', label: 'Operações sem subcategoria - entrada' },
+  'operacoes (banco) - saida': { entraNoResultado: false, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Operações sem subcategoria - saída' },
 };
 
 /**
