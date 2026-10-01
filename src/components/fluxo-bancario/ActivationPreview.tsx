@@ -58,23 +58,47 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
       const ini = computeSaldoInicial(month, c, opts);
       return { mov, ini, fimReal: ini + mov.saldoMovimentoRealizado };
     };
-    const genIn = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
-    const genOut = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+    // Mesma janela nas duas colunas: o mês comparado com o banco até o fim do mês.
+    const [yy, mm] = month.split('-').map(Number);
+    const monthEnd = `${month}-${String(new Date(yy, mm, 0).getDate()).padStart(2, '0')}`;
+    const cut = bankTo < monthEnd ? bankTo : monthEnd;
+    const inMonth = gen.filter(e => e.data >= start && e.data <= cut);
+    const sgn = (e: CashflowEntry) => (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor);
+    const genIn = inMonth.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
+    const genOut = inMonth.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     const aClass = gen.filter(e => e.data >= start && e.tipo_nome === 'A classificar');
-    const ign = gen.filter(e => e.data >= start && e.data <= bankTo && e.tipo_nome === 'Ignorar')
-      .reduce((s, e) => s + (e.tipo === 'entrada' ? 1 : -1) * Number(e.valor), 0);
-    return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass };
-  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni]);
+    const ign = inMonth.filter(e => e.tipo_nome === 'Ignorar').reduce((s, e) => s + sgn(e), 0);
+    const after = gen.filter(e => e.data > monthEnd && e.data <= bankTo);
+    const afterNet = r2(after.reduce((s, e) => s + sgn(e), 0));
+    const bankFimMonth = r2(bankFim - afterNet);
+    const bankRec = inMonth.filter(e => e.tipo_nome === 'Receita').reduce((s, e) => s + sgn(e), 0);
+    const bankDesp = -inMonth.filter(e => e.tipo_nome === 'Despesa').reduce((s, e) => s + sgn(e), 0);
+    return { next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
+      monthEnd, cut, after, afterNet, bankFimMonth, bankRec, bankDesp };
+  }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim]);
 
-  const movOk = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov) === 0;
+  const movDiff = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov);
+  const movOk = movDiff === 0;
   const iniDiff = r2(p.next.ini - bankIni);
-  const fimDiff = r2(p.next.fimReal - bankFim);
+  const fimDiff = r2(p.next.fimReal - p.bankFimMonth);
   // Diferenças pequenas (rendimento/centavos) ficam "A confirmar no próximo extrato" e não bloqueiam.
   const SMALL_DIFF_TOLERANCE = BANK_SMALL_DIFF_TOLERANCE;
   const fimSmall = fimDiff !== 0 && Math.abs(fimDiff) <= SMALL_DIFF_TOLERANCE;
   const fimOk = fimDiff === 0;
   const ok = movOk && iniDiff === 0 && (fimOk || fimSmall) && p.aClass.length === 0;
   const active = cfg.status === 'ativo';
+  const recDiff = r2(p.next.mov.receitasRealizadas - p.bankRec);
+  const despDiff = r2(p.next.mov.despesasRealizadas - p.bankDesp);
+  const todo: string[] = [];
+  if (p.aClass.length) todo.push(`Classificar ${p.aClass.length} movimentação(ões) que estão como "A classificar".`);
+  if (holder) todo.push(`Subir o extrato de ${holder} até ${fmtDate(p.monthEnd)} (mesmo sem movimento).`);
+  if (iniDiff !== 0) todo.push(`Conferir o saldo inicial das contas: o sistema começa ${fmtBRL(iniDiff)} diferente do banco.`);
+  if (!movOk) {
+    if (recDiff !== 0) todo.push(`Receitas: o Dashboard tem ${fmtBRL(recDiff)} de diferença em relação às receitas do banco. Conferir se os itens do modelo dessas entradas estão no modelo financeiro da empresa.`);
+    if (despDiff !== 0) todo.push(`Despesas: o Dashboard tem ${fmtBRL(despDiff)} de diferença em relação às despesas do banco. Conferir se os itens do modelo dessas saídas estão no modelo financeiro da empresa.`);
+    if (recDiff === 0 && despDiff === 0) todo.push(`Operações/ignorados: diferença de ${fmtBRL(movDiff)} no movimento. Conferir transferências e itens marcados como Operação.`);
+  }
+  if (!fimOk && !fimSmall && movOk && iniDiff === 0) todo.push(`Saldo final difere ${fmtBRL(fimDiff)} do saldo do banco em ${fmtDate(p.cut)}: conferir saldos informados nos extratos e cheques retidos.`);
 
   const row = (label: string, v: number, bank?: number) => (
     <tr className="border-t border-border"><td className="py-1.5">{label}</td>
@@ -114,7 +138,8 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             {row('Operações fora do resultado', m.operacoesIn - m.operacoesOut - p.ign)}
             {p.ign !== 0 && row('Ignorados (banco) — só no saldo', p.ign)}
             {row('Movimento realizado no caixa', m.saldoMovimentoRealizado, p.bankMov)}
-            {row(`Saldo realizado em ${fmtDate(bankTo)}`, p.next.fimReal, bankFim)}
+            {row(`Saldo realizado em ${fmtDate(p.cut)}`, p.next.fimReal, p.bankFimMonth)}
+            {p.after.length > 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>Movimento do mês seguinte já no extrato ({p.after.length} lançamentos até {fmtDate(bankTo)}) — entra no próximo mês, não é diferença. Saldo do banco em {fmtDate(bankTo)}: {fmtBRL(bankFim)}</td><td className="text-right text-xs tabular-nums">{fmtBRL(p.afterNet)}</td></tr>}
             {retidoTotal !== 0 && <tr className="text-muted-foreground"><td className="py-1 pl-4 text-xs" colSpan={2}>dos quais cheques retidos pelo banco (liberam nos próximos dias)</td><td className="text-right text-xs tabular-nums">{fmtBRL(retidoTotal)}</td></tr>}
           </tbody></table></div>
 
@@ -148,7 +173,14 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             </div>
           </div>
         )}
-        {!active && !ok && <p className="text-xs text-muted-foreground">O botão de ativar libera quando saldo inicial, movimento e saldo final baterem com o banco e não houver nada a classificar.</p>}
+        {!active && !ok && (
+          <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+            <p className="font-medium">O que falta para liberar o botão</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {todo.length ? todo.map((t, i) => <li key={i}>{t}</li>) : <li>Conferir os avisos acima.</li>}
+            </ul>
+          </div>
+        )}
       </>)}
     </section>
   );
