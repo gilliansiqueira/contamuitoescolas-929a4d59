@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
 
 // Importação do "Relatório de Cartão Ponto" (PDF lido no navegador). CPF/PIS nunca chegam aqui.
 const ISO = /^\d{4}-\d{2}-\d{2}$/; const HM = /^\d{1,3}:\d{2}$/;
-const SITS = new Set(["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando"]);
+const SITS = new Set(["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando", "em_andamento"]);
 const str = (v: unknown, max = 120) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
 const hm = (v: unknown) => typeof v === "string" && HM.test(v) ? v : null;
 async function importReport(body: Row, admin: ReturnType<typeof createClient>, userId: string) {
@@ -177,8 +177,8 @@ async function importReport(body: Row, admin: ReturnType<typeof createClient>, u
       const sit = SITS.has(String(d.situacao)) ? String(d.situacao) : "aguardando";
       if (!str(d.jornada) && !marc.length && !obs) continue; // folga sem registro
       const faltas = hm(d.faltas);
-      daily.push({ employee_external_id: ext, dia, horario_previsto: str(d.jornada, 60), primeira_marcacao: marc[0] ?? null, ultima_marcacao: marc.length > 1 ? marc[marc.length - 1] : null, marcacoes: marc, horas_trabalhadas: hm(d.trabalhadas), horas_extras: hm(d.extras), situacao: sit, ocorrencia: obs ?? (faltas ? `Faltas ${faltas} (relatório)` : null), synced_at: now });
-      if (obs) occ.push({ external_key: `relatorio_pdf|${ext}|${dia}|${norm(obs)}`, employee_external_id: ext, dia, tipo: obs, descricao: null, origem: "relatorio_pdf", synced_at: now });
+      daily.push({ employee_external_id: ext, dia, horario_previsto: str(d.jornada, 60), primeira_marcacao: marc[0] ?? null, ultima_marcacao: marc.length > 1 ? marc[marc.length - 1] : null, marcacoes: marc, horas_trabalhadas: hm(d.trabalhadas), horas_extras: hm(d.extras), situacao: sit, ocorrencia: sit === "em_andamento" ? null : obs ?? (faltas ? `Faltas ${faltas} (relatório)` : null), synced_at: now });
+      if (obs && sit !== "em_andamento") occ.push({ external_key: `relatorio_pdf|${ext}|${dia}|${norm(obs)}`, employee_external_id: ext, dia, tipo: obs, descricao: null, origem: "relatorio_pdf", synced_at: now });
     }
   }
   const { data: run } = await admin.from("team_time_sync_runs").insert({ trigger: "relatorio_pdf", status: "running", requested_by: userId, reference_date: fim, message: str(body.arquivo, 200) }).select("id").single();

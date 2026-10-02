@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FileUp, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { parseCartaoPonto, readPdfTokens, type CartaoRelatorio } from '@/lib/teamTime/cartaoPontoParser';
+import { geracaoDoArquivo, parseCartaoPonto, readPdfTokens, type CartaoRelatorio } from '@/lib/teamTime/cartaoPontoParser';
 import { useTeamTimeImportReport } from '@/hooks/useTeamTime';
 
 const fmt = (d: string | null) => d ? d.split('-').reverse().join('/') : '—';
@@ -19,7 +19,7 @@ export function ImportCartaoPonto() {
   const onFile = async (f?: File) => {
     if (!f) return;
     setReading(true);
-    try { setRep(parseCartaoPonto(await readPdfTokens(await f.arrayBuffer()))); setFile(f.name); }
+    try { setRep(parseCartaoPonto(await readPdfTokens(await f.arrayBuffer()), geracaoDoArquivo(f.name))); setFile(f.name); }
     catch { toast.error('Não foi possível ler o PDF.'); }
     finally { setReading(false); if (input.current) input.current.value = ''; }
   };

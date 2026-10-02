@@ -477,6 +477,13 @@
       "when": 1790961596884,
       "tag": "0067_backlog_skip_restricted",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1790962533259,
+      "tag": "0068_team_time_em_andamento",
+      "breakpoints": true
     }
   ]
 }
