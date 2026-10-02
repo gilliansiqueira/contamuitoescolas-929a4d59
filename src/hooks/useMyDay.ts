@@ -290,6 +290,7 @@ export function useMyDay(schools: { id: string; nome: string }[], today: string,
     enabled: enabled && schools.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(today),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<MyDayData> => {
+      try {
       const bundles = await Promise.all(schools.map(s => fetchBundle(s.id, s.nome, today)));
       syncWeekendAllowedSchools(bundles.map(b => ({ id: b.id, allowWeekendEntries: b.allowWeekend })) as any);
       const result: MyDayData = { payToday: [], scheduleToday: [], notPaid: [], cashRisks: [], acknowledgedCount: 0 };
