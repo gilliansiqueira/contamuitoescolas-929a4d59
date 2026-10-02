@@ -5,6 +5,9 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import type { DailyTask } from '@/hooks/useClosingSteps';
 import { CheckCircle2, Circle, ListChecks, MinusCircle, Plus, Trash2 } from 'lucide-react';
 import {
   useClosingStepTemplates,
