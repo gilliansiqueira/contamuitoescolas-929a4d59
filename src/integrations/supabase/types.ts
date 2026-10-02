@@ -3665,6 +3665,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _refresh_report_progress: {
+        Args: { _month: string; _school_id: string }
+        Returns: number
+      }
       close_recon_day: {
         Args: { _day: string; _school_id: string }
         Returns: {
@@ -3815,6 +3819,7 @@ export type Database = {
         Args: { _school_id: string }
         Returns: undefined
       }
+      report_due_date: { Args: { _month: string }; Returns: string }
       set_bank_split_model_item: {
         Args: { _item_id: string; _split_id: string }
         Returns: undefined
