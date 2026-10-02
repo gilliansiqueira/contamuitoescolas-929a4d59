@@ -11,3 +11,5 @@
 - Itaú com diferenças sem diagnóstico: Boa Vista, Hauer, Ather, Pinhais, Campo Largo
 - Fazenda Rio Grande: decisão sobre 13 resgates de CDB (~R$ 56 mil)
 - Dados de acesso/API do PontoFopag/ePays não fornecidos
+
+- Central Press: marcar lançamentos "baixado, falta conciliar no Nibo" (aguardando definição do formato)
