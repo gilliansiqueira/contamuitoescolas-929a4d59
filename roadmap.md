@@ -1,27 +1,13 @@
-# Roadmap
+# Roteiro
 
-## Aberto
-- [ ] Credencial da API PontoFopag (PONTOFOPAG_API_TOKEN) — pendente da Employer/ePays
-- [ ] Confirmar formato das respostas da API PontoFopag e limites de consulta antes de ligar a sincronização automática
-- [ ] Acompanhar o custo do servidor (créditos de "Cloud compute") nos próximos dias para ver se continua dentro dos 20 créditos grátis do mês
-- [ ] Migração do projeto para o espaço "Bruna's Lovable" — adiada: exportar os dados antes e confirmar com o suporte se o banco vai junto
-- [ ] Rodar uma nova varredura de segurança antes de compartilhar o site amplamente
+## Em andamento
+- Painel "Meu dia" na Central: contas a pagar (aviso 1 dia útil antes, antecipação de fim de semana), conferência de pagamento pela conciliação no dia seguinte, pendências (conciliação, extrato, tarefas, relatório), alerta de caixa em 15 dias. Plano aprovado em .lovable/plan/painel-meu-dia-para-cada-responsável-2026-10-02.md
 
-## Feito
-- [x] Central: cards de etapa mostram "X pendentes · Y concluídas" e alternância Pendentes/Concluídas ao clicar
-- [x] Central: cards por etapa aberta; projetado x realizado automático com Fluxo Bancário; nota de pendências da conciliação
-- [x] Rio Verde: reenvio de "cheques.xls" com mesmo nome não dá mais erro
-- [x] Relatórios: cards compactos por primeira etapa mensal pendente; conciliação bancária: filtros separados de Receitas e Despesas por classificação oficial, inclusive partes divididas
-- [x] Cuiabá Goiabeiras: saldo bancário conferido de R$ 16.790,46 separado do fechamento previsto; pagamentos futuros e R$ 9,71 a confirmar identificados; Central diferencia extrato não enviado, aguardando início, em andamento e concluída
-- [x] Central de Clientes: bolinhas por conciliação (extrato não enviado e pendência antiga em vermelho) e última alteração incluindo conciliações; prévia verificada no computador e celular
-- [x] Cuiabá Goiabeiras: corrigir partes de Operação, vincular três transferências próprias e liberar a ativação sem alterar valores
-- [x] Leitura visual segura do PDF Itaú PF de Obras Nascimento, com conferência e bloqueio por divergência de saldo
-- [x] Área "Ponto da Equipe" criada (tabelas team_time_*, função server-side, tela, menu só para super administrador)
-- [x] Servidor de dados recuperado após o incidente de indisponibilidade
-- [x] Verificado: sem tarefas agendadas (pg_cron não instalado) — a lentidão vinha do tamanho da instância
-- [x] Instância aumentada para "Mini" (um tamanho acima da menor) e saúde conferida: memória 40%, 14/60 conexões, disco 6%, 0 reinícios
-- [x] Site oficial republicado com a área "Ponto da Equipe" (arquivo principal publicado: assets/index-cqrBBjDJ.js; a área está no bloco Index-BXmUQo3n.js)
-- [x] Cartão de crédito e endereço de cobrança confirmados neste espaço de trabalho
-- [x] Lista do que pedir à Employer/ePays entregue
-- [x] Cards clicáveis da Central de Clientes (opção 1) publicados no site oficial
-- [x] Aviso claro quando o extrato enviado for print da tela/foto sem texto
+## Em aberto (anteriores)
+- Verificar na tela (login super admin): Central, botão dos sócios em Portão, exportar Excel, importar planilha de dinheiro da OAP
+- Publicar o app
+- Dourados: conciliar Pix R$ 85,00 (BB, 30/09) e lançar Ticket Médio
+- Caixa de Brasília: diferença sem diagnóstico (aguardando extrato PDF de setembro)
+- Itaú com diferenças sem diagnóstico: Boa Vista, Hauer, Ather, Pinhais, Campo Largo
+- Fazenda Rio Grande: decisão sobre 13 resgates de CDB (~R$ 56 mil)
+- Dados de acesso/API do PontoFopag/ePays não fornecidos
