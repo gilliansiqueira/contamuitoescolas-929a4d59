@@ -278,11 +278,79 @@ export function parseCSV(content: string): BankParseResult {
 }
 
 export function parseXLSX(buffer: ArrayBuffer): BankParseResult {
-  const wb = XLSX.read(buffer, { type: 'array' });
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
   const bb = parseBancoDoBrasilXLSX(rows);
   if (bb) return finish('xlsx', bb, { banco: 'Banco do Brasil' });
-  return finish('xlsx', rowsToTx(rows));
+  const txs = rowsToTx(rows);
+  if (txs.length) return finish('xlsx', txs);
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+  return parseLooseCashSheet(raw) ?? finish('xlsx', []);
+}
+
+/**
+ * Planilha manual (ex.: caixa em dinheiro) sem títulos "Data"/"Valor": data e valor são descobertos
+ * pelo conteúdo; o sentido vem da coluna "Entrada/Saída" e a coluna "Saldo" confere linha a linha.
+ */
+export function parseLooseCashSheet(rows: unknown[][]): BankParseResult | null {
+  const norm = (v: unknown) => stripAccents(String(v ?? '').toLowerCase().trim());
+  const toIso = (v: unknown): string | null => {
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      const d = new Date(v.getTime() + 12 * 3600e3); // evita deslocamento de fuso
+      return d.toISOString().slice(0, 10);
+    }
+    return typeof v === 'string' ? toIsoDate(v) : null;
+  };
+  const num = (v: unknown): number | null => typeof v === 'number' && isFinite(v) ? v : (typeof v === 'string' && /\d/.test(v) && !isNaN(parseBRNumber(v)) ? parseBRNumber(v) : null);
+  let h = -1, iCD = -1;
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const idx = (rows[i] ?? []).findIndex(c => /^entrada\s*\/\s*saida$/.test(norm(c)));
+    if (idx >= 0) { h = i; iCD = idx; break; }
+  }
+  if (h < 0) return null;
+  const header = (rows[h] ?? []).map(norm);
+  const iSaldo = header.findIndex(c => c.startsWith('saldo'));
+  const iDesc = header.findIndex(c => /observ|descri|histor|empresa/.test(c));
+  const width = Math.max(...rows.slice(h, h + 40).map(r => r?.length ?? 0));
+  const dateHits = new Array(width).fill(0);
+  for (const r of rows.slice(h + 1, h + 40)) r?.forEach((c, j) => { if (toIso(c)) dateHits[j]++; });
+  const iData = dateHits.indexOf(Math.max(...dateHits));
+  if (iData < 0 || dateHits[iData] === 0) return null;
+  let iValor = -1;
+  for (let j = 0; j < width && iValor < 0; j++) {
+    if (j === iData || j === iSaldo || j === iCD || header[j]) continue;
+    if (rows.slice(h + 1, h + 40).some(r => toIso(r?.[iData]) && num(r?.[j]) !== null)) iValor = j;
+  }
+  if (iValor < 0) return null;
+  let saldoAnterior: number | undefined;
+  let saldo: number | undefined;
+  let quebra: string | undefined;
+  const txs: ParsedBankTx[] = [];
+  for (const r of rows.slice(h + 1)) {
+    if (!r) continue;
+    const label = norm(r[iData]);
+    if (saldoAnterior === undefined && label.startsWith('saldo')) { saldoAnterior = Math.round((num(r[iValor]) ?? 0) * 100) / 100; saldo = saldoAnterior; continue; }
+    const data = toIso(r[iData]);
+    const v = num(r[iValor]);
+    if (!data || v === null || v === 0) continue;
+    const cd = norm(r[iCD]);
+    const tipo: 'entrada' | 'saida' | null = cd.startsWith('entrada') ? 'entrada' : cd.startsWith('saida') ? 'saida' : null;
+    if (!tipo) continue;
+    const valor = Math.round(Math.abs(v) * 100) / 100;
+    const descricao = (iDesc >= 0 ? String(r[iDesc] ?? '').trim() : '') || 'Lançamento';
+    txs.push({ data, descricao, valor, tipo });
+    if (saldo !== undefined) {
+      saldo = Math.round((saldo + (tipo === 'entrada' ? valor : -valor)) * 100) / 100;
+      const impresso = iSaldo >= 0 ? num(r[iSaldo]) : null;
+      if (impresso !== null && Math.abs(impresso - saldo) > 0.01 && !quebra) quebra = `Saldo não fecha em ${data.split('-').reverse().join('/')} (${descricao}): planilha ${impresso.toFixed(2)}, calculado ${saldo.toFixed(2)}.`;
+    }
+  }
+  if (!txs.length) return null;
+  const avisos = [`Planilha manual lida pelo conteúdo: ${txs.length} lançamento(s); sentido pela coluna "Entrada/Saída".`];
+  if (quebra) avisos.push(quebra);
+  const r = finish('xlsx', txs, { saldoFinalInformado: quebra ? undefined : saldo });
+  r.avisos = avisos;
+  return r;
 }
 
 /**
