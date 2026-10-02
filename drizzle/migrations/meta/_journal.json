@@ -442,6 +442,13 @@
       "when": 1790957331517,
       "tag": "0062_myday_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1790959975519,
+      "tag": "0063_bank_tx_nibo_pending",
+      "breakpoints": true
     }
   ]
 }

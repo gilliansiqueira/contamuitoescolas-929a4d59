@@ -638,6 +638,42 @@ export type Database = {
           },
         ]
       }
+      bank_tx_nibo_pending: {
+        Row: {
+          marked_at: string
+          marked_by: string | null
+          school_id: string
+          transaction_id: string
+        }
+        Insert: {
+          marked_at?: string
+          marked_by?: string | null
+          school_id: string
+          transaction_id: string
+        }
+        Update: {
+          marked_at?: string
+          marked_by?: string | null
+          school_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_tx_nibo_pending_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_tx_nibo_pending_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_rules: {
         Row: {
           created_at: string
