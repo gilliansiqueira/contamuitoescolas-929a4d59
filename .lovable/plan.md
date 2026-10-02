@@ -6,15 +6,14 @@
 2. **Aviso "Subir o extrato de Stone, Sicredi até 30/09"**: aviso falso. As duas contas já têm extrato até 01/10. Ele não trava o botão, mas confunde.
 
 ## O que vou fazer
-1. **Pix de 05/09**: tirar a marcação de transferência entre contas e classificar como **Distribuição de lucros** (item do modelo de São Mateus), com nota "Pix para conta pessoal no Inter". Fica registrado no Histórico de Alterações. Se preferir Pró-Labore ou Operação (só Caixa), é só dizer antes de aprovar.
-2. **Melhorar a tela para os próximos casos**: transferência sem par na mesma empresa passa a aparecer na lista de pendências como "Transferência sem conta de destino da empresa — escolha um item (ex.: retirada de sócio)", com atalho para classificar.
-3. **Corrigir o aviso de extrato**: só aparece quando o extrato de alguma conta termina antes do último dia do mês.
-4. Abrir a prévia de São Mateus e conferir que o botão fica liberado e os saldos continuam batendo (R$ 466,92 em 30/09).
+1. **Pix de 05/09**: não mexo. As meninas vão classificar.
+2. **Deixar a pendência clara na prévia**: transferência sem par na mesma empresa aparece separada na lista do que falta, com data, conta, valor e descrição: "Transferência sem conta de destino da empresa (ex.: conta pessoal do sócio) — escolha um item, como Distribuição de lucros ou Pró-Labore". Cada linha tem um atalho que abre esse lançamento em Movimentações.
+3. **Mostrar quais são os "A classificar"**: em vez de só "Classificar 1 movimentação", a prévia lista os lançamentos (data, conta, valor, descrição) com atalho.
+4. **Corrigir o aviso de extrato**: só aparece quando o extrato de alguma conta termina antes do último dia do mês. Em São Mateus ele some.
+5. Abrir a prévia de São Mateus e conferir que a pendência aparece com o Pix de 05/09 e que o aviso falso sumiu.
 
 ## Efeito nos números
-- Saldo dos bancos: não muda (o dinheiro já saiu da Stone).
-- Despesas e Resultado de setembro: passam a incluir R$ 1.664,97 se for Distribuição de lucros/Pró-Labore; se for Operação, só o Caixa.
+Nenhum. Só muda o que aparece na tela.
 
 ## Técnico
-- Atualizar `bank_transactions` 29ed890c-…: `movement_kind` = despesa + `model_item_id` do item escolhido (via fluxo normal, gatilhos de sincronização recalculam o Fluxo).
-- `ActivationPreview.tsx`: `holder` só gera aviso/todo se `bankTo < monthEnd`; motivo explícito para transferência sem `transfer_pair_id`.
+- `ActivationPreview.tsx`: `holder` gera aviso/todo só se `bankTo < monthEnd`; separar `aClass` entre transferência sem `transfer_pair_id` e demais; listar itens com link para Movimentações filtrado pelo lançamento.
