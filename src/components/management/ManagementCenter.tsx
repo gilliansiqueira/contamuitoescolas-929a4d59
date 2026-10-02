@@ -382,8 +382,24 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     }
     return bySchool;
   }, [monthlySteps, rows, stepTemplates]);
+  // Cada card de etapa conta todas as empresas com aquela etapa ainda aberta (não só a primeira).
+  const openGroups = useMemo(() => {
+    const bySchool = new Map<string, Set<string>>();
+    if (!monthlySteps) return bySchool;
+    const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
+    for (const row of rows) {
+      const set = new Set<string>();
+      if (!row.report_delivered) for (const s of monthlySteps.get(row.school_id) ?? []) {
+        if (s.status !== 'open') continue;
+        const g = groupByKey.get(s.step_key);
+        if (g) set.add(g === 'vendas' ? 'receitas' : g);
+      }
+      bySchool.set(row.school_id, set);
+    }
+    return bySchool;
+  }, [monthlySteps, rows, stepTemplates]);
   const cardDefs = useMemo(() => view === 'closing' ? [
-    ...reportGroups.map(g => ({ ...g, match: (row: PortfolioRow) => reportStage.get(row.school_id) === g.key })),
+    ...reportGroups.map(g => ({ ...g, match: (row: PortfolioRow) => !!openGroups.get(row.school_id)?.has(g.key) })),
     { key: 'sem_etapas', label: 'Outras pendências', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'sem_etapas' || reportStage.get(row.school_id) === 'extras' },
     { key: 'entregue', label: 'Entregues', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'entregue' },
   ] : cardDefsFor(mode, today, bankAvailable), [view, mode, today, bankStartMonths, reportStage]);
