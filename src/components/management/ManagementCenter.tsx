@@ -453,7 +453,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     .sort((a, b) => {
       const weight = (item: typeof a) => item.status === 'atrasado' ? 0 : item.status === 'bloqueado' ? 1 : item.pending > 0 ? 2 : 3;
       return weight(a) - weight(b) || b.pending - a.pending;
-    }).slice(0, 4), [filtered, month, backlogBySchool]);
+    }).slice(0, 4), [filtered, month, dueDate, backlogBySchool]);
   const refDay = dailyRows[0]?.ref_day ?? null;
   const withMovementBase = useMemo(() => baseFiltered.filter(row => {
     const daily = dailyBySchool.get(row.school_id);
