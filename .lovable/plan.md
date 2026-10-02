@@ -9,7 +9,7 @@
 - Criamos o acesso dela como administradora com visão de **todas as empresas, menos as restritas**; empresas novas entram sozinhas.
 - Nova permissão **"Ver Ponto da Equipe"**, liberada só para ela (hoje o Ponto é só de super admin). Ela vê o Ponto, mas continua sem gravar nada direto — a gravação segue só pela sincronização.
 - Ela vê a Central inteira com as atualizações de hoje de todas as meninas.
-- Preciso do **e-mail da Gisele** para criar o acesso (ela recebe o link para definir a senha).
+- Acesso criado para **gisele@contamuito.com.br** (ela recebe o link para definir a senha).
 
 ## 3. "Meu dia" de gerência (aparece para a Gisele e para você)
 Um bloco extra acima do Meu dia normal, com 4 cards resumidos e expansíveis:
