@@ -13,3 +13,5 @@
 - No overlay do Fluxo Bancário, `tipo_nome='Operação'` vira 'Operação (banco): <item do modelo>' (ou 'Operações (banco) - entrada/saída' sem item) e o ledgerEngine força só Caixa — para manter o nome escolhido sem nunca cair em despesa.
 - Cheques depositados pelos sócios: par entrada+saída via RPC `create_partner_cheque_pair` numa conta virtual (`bank_accounts.is_virtual`, ligadas por `manual_pair_id`), fora de saldos/conferências e da tabela de movimentações; liberado por empresa (`school_features.cheques_socios`) — para refletir Receita/Pró-Labore sem alterar saldo de banco.
 - Etapas do relatório mensal se marcam por gatilhos por comando (`report_progress_stmt_trigger` → `_refresh_report_progress`) só para o mês anterior e o atual; reabrem apenas o que o sistema marcou; prazo vem de `report_due_date` (5º dia útil, seg–sáb sem feriados nacionais) — para atualizar sem abrir a tela e sem desfazer a equipe.
+
+- Marcação "Falta no Nibo" fica em `bank_tx_nibo_pending` (tabela à parte, liberada por `school_features.nibo_pendente`) — é só um lembrete operacional e não altera conciliação nem cálculos.

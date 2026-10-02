@@ -15,7 +15,9 @@ import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './share
 import { useJustificationReasons, useSetJustification, useCloseReconDay, useReconDayClosures, needsJustification, JUSTIFICATION_START, type MissingJustification } from '@/hooks/useReconJustification';
 import { Tag, CalendarCheck } from 'lucide-react';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
-import { Download } from 'lucide-react';
+import { Download, FileClock } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSchoolFeature } from '@/hooks/useBankPilot';
 import { exportMovementsXlsx, type MovementExportRow, type AccountSummaryRow } from '@/lib/bankStatements/exportMovements';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
@@ -38,6 +40,24 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [history, setHistory] = useState<{ tx: BankTx; rows: Awaited<ReturnType<typeof fetchReconHistory>> } | null>(null);
   const [showPairs, setShowPairs] = useState(false);
   const [showAuto, setShowAuto] = useState(true);
+  const [onlyNibo, setOnlyNibo] = useState(false);
+  const qcNibo = useQueryClient();
+  const { data: niboEnabled = false } = useSchoolFeature(schoolId, 'nibo_pendente');
+  const { data: niboSet = new Set<string>() } = useQuery({
+    queryKey: ['niboPending', schoolId], enabled: niboEnabled,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from('bank_tx_nibo_pending').select('transaction_id').eq('school_id', schoolId);
+      if (error) throw error;
+      return new Set<string>((data ?? []).map((r: any) => r.transaction_id));
+    },
+  });
+  const toggleNibo = async (ids: string[], on: boolean) => {
+    const t = (supabase as any).from('bank_tx_nibo_pending');
+    const { error } = on ? await t.upsert(ids.map(id => ({ transaction_id: id, school_id: schoolId })), { onConflict: 'transaction_id' }) : await t.delete().in('transaction_id', ids);
+    if (error) { toast.error(error.message); return; }
+    toast.success(on ? 'Marcado: falta conciliar no Nibo' : 'Conciliado no Nibo');
+    qcNibo.invalidateQueries({ queryKey: ['niboPending', schoolId] });
+  };
   const [importFilter, setImportFilter] = useState<string | null>(null);
   useEffect(() => { if (focus) { setImportFilter(focus.importId); setCat('auto'); setAccountId('all'); setFrom(focus.from); setTo(focus.to); } }, [focus?.nonce]);
   const [cat, setCat] = useState<'all' | 'mov' | 'receita' | 'despesa' | 'operacao' | 'transf' | 'auto' | 'aclassificar' | 'ignorar' | 'dividido'>('all');
@@ -193,9 +213,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return txs
-       .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter))
+       .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems]);
+   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet]);
 
   const tipoLabel = (t: BankTx, itemId: string | null | undefined, categoria?: string) => {
     if (isAutoInvest(t)) return 'Aplicação automática';
@@ -323,6 +343,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {rows.length} lançamentos · <span className="font-semibold text-success">Conciliados {conc.length} ({fmtBRL(concValor)})</span> · <span className="font-semibold text-warning">Pendentes {pend.length} ({fmtBRL(pendValor)})</span> · <CrossLine c={cross(rows)} />
         </p>
         <div className="flex flex-wrap gap-2">
+          {niboEnabled && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={onlyNibo} onCheckedChange={v => setOnlyNibo(!!v)} />Só falta no Nibo ({niboSet.size})</label>}
           {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
           {importFilter && <Button size="sm" variant="secondary" onClick={() => { setImportFilter(null); setCat('all'); }}>Só deste extrato · limpar filtro ✕</Button>}
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
@@ -411,6 +432,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                       <DropdownMenuContent align="start">
                         {t.recon_status === 'pendente' && <DropdownMenuItem onClick={() => openJustify([t.id])}><Tag className="mr-2 h-4 w-4" />Justificar pendência</DropdownMenuItem>}
                         {t.recon_status !== 'pendente' && <DropdownMenuItem onClick={() => apply([t.id], 'pendente')}><Undo2 className="mr-2 h-4 w-4" />Desfazer (pendente)</DropdownMenuItem>}
+                        {niboEnabled && <DropdownMenuItem onClick={() => toggleNibo([t.id], !niboSet.has(t.id))}><FileClock className="mr-2 h-4 w-4" />{niboSet.has(t.id) ? 'Já conciliado no Nibo' : 'Falta conciliar no Nibo'}</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => { setNoteTx(t); setNoteText(t.recon_note ?? ''); }}><MessageSquare className="mr-2 h-4 w-4" />Observação</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => { setDescTx(t); setDescText(displayDesc(t)); }}><Pencil className="mr-2 h-4 w-4" />Editar descrição</DropdownMenuItem>
                         {!isAutoInvest(t) && !t.transfer_pair_id && <DropdownMenuItem onClick={() => openSplit(t)}><Split className="mr-2 h-4 w-4" />{t.splits?.length ? 'Editar divisão' : 'Dividir valor'}</DropdownMenuItem>}
@@ -443,6 +465,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                  <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{t.tipo === 'saida' ? fmtBRL(displayedValue(t)) : ''}</td>
                 <td className="p-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(balances.get(t.id) ?? 0)}</td>
                 <td className="p-2"><StatusBadge status={t.recon_status} />
+                  {niboSet.has(t.id) && <button type="button" onClick={() => toggleNibo([t.id], false)} title="Baixado aqui, mas ainda não conciliado no Nibo. Clique quando conciliar." className="mt-1 block whitespace-nowrap rounded bg-warning/20 px-1.5 py-0.5 text-[10px] font-semibold text-warning">Falta no Nibo</button>}
                   {t.recon_status === 'pendente' && t.justification_reason_id
                     ? <button type="button" onClick={() => openJustify([t.id])} className="mt-1 block max-w-40 truncate rounded bg-info/15 px-1.5 py-0.5 text-left text-[10px] font-semibold text-info" title={`${reasonName.get(t.justification_reason_id) ?? ''}${t.justification_note ? ` — ${t.justification_note}` : ''}${t.justified_at ? ` · ${fmtDateTime(t.justified_at)}` : ''}`}>{reasonName.get(t.justification_reason_id) ?? 'Justificado'}</button>
                     : needsJustification(t) && <button type="button" onClick={() => openJustify([t.id])} className="mt-1 block rounded bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground">Sem justificativa</button>}
