@@ -30,6 +30,18 @@ export function useBankAccounts(schoolId: string) {
       ]);
       if (error) throw error;
       if (e2) throw e2;
+      // Extrato baixado no próprio dia em que termina (dia ainda aberto) e sem nenhum lançamento desse dia:
+      // o saldo impresso é do fim do dia anterior. Usá-lo como fim do dia criava diferença falsa
+      // quando os lançamentos do dia chegavam no extrato seguinte (ex.: Ather - Inter, 28/09/2026).
+      const spDay = (ts: string) => new Date(new Date(ts).getTime() - 3 * 3600_000).toISOString().slice(0, 10);
+      const sameDay = ((imps ?? []) as any[]).filter(i => i.periodo_fim && spDay(i.created_at) === i.periodo_fim);
+      const shifted = new Set<string>();
+      await Promise.all(sameDay.map(async i => {
+        const { count } = await db.from('bank_transactions').select('id', { count: 'exact', head: true })
+          .eq('import_id', i.id).eq('data', i.periodo_fim);
+        if ((count ?? 0) === 0) shifted.add(i.id);
+      }));
+      const prevDay = (d: string) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10); };
       // Saldo informado no próprio extrato = saldo oficial da conta no último dia do arquivo (automático).
       return ((data ?? []) as BankAccount[]).map(a => {
         const byDate = new Map<string, BalanceAnchor>();
@@ -40,8 +52,9 @@ export function useBankAccounts(schoolId: string) {
           if (a.has_auto_invest && i.saldo_aplicado_informado == null) continue; // sem aplicado no arquivo: mantém o calculado
           // Total com aplicação informado (ex.: Bradesco soma CDB no saldo do arquivo) vale também sem aplicação automática.
           const total = i.saldo_aplicado_informado != null ? Number(i.saldo_aplicado_informado) : conta;
+          const dataAnchor = shifted.has(i.id) ? prevDay(i.periodo_fim) : i.periodo_fim;
           // Cheques retidos pelo banco: já estão nos lançamentos, então somam ao saldo disponível.
-          byDate.set(i.periodo_fim, { id: i.id, data: i.periodo_fim, saldo_conta: Math.round((conta + retido) * 100) / 100, saldo_aplicado: Math.round((total - conta) * 100) / 100, retido });
+          byDate.set(dataAnchor, { id: i.id, data: dataAnchor, saldo_conta: Math.round((conta + retido) * 100) / 100, saldo_aplicado: Math.round((total - conta) * 100) / 100, retido });
         }
         // Só o extrato mais recente vale como saldo oficial. Saldos de extratos anteriores costumam ser
         // "fotos" do meio do dia (o banco ainda lança depois), e usá-los criava diferenças falsas.
