@@ -15,3 +15,5 @@
 - Etapas do relatório mensal se marcam por gatilhos por comando (`report_progress_stmt_trigger` → `_refresh_report_progress`) só para o mês anterior e o atual; reabrem apenas o que o sistema marcou; prazo vem de `report_due_date` (5º dia útil, seg–sáb sem feriados nacionais) — para atualizar sem abrir a tela e sem desfazer a equipe.
 
 - Marcação "Falta no Nibo" fica em `bank_tx_nibo_pending` (tabela à parte, liberada por `school_features.nibo_pendente`) — é só um lembrete operacional e não altera conciliação nem cálculos.
+- Empresa restrita (`schools.restrita`) fica visível só para super_admin via política RESTRICTIVE `can_see_school(school_id)` em toda tabela com `school_id`, em `user_has_school_access` e nas RPCs da carteira — para guardar o financeiro interno longe da equipe; tabelas novas com `school_id` precisam da mesma política.
+- Permissões extras por usuário ficam em `user_permissions` (ex.: `ponto_view` → `can_view_team_time()` libera só leitura do Ponto; gravação segue super_admin na Edge Function) — para dar acesso pontual sem promover a super_admin.
