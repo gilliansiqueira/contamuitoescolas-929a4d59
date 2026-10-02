@@ -124,8 +124,6 @@ function mapEntry(e: any): FinancialEntry {
 }
 
 async function fetchBundle(schoolId: string, schoolName: string, today: string): Promise<SchoolBundle> {
-  const t0 = Date.now();
-  const mark = (step: string) => console.log(`[my-day] ${schoolName} ${step} +${Date.now() - t0}ms`);
   const db = supabase as any;
   const { data: school, error: sErr } = await db
     .from('schools')
@@ -133,7 +131,6 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
     .eq('id', schoolId)
     .maybeSingle();
   if (sErr) throw sErr;
-  mark('school');
 
   const baseDate = school?.saldo_inicial_data ?? undefined;
   const [entries, rulesRows, itemRows, paidOuts, ackRows] = await Promise.all([
@@ -164,7 +161,6 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
       return r.data ?? [];
     }),
   ]);
-  mark(`dados entries=${entries.length} paidOuts=${paidOuts.length}`);
 
   const classifications: TypeClassification[] = (itemRows as any[]).map(it => {
     const isIgnorar = it.tipo === 'ignorar';
@@ -294,14 +290,11 @@ export function useMyDay(schools: { id: string; nome: string }[], today: string,
     enabled: enabled && schools.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(today),
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<MyDayData> => {
-      try {
       const bundles = await Promise.all(schools.map(s => fetchBundle(s.id, s.nome, today)));
       syncWeekendAllowedSchools(bundles.map(b => ({ id: b.id, allowWeekendEntries: b.allowWeekend })) as any);
       const result: MyDayData = { payToday: [], scheduleToday: [], notPaid: [], cashRisks: [], acknowledgedCount: 0 };
       for (const b of bundles) {
-        const tc = Date.now();
         const part = computeSchool(b, today);
-        console.log(`[my-day] ${b.nome} computeSchool +${Date.now() - tc}ms`);
         result.payToday.push(...part.payToday);
         result.scheduleToday.push(...part.scheduleToday);
         result.notPaid.push(...part.notPaid);
