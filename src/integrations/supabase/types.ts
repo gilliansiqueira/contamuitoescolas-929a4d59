@@ -3183,6 +3183,7 @@ export type Database = {
           inativado_em: string | null
           inativado_por: string | null
           nome: string
+          restrita: boolean
           saldo_inicial: number
           saldo_inicial_data: string | null
         }
@@ -3197,6 +3198,7 @@ export type Database = {
           inativado_em?: string | null
           inativado_por?: string | null
           nome: string
+          restrita?: boolean
           saldo_inicial?: number
           saldo_inicial_data?: string | null
         }
@@ -3211,6 +3213,7 @@ export type Database = {
           inativado_em?: string | null
           inativado_por?: string | null
           nome?: string
+          restrita?: boolean
           saldo_inicial?: number
           saldo_inicial_data?: string | null
         }
@@ -3703,6 +3706,24 @@ export type Database = {
           },
         ]
       }
+      user_permissions: {
+        Row: {
+          granted_at: string
+          permission: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          permission: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          permission?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -3762,6 +3783,8 @@ export type Database = {
         Args: { _month: string; _school_id: string }
         Returns: number
       }
+      can_see_school: { Args: { _school_id: string }; Returns: boolean }
+      can_view_team_time: { Args: never; Returns: boolean }
       close_recon_day: {
         Args: { _day: string; _school_id: string }
         Returns: {
