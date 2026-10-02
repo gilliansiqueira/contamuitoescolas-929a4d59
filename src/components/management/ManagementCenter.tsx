@@ -270,7 +270,7 @@ function ProgressRing({ value, label, tone }: { value: number | null; label: str
 }
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
-  const { isSuperAdmin, profile } = useAuth();
+  const { isSuperAdmin, profile, canViewTeamTime } = useAuth();
   // Padrão: mês do relatório em produção (mês anterior).
   const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toLocaleDateString('sv-SE').slice(0, 7); });
   const { data: dueDate = null } = useQuery({
@@ -639,10 +639,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         </header>
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:hidden" aria-label="Central de Clientes">
           {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => { setFocusSchoolId(null); setCardFilter(null); setView(item.key); }} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
-          {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
+          {canViewTeamTime && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
         </nav>
 
-        {view === 'team_time' && isSuperAdmin ? (
+        {view === 'team_time' && canViewTeamTime ? (
           <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><TeamTimePanel /></main>
         ) : (
         <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6">

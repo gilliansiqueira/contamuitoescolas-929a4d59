@@ -31,7 +31,7 @@ const fmtDate = (d: string) => d.split('-').reverse().join('/');
 type CardKey = 'all' | 'presentes' | 'sem_marcacao' | 'atraso' | 'incompleta' | 'hora_extra' | 'pendencias';
 
 export function TeamTimePanel() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, canViewTeamTime } = useAuth();
   const [date, setDate] = useState(spToday());
   const month = date.slice(0, 7);
   const [sample, setSample] = useState(false);
@@ -39,10 +39,10 @@ export function TeamTimePanel() {
   const [who, setWho] = useState('');
   const [sit, setSit] = useState<'all' | TeamSituacao>('all');
   const [occFilter, setOccFilter] = useState('all');
-  const query = useTeamTime(month, isSuperAdmin);
+  const query = useTeamTime(month, canViewTeamTime);
   const sync = useTeamTimeSync();
 
-  if (!isSuperAdmin) {
+  if (!canViewTeamTime) {
     return <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center text-muted-foreground"><ShieldAlert className="h-8 w-8" /><p className="text-sm">Acesso restrito.</p></div>;
   }
 
@@ -64,7 +64,7 @@ export function TeamTimePanel() {
 
   return (
     <div className="space-y-5">
-      <Header date={date} setDate={setDate} status={status} run={run} lastSuccess={data?.lastSuccess?.finished_at ?? null} onSync={onSync} syncing={syncing} sample={sample} setSample={setSample} />
+      <Header date={date} setDate={setDate} status={status} run={run} lastSuccess={data?.lastSuccess?.finished_at ?? null} onSync={onSync} syncing={syncing} sample={sample} setSample={setSample} canEdit={isSuperAdmin} />
       {query.isLoading && !sample ? (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando…</div>
       ) : query.isError && !sample ? (
@@ -76,15 +76,15 @@ export function TeamTimePanel() {
       ) : !data?.employees.length ? (
         <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">Nenhuma colaboradora recebida do PontoFopag até agora.</div>
       ) : (
-        <Content data={data} date={date} card={card} setCard={setCard} who={who} setWho={setWho} sit={sit} setSit={setSit} occFilter={occFilter} setOccFilter={setOccFilter} />
+        <Content data={data} date={date} card={card} setCard={setCard} who={who} setWho={setWho} sit={sit} setSit={setSit} occFilter={occFilter} setOccFilter={setOccFilter} canEdit={isSuperAdmin} />
       )}
     </div>
   );
 }
 
-function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, sample, setSample }: {
+function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, sample, setSample, canEdit }: {
   date: string; setDate: (d: string) => void; status: string; run?: TeamTimeData['lastRun']; lastSuccess: string | null;
-  onSync: () => void; syncing: boolean; sample: boolean; setSample: (b: boolean) => void;
+  onSync: () => void; syncing: boolean; sample: boolean; setSample: (b: boolean) => void; canEdit: boolean;
 }) {
   const badge = {
     atualizada: { t: 'Atualizada', c: 'bg-success/15 text-success', i: CheckCircle2 },
@@ -104,8 +104,8 @@ function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, samp
           <Input type="date" value={date} max={spToday()} onChange={e => e.target.value && setDate(e.target.value)} className="h-9 w-40" aria-label="Data" />
           <span className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${badge.c}`}><badge.i className={`h-3.5 w-3.5 ${status === 'sincronizando' ? 'animate-spin' : ''}`} />{badge.t}</span>
           {sample ? <Button size="sm" variant="outline" className="h-9" onClick={() => setSample(false)}>Sair do exemplo</Button>
-            : <Button size="sm" className="h-9 gap-1.5" onClick={onSync} disabled={syncing}><RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />Atualizar agora</Button>}
-          {!sample && <ImportCartaoPonto />}
+            : canEdit && <Button size="sm" className="h-9 gap-1.5" onClick={onSync} disabled={syncing}><RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />Atualizar agora</Button>}
+          {!sample && canEdit && <ImportCartaoPonto />}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
@@ -118,9 +118,9 @@ function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, samp
   );
 }
 
-function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilter, setOccFilter }: {
+function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilter, setOccFilter, canEdit }: {
   data: TeamTimeData; date: string; card: CardKey; setCard: (c: CardKey) => void; who: string; setWho: (s: string) => void;
-  sit: 'all' | TeamSituacao; setSit: (s: 'all' | TeamSituacao) => void; occFilter: string; setOccFilter: (s: string) => void;
+  sit: 'all' | TeamSituacao; setSit: (s: 'all' | TeamSituacao) => void; occFilter: string; setOccFilter: (s: string) => void; canEdit: boolean;
 }) {
   const hide = useSetEmployeeHidden();
   const [showHidden, setShowHidden] = useState(false);
@@ -179,14 +179,14 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
               {!!data.hidden?.length && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowHidden(v => !v)}>Ver ocultos ({data.hidden.length})</Button>}
               <Select value={occFilter} onValueChange={setOccFilter}><SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as ocorrências</SelectItem>{occTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
             </div>
-            {showHidden && !!data.hidden?.length && <div className="space-y-1 border-b border-border bg-muted/30 p-3">{data.hidden.map(h => <div key={h.external_id} className="flex items-center gap-2 text-xs"><span className="font-medium">{h.nome}</span><span className="text-muted-foreground">{h.matricula ?? ''}</span><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" disabled={hide.isPending} onClick={() => setHidden(h.external_id, h.nome, false)}><Undo2 className="h-3 w-3" />Restaurar</Button></div>)}</div>}
+            {showHidden && !!data.hidden?.length && <div className="space-y-1 border-b border-border bg-muted/30 p-3">{data.hidden.map(h => <div key={h.external_id} className="flex items-center gap-2 text-xs"><span className="font-medium">{h.nome}</span><span className="text-muted-foreground">{h.matricula ?? ''}</span><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" disabled={hide.isPending || !canEdit} onClick={() => setHidden(h.external_id, h.nome, false)}><Undo2 className="h-3 w-3" />Restaurar</Button></div>)}</div>}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Matrícula', 'Previsto', '1ª marcação', 'Última', 'Trabalhadas', 'Banco de horas', 'Ocorrência', 'Situação', 'Atualizado'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
                 <tbody>
                   {filtered.length === 0 && <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
                   {filtered.map(r => <tr key={r.e.external_id} className="border-t border-border">
-                    <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}<Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button></span></td>
+                    <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
                     <td className="px-3 py-2 text-muted-foreground">{r.e.matricula ?? '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2">{r.d?.horario_previsto ?? r.e.horario_previsto ?? '—'}</td>
                     <td className="px-3 py-2">{r.d?.primeira_marcacao ?? '—'}</td>

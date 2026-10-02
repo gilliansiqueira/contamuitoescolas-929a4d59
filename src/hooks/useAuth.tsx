@@ -15,6 +15,8 @@ export interface UserProfile {
   admin_scope: AdminScope;
   /** IDs adicionais (tabela user_schools) — combinados com school_id formam o conjunto acessível */
   extra_school_ids: string[];
+  /** Permissões extras por usuário (tabela user_permissions), ex.: 'ponto_view'. */
+  permissions: string[];
 }
 
 interface AuthContextValue {
@@ -26,6 +28,8 @@ interface AuthContextValue {
   isSuperAdmin: boolean;
   /** True quando admin com acesso global (scope='all'). False para admins restritos a uma lista. */
   isAdminAll: boolean;
+  /** Pode ver o Ponto da Equipe (super admin ou permissão ponto_view). */
+  canViewTeamTime: boolean;
   /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin scope='all' = todas. */
   accessibleSchoolIds: string[];
   loading: boolean;
@@ -37,10 +41,11 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 async function loadProfile(userId: string): Promise<UserProfile | null> {
-  const [{ data: profile }, { data: roles }, { data: extras }] = await Promise.all([
+  const [{ data: profile }, { data: roles }, { data: extras }, { data: perms }] = await Promise.all([
     supabase.from('profiles').select('user_id, email, school_id, admin_scope').eq('user_id', userId).maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', userId),
     supabase.from('user_schools').select('school_id').eq('user_id', userId),
+    (supabase as any).from('user_permissions').select('permission').eq('user_id', userId),
   ]);
   if (!profile) return null;
   const role: UserRole = roles?.some(r => r.role === 'super_admin')
@@ -48,7 +53,8 @@ async function loadProfile(userId: string): Promise<UserProfile | null> {
     : roles?.some(r => r.role === 'admin') ? 'admin' : 'cliente';
   const extra_school_ids = (extras ?? []).map((r: any) => r.school_id).filter(Boolean);
   const admin_scope: AdminScope = ((profile as any).admin_scope === 'list' ? 'list' : 'all');
-  return { ...profile, role, admin_scope, extra_school_ids };
+  const permissions = ((perms ?? []) as any[]).map(r => r.permission as string);
+  return { ...profile, role, admin_scope, extra_school_ids, permissions };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -119,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: profile?.role === 'admin' || profile?.role === 'super_admin',
         isSuperAdmin: profile?.role === 'super_admin',
         isAdminAll: (profile?.role === 'admin' || profile?.role === 'super_admin') && profile?.admin_scope !== 'list',
+        canViewTeamTime: profile?.role === 'super_admin' || !!profile?.permissions?.includes('ponto_view'),
         accessibleSchoolIds,
         loading,
         signIn,
