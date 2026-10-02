@@ -407,6 +407,13 @@
       "when": 1790950984092,
       "tag": "0057_report_progress_fluxo_realizado",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790951975137,
+      "tag": "0058_portfolio_last_activity_human_only",
+      "breakpoints": true
     }
   ]
 }

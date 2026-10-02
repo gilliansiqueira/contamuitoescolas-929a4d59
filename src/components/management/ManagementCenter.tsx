@@ -383,37 +383,25 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     }
     return bySchool;
   }, [monthlySteps, rows, stepTemplates]);
-  // Cada card de etapa conta todas as empresas com aquela etapa ainda aberta (não só a primeira).
-  const openGroups = useMemo(() => {
-    const bySchool = new Map<string, Set<string>>();
-    if (!monthlySteps) return bySchool;
+  // Cada card agrupa várias etapas: pendente = alguma etapa aberta; concluída = todas fechadas (ou relatório entregue).
+  const { openGroups, doneGroups } = useMemo(() => {
+    const open = new Map<string, Set<string>>();
+    const done = new Map<string, Set<string>>();
+    if (!monthlySteps) return { openGroups: open, doneGroups: done };
     const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
     for (const row of rows) {
-      const set = new Set<string>();
-      if (!row.report_delivered) for (const s of monthlySteps.get(row.school_id) ?? []) {
-        if (s.status !== 'open') continue;
-        const g = groupByKey.get(s.step_key);
-        if (g) set.add(g === 'vendas' ? 'receitas' : g);
+      const seen = new Set<string>(); const o = new Set<string>();
+      for (const s of monthlySteps.get(row.school_id) ?? []) {
+        if (s.status === 'not_applicable') continue;
+        const g0 = groupByKey.get(s.step_key); if (!g0) continue;
+        const g = g0 === 'vendas' ? 'receitas' : g0;
+        seen.add(g);
+        if (s.status === 'open' && !row.report_delivered) o.add(g);
       }
-      bySchool.set(row.school_id, set);
+      open.set(row.school_id, o);
+      done.set(row.school_id, new Set([...seen].filter(g => !o.has(g))));
     }
-    return bySchool;
-  }, [monthlySteps, rows, stepTemplates]);
-  // Empresas que já concluíram cada etapa (etapas fechadas do mês).
-  const doneGroups = useMemo(() => {
-    const bySchool = new Map<string, Set<string>>();
-    if (!monthlySteps) return bySchool;
-    const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
-    for (const row of rows) {
-      const set = new Set<string>();
-      if (!row.report_delivered) for (const s of monthlySteps.get(row.school_id) ?? []) {
-        if (s.status === 'open') continue;
-        const g = groupByKey.get(s.step_key);
-        if (g) set.add(g === 'vendas' ? 'receitas' : g);
-      }
-      bySchool.set(row.school_id, set);
-    }
-    return bySchool;
+    return { openGroups: open, doneGroups: done };
   }, [monthlySteps, rows, stepTemplates]);
   const cardDefs = useMemo(() => view === 'closing' ? [
     ...reportGroups.map(g => ({ ...g, reportGroup: true, match: (row: PortfolioRow) => !!(cardGroupMode === 'done' ? doneGroups : openGroups).get(row.school_id)?.has(g.key) })),
