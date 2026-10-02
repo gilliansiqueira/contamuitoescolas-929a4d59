@@ -17,6 +17,7 @@ import {
   type PortfolioRow,
 } from '@/hooks/useManagementPortfolio';
 import { ReconciliationBacklog } from '@/components/management/ReconciliationBacklog';
+import { MyDayPanel, type MyDayPendingItem } from '@/components/management/MyDayPanel';
 import { useAddSchool } from '@/hooks/useFinancialData';
 import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
@@ -304,6 +305,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
   const [cardFilter, setCardFilter] = useState<string | null>(null);
   const [cardGroupMode, setCardGroupMode] = useState<'open' | 'done'>('open');
+  // Painel "Meu dia": por padrão a pessoa logada; super admin pode ver o de outra.
+  const [myDayPerson, setMyDayPerson] = useState<string | null>(null);
   const today = todaySaoPaulo();
   const qc = useQueryClient();
   const [toggleSchool, setToggleSchool] = useState<{ id: string; name: string; ativo: boolean } | null>(null);
@@ -519,6 +522,45 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const activeCardCount = activeCard ? filtered.length : 0;
 
   const openSchool = (id: string) => { const school = schoolById.get(id); if (school) onSelect(school); };
+
+  // ─── Painel "Meu dia" ───
+  const myDayUserId = myDayPerson ?? profile?.user_id ?? null;
+  const myDaySchools = useMemo(
+    () => rows.filter(row => row.responsible_user_id && row.responsible_user_id === myDayUserId)
+      .map(row => ({ id: row.school_id, nome: row.school_name })),
+    [rows, myDayUserId],
+  );
+  const myDayPersonOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    rows.forEach(row => {
+      if (row.responsible_user_id && !seen.has(row.responsible_user_id)) {
+        seen.set(row.responsible_user_id, displayNameByUser.get(row.responsible_user_id) ?? (row.responsible_email ? nameFromEmail(row.responsible_email) : 'Sem nome'));
+      }
+    });
+    return [...seen.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+  }, [rows, displayNameByUser]);
+  const myDayPersonLabel = myDayUserId
+    ? (displayNameByUser.get(myDayUserId) ?? (myDayUserId === profile?.user_id && profile?.email ? nameFromEmail(profile.email) : 'Responsável'))
+    : 'Equipe';
+  const myDayPendingItems = useMemo<MyDayPendingItem[]>(() => {
+    const items: MyDayPendingItem[] = [];
+    for (const school of myDaySchools) {
+      const row = rows.find(r => r.school_id === school.id);
+      if (!row) continue;
+      const daily = dailyBySchool.get(school.id);
+      const lateCount = backlogBySchool.get(school.id) ?? 0;
+      if (lateCount > 0) items.push({ schoolId: school.id, schoolName: school.nome, tone: 'late', label: `Conciliação atrasada: ${lateCount} lançamento${lateCount === 1 ? '' : 's'} de dias anteriores` });
+      if (dailyReconState(daily, bankAvailable(row, daily)) === 'no_statement') items.push({ schoolId: school.id, schoolName: school.nome, tone: 'late', label: 'Extrato não enviado' });
+      const tasks = dailyTasksBySchool.get(school.id);
+      if (tasks && tasks.done < tasks.total) items.push({ schoolId: school.id, schoolName: school.nome, tone: 'warn', label: `Tarefas do dia: ${tasks.done} de ${tasks.total} concluídas` });
+      if (row.checklist_pending > 0 && !row.report_delivered) {
+        const late = dueDate && dueDate < today;
+        items.push({ schoolId: school.id, schoolName: school.nome, tone: late ? 'late' : 'warn', label: `Relatório ${month.slice(5, 7)}/${month.slice(0, 4)}: ${row.checklist_pending} etapa${row.checklist_pending === 1 ? '' : 's'} aberta${row.checklist_pending === 1 ? '' : 's'}${dueInfo ? ` · ${dueInfo.text}` : ''}` });
+      }
+    }
+    return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myDaySchools, rows, dailyBySchool, backlogBySchool, dailyTasksBySchool, dueDate, dueInfo, month, today, bankStartMonths]);
   const toggleGroup = (key: string) => setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   const changeResponsible = (schoolId: string, value: string) => setResponsible.mutate(
     { schoolId, userId: value === '__none' ? null : value },
@@ -613,6 +655,19 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               <div className="hidden items-center gap-1 lg:flex"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
             </div>
           </div>
+
+          <MyDayPanel
+            schools={myDaySchools}
+            today={today}
+            pendingItems={myDayPendingItems}
+            personLabel={myDayPersonLabel}
+            personSelector={isSuperAdmin && myDayPersonOptions.length > 0 ? {
+              value: myDayUserId ?? '',
+              options: myDayPersonOptions,
+              onChange: id => setMyDayPerson(id),
+            } : undefined}
+            onOpenSchool={openSchool}
+          />
 
           {view !== 'pending' && <>
               <div className={`mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${view === 'closing' ? 'xl:grid-cols-4' : 'xl:grid-cols-5'}`}>

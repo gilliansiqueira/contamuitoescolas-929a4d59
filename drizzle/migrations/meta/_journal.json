@@ -414,6 +414,13 @@
       "when": 1790951975137,
       "tag": "0058_portfolio_last_activity_human_only",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790954586899,
+      "tag": "0059_payable_acknowledgements",
+      "breakpoints": true
     }
   ]
 }
