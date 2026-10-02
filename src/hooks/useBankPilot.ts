@@ -21,7 +21,14 @@ export function useSchoolFeature(schoolId: string | undefined, key: string, enab
 export function useBankAccounts(schoolId: string) {
   return useQuery({
     queryKey: ['bankAccounts', schoolId],
-    queryFn: async () => {
+    queryFn: () => fetchBankAccounts(schoolId),
+  });
+}
+
+/** Contas reais da empresa com o saldo oficial do extrato mais recente (âncora). */
+export async function fetchBankAccounts(schoolId: string): Promise<BankAccount[]> {
+  {
+    {
       const [{ data, error }, { data: imps, error: e2 }] = await Promise.all([
         // Conta virtual "Fora do banco (sócios)" nunca entra em saldos nem na conferência com extratos.
         db.from('bank_accounts').select('*').eq('school_id', schoolId).eq('is_virtual', false).order('sort_order').order('created_at'),
