@@ -540,7 +540,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     return [...seen.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
   }, [rows, displayNameByUser]);
   const myDayPersonLabel = myDayUserId
-    ? (displayNameByUser.get(myDayUserId) ?? (myDayUserId === profile?.user_id ? profileName : 'Responsável'))
+    ? (displayNameByUser.get(myDayUserId) ?? (myDayUserId === profile?.user_id && profile?.email ? nameFromEmail(profile.email) : 'Responsável'))
     : 'Equipe';
   const myDayPendingItems = useMemo<MyDayPendingItem[]>(() => {
     const items: MyDayPendingItem[] = [];
