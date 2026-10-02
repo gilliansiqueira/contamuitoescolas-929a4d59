@@ -8,6 +8,7 @@
 - [ ] Rodar uma nova varredura de segurança antes de compartilhar o site amplamente
 
 ## Feito
+- [x] Central: cards de etapa mostram "X pendentes · Y concluídas" e alternância Pendentes/Concluídas ao clicar
 - [x] Central: cards por etapa aberta; projetado x realizado automático com Fluxo Bancário; nota de pendências da conciliação
 - [x] Rio Verde: reenvio de "cheques.xls" com mesmo nome não dá mais erro
 - [x] Relatórios: cards compactos por primeira etapa mensal pendente; conciliação bancária: filtros separados de Receitas e Despesas por classificação oficial, inclusive partes divididas

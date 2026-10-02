@@ -303,6 +303,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [mode, setMode] = useState<PeriodMode>('ontem');
   const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
   const [cardFilter, setCardFilter] = useState<string | null>(null);
+  const [cardGroupMode, setCardGroupMode] = useState<'open' | 'done'>('open');
   const today = todaySaoPaulo();
   const qc = useQueryClient();
   const [toggleSchool, setToggleSchool] = useState<{ id: string; name: string; ativo: boolean } | null>(null);
@@ -398,11 +399,27 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     }
     return bySchool;
   }, [monthlySteps, rows, stepTemplates]);
+  // Empresas que já concluíram cada etapa (etapas fechadas do mês).
+  const doneGroups = useMemo(() => {
+    const bySchool = new Map<string, Set<string>>();
+    if (!monthlySteps) return bySchool;
+    const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
+    for (const row of rows) {
+      const set = new Set<string>();
+      if (!row.report_delivered) for (const s of monthlySteps.get(row.school_id) ?? []) {
+        if (s.status === 'open') continue;
+        const g = groupByKey.get(s.step_key);
+        if (g) set.add(g === 'vendas' ? 'receitas' : g);
+      }
+      bySchool.set(row.school_id, set);
+    }
+    return bySchool;
+  }, [monthlySteps, rows, stepTemplates]);
   const cardDefs = useMemo(() => view === 'closing' ? [
-    ...reportGroups.map(g => ({ ...g, match: (row: PortfolioRow) => !!openGroups.get(row.school_id)?.has(g.key) })),
+    ...reportGroups.map(g => ({ ...g, reportGroup: true, match: (row: PortfolioRow) => !!(cardGroupMode === 'done' ? doneGroups : openGroups).get(row.school_id)?.has(g.key) })),
     { key: 'sem_etapas', label: 'Outras pendências', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'sem_etapas' || reportStage.get(row.school_id) === 'extras' },
     { key: 'entregue', label: 'Entregues', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'entregue' },
-  ] : cardDefsFor(mode, today, bankAvailable), [view, mode, today, bankStartMonths, reportStage]);
+  ] : cardDefsFor(mode, today, bankAvailable), [view, mode, today, bankStartMonths, reportStage, openGroups, doneGroups, cardGroupMode]);
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
@@ -499,9 +516,16 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         default: return '';
       }
     })();
-     const reportNote = view === 'closing' ? def.key === 'entregue' ? 'Relatórios entregues' : def.key === 'sem_etapas' ? 'Sem etapas geradas ou extras pendentes' : `${matched.length} aguardando esta etapa` : note;
-     return { ...def, value: matched.length, note: reportNote };
-   }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, mode, refDay, withMovementBase, view]);
+      const doneCount = view === 'closing' && (def as { reportGroup?: boolean }).reportGroup
+        ? baseFiltered.filter(row => !!doneGroups.get(row.school_id)?.has(def.key)).length
+        : 0;
+      const reportNote = view === 'closing'
+        ? def.key === 'entregue' ? 'Relatórios entregues'
+        : def.key === 'sem_etapas' ? 'Sem etapas geradas ou extras pendentes'
+        : `${matched.length} pendente${matched.length === 1 ? '' : 's'} · ${doneCount} concluída${doneCount === 1 ? '' : 's'}`
+        : note;
+      return { ...def, value: matched.length, note: reportNote, doneCount };
+    }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, doneGroups, mode, refDay, withMovementBase, view]);
 
   // Quantidade do selo = empresas realmente filtradas (mesma regra do card).
   const activeCardCount = activeCard ? filtered.length : 0;
@@ -606,8 +630,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               <div className={`mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${view === 'closing' ? 'xl:grid-cols-4' : 'xl:grid-cols-5'}`}>
               {summaryCards.map(card => {
                 const isActive = activeCard?.key === card.key;
-                const empty = card.value === 0;
-                 return <button key={card.key} type="button" aria-pressed={isActive} disabled={empty} title={empty ? 'Nenhuma empresa nesta situação' : `Mostrar só: ${card.label}`} onClick={() => setCardFilter(isActive ? null : card.key)} className={`relative min-w-0 rounded-lg border border-border border-t-4 p-3 text-left shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${card.strip} ${isActive ? 'ring-2 ring-primary ring-offset-2' : ''} ${empty ? 'cursor-not-allowed opacity-60' : 'hover:shadow-md'}`}>
+                const empty = card.value === 0 && (card.doneCount ?? 0) === 0;
+                 return <button key={card.key} type="button" aria-pressed={isActive} disabled={empty} title={empty ? 'Nenhuma empresa nesta situação' : `Mostrar só: ${card.label}`} onClick={() => { setCardFilter(isActive ? null : card.key); setCardGroupMode('open'); }} className={`relative min-w-0 rounded-lg border border-border border-t-4 p-3 text-left shadow-sm transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${card.strip} ${isActive ? 'ring-2 ring-primary ring-offset-2' : ''} ${empty ? 'cursor-not-allowed opacity-60' : 'hover:shadow-md'}`}>
                   {isActive && <span className="absolute -top-2 right-2 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-foreground">filtrando</span>}
                    <div className="flex min-h-8 items-start justify-between gap-1.5"><span className="text-xs font-medium leading-tight text-foreground/80">{card.label}</span><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm ${card.tone}`}><card.icon className="h-3.5 w-3.5" /></span></div>
                     <p className={`mt-1 text-2xl font-semibold leading-none ${card.num}`}>{isLoading || (view === 'closing' && monthlyStepsLoading) ? '—' : card.value}</p>
@@ -619,6 +643,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Mostrando só: {activeCard.label} · {activeCardCount} empresa{activeCardCount === 1 ? '' : 's'}
                 <button type="button" onClick={() => setCardFilter(null)} aria-label={`Parar de filtrar por ${activeCard.label}`} className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/80"><X className="h-2.5 w-2.5" /></button>
               </span>
+              {view === 'closing' && (activeCard as { reportGroup?: boolean }).reportGroup && <div role="tablist" aria-label="Grupo da etapa" className="flex rounded-md border border-border bg-card p-0.5">{(['open', 'done'] as const).map(g => <button key={g} type="button" role="tab" aria-selected={cardGroupMode === g} onClick={() => setCardGroupMode(g)} className={`rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${cardGroupMode === g ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{g === 'open' ? 'Pendentes' : 'Concluídas'}</button>)}</div>}
               <span className="text-[11px] text-muted-foreground">Clique no mesmo card para limpar, ou em outro card para trocar.</span>
             </div>}
           </>}
