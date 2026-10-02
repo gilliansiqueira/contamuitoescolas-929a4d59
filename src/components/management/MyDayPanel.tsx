@@ -53,6 +53,79 @@ function PayableRow({ p, onOpenSchool }: { p: MyDayPayable; onOpenSchool: (id: s
   );
 }
 
+/** Uma linha por empresa ("Dourados — 10 contas · R$ X"); ao clicar, abre as contas. */
+function GroupedPayables({ items, unit, onOpenSchool, empty }: { items: MyDayPayable[]; unit: string; onOpenSchool: (id: string) => void; empty: string }) {
+  const [openSchool, setOpenSchool] = useState<string | null>(null);
+  const groups = useMemo(() => {
+    const m = new Map<string, { id: string; nome: string; list: MyDayPayable[]; total: number }>();
+    for (const p of items) {
+      const g = m.get(p.schoolId) ?? { id: p.schoolId, nome: p.schoolName, list: [], total: 0 };
+      g.list.push(p); g.total += p.valor; m.set(p.schoolId, g);
+    }
+    return [...m.values()].sort((a, b) => b.list.length - a.list.length || a.nome.localeCompare(b.nome, 'pt-BR'));
+  }, [items]);
+  if (!groups.length) return <Empty text={empty} />;
+  return (
+    <>
+      {groups.map(g => (
+        <div key={g.id} className="rounded-md border border-border bg-background">
+          <button type="button" onClick={() => setOpenSchool(c => (c === g.id ? null : g.id))} aria-expanded={openSchool === g.id}
+            className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-xs hover:bg-muted/40">
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${openSchool === g.id ? '' : '-rotate-90'}`} />
+            <span className="min-w-0 flex-1 truncate"><strong>{g.nome}</strong> — {g.list.length} {g.list.length === 1 ? 'conta' : 'contas'} {unit}</span>
+            <strong>{fmtBRL(g.total)}</strong>
+          </button>
+          {openSchool === g.id && (
+            <div className="space-y-1.5 border-t border-border p-2">
+              {g.list.map(p => <PayableRow key={`${p.entryId}:${p.dueDate}`} p={p} onOpenSchool={onOpenSchool} />)}
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function GroupedPending({ items, onOpenSchool }: { items: MyDayPendingItem[]; onOpenSchool: (id: string) => void }) {
+  const [openSchool, setOpenSchool] = useState<string | null>(null);
+  const groups = useMemo(() => {
+    const m = new Map<string, { id: string; nome: string; list: MyDayPendingItem[] }>();
+    for (const it of items) {
+      const g = m.get(it.schoolId) ?? { id: it.schoolId, nome: it.schoolName, list: [] };
+      g.list.push(it); m.set(it.schoolId, g);
+    }
+    return [...m.values()].sort((a, b) => b.list.length - a.list.length || a.nome.localeCompare(b.nome, 'pt-BR'));
+  }, [items]);
+  if (!groups.length) return <Empty text="Nenhuma pendência nas suas empresas." />;
+  return (
+    <>
+      {groups.map(g => {
+        const late = g.list.some(i => i.tone === 'late');
+        return (
+          <div key={g.id} className="rounded-md border border-border bg-background">
+            <button type="button" onClick={() => setOpenSchool(c => (c === g.id ? null : g.id))} aria-expanded={openSchool === g.id}
+              className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-xs hover:bg-muted/40">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${late ? 'bg-destructive' : 'bg-warning'}`} />
+              <span className="min-w-0 flex-1 truncate"><strong>{g.nome}</strong> — {g.list.length} {g.list.length === 1 ? 'pendência' : 'pendências'}</span>
+              <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${openSchool === g.id ? '' : '-rotate-90'}`} />
+            </button>
+            {openSchool === g.id && (
+              <div className="space-y-1 border-t border-border p-2">
+                {g.list.map((item, i) => (
+                  <button key={i} type="button" onClick={() => onOpenSchool(item.schoolId)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted/40">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.tone === 'late' ? 'bg-destructive' : 'bg-warning'}`} />
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export function MyDayPanel({ schools, today, pendingItems, personSelector, personLabel, onOpenSchool }: Props) {
   const { data, isLoading } = useMyDay(schools, today, schools.length > 0);
   const [open, setOpen] = useState<CardKey | null>(null);
@@ -69,7 +142,7 @@ export function MyDayPanel({ schools, today, pendingItems, personSelector, perso
   const cards: { key: CardKey; label: string; count: number; note: string; icon: typeof Wallet; tone: string; active: string }[] = [
     { key: 'pay', label: 'Pagamentos de hoje', count: totals.pay, note: fmtBRL(totals.payValor), icon: CircleDollarSign, tone: 'text-destructive', active: 'border-destructive/40 bg-destructive/[0.06]' },
     { key: 'schedule', label: 'Agendar hoje', count: totals.schedule, note: 'vencem amanhã ou em dia não útil', icon: CalendarClock, tone: 'text-warning', active: 'border-warning/40 bg-warning/[0.06]' },
-    { key: 'notpaid', label: 'Não saiu da conta', count: totals.notPaid, note: 'vencidas sem saída conciliada', icon: AlertTriangle, tone: 'text-destructive', active: 'border-destructive/40 bg-destructive/[0.06]' },
+    { key: 'notpaid', label: 'Não saiu da conta', count: totals.notPaid, note: 'vencidas sem saída no extrato', icon: AlertTriangle, tone: 'text-destructive', active: 'border-destructive/40 bg-destructive/[0.06]' },
     { key: 'pending', label: 'Pendências', count: totals.pending, note: 'conciliação, extrato, tarefas e relatório', icon: ListTodo, tone: 'text-warning', active: 'border-warning/40 bg-warning/[0.06]' },
     { key: 'cash', label: 'Caixa em risco', count: totals.cash, note: 'saldo negativo nos próximos 15 dias', icon: Wallet, tone: 'text-destructive', active: 'border-destructive/40 bg-destructive/[0.06]' },
   ];
@@ -123,15 +196,10 @@ export function MyDayPanel({ schools, today, pendingItems, personSelector, perso
                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setOpen(null)} aria-label="Fechar detalhe"><ChevronDown className="h-3.5 w-3.5 rotate-180" /></Button>
               </div>
 
-              {open === 'pay' && (data?.payToday.length ? data.payToday.map(p => <PayableRow key={`${p.entryId}:${p.dueDate}`} p={p} onOpenSchool={onOpenSchool} />) : <Empty text="Nenhuma conta vence hoje." />)}
-              {open === 'schedule' && (data?.scheduleToday.length ? data.scheduleToday.map(p => <PayableRow key={`${p.entryId}:${p.dueDate}`} p={p} onOpenSchool={onOpenSchool} />) : <Empty text="Nada para agendar hoje." />)}
-              {open === 'notpaid' && (data?.notPaid.length ? data.notPaid.map(p => <PayableRow key={`${p.entryId}:${p.dueDate}`} p={p} onOpenSchool={onOpenSchool} />) : <Empty text="Todas as contas vencidas saíram da conta." />)}
-              {open === 'pending' && (pendingItems.length ? pendingItems.map((item, i) => (
-                <button key={`${item.schoolId}:${i}`} type="button" onClick={() => onOpenSchool(item.schoolId)} className="flex w-full items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2 text-left text-xs hover:bg-muted/40">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${item.tone === 'late' ? 'bg-destructive' : 'bg-warning'}`} />
-                  <span className="min-w-0 flex-1 truncate"><strong>{item.schoolName}</strong> — {item.label}</span>
-                </button>
-              )) : <Empty text="Nenhuma pendência nas suas empresas." />)}
+              {open === 'pay' && <GroupedPayables items={data?.payToday ?? []} unit="vencem hoje" onOpenSchool={onOpenSchool} empty="Nenhuma conta vence hoje." />}
+              {open === 'schedule' && <GroupedPayables items={data?.scheduleToday ?? []} unit="a agendar" onOpenSchool={onOpenSchool} empty="Nada para agendar hoje." />}
+              {open === 'notpaid' && <GroupedPayables items={data?.notPaid ?? []} unit="sem saída no extrato" onOpenSchool={onOpenSchool} empty="Todas as contas vencidas saíram da conta." />}
+              {open === 'pending' && <GroupedPending items={pendingItems} onOpenSchool={onOpenSchool} />}
               {open === 'cash' && (data?.cashRisks.length ? data.cashRisks.map(r => (
                 <button key={r.schoolId} type="button" onClick={() => onOpenSchool(r.schoolId)} className="flex w-full items-center gap-2 rounded-md border border-destructive/30 bg-destructive/[0.05] px-2.5 py-2 text-left text-xs hover:bg-destructive/10">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
