@@ -1,7 +1,7 @@
 # Roteiro
 
 ## Em andamento
-- Painel "Meu dia" na Central: contas a pagar (aviso 1 dia útil antes, antecipação de fim de semana), conferência de pagamento pela conciliação no dia seguinte, pendências (conciliação, extrato, tarefas, relatório), alerta de caixa em 15 dias. Plano aprovado em .lovable/plan/painel-meu-dia-para-cada-responsável-2026-10-02.md
+- (nenhuma)
 
 ## Em aberto (anteriores)
 - Verificar na tela (login super admin): Central, botão dos sócios em Portão, exportar Excel, importar planilha de dinheiro da OAP
