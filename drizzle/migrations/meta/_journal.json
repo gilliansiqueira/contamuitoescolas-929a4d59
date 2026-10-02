@@ -379,6 +379,13 @@
       "when": 1790949513596,
       "tag": "0053_partner_cheque_pairs",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790949541509,
+      "tag": "0054_partner_cheque_pair_positive_value",
+      "breakpoints": true
     }
   ]
 }
