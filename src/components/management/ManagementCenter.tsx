@@ -443,7 +443,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       };
     }).sort((a, b) => a.key === '__none' ? 1 : b.key === '__none' ? -1 : a.label.localeCompare(b.label, 'pt-BR'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayNameByUser, filtered, month, view, mode, dailyBySchool, backlogBySchool]);
+  }, [displayNameByUser, filtered, month, dueDate, view, mode, dailyBySchool, backlogBySchool]);
 
   const completedReconciliation = rows.filter(row => row.reconciliation_percent === 100).length;
   const deliveredReports = rows.filter(row => row.report_delivered).length;
