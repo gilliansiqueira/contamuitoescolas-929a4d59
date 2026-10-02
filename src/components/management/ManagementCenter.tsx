@@ -516,9 +516,16 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         default: return '';
       }
     })();
-     const reportNote = view === 'closing' ? def.key === 'entregue' ? 'Relatórios entregues' : def.key === 'sem_etapas' ? 'Sem etapas geradas ou extras pendentes' : `${matched.length} aguardando esta etapa` : note;
-     return { ...def, value: matched.length, note: reportNote };
-   }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, mode, refDay, withMovementBase, view]);
+      const doneCount = view === 'closing' && (def as { reportGroup?: boolean }).reportGroup
+        ? baseFiltered.filter(row => !!doneGroups.get(row.school_id)?.has(def.key)).length
+        : 0;
+      const reportNote = view === 'closing'
+        ? def.key === 'entregue' ? 'Relatórios entregues'
+        : def.key === 'sem_etapas' ? 'Sem etapas geradas ou extras pendentes'
+        : `${matched.length} pendente${matched.length === 1 ? '' : 's'} · ${doneCount} concluída${doneCount === 1 ? '' : 's'}`
+        : note;
+      return { ...def, value: matched.length, note: reportNote, doneCount };
+    }), [baseFiltered, backlogBySchool, cardDefs, completedReconciliation, dailyBySchool, deliveredReports, doneGroups, mode, refDay, withMovementBase, view]);
 
   // Quantidade do selo = empresas realmente filtradas (mesma regra do card).
   const activeCardCount = activeCard ? filtered.length : 0;
