@@ -213,7 +213,7 @@ export function useDailyTasksSummary(schoolIds: string[], day: string) {
     enabled: schoolIds.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(day),
     staleTime: 60_000,
     queryFn: async () => {
-      await Promise.all(schoolIds.map(id => supabase.rpc('ensure_daily_tasks', { _school_id: id, _day: day })));
+      await supabase.rpc('ensure_daily_tasks_bulk', { _school_ids: schoolIds, _day: day });
       const { data, error } = await supabase
         .from('daily_task_checklist')
         .select('school_id, status')
