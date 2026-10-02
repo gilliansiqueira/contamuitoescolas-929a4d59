@@ -463,6 +463,20 @@
       "when": 1790961233760,
       "tag": "0065_report_desp_conciliacao_sem_banco",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1790961566279,
+      "tag": "0066_restricted_schools_and_ponto_permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1790961596884,
+      "tag": "0067_backlog_skip_restricted",
+      "breakpoints": true
     }
   ]
 }
