@@ -248,6 +248,14 @@ function DailyTasksSection({ schoolId }: { schoolId: string }) {
   const { data: tasks = [], isLoading } = useDailyTasks(schoolId, day);
   const setStatus = useSetDailyTaskStatus(schoolId, day);
   const done = tasks.filter(t => t.status !== 'open').length;
+  const { data: pend } = useQuery({
+    queryKey: ['daily-recon-pending', schoolId, day],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('bank_transactions').select('valor').eq('school_id', schoolId).eq('is_forecast', false).eq('recon_status', 'pendente').gte('data', '2026-09-01').lte('data', day);
+      if (error) throw error;
+      return { n: data?.length ?? 0, v: (data ?? []).reduce((s, r) => s + Number(r.valor), 0) };
+    },
+  });
   return (
     <section>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tarefas do dia — {new Date(`${day}T12:00:00`).toLocaleDateString('pt-BR')} ({done} de {tasks.length})</h3>
@@ -255,14 +263,15 @@ function DailyTasksSection({ schoolId }: { schoolId: string }) {
       <div className="divide-y divide-border rounded-md border border-border">
         {tasks.map(task => (
           <div key={task.id} className="flex items-center gap-2 px-2.5 py-2">
-            {task.status === 'completed' ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : task.status === 'not_applicable' ? <MinusCircle className="h-4 w-4 shrink-0 text-muted-foreground" /> : <Circle className="h-4 w-4 shrink-0 text-warning" />}
-            <span className={`flex-1 text-xs ${task.status === 'completed' ? 'text-muted-foreground line-through' : ''}`}>{task.label}</span>
+            {task.status === 'completed' ? <CheckCircle2 className="h-4 w-4 shrink-0 text-success" /> : task.status === 'done_with_pending' ? <CheckCircle2 className="h-4 w-4 shrink-0 text-warning" /> : task.status === 'not_applicable' ? <MinusCircle className="h-4 w-4 shrink-0 text-muted-foreground" /> : <Circle className="h-4 w-4 shrink-0 text-warning" />}
+            <span className={`flex-1 text-xs ${task.status === 'completed' ? 'text-muted-foreground line-through' : ''}`}>{task.label}{task.task_key === 'conciliacao' && pend && pend.n > 0 && <span className="ml-1 block text-[10px] text-warning">Restam {pend.n} lançamento(s) ({pend.v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>}</span>
             {task.check_kind === 'auto' && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">Automático</span>}
-            <Select value={task.status} onValueChange={value => setStatus.mutate({ id: task.id, status: value as 'open' | 'completed' | 'not_applicable' }, { onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar.') })}>
-              <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue /></SelectTrigger>
+            <Select value={task.status} onValueChange={value => setStatus.mutate({ id: task.id, status: value as DailyTask['status'] }, { onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar.') })}>
+              <SelectTrigger className="h-7 w-[150px] text-[11px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="open">Pendente</SelectItem>
                 <SelectItem value="completed">Concluída</SelectItem>
+                {task.task_key === 'conciliacao' && <SelectItem value="done_with_pending">Feita com pendências</SelectItem>}
                 <SelectItem value="not_applicable">Não se aplica</SelectItem>
               </SelectContent>
             </Select>
