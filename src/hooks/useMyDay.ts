@@ -308,6 +308,10 @@ export function useMyDay(schools: { id: string; nome: string }[], today: string,
       result.notPaid.sort(byValorDesc);
       result.cashRisks.sort((a, b) => a.firstNegativeDate.localeCompare(b.firstNegativeDate));
       return result;
+      } catch (err) {
+        console.error('[my-day] queryFn falhou:', err);
+        throw err;
+      }
     },
   });
 }
