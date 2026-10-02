@@ -15,6 +15,8 @@ import { fmtBRL, fmtDate, fmtDateTime, StatusBadge, STATUS_LABEL } from './share
 import { useJustificationReasons, useSetJustification, useCloseReconDay, useReconDayClosures, needsJustification, JUSTIFICATION_START, type MissingJustification } from '@/hooks/useReconJustification';
 import { Tag, CalendarCheck } from 'lucide-react';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
+import { Download } from 'lucide-react';
+import { exportMovementsXlsx, type MovementExportRow, type AccountSummaryRow } from '@/lib/bankStatements/exportMovements';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
 interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defaultFrom: string; defaultTo: string; focus?: TableFocus | null }
@@ -194,6 +196,47 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
        .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
    }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems]);
+
+  const tipoLabel = (t: BankTx, itemId: string | null | undefined, categoria?: string) => {
+    if (isAutoInvest(t)) return 'Aplicação automática';
+    if (categoria === 'ignorar' || (!categoria && t.movement_kind === 'ignorar')) return 'Ignorar';
+    if (isOwnTransfer(t) || t.transfer_pair_id) return 'Transferência';
+    if (categoria === 'operacao' || (!categoria && isOperacao(t))) return 'Operação';
+    const c = financialClass(itemId);
+    return c === 'receita' ? 'Receita' : c === 'despesa' ? 'Despesa' : c === 'operacao' ? 'Operação' : c === 'ignorar' ? 'Ignorar' : 'A classificar';
+  };
+  const exportExcel = () => {
+    const out: MovementExportRow[] = [];
+    for (const t of rows) {
+      const base = { data: t.data, conta: accName.get(t.account_id) ?? '', status: STATUS_LABEL[t.recon_status] ?? t.recon_status,
+        justificativa: [t.justification_reason_id ? reasonName.get(t.justification_reason_id) : '', t.justification_note ?? ''].filter(Boolean).join(' — ') };
+      const parts = financialFilter && t.splits?.length ? visibleParts(t) : t.splits ?? [];
+      if (parts.length) {
+        parts.forEach((sp, i) => {
+          const v = Math.abs(Number(sp.valor));
+          out.push({ ...base, descricao: `${displayDesc(t)}${sp.descricao ? ` · ${sp.descricao}` : ''}`, categoria: itemName.get(sp.model_item_id ?? '') ?? '', tipo: tipoLabel(t, sp.model_item_id, sp.categoria),
+            entrada: t.tipo === 'entrada' ? v : 0, saida: t.tipo === 'saida' ? v : 0, saldo: i === parts.length - 1 ? balances.get(t.id) ?? null : null });
+        });
+      } else {
+        const v = Number(t.valor);
+        out.push({ ...base, descricao: displayDesc(t), categoria: itemName.get(t.model_item_id ?? '') ?? '', tipo: tipoLabel(t, t.model_item_id),
+          entrada: t.tipo === 'entrada' ? v : 0, saida: t.tipo === 'saida' ? v : 0, saldo: balances.get(t.id) ?? null });
+      }
+    }
+    const accs = accounts.filter(a => accountId === 'all' || a.id === accountId);
+    const summary: AccountSummaryRow[] = accs.map(a => {
+      const own = txs.filter(t => t.account_id === a.id && t.data >= from && t.data <= to)
+        .sort((x, y) => x.data.localeCompare(y.data) || x.created_at.localeCompare(y.created_at) || x.id.localeCompare(y.id));
+      const bal = runningBalances(accounts, txs, a.id);
+      const entradas = own.filter(t => t.tipo === 'entrada').reduce((s, t) => s + Number(t.valor), 0);
+      const saidas = own.filter(t => t.tipo === 'saida').reduce((s, t) => s + Number(t.valor), 0);
+      const last = own[own.length - 1];
+      const saldoFinal = last ? bal.get(last.id) ?? 0 : 0;
+      return { conta: a.nome, saldoInicial: Math.round((saldoFinal - entradas + saidas) * 100) / 100, entradas, saidas, saldoFinal };
+    }).filter(s => s.entradas || s.saidas || s.saldoFinal);
+    const conta = accountId === 'all' ? 'Todas' : (accName.get(accountId) ?? 'Conta');
+    exportMovementsXlsx(`Movimentacoes_${conta.replace(/[^\w-]+/g, '_')}_${fmtDate(from).replace(/\//g, '-')}_a_${fmtDate(to).replace(/\//g, '-')}.xlsx`, out, summary);
+  };
    useEffect(() => {
      const visible = new Set(rows.map(r => r.id));
      setSelected(current => [...current].some(id => !visible.has(id)) ? new Set([...current].filter(id => visible.has(id))) : current);
@@ -283,6 +326,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
           {importFilter && <Button size="sm" variant="secondary" onClick={() => { setImportFilter(null); setCat('all'); }}>Só deste extrato · limpar filtro ✕</Button>}
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
+          <Button size="sm" variant="outline" disabled={!rows.length} onClick={exportExcel}><Download className="mr-1 h-4 w-4" />Exportar Excel</Button>
           {selRows.length > 0 && <>
           <Button size="sm" disabled={setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar ({selected.size})</Button>
           <Button size="sm" variant="outline" disabled={setJust.isPending} onClick={() => openJustify([...selected])}><Tag className="mr-1 h-4 w-4" />Justificar</Button>
