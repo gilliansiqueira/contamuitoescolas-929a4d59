@@ -200,7 +200,7 @@ export interface DailyTask {
   label: string;
   sort_order: number;
   check_kind: string;
-  status: 'open' | 'completed' | 'not_applicable';
+  status: 'open' | 'completed' | 'not_applicable' | 'done_with_pending';
   source: string;
   completed_at: string | null;
 }
