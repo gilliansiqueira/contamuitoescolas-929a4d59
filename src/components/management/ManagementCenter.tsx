@@ -656,6 +656,19 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             </div>
           </div>
 
+          <MyDayPanel
+            schools={myDaySchools}
+            today={today}
+            pendingItems={myDayPendingItems}
+            personLabel={myDayPersonLabel}
+            personSelector={isSuperAdmin && myDayPersonOptions.length > 0 ? {
+              value: myDayUserId ?? '',
+              options: myDayPersonOptions,
+              onChange: id => setMyDayPerson(id),
+            } : undefined}
+            onOpenSchool={openSchool}
+          />
+
           {view !== 'pending' && <>
               <div className={`mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${view === 'closing' ? 'xl:grid-cols-4' : 'xl:grid-cols-5'}`}>
               {summaryCards.map(card => {
