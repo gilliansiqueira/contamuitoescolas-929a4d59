@@ -3,14 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type TeamSituacao = 'regular' | 'atraso' | 'sem_marcacao' | 'incompleta' | 'falta' | 'hora_extra' | 'inconsistencia' | 'aguardando';
 
-export interface TeamEmployee { external_id: string; matricula: string | null; nome: string; horario_previsto: string | null; ativo: boolean }
+export interface TeamEmployee { external_id: string; matricula: string | null; nome: string; horario_previsto: string | null; ativo: boolean; oculto?: boolean }
 export interface TeamDaily { employee_external_id: string; dia: string; horario_previsto: string | null; primeira_marcacao: string | null; ultima_marcacao: string | null; horas_trabalhadas: string | null; horas_extras: string | null; situacao: TeamSituacao; ocorrencia: string | null; synced_at: string }
 export interface TeamOccurrence { external_key: string; employee_external_id: string; dia: string; tipo: string; descricao: string | null; origem: string }
 export interface TeamHourBank { employee_external_id: string; competencia: string; saldo: string | null; saldo_minutos: number | null }
 export interface TeamSyncRun { id: string; status: 'running' | 'success' | 'error' | 'not_configured'; started_at: string; finished_at: string | null; message: string | null }
 
 export interface TeamTimeData {
-  employees: TeamEmployee[]; daily: TeamDaily[]; occurrences: TeamOccurrence[]; hourBank: TeamHourBank[];
+  employees: TeamEmployee[]; hidden?: TeamEmployee[]; daily: TeamDaily[]; occurrences: TeamOccurrence[]; hourBank: TeamHourBank[];
   lastRun: TeamSyncRun | null; lastSuccess: TeamSyncRun | null;
 }
 
@@ -28,7 +28,7 @@ export function useTeamTime(month: string, enabled: boolean) {
       const [y, m] = month.split('-').map(Number);
       const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
       const [e, d, o, b, r, s] = await Promise.all([
-        db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo').eq('ativo', true).order('nome'),
+        db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto').eq('ativo', true).order('nome'),
         db.from('team_time_daily').select('*').gte('dia', start).lte('dia', end),
         db.from('team_time_occurrences').select('external_key,employee_external_id,dia,tipo,descricao,origem').gte('dia', start).lte('dia', end),
         db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').eq('competencia', month),
@@ -37,7 +37,10 @@ export function useTeamTime(month: string, enabled: boolean) {
       ]);
       const err = [e, d, o, b, r, s].find(x => x.error)?.error;
       if (err) throw err;
-      return { employees: e.data ?? [], daily: d.data ?? [], occurrences: o.data ?? [], hourBank: b.data ?? [], lastRun: r.data?.[0] ?? null, lastSuccess: s.data?.[0] ?? null };
+      const all: TeamEmployee[] = e.data ?? [];
+      const vis = new Set(all.filter(x => !x.oculto).map(x => x.external_id));
+      const keep = (x: { employee_external_id: string }) => vis.has(x.employee_external_id);
+      return { employees: all.filter(x => !x.oculto), hidden: all.filter(x => x.oculto), daily: (d.data ?? []).filter(keep), occurrences: (o.data ?? []).filter(keep), hourBank: (b.data ?? []).filter(keep), lastRun: r.data?.[0] ?? null, lastSuccess: s.data?.[0] ?? null };
     },
   });
 }
@@ -49,6 +52,18 @@ export function useTeamTimeSync() {
       const { data, error } = await supabase.functions.invoke('pontofopag-sync', { body: {} });
       if (error) throw error;
       return data as { configured: boolean; status?: string; message?: string };
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['team-time'] }),
+  });
+}
+
+export function useSetEmployeeHidden() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { external_id: string; hidden: boolean }) => {
+      const { data, error } = await supabase.functions.invoke('pontofopag-sync', { body: { action: 'set_employee_hidden', ...p } });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['team-time'] }),
   });

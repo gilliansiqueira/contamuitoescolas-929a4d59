@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, type TeamSituacao, type TeamTimeData } from '@/hooks/useTeamTime';
+import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, type TeamSituacao, type TeamTimeData } from '@/hooks/useTeamTime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, CheckCircle2, Clock3, KeyRound, Loader2, RefreshCw, ShieldAlert, UserCheck, UserX, Users, Timer, ListChecks, CalendarClock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, KeyRound, Loader2, RefreshCw, ShieldAlert, UserCheck, UserX, Trash2, Undo2, Users, Timer, ListChecks, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImportCartaoPonto } from './ImportCartaoPonto';
 
@@ -122,6 +122,12 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
   data: TeamTimeData; date: string; card: CardKey; setCard: (c: CardKey) => void; who: string; setWho: (s: string) => void;
   sit: 'all' | TeamSituacao; setSit: (s: 'all' | TeamSituacao) => void; occFilter: string; setOccFilter: (s: string) => void;
 }) {
+  const hide = useSetEmployeeHidden();
+  const [showHidden, setShowHidden] = useState(false);
+  const setHidden = (id: string, nome: string, hidden: boolean) => {
+    if (hidden && !confirm(`Ocultar ${nome} do Ponto? As horas ficam guardadas e dá para restaurar depois.`)) return;
+    hide.mutate({ external_id: id, hidden }, { onSuccess: () => toast.success(hidden ? `${nome} ocultada do Ponto` : `${nome} restaurada`), onError: (e: any) => toast.error(e.message ?? 'Erro') });
+  };
   const dayByEmp = useMemo(() => new Map(data.daily.filter(d => d.dia === date).map(d => [d.employee_external_id, d])), [data.daily, date]);
   const bankByEmp = useMemo(() => new Map(data.hourBank.map(b => [b.employee_external_id, b])), [data.hourBank]);
   const occToday = data.occurrences.filter(o => o.dia === date);
@@ -170,15 +176,17 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
             <div className="flex flex-wrap gap-2 border-b border-border p-3">
               <Input value={who} onChange={e => setWho(e.target.value)} placeholder="Colaboradora ou matrícula" className="h-8 w-52 text-xs" />
               <Select value={sit} onValueChange={v => setSit(v as typeof sit)}><SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as situações</SelectItem>{(Object.keys(SIT_LABEL) as TeamSituacao[]).map(s => <SelectItem key={s} value={s}>{SIT_LABEL[s]}</SelectItem>)}</SelectContent></Select>
+              {!!data.hidden?.length && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowHidden(v => !v)}>Ver ocultos ({data.hidden.length})</Button>}
               <Select value={occFilter} onValueChange={setOccFilter}><SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as ocorrências</SelectItem>{occTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
             </div>
+            {showHidden && !!data.hidden?.length && <div className="space-y-1 border-b border-border bg-muted/30 p-3">{data.hidden.map(h => <div key={h.external_id} className="flex items-center gap-2 text-xs"><span className="font-medium">{h.nome}</span><span className="text-muted-foreground">{h.matricula ?? ''}</span><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" disabled={hide.isPending} onClick={() => setHidden(h.external_id, h.nome, false)}><Undo2 className="h-3 w-3" />Restaurar</Button></div>)}</div>}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Matrícula', 'Previsto', '1ª marcação', 'Última', 'Trabalhadas', 'Banco de horas', 'Ocorrência', 'Situação', 'Atualizado'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
                 <tbody>
                   {filtered.length === 0 && <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
                   {filtered.map(r => <tr key={r.e.external_id} className="border-t border-border">
-                    <td className="whitespace-nowrap px-3 py-2 font-medium">{r.e.nome}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}<Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button></span></td>
                     <td className="px-3 py-2 text-muted-foreground">{r.e.matricula ?? '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2">{r.d?.horario_previsto ?? r.e.horario_previsto ?? '—'}</td>
                     <td className="px-3 py-2">{r.d?.primeira_marcacao ?? '—'}</td>

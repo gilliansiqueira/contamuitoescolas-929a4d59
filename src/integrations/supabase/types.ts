@@ -2076,6 +2076,8 @@ export type Database = {
           due_date: string
           entry_id: string
           id: string
+          kind: string
+          note: string | null
           school_id: string
         }
         Insert: {
@@ -2084,6 +2086,8 @@ export type Database = {
           due_date: string
           entry_id: string
           id?: string
+          kind?: string
+          note?: string | null
           school_id: string
         }
         Update: {
@@ -2092,6 +2096,8 @@ export type Database = {
           due_date?: string
           entry_id?: string
           id?: string
+          kind?: string
+          note?: string | null
           school_id?: string
         }
         Relationships: [
@@ -3451,6 +3457,9 @@ export type Database = {
           id: string
           matricula: string | null
           nome: string
+          oculto: boolean
+          oculto_em: string | null
+          oculto_por: string | null
           synced_at: string
         }
         Insert: {
@@ -3463,6 +3472,9 @@ export type Database = {
           id?: string
           matricula?: string | null
           nome: string
+          oculto?: boolean
+          oculto_em?: string | null
+          oculto_por?: string | null
           synced_at?: string
         }
         Update: {
@@ -3475,6 +3487,9 @@ export type Database = {
           id?: string
           matricula?: string | null
           nome?: string
+          oculto?: boolean
+          oculto_em?: string | null
+          oculto_por?: string | null
           synced_at?: string
         }
         Relationships: []

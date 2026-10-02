@@ -71,6 +71,15 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({})) as Row;
   if (body.action === "import_report") return importReport(body, admin, u.user.id);
+  if (body.action === "set_employee_hidden") {
+    const ext = typeof body.external_id === "string" ? body.external_id.slice(0, 100) : "";
+    if (!ext || typeof body.hidden !== "boolean") return json({ error: "Dados inválidos." }, 400);
+    const { error } = await admin.from("team_time_employees").update(body.hidden
+      ? { oculto: true, oculto_por: u.user.id, oculto_em: new Date().toISOString() }
+      : { oculto: false, oculto_por: null, oculto_em: null }).eq("external_id", ext);
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true });
+  }
 
   const today = spDate();
   const monthStart = today.slice(0, 8) + "01";

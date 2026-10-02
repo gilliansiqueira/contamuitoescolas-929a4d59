@@ -1,0 +1,2 @@
+ALTER TABLE public.team_time_employees ADD COLUMN IF NOT EXISTS oculto boolean NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS oculto_por uuid, ADD COLUMN IF NOT EXISTS oculto_em timestamptz;
+ALTER TABLE public.payable_acknowledgements ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'agendado', ADD COLUMN IF NOT EXISTS note text;
