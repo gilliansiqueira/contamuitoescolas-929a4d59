@@ -1,0 +1,2 @@
+ALTER TABLE public.team_time_daily DROP CONSTRAINT team_time_daily_situacao_chk;
+ALTER TABLE public.team_time_daily ADD CONSTRAINT team_time_daily_situacao_chk CHECK (situacao = ANY (ARRAY['regular','atraso','sem_marcacao','incompleta','falta','hora_extra','inconsistencia','aguardando','em_andamento']));
