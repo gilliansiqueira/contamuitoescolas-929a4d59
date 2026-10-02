@@ -19,7 +19,7 @@ import {
 import { ReconciliationBacklog } from '@/components/management/ReconciliationBacklog';
 import { MyDayPanel, type MyDayPendingItem } from '@/components/management/MyDayPanel';
 import { useAddSchool } from '@/hooks/useFinancialData';
-import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
+import { useClosingStepTemplates, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } from '@/components/management/ManagerDayPanel';
@@ -330,7 +330,6 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
   const { data: stepTemplates = [] } = useClosingStepTemplates(true);
   const { data: monthlySteps, isLoading: monthlyStepsLoading } = useMonthlyChecklistSummary(month, view === 'closing');
-  const ensureChecklist = useEnsureMonthlyChecklist();
   const setResponsible = useSetManagementResponsible(month);
   const setDisplayName = useSetManagementResponsibleDisplayName();
   const addSchool = useAddSchool();
