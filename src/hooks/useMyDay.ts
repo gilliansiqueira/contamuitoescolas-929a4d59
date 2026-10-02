@@ -124,6 +124,8 @@ function mapEntry(e: any): FinancialEntry {
 }
 
 async function fetchBundle(schoolId: string, schoolName: string, today: string): Promise<SchoolBundle> {
+  const t0 = Date.now();
+  const mark = (step: string) => console.log(`[my-day] ${schoolName} ${step} +${Date.now() - t0}ms`);
   const db = supabase as any;
   const { data: school, error: sErr } = await db
     .from('schools')
@@ -131,6 +133,7 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
     .eq('id', schoolId)
     .maybeSingle();
   if (sErr) throw sErr;
+  mark('school');
 
   const baseDate = school?.saldo_inicial_data ?? undefined;
   const [entries, rulesRows, itemRows, paidOuts, ackRows] = await Promise.all([
