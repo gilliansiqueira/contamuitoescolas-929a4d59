@@ -111,7 +111,11 @@ export function parseOFX(content: string): BankParseResult {
   // (em compensação), mas já estão nos lançamentos → o saldo real é disponível + esses cheques.
   const avisosExtra: string[] = [];
   const lastDate = txs.reduce((m, t) => (t.data > m ? t.data : m), '');
-  const chequesComp = txs.filter(t => t.data === lastDate && t.tipo === 'entrada' && /^cheque recebido/i.test(t.descricao));
+  // Só está em compensação se o cheque for do último dia do próprio arquivo (DTEND); se o extrato
+  // vai além (ex.: até 02/10 com cheque de 30/09), o cheque já compensou e está no saldo.
+  const fileEnd = toIsoDate(content.match(/<DTEND>([^<\r\n]+)/i)?.[1] ?? '');
+  const chequeAindaRetido = !fileEnd || fileEnd <= lastDate;
+  const chequesComp = chequeAindaRetido ? txs.filter(t => t.data === lastDate && t.tipo === 'entrada' && /^cheque recebido/i.test(t.descricao)) : [];
   if (saldoFinal !== undefined && chequesComp.length) {
     const soma = Math.round(chequesComp.reduce((s, t) => s + t.valor, 0) * 100) / 100;
     saldoFinal = Math.round((saldoFinal + soma) * 100) / 100;
