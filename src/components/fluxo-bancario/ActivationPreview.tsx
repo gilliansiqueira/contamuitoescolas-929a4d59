@@ -1,5 +1,7 @@
 import { BANK_SMALL_DIFF_TOLERANCE } from '@/lib/bankStatements/confirmedBalance';
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import type { BankAccount } from '@/lib/bankStatements/bankCashflowEngine';
 import { Button } from '@/components/ui/button';
@@ -86,7 +88,19 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     return { opSemSub, next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
       monthEnd, cut, after, afterNet, afterForecast, afterForecastNet, bankFimMonth, bankRec, bankDesp };
   }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim, bankFimMonthProp, forecastTxIds]);
+  const aClassTxIds = useMemo(() => [...new Set(p.aClass.map(e => e.bank_transaction_id))].sort(), [p.aClass]);
+  const { data: unpairedIds = new Set<string>() } = useQuery({
+    queryKey: ['activation-unpaired', schoolId, aClassTxIds],
+    enabled: aClassTxIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('bank_transactions').select('id, movement_kind, transfer_pair_id').in('id', aClassTxIds);
+      if (error) throw error;
+      return new Set((data ?? []).filter((t: any) => t.movement_kind === 'transferencia' && !t.transfer_pair_id).map((t: any) => t.id as string));
+    },
+  });
+  const accName = (id: string) => accounts.find(a => a.id === id)?.nome ?? '';
 
+  const holderShort = !!holder && bankTo < p.monthEnd;
   const movDiff = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov);
   const movOk = movDiff === 0;
   const iniDiff = r2(p.next.ini - bankIni);
@@ -100,9 +114,12 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   const recDiff = r2(p.next.mov.receitasRealizadas - p.bankRec);
   const despDiff = r2(p.next.mov.despesasRealizadas - p.bankDesp);
   const todo: string[] = [];
-  if (p.aClass.length) todo.push(`Classificar ${p.aClass.length} movimentação(ões) que estão como "A classificar".`);
+  const unpairedN = p.aClass.filter(e => unpairedIds.has(e.bank_transaction_id)).length;
+  const otherN = p.aClass.length - unpairedN;
+  if (unpairedN) todo.push(`${unpairedN} transferência(s) sem conta de destino da empresa (ex.: conta pessoal do sócio) — escolha um item, como Distribuição de lucros ou Pró-Labore. Veja a lista abaixo.`);
+  if (otherN) todo.push(`Classificar ${otherN} movimentação(ões) que estão como "A classificar". Veja a lista abaixo.`);
   if (p.opSemSub) todo.push(`Aviso (não bloqueia): ${p.opSemSub} operação(ões) sem subcategoria — escolha o item para o card aparecer com o nome certo no Dashboard.`);
-  if (holder) todo.push(`Subir o extrato de ${holder} até ${fmtDate(p.monthEnd)} (mesmo sem movimento).`);
+  if (holderShort) todo.push(`Subir o extrato de ${holder} até ${fmtDate(p.monthEnd)} (mesmo sem movimento).`);
   if (iniDiff !== 0) todo.push(`Conferir o saldo inicial das contas: o sistema começa ${fmtBRL(iniDiff)} diferente do banco.`);
   if (!movOk) {
     if (recDiff !== 0) todo.push(`Receitas: o Dashboard tem ${fmtBRL(recDiff)} de diferença em relação às receitas do banco. Conferir se os itens do modelo dessas entradas estão no modelo financeiro da empresa.`);
