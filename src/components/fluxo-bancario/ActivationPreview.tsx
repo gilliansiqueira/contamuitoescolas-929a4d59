@@ -1,5 +1,7 @@
 import { BANK_SMALL_DIFF_TOLERANCE } from '@/lib/bankStatements/confirmedBalance';
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import type { BankAccount } from '@/lib/bankStatements/bankCashflowEngine';
 import { Button } from '@/components/ui/button';
@@ -86,7 +88,19 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
     return { opSemSub, next: mk(newCtx), planIni, planIniReal, adjust, bankMov: genIn - genOut, genIn, genOut, ign, aClass,
       monthEnd, cut, after, afterNet, afterForecast, afterForecastNet, bankFimMonth, bankRec, bankDesp };
   }, [ctx, raw, rules, classifications, model, gen, start, month, schoolId, isInModel, bankTo, bankIni, bankFim, bankFimMonthProp, forecastTxIds]);
+  const aClassTxIds = useMemo(() => [...new Set(p.aClass.map(e => e.bank_transaction_id))].sort(), [p.aClass]);
+  const { data: unpairedIds = new Set<string>() } = useQuery({
+    queryKey: ['activation-unpaired', schoolId, aClassTxIds],
+    enabled: aClassTxIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('bank_transactions').select('id, movement_kind, transfer_pair_id').in('id', aClassTxIds);
+      if (error) throw error;
+      return new Set((data ?? []).filter((t: any) => t.movement_kind === 'transferencia' && !t.transfer_pair_id).map((t: any) => t.id as string));
+    },
+  });
+  const accName = (id: string) => accounts.find(a => a.id === id)?.nome ?? '';
 
+  const holderShort = !!holder && bankTo < p.monthEnd;
   const movDiff = r2(p.next.mov.saldoMovimentoRealizado - p.bankMov);
   const movOk = movDiff === 0;
   const iniDiff = r2(p.next.ini - bankIni);
@@ -100,9 +114,12 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
   const recDiff = r2(p.next.mov.receitasRealizadas - p.bankRec);
   const despDiff = r2(p.next.mov.despesasRealizadas - p.bankDesp);
   const todo: string[] = [];
-  if (p.aClass.length) todo.push(`Classificar ${p.aClass.length} movimentação(ões) que estão como "A classificar".`);
+  const unpairedN = p.aClass.filter(e => unpairedIds.has(e.bank_transaction_id)).length;
+  const otherN = p.aClass.length - unpairedN;
+  if (unpairedN) todo.push(`${unpairedN} transferência(s) sem conta de destino da empresa (ex.: conta pessoal do sócio) — escolha um item, como Distribuição de lucros ou Pró-Labore. Veja a lista abaixo.`);
+  if (otherN) todo.push(`Classificar ${otherN} movimentação(ões) que estão como "A classificar". Veja a lista abaixo.`);
   if (p.opSemSub) todo.push(`Aviso (não bloqueia): ${p.opSemSub} operação(ões) sem subcategoria — escolha o item para o card aparecer com o nome certo no Dashboard.`);
-  if (holder) todo.push(`Subir o extrato de ${holder} até ${fmtDate(p.monthEnd)} (mesmo sem movimento).`);
+  if (holderShort) todo.push(`Subir o extrato de ${holder} até ${fmtDate(p.monthEnd)} (mesmo sem movimento).`);
   if (iniDiff !== 0) todo.push(`Conferir o saldo inicial das contas: o sistema começa ${fmtBRL(iniDiff)} diferente do banco.`);
   if (!movOk) {
     if (recDiff !== 0) todo.push(`Receitas: o Dashboard tem ${fmtBRL(recDiff)} de diferença em relação às receitas do banco. Conferir se os itens do modelo dessas entradas estão no modelo financeiro da empresa.`);
@@ -129,7 +146,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
         <div>
           <h3 className="font-display text-lg font-bold">Prévia da ativação — {month.split('-').reverse().join('/')}</h3>
           <p className="text-xs text-muted-foreground">Como o Dashboard e o Fluxo Diário ficam com o Fluxo de Caixa (os dois usam o mesmo cálculo). Realizado até {fmtDate(cfg.synced_through ?? undefined)}; depois disso seguem as projeções.</p>
-          {holder && <p className="mt-1 text-xs font-medium text-warning">Realizado até {fmtDate(bankTo)} porque {holder} só tem extrato até essa data. Suba o extrato mais recente dessa conta, mesmo sem movimento.</p>}
+          {holderShort && <p className="mt-1 text-xs font-medium text-warning">Realizado até {fmtDate(bankTo)} porque {holder} só tem extrato até essa data. Suba o extrato mais recente dessa conta, mesmo sem movimento.</p>}
         </div>
         {active
           ? <Button variant="outline" disabled={setStatus.isPending} onClick={() => act('pausado')}><Undo2 className="mr-1 h-4 w-4" />Pausar e voltar para a planilha</Button>
@@ -160,6 +177,14 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             Movimento do mês {movOk ? 'bate com o banco' : `difere do banco em ${fmtBRL(p.next.mov.saldoMovimentoRealizado - p.bankMov)}`}</li>
           <li>{p.aClass.length === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {p.aClass.length === 0 ? 'Nenhuma movimentação a classificar' : `${p.aClass.length} movimentações ainda a classificar`}</li>
+          {p.aClass.length > 0 && <li className="ml-5"><ul className="space-y-0.5 text-xs">
+            {p.aClass.map(e => <li key={e.id} className="flex flex-wrap gap-x-2">
+              <span className="tabular-nums">{fmtDate(e.data)}</span><span className="font-medium">{accName(e.account_id)}</span>
+              <span className="tabular-nums">{e.tipo === 'entrada' ? '+' : '−'}{fmtBRL(Number(e.valor))}</span>
+              <span className="text-muted-foreground">{e.descricao}</span>
+              {unpairedIds.has(e.bank_transaction_id) && <span className="font-medium text-warning">Transferência sem conta de destino da empresa — classifique em Movimentações (ex.: Distribuição de lucros ou Pró-Labore)</span>}
+            </li>)}
+          </ul></li>}
           <li>{iniDiff === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {iniDiff === 0 ? 'Saldo inicial igual ao saldo do banco' : `Saldo inicial difere do banco em ${fmtBRL(iniDiff)}`}</li>
           <li>{fimOk ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className={`mr-1 inline h-4 w-4 ${fimSmall ? 'text-warning' : 'text-destructive'}`} />}
