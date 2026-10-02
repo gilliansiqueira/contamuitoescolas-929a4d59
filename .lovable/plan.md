@@ -17,7 +17,7 @@ Resultado:
 
 ## Regras
 - Só admins veem o botão.
-- Não deixa gravar em mês fechado.
+- O botão aparece em qualquer mês. Ele só **bloqueia** a gravação em mês que você fechou oficialmente em "Fechamento de meses". Portão não tem nenhum mês fechado hoje, então dá para lançar os R$ 20.535,76 em setembro normalmente.
 - Entrada e saída são sempre criadas e apagadas juntas, nunca sozinhas.
 - Quem criou, quando e o valor ficam no Histórico de Alterações.
 - Vale para qualquer empresa. Por enquanto só aparece se você ligar para a empresa (começando por Portão).
