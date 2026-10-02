@@ -456,6 +456,13 @@
       "when": 1790960568942,
       "tag": "0064_hide_employee_and_dismiss_payable",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1790961233760,
+      "tag": "0065_report_desp_conciliacao_sem_banco",
+      "breakpoints": true
     }
   ]
 }
