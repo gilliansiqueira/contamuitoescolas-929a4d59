@@ -29,6 +29,14 @@ type CardKey = 'pay' | 'schedule' | 'pending' | 'cash' | 'notpaid';
 
 function PayableRow({ p, onOpenSchool }: { p: MyDayPayable; onOpenSchool: (id: string) => void }) {
   const ack = useAcknowledgePayable();
+  const unack = useUnacknowledgePayable();
+  const dismiss = () => ack.mutate(
+    { schoolId: p.schoolId, entryId: p.entryId, dueDate: p.dueDate, kind: 'descartado', note: 'Previsão não aconteceu' },
+    {
+      onSuccess: () => toast.success('Aviso removido (a previsão continua no Fluxo Diário).', { action: { label: 'Desfazer', onClick: () => unack.mutate({ entryId: p.entryId, dueDate: p.dueDate }) } }),
+      onError: () => toast.error('Não foi possível remover o aviso.'),
+    },
+  );
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2 text-xs">
       <div className="min-w-0 flex-1">
@@ -47,6 +55,9 @@ function PayableRow({ p, onOpenSchool }: { p: MyDayPayable; onOpenSchool: (id: s
         )}
       >
         <CheckCircle2 className="h-3 w-3" />Agendado
+      </Button>
+      <Button size="sm" variant="ghost" className="h-7 px-1.5 text-muted-foreground" disabled={ack.isPending} onClick={dismiss} title="Previsão não aconteceu — tirar aviso" aria-label="Tirar aviso">
+        <Trash2 className="h-3.5 w-3.5" />
       </Button>
       <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => onOpenSchool(p.schoolId)}>Abrir</Button>
     </div>

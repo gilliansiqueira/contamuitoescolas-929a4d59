@@ -337,13 +337,15 @@ export function useMyDay(schools: { id: string; nome: string }[], today: string,
 export function useAcknowledgePayable() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { schoolId: string; entryId: string; dueDate: string }) => {
+    mutationFn: async (p: { schoolId: string; entryId: string; dueDate: string; kind?: 'agendado' | 'descartado'; note?: string }) => {
       const { data: auth } = await supabase.auth.getUser();
       const { error } = await (supabase as any).from('payable_acknowledgements').upsert({
         school_id: p.schoolId,
         entry_id: p.entryId,
         due_date: p.dueDate,
         acknowledged_by: auth.user?.id ?? null,
+        kind: p.kind ?? 'agendado',
+        note: p.note ?? null,
       }, { onConflict: 'entry_id,due_date' });
       if (error) throw error;
     },
