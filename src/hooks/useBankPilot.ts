@@ -68,8 +68,8 @@ export async function fetchBankAccounts(schoolId: string): Promise<BankAccount[]
         const latest = [...byDate.values()].sort((x, y) => y.data.localeCompare(x.data))[0];
         return { ...a, anchors: latest ? [latest] : [] };
       });
-    },
-  });
+    }
+  }
 }
 
 export function useBankTransactions(schoolId: string) {
