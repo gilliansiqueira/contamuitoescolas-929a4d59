@@ -19,7 +19,7 @@ import {
 import { ReconciliationBacklog } from '@/components/management/ReconciliationBacklog';
 import { MyDayPanel, type MyDayPendingItem } from '@/components/management/MyDayPanel';
 import { useAddSchool } from '@/hooks/useFinancialData';
-import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
+import { useClosingStepTemplates, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } from '@/components/management/ManagerDayPanel';
@@ -330,20 +330,22 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
   const { data: stepTemplates = [] } = useClosingStepTemplates(true);
   const { data: monthlySteps, isLoading: monthlyStepsLoading } = useMonthlyChecklistSummary(month, view === 'closing');
-  const ensureChecklist = useEnsureMonthlyChecklist();
   const setResponsible = useSetManagementResponsible(month);
   const setDisplayName = useSetManagementResponsibleDisplayName();
   const addSchool = useAddSchool();
 
-  // Gera as etapas do mês e roda as conferências automáticas (idempotente, uma vez por empresa/mês na sessão)
+  // Gera as etapas do mês de todas as empresas num único pedido (servidor pula o que rodou há < 5 min)
   const ensuredRef = useRef(new Set<string>());
+  const queryClientRef = useQueryClient();
   useEffect(() => {
     if (stepTemplates.length === 0 || rows.length === 0) return;
-    rows.forEach(row => {
-      const key = `${row.school_id}:${month}`;
-      if (ensuredRef.current.has(key)) return;
-      ensuredRef.current.add(key);
-      ensureChecklist.mutate({ schoolId: row.school_id, month });
+    const ids = rows.map(r => r.school_id).filter(id => !ensuredRef.current.has(`${id}:${month}`));
+    if (ids.length === 0) return;
+    ids.forEach(id => ensuredRef.current.add(`${id}:${month}`));
+    supabase.rpc('ensure_monthly_checklist_bulk', { _school_ids: ids, _month: month }).then(({ data, error }) => {
+      if (error || !Number(data)) return;
+      queryClientRef.invalidateQueries({ queryKey: ['monthly-checklist-summary', month] });
+      queryClientRef.invalidateQueries({ queryKey: ['management-portfolio'] });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, stepTemplates.length, month]);

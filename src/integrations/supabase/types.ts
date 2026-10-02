@@ -1079,6 +1079,27 @@ export type Database = {
           },
         ]
       }
+      ensure_runs: {
+        Row: {
+          kind: string
+          ran_at: string
+          ref: string
+          school_id: string
+        }
+        Insert: {
+          kind: string
+          ran_at?: string
+          ref: string
+          school_id: string
+        }
+        Update: {
+          kind?: string
+          ran_at?: string
+          ref?: string
+          school_id?: string
+        }
+        Relationships: []
+      }
       exclusion_rules: {
         Row: {
           acao: string
@@ -3823,8 +3844,16 @@ export type Database = {
         Args: { _day: string; _school_id: string }
         Returns: number
       }
+      ensure_daily_tasks_bulk: {
+        Args: { _day: string; _school_ids: string[] }
+        Returns: number
+      }
       ensure_monthly_checklist: {
         Args: { _month: string; _school_id: string }
+        Returns: number
+      }
+      ensure_monthly_checklist_bulk: {
+        Args: { _month: string; _school_ids: string[] }
         Returns: number
       }
       get_available_financial_months: {
