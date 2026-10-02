@@ -401,7 +401,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       || (view === 'pending' && (row.reconciliation_pending > 0 || row.checklist_pending > 0 || row.waiting_for_client))
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (mode !== 'mes' || situation === 'all' || status === situation);
-  }), [displayNameByUser, month, mode, rows, search, situation, view]);
+  }), [displayNameByUser, month, dueDate, mode, rows, search, situation, view]);
 
   const filtered = useMemo(() => {
     if (!activeCard) return baseFiltered;
