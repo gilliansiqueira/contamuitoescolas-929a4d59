@@ -299,7 +299,9 @@ export function useMyDay(schools: { id: string; nome: string }[], today: string,
       syncWeekendAllowedSchools(bundles.map(b => ({ id: b.id, allowWeekendEntries: b.allowWeekend })) as any);
       const result: MyDayData = { payToday: [], scheduleToday: [], notPaid: [], cashRisks: [], acknowledgedCount: 0 };
       for (const b of bundles) {
+        const tc = Date.now();
         const part = computeSchool(b, today);
+        console.log(`[my-day] ${b.nome} computeSchool +${Date.now() - tc}ms`);
         result.payToday.push(...part.payToday);
         result.scheduleToday.push(...part.scheduleToday);
         result.notPaid.push(...part.notPaid);
