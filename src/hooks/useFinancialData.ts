@@ -291,14 +291,21 @@ export function useAddUpload() {
       // Reenvio com o mesmo nome NÃO apaga o envio anterior inteiro (isso apagava
       // meses passados, ex.: setembro). A substituição é feita só por data de corte
       // em FileUpload.performImport — nunca perder histórico.
-      const { error } = await supabase.from('upload_records').insert({
+      const row = {
         id: upload.id,
         school_id: upload.school_id,
         file_name: upload.fileName,
         tipo: upload.tipo,
         uploaded_at: upload.uploadedAt,
         record_count: upload.recordCount,
-      });
+      };
+      let { error } = await supabase.from('upload_records').insert(row);
+      // Mesmo nome de arquivo já enviado antes (ex.: "cheques.xls" todo mês):
+      // guarda este envio com a data/hora no nome, mantendo os dois no histórico.
+      if (error?.code === '23505') {
+        const stamp = new Date(upload.uploadedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        ({ error } = await supabase.from('upload_records').insert({ ...row, file_name: `${upload.fileName} (${stamp})` }));
+      }
       if (error) throw error;
     },
     onSuccess: () => {
