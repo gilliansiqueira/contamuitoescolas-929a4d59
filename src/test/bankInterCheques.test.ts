@@ -8,4 +8,8 @@ describe('Inter OFX cheques em compensação', () => {
     expect(r.saldoFinalInformado).toBe(2355.5);
     expect(r.avisos.join(' ')).toMatch(/compensação/);
   });
+  it('não soma cheque já compensado quando o arquivo vai além do dia do cheque (Cristo Rei)', () => {
+    const ofx = `<BANKID>077<BANKTRANLIST><DTSTART>20260902<DTEND>20261002${tx('20260930', '409.60', 'Cheque recebido: "Yasser"')}</BANKTRANLIST><LEDGERBAL><BALAMT>6098.45</LEDGERBAL>`;
+    expect(parseOFX(ofx).saldoFinalInformado).toBe(6098.45);
+  });
 });
