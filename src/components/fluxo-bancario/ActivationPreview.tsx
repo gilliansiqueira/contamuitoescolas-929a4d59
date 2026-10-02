@@ -146,7 +146,7 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
         <div>
           <h3 className="font-display text-lg font-bold">Prévia da ativação — {month.split('-').reverse().join('/')}</h3>
           <p className="text-xs text-muted-foreground">Como o Dashboard e o Fluxo Diário ficam com o Fluxo de Caixa (os dois usam o mesmo cálculo). Realizado até {fmtDate(cfg.synced_through ?? undefined)}; depois disso seguem as projeções.</p>
-          {holder && <p className="mt-1 text-xs font-medium text-warning">Realizado até {fmtDate(bankTo)} porque {holder} só tem extrato até essa data. Suba o extrato mais recente dessa conta, mesmo sem movimento.</p>}
+          {holderShort && <p className="mt-1 text-xs font-medium text-warning">Realizado até {fmtDate(bankTo)} porque {holder} só tem extrato até essa data. Suba o extrato mais recente dessa conta, mesmo sem movimento.</p>}
         </div>
         {active
           ? <Button variant="outline" disabled={setStatus.isPending} onClick={() => act('pausado')}><Undo2 className="mr-1 h-4 w-4" />Pausar e voltar para a planilha</Button>
@@ -177,6 +177,14 @@ export function ActivationPreview({ schoolId, cfg, gen, bankIni, bankFim, bankTo
             Movimento do mês {movOk ? 'bate com o banco' : `difere do banco em ${fmtBRL(p.next.mov.saldoMovimentoRealizado - p.bankMov)}`}</li>
           <li>{p.aClass.length === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {p.aClass.length === 0 ? 'Nenhuma movimentação a classificar' : `${p.aClass.length} movimentações ainda a classificar`}</li>
+          {p.aClass.length > 0 && <li className="ml-5"><ul className="space-y-0.5 text-xs">
+            {p.aClass.map(e => <li key={e.id} className="flex flex-wrap gap-x-2">
+              <span className="tabular-nums">{fmtDate(e.data)}</span><span className="font-medium">{accName(e.account_id)}</span>
+              <span className="tabular-nums">{e.tipo === 'entrada' ? '+' : '−'}{fmtBRL(Number(e.valor))}</span>
+              <span className="text-muted-foreground">{e.descricao}</span>
+              {unpairedIds.has(e.bank_transaction_id) && <span className="font-medium text-warning">Transferência sem conta de destino da empresa — classifique em Movimentações (ex.: Distribuição de lucros ou Pró-Labore)</span>}
+            </li>)}
+          </ul></li>}
           <li>{iniDiff === 0 ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className="mr-1 inline h-4 w-4 text-warning" />}
             {iniDiff === 0 ? 'Saldo inicial igual ao saldo do banco' : `Saldo inicial difere do banco em ${fmtBRL(iniDiff)}`}</li>
           <li>{fimOk ? <CheckCircle2 className="mr-1 inline h-4 w-4 text-success" /> : <AlertTriangle className={`mr-1 inline h-4 w-4 ${fimSmall ? 'text-warning' : 'text-destructive'}`} />}
