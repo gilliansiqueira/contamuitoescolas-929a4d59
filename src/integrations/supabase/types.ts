@@ -2033,6 +2033,48 @@ export type Database = {
         }
         Relationships: []
       }
+      payable_acknowledgements: {
+        Row: {
+          acknowledged_at: string
+          acknowledged_by: string | null
+          due_date: string
+          entry_id: string
+          id: string
+          school_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          acknowledged_by?: string | null
+          due_date: string
+          entry_id: string
+          id?: string
+          school_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          acknowledged_by?: string | null
+          due_date?: string
+          entry_id?: string
+          id?: string
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payable_acknowledgements_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "financial_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payable_acknowledgements_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_delay_rules: {
         Row: {
           created_at: string
