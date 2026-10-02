@@ -84,8 +84,9 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
                     <div className="mt-0.5 flex flex-wrap gap-1.5 text-[10px]">
                       <span className={`rounded-full px-1.5 py-0.5 ${kind === 'auto' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{KIND_LABEL[kind] ?? 'Manual'}</span>
                       {kind === 'hint' && hint !== undefined && <span className={`rounded-full px-1.5 py-0.5 ${hint ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{hint ? 'Já há dados lançados' : 'Ainda sem dados'}</span>}
-                       {item.completed_at && <span className="text-muted-foreground">{item.source === 'automatic' ? 'Conferido pelo sistema' : 'Marcado'} em {new Date(item.completed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                       {item.completed_at && <span className="text-muted-foreground">{item.source === 'automatic' ? 'Marcado automaticamente' : 'Marcado pela equipe'} em {new Date(item.completed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
                     </div>
+                    {item.note && item.source === 'automatic' && <p className="mt-0.5 text-[10px] text-muted-foreground">{item.note}</p>}
                   </div>
                   <Select value={item.status} onValueChange={value => setStatus.mutate({ id: item.id, status: value as ChecklistItem['status'] }, { onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar.') })}>
                     <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue /></SelectTrigger>

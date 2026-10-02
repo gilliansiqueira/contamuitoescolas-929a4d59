@@ -223,12 +223,14 @@ function initialsOf(name: string) {
   return `${parts[0]?.[0] ?? ''}${parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : parts[0]?.[1] ?? ''}`.toLocaleUpperCase('pt-BR');
 }
 
-function statusOf(row: PortfolioRow, month: string): RowStatus {
+function statusOf(row: PortfolioRow, month: string, dueDate?: string | null): RowStatus {
   if (row.period_closed && row.report_delivered && row.checklist_pending === 0) return 'finalizado';
   if (row.waiting_for_client) return 'bloqueado';
   if (row.closing_percent == null && !row.report_delivered && !row.period_closed) return 'sem_etapas';
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  if (month < currentMonth && (!row.period_closed || !row.report_delivered)) return 'atrasado';
+  // Prazo oficial: 5º dia útil do mês seguinte (report_due_date no banco).
+  const todaySp = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const late = dueDate ? todaySp > dueDate : month < new Date().toISOString().slice(0, 7);
+  if (late && !row.report_delivered) return 'atrasado';
   if (row.reconciliation_pending > 0 || row.checklist_pending > 0) return 'atencao';
   return 'em_dia';
 }
@@ -268,7 +270,26 @@ function ProgressRing({ value, label, tone }: { value: number | null; label: str
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { isSuperAdmin, profile } = useAuth();
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  // Padrão: mês do relatório em produção (mês anterior).
+  const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toLocaleDateString('sv-SE').slice(0, 7); });
+  const { data: dueDate = null } = useQuery({
+    queryKey: ['report-due-date', month],
+    enabled: /^\d{4}-\d{2}$/.test(month),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('report_due_date', { _month: month });
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+  });
+  const dueInfo = useMemo(() => {
+    if (!dueDate) return null;
+    const todaySp = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    const days = Math.round((Date.parse(dueDate) - Date.parse(todaySp)) / 86400000);
+    const label = `${dueDate.slice(8, 10)}/${dueDate.slice(5, 7)}`;
+    const text = days < 0 ? `prazo ${label} · atrasado ${-days} dia(s)` : days === 0 ? `prazo hoje (${label})` : `prazo ${label} · faltam ${days} dia(s)`;
+    const tone = days < 0 ? 'bg-destructive text-destructive-foreground' : days <= 2 ? 'bg-warning/15 text-warning' : 'bg-muted text-muted-foreground';
+    return { text, tone };
+  }, [dueDate]);
   const [search, setSearch] = useState('');
   const [situation, setSituation] = useState<Situation>('all');
   const [view, setView] = useState<ManagementView>('portfolio');
@@ -374,13 +395,13 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     const matchesSearch = row.school_name.toLocaleLowerCase('pt-BR').includes(term)
       || (row.responsible_email ?? '').toLocaleLowerCase('pt-BR').includes(term)
       || (row.responsible_user_id ? (displayNameByUser.get(row.responsible_user_id) ?? '').toLocaleLowerCase('pt-BR').includes(term) : false);
-    const status = statusOf(row, month);
+    const status = statusOf(row, month, dueDate);
     const matchesView = view === 'portfolio'
       || view === 'closing'
       || (view === 'pending' && (row.reconciliation_pending > 0 || row.checklist_pending > 0 || row.waiting_for_client))
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (mode !== 'mes' || situation === 'all' || status === situation);
-  }), [displayNameByUser, month, mode, rows, search, situation, view]);
+  }), [displayNameByUser, month, dueDate, mode, rows, search, situation, view]);
 
   const filtered = useMemo(() => {
     if (!activeCard) return baseFiltered;
@@ -399,7 +420,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       const statusCounts = { finalizado: 0, atrasado: 0, bloqueado: 0 };
       let pending = 0;
       groupRows.forEach(row => {
-        const status = statusOf(row, month);
+        const status = statusOf(row, month, dueDate);
         if (status === 'finalizado' || status === 'atrasado' || status === 'bloqueado') statusCounts[status] += 1;
         pending += row.reconciliation_pending + row.checklist_pending;
       });
@@ -422,17 +443,17 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       };
     }).sort((a, b) => a.key === '__none' ? 1 : b.key === '__none' ? -1 : a.label.localeCompare(b.label, 'pt-BR'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayNameByUser, filtered, month, view, mode, dailyBySchool, backlogBySchool]);
+  }, [displayNameByUser, filtered, month, dueDate, view, mode, dailyBySchool, backlogBySchool]);
 
   const completedReconciliation = rows.filter(row => row.reconciliation_percent === 100).length;
   const deliveredReports = rows.filter(row => row.report_delivered).length;
   const priorities = useMemo(() => filtered
-    .map(row => ({ row, status: statusOf(row, month), pending: backlogBySchool.get(row.school_id) ?? 0 }))
+    .map(row => ({ row, status: statusOf(row, month, dueDate), pending: backlogBySchool.get(row.school_id) ?? 0 }))
     .filter(item => item.status === 'atrasado' || item.status === 'bloqueado' || item.pending > 0 || !!item.row.next_action)
     .sort((a, b) => {
       const weight = (item: typeof a) => item.status === 'atrasado' ? 0 : item.status === 'bloqueado' ? 1 : item.pending > 0 ? 2 : 3;
       return weight(a) - weight(b) || b.pending - a.pending;
-    }).slice(0, 4), [filtered, month, backlogBySchool]);
+    }).slice(0, 4), [filtered, month, dueDate, backlogBySchool]);
   const refDay = dailyRows[0]?.ref_day ?? null;
   const withMovementBase = useMemo(() => baseFiltered.filter(row => {
     const daily = dailyBySchool.get(row.school_id);
@@ -557,6 +578,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
             <div><h1 className="text-2xl font-medium tracking-normal">Central de Clientes</h1><p className="mt-1 text-xs text-muted-foreground">Acompanhe a carteira e priorize o que precisa de atenção.</p></div>
             <div className="flex flex-wrap items-center gap-2">
               <div role="tablist" aria-label="Visão da conciliação" className="flex rounded-md border border-border bg-card p-0.5">{(Object.keys(periodModeLabels) as PeriodMode[]).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setCardFilter(null); }} className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{periodModeLabels[m]}</button>)}</div>
+              {dueInfo && <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${dueInfo.tone}`} title="5º dia útil do mês seguinte (sem domingos e feriados)">Relatório {month.slice(5, 7)}/{month.slice(0, 4)} · {dueInfo.text}</span>}
               {mode === 'mes' && <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Período" type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-[168px] bg-card pl-9 text-xs" /></label>}
               {isSuperAdmin && <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setTemplatesOpen(true)}><ListChecks className="h-3.5 w-3.5" />Etapas padrão</Button>}
               {isSuperAdmin && <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" />Nova empresa</Button>}
@@ -601,7 +623,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                 <p className="truncate text-[11px] text-muted-foreground">{group.email}</p><div className="mt-4 grid grid-cols-2 gap-2 rounded-md bg-muted/30 p-2.5"><ProgressRing value={group.reconciliationPercent} label={mode === 'mes' ? 'Conciliação do mês' : 'Conciliação do dia'} tone="success" /><ProgressRing value={group.closingPercent} label="Relatório" tone="warning" /></div>{mode === 'hoje' && <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]"><span className="rounded-full bg-muted px-2 py-0.5">{group.reconciledToday} conciliados hoje</span><span className="rounded-full bg-muted px-2 py-0.5">{relativeTime(group.lastActivity, today)}</span>{group.lateCount > 0 && <span className="rounded-full bg-destructive px-2 py-0.5 font-semibold text-destructive-foreground">{group.lateCount} atrasada(s)</span>}</div>}</div>
                 <div className="grid grid-cols-4 border-t border-border bg-muted/15 text-center text-[10px]"><div className="border-r border-border py-2.5"><strong className="block text-sm text-success">{group.statusCounts.finalizado}</strong><span className="text-muted-foreground">Finalizadas</span></div><div className="border-r border-border py-2.5"><strong className="block text-sm text-destructive">{group.statusCounts.atrasado}</strong><span className="text-muted-foreground">Atrasadas</span></div><div className="border-r border-border py-2.5"><strong className="block text-sm text-info">{group.statusCounts.bloqueado}</strong><span className="text-muted-foreground">Cliente</span></div><div className="py-2.5"><strong className="block text-sm text-warning">{group.pending}</strong><span className="text-muted-foreground">Pendências</span></div></div>
                 <Button variant="ghost" onClick={() => toggleGroup(group.key)} aria-expanded={isOpen} className="h-9 w-full justify-between rounded-none border-t px-4 text-xs"><span>{isOpen ? 'Ocultar empresas' : 'Ver empresas'}</span><ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></Button>
-                  {isOpen && <div className="divide-y divide-border border-t">{group.rows.map(row => { const status = statusOf(row, month); const daily = dailyBySchool.get(row.school_id); const recon = dailyReconState(daily, bankAvailable(row, daily)); const tasks = dailyTasksBySchool.get(row.school_id); const oldPending = backlogBySchool.get(row.school_id) ?? 0; return <div key={row.school_id} className="space-y-2 px-4 py-3"><div className="flex min-w-0 items-center gap-2"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><strong className="min-w-0 flex-1 truncate text-xs" title={row.school_name}>{row.school_name}</strong><span className={`rounded-full px-2 py-0.5 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div><p className="text-[11px] text-muted-foreground">{recon === 'no_statement' ? 'Extrato não enviado' : recon === 'not_started' ? 'Aguardando início da conciliação' : recon === 'in_progress' ? 'Conciliação em andamento' : recon === 'done' ? 'Conciliação concluída' : 'Conciliação indisponível'}{isLateToday(daily) && recon !== 'unavailable' ? ' · Atrasada' : ''}</p><div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]"><span>Pendências do dia: <strong>{daily && recon !== 'unavailable' ? daily.recon_pending : '—'}</strong></span><span>Acumuladas: <strong>{oldPending}</strong></span><span>Tarefas do dia: <strong>{tasks ? `${tasks.done} de ${tasks.total}` : '—'}</strong></span><span>Relatório: <strong>{row.closing_percent == null ? '—' : `${row.closing_percent}%`}</strong></span></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })}>Ver tarefas e relatório</Button><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" onClick={() => openSchool(row.school_id)}>Abrir empresa<ArrowRight className="h-3 w-3" /></Button></div></div>; })}</div>}
+                  {isOpen && <div className="divide-y divide-border border-t">{group.rows.map(row => { const status = statusOf(row, month, dueDate); const daily = dailyBySchool.get(row.school_id); const recon = dailyReconState(daily, bankAvailable(row, daily)); const tasks = dailyTasksBySchool.get(row.school_id); const oldPending = backlogBySchool.get(row.school_id) ?? 0; return <div key={row.school_id} className="space-y-2 px-4 py-3"><div className="flex min-w-0 items-center gap-2"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><strong className="min-w-0 flex-1 truncate text-xs" title={row.school_name}>{row.school_name}</strong><span className={`rounded-full px-2 py-0.5 text-[10px] ${statusStyles[status]}`}>{statusLabels[status]}</span></div><p className="text-[11px] text-muted-foreground">{recon === 'no_statement' ? 'Extrato não enviado' : recon === 'not_started' ? 'Aguardando início da conciliação' : recon === 'in_progress' ? 'Conciliação em andamento' : recon === 'done' ? 'Conciliação concluída' : 'Conciliação indisponível'}{isLateToday(daily) && recon !== 'unavailable' ? ' · Atrasada' : ''}</p><div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]"><span>Pendências do dia: <strong>{daily && recon !== 'unavailable' ? daily.recon_pending : '—'}</strong></span><span>Acumuladas: <strong>{oldPending}</strong></span><span>Tarefas do dia: <strong>{tasks ? `${tasks.done} de ${tasks.total}` : '—'}</strong></span><span>Relatório: <strong>{row.closing_percent == null ? '—' : `${row.closing_percent}%`}</strong></span></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })}>Ver tarefas e relatório</Button><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" onClick={() => openSchool(row.school_id)}>Abrir empresa<ArrowRight className="h-3 w-3" /></Button></div></div>; })}</div>}
               </article>;
             })}</div>{!isLoading && responsibleGroups.length === 0 && <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">Nenhuma responsável encontrada.</div>}</section>
           ) : (
@@ -610,7 +632,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                 {isError ? <p className="p-8 text-center text-sm text-destructive">Não foi possível carregar a carteira.</p> : <>
                    <div className="hidden grid-cols-[minmax(100px,1.1fr)_minmax(100px,1fr)_minmax(90px,.7fr)_minmax(150px,1.5fr)_minmax(170px,1.7fr)_28px] gap-2 border-b bg-muted/30 px-3 py-2.5 text-[11px] font-medium text-muted-foreground lg:grid"><span>Empresa</span><span>Responsável</span><span>Última alteração</span><span>Relatório</span><span>{mode === 'mes' ? 'Situação' : 'Conciliação do dia'}</span><span /></div>
                   <div className="divide-y divide-border">{!isLoading && filtered.length === 0 && <p className="p-10 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>}{filtered.map(row => {
-                      const status = statusOf(row, month); const daily = dailyBySchool.get(row.school_id); const recon = dailyReconState(daily, bankAvailable(row, daily)); const progress = row.closing_percent; const dayProgress = recon === 'unavailable' || recon === 'no_statement' ? null : daily?.recon_required === 0 ? 100 : dayPercent(daily); const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
+                      const status = statusOf(row, month, dueDate); const daily = dailyBySchool.get(row.school_id); const recon = dailyReconState(daily, bankAvailable(row, daily)); const progress = row.closing_percent; const dayProgress = recon === 'unavailable' || recon === 'no_statement' ? null : daily?.recon_required === 0 ? 100 : dayPercent(daily); const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
                      return <div key={row.school_id} role="button" tabIndex={0} title="Abrir empresa" onClick={() => openSchool(row.school_id)} onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openSchool(row.school_id); } }} className={`cursor-pointer grid gap-2 border-l-4 px-3 py-3 text-xs transition-colors hover:bg-muted/30 lg:grid-cols-[minmax(100px,1.1fr)_minmax(100px,1fr)_minmax(90px,.7fr)_minmax(150px,1.5fr)_minmax(170px,1.7fr)_28px] lg:items-center ${rowAccent[status]}`}>
                         <div className="flex min-w-0 items-center gap-2"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><span className="truncate font-medium" title={row.school_name}>{row.school_name}</span></div>
                       <div className="min-w-0" onClick={e => e.stopPropagation()}>{isSuperAdmin && candidates.length > 1 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{candidates.map(candidate => <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
