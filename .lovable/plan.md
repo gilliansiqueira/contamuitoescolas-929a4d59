@@ -10,6 +10,7 @@ No topo da Central, cada pessoa da equipe vê só as empresas pelas quais é res
 - **Fim de semana/feriado**: se o vencimento cai em sábado, domingo ou feriado nacional, o aviso aparece no último dia útil antes, marcado como "Vence domingo 20/10 — agendar hoje".
 - Agrupado por empresa, com total do dia e atalho para o Fluxo Diário.
 - Botão "Agendado" em cada conta (fica registrado quem marcou e quando, para o aviso sumir).
+- **Conferência de pagamento pela conciliação**: no dia seguinte ao vencimento, o sistema procura no extrato conciliado uma saída de valor igual (com a tolerância de R$ 20 já usada hoje). Se encontrou, a conta some da lista sozinha. Se não encontrou: "Não saiu da conta — Escola X: Simples Nacional R$ 3.200,00 vencia ontem", para a equipe verificar se foi paga por outro meio ou remarcar.
 
 ## 2. Pendências das empresas dela
 - **Conciliação atrasada**: lançamentos de dias anteriores sem conciliar (quantidade e valor).
