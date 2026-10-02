@@ -303,6 +303,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [mode, setMode] = useState<PeriodMode>('ontem');
   const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
   const [cardFilter, setCardFilter] = useState<string | null>(null);
+  const [cardGroupMode, setCardGroupMode] = useState<'open' | 'done'>('open');
   const today = todaySaoPaulo();
   const qc = useQueryClient();
   const [toggleSchool, setToggleSchool] = useState<{ id: string; name: string; ativo: boolean } | null>(null);
@@ -398,11 +399,27 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     }
     return bySchool;
   }, [monthlySteps, rows, stepTemplates]);
+  // Empresas que já concluíram cada etapa (etapas fechadas do mês).
+  const doneGroups = useMemo(() => {
+    const bySchool = new Map<string, Set<string>>();
+    if (!monthlySteps) return bySchool;
+    const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
+    for (const row of rows) {
+      const set = new Set<string>();
+      if (!row.report_delivered) for (const s of monthlySteps.get(row.school_id) ?? []) {
+        if (s.status === 'open') continue;
+        const g = groupByKey.get(s.step_key);
+        if (g) set.add(g === 'vendas' ? 'receitas' : g);
+      }
+      bySchool.set(row.school_id, set);
+    }
+    return bySchool;
+  }, [monthlySteps, rows, stepTemplates]);
   const cardDefs = useMemo(() => view === 'closing' ? [
-    ...reportGroups.map(g => ({ ...g, match: (row: PortfolioRow) => !!openGroups.get(row.school_id)?.has(g.key) })),
+    ...reportGroups.map(g => ({ ...g, reportGroup: true, match: (row: PortfolioRow) => !!(cardGroupMode === 'done' ? doneGroups : openGroups).get(row.school_id)?.has(g.key) })),
     { key: 'sem_etapas', label: 'Outras pendências', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'sem_etapas' || reportStage.get(row.school_id) === 'extras' },
     { key: 'entregue', label: 'Entregues', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'entregue' },
-  ] : cardDefsFor(mode, today, bankAvailable), [view, mode, today, bankStartMonths, reportStage]);
+  ] : cardDefsFor(mode, today, bankAvailable), [view, mode, today, bankStartMonths, reportStage, openGroups, doneGroups, cardGroupMode]);
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
