@@ -55,8 +55,8 @@ export function useSchool(schoolId: string) {
 export function useAddSchool() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (school: { nome: string }) => {
-      const { data, error } = await supabase.from('schools').insert({ nome: school.nome }).select().single();
+    mutationFn: async (school: { nome: string; restrita?: boolean }) => {
+      const { data, error } = await supabase.from('schools').insert({ nome: school.nome, ...(school.restrita ? { restrita: true } : {}) } as any).select().single();
       if (error) throw error;
       return data;
     },

@@ -297,6 +297,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
   const [newSchoolName, setNewSchoolName] = useState('');
+  const [newSchoolRestricted, setNewSchoolRestricted] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [stepsSchool, setStepsSchool] = useState<{ id: string; name: string } | null>(null);
@@ -595,7 +596,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     const name = newSchoolName.trim();
     if (!name) { toast.error('Digite o nome da empresa.'); return; }
     try {
-      const created = await addSchool.mutateAsync({ nome: name });
+      const created = await addSchool.mutateAsync({ nome: name, restrita: newSchoolRestricted });
       setCreateOpen(false); setNewSchoolName(''); toast.success('Empresa criada com sucesso.');
       onSelect({ id: created.id, nome: created.nome, createdAt: created.created_at, saldoInicial: Number(created.saldo_inicial) || 0 });
     } catch { toast.error('Não foi possível criar a empresa.'); }
@@ -740,7 +741,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       </div>
 
       <Dialog open={!!toggleSchool} onOpenChange={open => { if (!open) setToggleSchool(null); }}><DialogContent><DialogHeader><DialogTitle>{toggleSchool?.ativo ? 'Reativar' : 'Inativar'} {toggleSchool?.name}?</DialogTitle><DialogDescription>{toggleSchool?.ativo ? 'A empresa volta para a carteira da responsável e o cliente volta a ter acesso.' : 'Nada será apagado. A empresa sai da carteira e das porcentagens, e o cliente deixa de ter acesso. Você pode reativar quando quiser.'}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setToggleSchool(null)}>Cancelar</Button><Button onClick={() => void confirmToggle()} disabled={toggling}>{toggling ? 'Salvando…' : toggleSchool?.ativo ? 'Reativar' : 'Inativar'}</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={newSchoolRestricted} onChange={e => setNewSchoolRestricted(e.target.checked)} /><span><strong className="font-medium">Empresa restrita</strong><span className="block text-xs text-muted-foreground">Só a proprietária vê (ex.: financeiro da Conta Muito). Fica oculta para toda a equipe.</span></span></label><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
       <ClosingStepTemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
       <SchoolStepsDialog open={stepsSchool !== null} onOpenChange={open => { if (!open) setStepsSchool(null); }} schoolId={stepsSchool?.id ?? null} schoolName={stepsSchool?.name ?? ''} month={month} canEditTemplates={isSuperAdmin} onOpenTemplates={() => { setStepsSchool(null); setTemplatesOpen(true); }} />
     </div>
