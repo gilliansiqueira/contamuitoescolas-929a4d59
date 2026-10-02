@@ -11,6 +11,8 @@ import { fetchAllRows } from '@/lib/fetchAll';
 import { projectEntries, type ProjectedEntry } from '@/lib/projectionEngine';
 import { getEffectiveClassification, normalizeTipo } from '@/lib/classificationUtils';
 import { syncWeekendAllowedSchools } from '@/lib/dateUtils';
+import { fetchBankAccounts } from '@/hooks/useBankPilot';
+import { confirmedBankBalance } from '@/lib/bankStatements/confirmedBalance';
 import type { FinancialEntry, PaymentDelayRule, TypeClassification } from '@/types/financial';
 
 /** Feriados nacionais (mesma referência do prazo do relatório). */
@@ -90,8 +92,10 @@ export interface MyDayData {
 interface SchoolBundle {
   id: string;
   nome: string;
-  saldoInicial: number;
-  saldoInicialData?: string;
+  /** Saldo oficial do banco (extrato conferido de todas as contas ativas) e sua data. */
+  bankBalance: { date: string; balance: number } | null;
+  /** Último dia coberto por extrato em todas as contas ativas (null = sem Fluxo Bancário). */
+  statementCoverage: string | null;
   allowWeekend: boolean;
   entries: FinancialEntry[];
   rules: PaymentDelayRule[];
@@ -127,18 +131,30 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
   const db = supabase as any;
   const { data: school, error: sErr } = await db
     .from('schools')
-    .select('id, saldo_inicial, saldo_inicial_data, allow_weekend_entries, financial_model_template_id')
+    .select('id, allow_weekend_entries, financial_model_template_id')
     .eq('id', schoolId)
     .maybeSingle();
   if (sErr) throw sErr;
 
-  const baseDate = school?.saldo_inicial_data ?? undefined;
+  const { data: source } = await db.from('school_data_sources')
+    .select('status, dashboard_source').eq('school_id', schoolId).maybeSingle();
+  const usesBank = source?.status === 'ativo' && source?.dashboard_source === 'fluxo_caixa';
+  const accounts = usesBank ? (await fetchBankAccounts(schoolId)).filter(a => a.ativa) : [];
+  const bankBalance = usesBank && accounts.length ? confirmedBankBalance(accounts) : null;
+  let statementCoverage: string | null = null;
+  if (accounts.length) {
+    const { data: imps } = await db.from('bank_statement_imports').select('account_id, periodo_fim')
+      .in('account_id', accounts.map(a => a.id)).gte('periodo_fim', addDays(today, -40));
+    const lastBy = new Map<string, string>();
+    for (const i of (imps ?? []) as any[]) if (i.periodo_fim && (lastBy.get(i.account_id) ?? '') < i.periodo_fim) lastBy.set(i.account_id, i.periodo_fim);
+    const ends = accounts.map(a => lastBy.get(a.id) ?? '');
+    statementCoverage = ends.some(e => !e) ? null : ends.sort()[0];
+  }
+  // Só a janela necessária: margem para prazos de recebimento + 15 dias à frente.
+  const from = bankBalance && bankBalance.date < addDays(today, -40) ? bankBalance.date : addDays(today, -40);
   const [entries, rulesRows, itemRows, paidOuts, ackRows] = await Promise.all([
-    fetchAllRows<any>('financial_entries', q => {
-      let qq = q.eq('school_id', schoolId);
-      if (baseDate) qq = qq.gte('data', baseDate);
-      return qq.order('data');
-    }, 1000, ENTRY_COLS),
+    fetchAllRows<any>('financial_entries', q => q.eq('school_id', schoolId)
+      .gte('data', from).lte('data', addDays(today, 20)).order('data'), 1000, ENTRY_COLS),
     supabase.from('payment_delay_rules').select('*').eq('school_id', schoolId).then(r => {
       if (r.error) throw r.error;
       return r.data ?? [];
@@ -149,13 +165,12 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
           return r.data ?? [];
         })
       : Promise.resolve([]),
-    // Saídas conciliadas recentes para conferir se a conta vencida saiu da conta.
-    fetchAllRows<any>('bank_transactions', q => q
-      .eq('school_id', schoolId)
-      .eq('tipo', 'saida')
-      .eq('recon_status', 'conciliado')
-      .gte('data', addDays(today, -10))
-      .lte('data', today), 1000, 'data, valor'),
+    // Saídas reais do extrato (conciliadas ou não) para conferir se a conta vencida saiu.
+    statementCoverage
+      ? fetchAllRows<any>('bank_transactions', q => q
+          .eq('school_id', schoolId).eq('tipo', 'saida').eq('is_forecast', false)
+          .gte('data', addDays(today, -10)).lte('data', today), 1000, 'data, valor')
+      : Promise.resolve([]),
     db.from('payable_acknowledgements').select('entry_id, due_date').eq('school_id', schoolId).then((r: any) => {
       if (r.error) throw r.error;
       return r.data ?? [];
@@ -187,8 +202,8 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
   return {
     id: schoolId,
     nome: schoolName,
-    saldoInicial: Number(school?.saldo_inicial) || 0,
-    saldoInicialData: baseDate,
+    bankBalance,
+    statementCoverage,
     allowWeekend: !!school?.allow_weekend_entries,
     entries: entries.map(mapEntry),
     rules: rulesRows.map((r: any) => ({
@@ -240,6 +255,8 @@ function computeSchool(bundle: SchoolBundle, today: string): MyDayData {
       continue;
     }
     if (p.dueDate < today) {
+      // Sem extrato cobrindo vencimento + janela, não dá para afirmar que não saiu.
+      if (!bundle.statementCoverage || bundle.statementCoverage < addDays(p.dueDate, PAGAMENTO_JANELA_DIAS)) continue;
       // Conferência pela conciliação: saída conciliada de valor igual
       // (tolerância R$ 20) entre o vencimento e hoje quita a conta.
       const paid = bundle.paidOuts.some(tx =>
@@ -259,25 +276,29 @@ function computeSchool(bundle: SchoolBundle, today: string): MyDayData {
     if (previousBusinessDay(p.dueDate) === today) empty.scheduleToday.push(p);
   }
 
-  // Alerta de caixa: saldo previsto (SSOT) negativo em algum dia dos próximos 15.
-  const impactsByDay = new Map<string, number>();
-  for (const e of projected) {
-    if (!e.impacto) continue;
-    impactsByDay.set(e.dataProjetada, (impactsByDay.get(e.dataProjetada) ?? 0) + e.impacto);
-  }
-  let saldo = bundle.saldoInicial;
-  const start = bundle.saldoInicialData && bundle.saldoInicialData < windowStart ? bundle.saldoInicialData : windowStart;
-  let firstNegative: string | null = null;
-  let minBalance = Infinity;
-  for (let d = start; d <= addDays(today, 15); d = addDays(d, 1)) {
-    saldo += impactsByDay.get(d) ?? 0;
-    if (d >= today && saldo < 0) {
-      if (!firstNegative) firstNegative = d;
-      if (saldo < minBalance) minBalance = saldo;
+  // Alerta de caixa: parte do saldo oficial do banco (extrato conferido, o mesmo
+  // do Fluxo Diário) e soma só as projeções (SSOT) posteriores a essa data.
+  // Sem saldo bancário conferido não há base confiável: a empresa fica fora do alerta.
+  if (bundle.bankBalance) {
+    const base = bundle.bankBalance;
+    const impactsByDay = new Map<string, number>();
+    for (const e of projected) {
+      if (!e.impacto || e.tipoRegistro !== 'projetado' || e.dataProjetada <= base.date) continue;
+      impactsByDay.set(e.dataProjetada, (impactsByDay.get(e.dataProjetada) ?? 0) + e.impacto);
     }
-  }
-  if (firstNegative) {
-    empty.cashRisks.push({ schoolId: bundle.id, schoolName: bundle.nome, firstNegativeDate: firstNegative, minBalance });
+    let saldo = base.balance;
+    let firstNegative: string | null = null;
+    let minBalance = Infinity;
+    for (let d = addDays(base.date, 1); d <= addDays(today, 15); d = addDays(d, 1)) {
+      saldo += impactsByDay.get(d) ?? 0;
+      if (d >= today && saldo < 0) {
+        if (!firstNegative) firstNegative = d;
+        if (saldo < minBalance) minBalance = saldo;
+      }
+    }
+    if (firstNegative) {
+      empty.cashRisks.push({ schoolId: bundle.id, schoolName: bundle.nome, firstNegativeDate: firstNegative, minBalance });
+    }
   }
 
   return empty;
@@ -288,7 +309,8 @@ export function useMyDay(schools: { id: string; nome: string }[], today: string,
   return useQuery({
     queryKey: ['my-day', key, today],
     enabled: enabled && schools.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(today),
-    staleTime: 5 * 60_000,
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async (): Promise<MyDayData> => {
       const bundles = await Promise.all(schools.map(s => fetchBundle(s.id, s.nome, today)));
       syncWeekendAllowedSchools(bundles.map(b => ({ id: b.id, allowWeekendEntries: b.allowWeekend })) as any);
