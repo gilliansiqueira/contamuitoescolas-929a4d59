@@ -105,6 +105,7 @@ export type Database = {
           created_at: string
           has_auto_invest: boolean
           id: string
+          is_virtual: boolean
           nome: string
           saldo_inicial: number
           saldo_inicial_data: string | null
@@ -121,6 +122,7 @@ export type Database = {
           created_at?: string
           has_auto_invest?: boolean
           id?: string
+          is_virtual?: boolean
           nome: string
           saldo_inicial?: number
           saldo_inicial_data?: string | null
@@ -137,6 +139,7 @@ export type Database = {
           created_at?: string
           has_auto_invest?: boolean
           id?: string
+          is_virtual?: boolean
           nome?: string
           saldo_inicial?: number
           saldo_inicial_data?: string | null
@@ -528,6 +531,7 @@ export type Database = {
           justification_reason_id: string | null
           justified_at: string | null
           justified_by: string | null
+          manual_pair_id: string | null
           model_item_id: string | null
           movement_kind: string
           recon_at: string | null
@@ -555,6 +559,7 @@ export type Database = {
           justification_reason_id?: string | null
           justified_at?: string | null
           justified_by?: string | null
+          manual_pair_id?: string | null
           model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null
@@ -582,6 +587,7 @@ export type Database = {
           justification_reason_id?: string | null
           justified_at?: string | null
           justified_by?: string | null
+          manual_pair_id?: string | null
           model_item_id?: string | null
           movement_kind?: string
           recon_at?: string | null
@@ -3671,9 +3677,25 @@ export type Database = {
           valor: number
         }[]
       }
+      create_partner_cheque_pair: {
+        Args: {
+          _data: string
+          _in_item: string
+          _nota: string
+          _out_item: string
+          _school_id: string
+          _socio: string
+          _valor: number
+        }
+        Returns: string
+      }
       current_user_school_id: { Args: never; Returns: string }
       delete_bank_tx: {
         Args: { _motivo: string; _tx_id: string }
+        Returns: undefined
+      }
+      delete_partner_cheque_pair: {
+        Args: { _motivo: string; _pair_id: string }
         Returns: undefined
       }
       demo_school_id: { Args: never; Returns: string }

@@ -23,7 +23,8 @@ export function useBankAccounts(schoolId: string) {
     queryKey: ['bankAccounts', schoolId],
     queryFn: async () => {
       const [{ data, error }, { data: imps, error: e2 }] = await Promise.all([
-        db.from('bank_accounts').select('*').eq('school_id', schoolId).order('sort_order').order('created_at'),
+        // Conta virtual "Fora do banco (sócios)" nunca entra em saldos nem na conferência com extratos.
+        db.from('bank_accounts').select('*').eq('school_id', schoolId).eq('is_virtual', false).order('sort_order').order('created_at'),
         db.from('bank_statement_imports').select('id, account_id, periodo_fim, saldo_final_informado, saldo_aplicado_informado, saldo_retido_informado, created_at')
           .eq('school_id', schoolId).gte('periodo_fim', '2026-09-01').not('saldo_final_informado', 'is', null).order('created_at'),
       ]);
@@ -56,7 +57,7 @@ export function useBankTransactions(schoolId: string) {
     queryKey: ['bankTransactions', schoolId],
     queryFn: async () => {
       const [txs, splits] = await Promise.all([
-        fetchAllRows<BankTx>('bank_transactions', q => q.eq('school_id', schoolId),
+        fetchAllRows<BankTx>('bank_transactions', q => q.eq('school_id', schoolId).is('manual_pair_id', null),
           1000, 'id, account_id, import_id, data, descricao, descricao_editada, valor, tipo, transfer_pair_id, recon_status, recon_by_email, recon_at, recon_note, created_at, movement_kind, model_item_id, is_forecast, justification_reason_id, justification_note, justified_at'),
         fetchAllRows<BankSplit & { transaction_id: string }>('bank_transaction_splits', q => q.eq('school_id', schoolId),
           1000, 'id, transaction_id, valor, categoria, descricao, note, sort_order, model_item_id'),

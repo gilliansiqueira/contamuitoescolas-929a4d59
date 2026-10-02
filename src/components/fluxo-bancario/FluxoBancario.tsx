@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useBankAccounts, useBankTransactions, useBankImports } from '@/hooks/useBankPilot';
+import { useBankAccounts, useBankTransactions, useBankImports, useSchoolFeature } from '@/hooks/useBankPilot';
+import { useAuth } from '@/hooks/useAuth';
+import { PartnerChequesPanel } from './PartnerChequesPanel';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { summarize, accountBalances, anchorPending, lastDateByAccount } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, todayIso } from './shared';
@@ -20,6 +22,8 @@ function monthRange(m: string) {
 
 export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const { data: accounts = [] } = useBankAccounts(schoolId);
+  const { isAdmin } = useAuth();
+  const { data: chequesSocios } = useSchoolFeature(schoolId, 'cheques_socios', isAdmin);
   const { data: txs = [], isLoading } = useBankTransactions(schoolId);
   const { entries: projected } = useProjectedEntries(schoolId);
   const { data: imports = [] } = useBankImports(schoolId);
@@ -136,6 +140,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
         </TabsContent>
 
         <TabsContent value="movimentacoes">
+          {isAdmin && chequesSocios && <PartnerChequesPanel schoolId={schoolId} />}
           <BankTransactionsTable schoolId={schoolId} accounts={accounts} txs={txs} defaultFrom={tableRange.from} defaultTo={tableRange.to} focus={focus} />
         </TabsContent>
 

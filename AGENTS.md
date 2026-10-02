@@ -11,3 +11,4 @@
 - Cards de Relatórios contam a primeira etapa mensal aberta por empresa; filtros Receita/Despesa do banco usam `resolveTipoMeta` e exibem só as partes correspondentes sem alterar o lançamento ou o saldo — para manter uma contagem exclusiva por etapa e a SSOT financeira.
 <!-- LOVABLE:END -->
 - No overlay do Fluxo Bancário, `tipo_nome='Operação'` vira 'Operação (banco): <item do modelo>' (ou 'Operações (banco) - entrada/saída' sem item) e o ledgerEngine força só Caixa — para manter o nome escolhido sem nunca cair em despesa.
+- Cheques depositados pelos sócios: par entrada+saída via RPC `create_partner_cheque_pair` numa conta virtual (`bank_accounts.is_virtual`, ligadas por `manual_pair_id`), fora de saldos/conferências e da tabela de movimentações; liberado por empresa (`school_features.cheques_socios`) — para refletir Receita/Pró-Labore sem alterar saldo de banco.
