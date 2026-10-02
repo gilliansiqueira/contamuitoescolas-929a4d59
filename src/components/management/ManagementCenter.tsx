@@ -22,6 +22,8 @@ import { useAddSchool } from '@/hooks/useFinancialData';
 import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
+import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } from '@/components/management/ManagerDayPanel';
+import { previousBusinessDay } from '@/hooks/useMyDay';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
@@ -564,6 +566,40 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myDaySchools, rows, dailyBySchool, backlogBySchool, dailyTasksBySchool, dueDate, dueInfo, month, today, bankStartMonths]);
+  // ─── Gerência (proprietária e admins com visão de todas) ───
+  const showManager = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_scope === 'all');
+  const managerTeam = useMemo<ManagerTeamPerson[]>(() => {
+    const map = new Map<string, ManagerTeamPerson>();
+    for (const row of rows) {
+      const key = row.responsible_user_id ?? '__none';
+      const label = row.responsible_user_id ? (displayNameByUser.get(row.responsible_user_id) ?? (row.responsible_email ? nameFromEmail(row.responsible_email) : 'Sem nome')) : 'Sem responsável';
+      const p = map.get(key) ?? { key, label, schools: [] };
+      const tasks = dailyTasksBySchool.get(row.school_id);
+      p.schools.push({
+        schoolId: row.school_id, schoolName: row.school_name,
+        late: backlogBySchool.get(row.school_id) ?? 0,
+        tasksOpen: tasks ? Math.max(0, tasks.total - tasks.done) : 0,
+        reportOpen: !row.report_delivered ? row.checklist_pending : 0,
+        reportLate: !!(dueDate && dueDate < today),
+      });
+      map.set(key, p);
+    }
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+  }, [rows, displayNameByUser, dailyTasksBySchool, backlogBySchool, dueDate, today]);
+  const managerStalled = useMemo<ManagerStalledSchool[]>(() => {
+    let limit = today;
+    for (let i = 0; i < 3; i++) limit = previousBusinessDay(limit);
+    const out: ManagerStalledSchool[] = [];
+    for (const row of rows) {
+      const daily = dailyBySchool.get(row.school_id);
+      const last = row.last_activity_at ? new Date(row.last_activity_at).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) : null;
+      if (!last || last < limit) out.push({ schoolId: row.school_id, schoolName: row.school_name, reason: last ? `sem alteração da equipe desde ${last.slice(8, 10)}/${last.slice(5, 7)}` : 'nenhuma alteração registrada' });
+      else if (dailyReconState(daily, bankAvailable(row, daily)) === 'no_statement') out.push({ schoolId: row.school_id, schoolName: row.school_name, reason: 'extrato não enviado' });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, dailyBySchool, today, bankStartMonths]);
+  const managerAllSchools = useMemo(() => rows.map(r => ({ id: r.school_id, nome: r.school_name })), [rows]);
   const toggleGroup = (key: string) => setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   const changeResponsible = (schoolId: string, value: string) => setResponsible.mutate(
     { schoolId, userId: value === '__none' ? null : value },
@@ -658,6 +694,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               <div className="hidden items-center gap-1 lg:flex"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
             </div>
           </div>
+
+          {showManager && <ManagerDayPanel today={today} team={managerTeam} stalled={managerStalled} allSchools={managerAllSchools} canViewTeamTime={canViewTeamTime} onOpenSchool={openSchool} onOpenTeamTime={() => { setCardFilter(null); setView('team_time'); }} />}
 
           <MyDayPanel
             schools={myDaySchools}
