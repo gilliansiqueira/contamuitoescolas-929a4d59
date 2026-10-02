@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
 
 // Importação do "Relatório de Cartão Ponto" (PDF lido no navegador). CPF/PIS nunca chegam aqui.
 const ISO = /^\d{4}-\d{2}-\d{2}$/; const HM = /^\d{1,3}:\d{2}$/;
-const SITS = new Set(["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando"]);
+const SITS = new Set(["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando", "em_andamento"]);
 const str = (v: unknown, max = 120) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
 const hm = (v: unknown) => typeof v === "string" && HM.test(v) ? v : null;
 async function importReport(body: Row, admin: ReturnType<typeof createClient>, userId: string) {

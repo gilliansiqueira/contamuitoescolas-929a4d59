@@ -11,7 +11,7 @@ import { ImportCartaoPonto } from './ImportCartaoPonto';
 
 const SIT_LABEL: Record<TeamSituacao, string> = {
   regular: 'Regular', atraso: 'Atraso', sem_marcacao: 'Sem marcação', incompleta: 'Marcação incompleta',
-  falta: 'Falta', hora_extra: 'Hora extra', inconsistencia: 'Com inconsistência', aguardando: 'Aguardando informação',
+  falta: 'Falta', hora_extra: 'Hora extra', inconsistencia: 'Com inconsistência', aguardando: 'Aguardando informação', em_andamento: 'Em andamento',
 };
 const SIT_STYLE: Record<TeamSituacao, string> = {
   regular: 'bg-success/15 text-success border-success/30',
@@ -22,6 +22,7 @@ const SIT_STYLE: Record<TeamSituacao, string> = {
   hora_extra: 'bg-info/15 text-info border-info/30',
   inconsistencia: 'bg-destructive/10 text-destructive border-destructive/30',
   aguardando: 'bg-muted text-muted-foreground border-dashed border-border',
+  em_andamento: 'bg-muted text-muted-foreground border-border',
 };
 
 const spToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -137,7 +138,7 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
     return { e, d, situacao: (d?.situacao ?? 'aguardando') as TeamSituacao, bank: bankByEmp.get(e.external_id), occ: occToday.filter(o => o.employee_external_id === e.external_id) };
   });
   const count = (f: (r: typeof rows[number]) => boolean) => rows.filter(f).length;
-  const isPend = (r: typeof rows[number]) => r.occ.length > 0 || ['atraso', 'incompleta', 'falta', 'inconsistencia', 'sem_marcacao'].includes(r.situacao);
+  const isPend = (r: typeof rows[number]) => r.situacao !== 'em_andamento' && r.occ.length > 0 || ['atraso', 'incompleta', 'falta', 'inconsistencia', 'sem_marcacao'].includes(r.situacao);
   const cards: { k: CardKey; label: string; v: number; icon: typeof Users; f: (r: typeof rows[number]) => boolean }[] = [
     { k: 'all', label: 'Colaboradoras ativas', v: rows.length, icon: Users, f: () => true },
     { k: 'presentes', label: 'Presentes hoje', v: count(r => !!r.d?.primeira_marcacao), icon: UserCheck, f: r => !!r.d?.primeira_marcacao },

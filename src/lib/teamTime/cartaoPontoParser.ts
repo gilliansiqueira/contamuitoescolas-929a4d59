@@ -6,7 +6,7 @@
  */
 export interface PdfToken { page: number; x: number; y: number; s: string }
 
-export type CartaoSituacao = 'regular' | 'sem_marcacao' | 'incompleta' | 'falta' | 'hora_extra' | 'aguardando';
+export type CartaoSituacao = 'regular' | 'sem_marcacao' | 'incompleta' | 'falta' | 'hora_extra' | 'aguardando' | 'em_andamento';
 
 export interface CartaoDia {
   dia: string; // yyyy-mm-dd
@@ -51,7 +51,23 @@ function toLines(tokens: PdfToken[]): Line[] {
 const text = (l: Line) => l.items.map(i => i.s).join(' ');
 const DATE = /^\d{2}\/\d{2}\/\d{2}$/;
 
-export function parseCartaoPonto(tokens: PdfToken[]): CartaoRelatorio {
+/** Data/hora de geração a partir do nome "RelatorioCartaoPonto_DDMMAAAA_HHMMSS..."; senão, agora (horário de Brasília). */
+export function geracaoDoArquivo(nome: string, agora = new Date()): { dia: string; minuto: number } {
+  const m = nome.match(/_(\d{2})(\d{2})(\d{4})_(\d{2})(\d{2})/);
+  if (m) return { dia: `${m[3]}-${m[2]}-${m[1]}`, minuto: Number(m[4]) * 60 + Number(m[5]) };
+  const sp = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  return { dia: `${sp.getFullYear()}-${String(sp.getMonth() + 1).padStart(2, '0')}-${String(sp.getDate()).padStart(2, '0')}`, minuto: sp.getHours() * 60 + sp.getMinutes() };
+}
+
+/** Dia ainda em andamento: relatório gerado no próprio dia, antes do fim da jornada prevista + 30 min. */
+function emAndamento(d: CartaoDia, ger?: { dia: string; minuto: number }): boolean {
+  if (!ger || d.dia !== ger.dia || !d.marcacoes.length) return false;
+  const horas = (d.jornada ?? '').match(/\d{1,2}:\d{2}/g);
+  const fim = horas?.length ? toMin(horas[horas.length - 1]) : 18 * 60;
+  return ger.minuto < fim + 30;
+}
+
+export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; minuto: number }): CartaoRelatorio {
   const lines = toLines(tokens);
   const out: CartaoRelatorio = { periodoInicio: null, periodoFim: null, funcionarios: [], divergencias: [] };
   let cur: CartaoFuncionario | null = null;
@@ -109,7 +125,7 @@ export function parseCartaoPonto(tokens: PdfToken[]): CartaoRelatorio {
   }
 
   for (const f of out.funcionarios) {
-    for (const d of f.dias) d.situacao = situacaoDoDia(d);
+    for (const d of f.dias) d.situacao = emAndamento(d, geracao) ? 'em_andamento' : situacaoDoDia(d);
     const sum = (k: 'trabalhadas' | 'extras' | 'faltas') => f.dias.reduce((s, d) => s + toMin(d[k]), 0);
     f.somados = { trabalhadas: fmtMin(sum('trabalhadas')), extras: fmtMin(sum('extras')), faltas: fmtMin(sum('faltas')) };
     (['trabalhadas', 'extras', 'faltas'] as const).forEach(k => {
