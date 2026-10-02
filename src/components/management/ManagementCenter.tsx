@@ -22,6 +22,8 @@ import { useAddSchool } from '@/hooks/useFinancialData';
 import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
+import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } from '@/components/management/ManagerDayPanel';
+import { previousBusinessDay } from '@/hooks/useMyDay';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
@@ -270,7 +272,7 @@ function ProgressRing({ value, label, tone }: { value: number | null; label: str
 }
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
-  const { isSuperAdmin, profile } = useAuth();
+  const { isSuperAdmin, profile, canViewTeamTime } = useAuth();
   // Padrão: mês do relatório em produção (mês anterior).
   const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toLocaleDateString('sv-SE').slice(0, 7); });
   const { data: dueDate = null } = useQuery({
@@ -297,6 +299,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
   const [newSchoolName, setNewSchoolName] = useState('');
+  const [newSchoolRestricted, setNewSchoolRestricted] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [stepsSchool, setStepsSchool] = useState<{ id: string; name: string } | null>(null);
@@ -563,6 +566,40 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myDaySchools, rows, dailyBySchool, backlogBySchool, dailyTasksBySchool, dueDate, dueInfo, month, today, bankStartMonths]);
+  // ─── Gerência (proprietária e admins com visão de todas) ───
+  const showManager = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_scope === 'all');
+  const managerTeam = useMemo<ManagerTeamPerson[]>(() => {
+    const map = new Map<string, ManagerTeamPerson>();
+    for (const row of rows) {
+      const key = row.responsible_user_id ?? '__none';
+      const label = row.responsible_user_id ? (displayNameByUser.get(row.responsible_user_id) ?? (row.responsible_email ? nameFromEmail(row.responsible_email) : 'Sem nome')) : 'Sem responsável';
+      const p = map.get(key) ?? { key, label, schools: [] };
+      const tasks = dailyTasksBySchool.get(row.school_id);
+      p.schools.push({
+        schoolId: row.school_id, schoolName: row.school_name,
+        late: backlogBySchool.get(row.school_id) ?? 0,
+        tasksOpen: tasks ? Math.max(0, tasks.total - tasks.done) : 0,
+        reportOpen: !row.report_delivered ? row.checklist_pending : 0,
+        reportLate: !!(dueDate && dueDate < today),
+      });
+      map.set(key, p);
+    }
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+  }, [rows, displayNameByUser, dailyTasksBySchool, backlogBySchool, dueDate, today]);
+  const managerStalled = useMemo<ManagerStalledSchool[]>(() => {
+    let limit = today;
+    for (let i = 0; i < 3; i++) limit = previousBusinessDay(limit);
+    const out: ManagerStalledSchool[] = [];
+    for (const row of rows) {
+      const daily = dailyBySchool.get(row.school_id);
+      const last = row.last_activity_at ? new Date(row.last_activity_at).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) : null;
+      if (!last || last < limit) out.push({ schoolId: row.school_id, schoolName: row.school_name, reason: last ? `sem alteração da equipe desde ${last.slice(8, 10)}/${last.slice(5, 7)}` : 'nenhuma alteração registrada' });
+      else if (dailyReconState(daily, bankAvailable(row, daily)) === 'no_statement') out.push({ schoolId: row.school_id, schoolName: row.school_name, reason: 'extrato não enviado' });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, dailyBySchool, today, bankStartMonths]);
+  const managerAllSchools = useMemo(() => rows.map(r => ({ id: r.school_id, nome: r.school_name })), [rows]);
   const toggleGroup = (key: string) => setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; });
   const changeResponsible = (schoolId: string, value: string) => setResponsible.mutate(
     { schoolId, userId: value === '__none' ? null : value },
@@ -595,7 +632,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     const name = newSchoolName.trim();
     if (!name) { toast.error('Digite o nome da empresa.'); return; }
     try {
-      const created = await addSchool.mutateAsync({ nome: name });
+      const created = await addSchool.mutateAsync({ nome: name, restrita: newSchoolRestricted });
       setCreateOpen(false); setNewSchoolName(''); toast.success('Empresa criada com sucesso.');
       onSelect({ id: created.id, nome: created.nome, createdAt: created.created_at, saldoInicial: Number(created.saldo_inicial) || 0 });
     } catch { toast.error('Não foi possível criar a empresa.'); }
@@ -639,10 +676,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         </header>
         <nav className="flex gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:hidden" aria-label="Central de Clientes">
           {navigation.map(item => <Button key={item.key} type="button" size="sm" variant={view === item.key ? 'secondary' : 'ghost'} onClick={() => { setFocusSchoolId(null); setCardFilter(null); setView(item.key); }} className="shrink-0 gap-1.5 text-xs"><item.icon className="h-3.5 w-3.5" />{item.label}</Button>)}
-          {isSuperAdmin && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
+          {canViewTeamTime && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
         </nav>
 
-        {view === 'team_time' && isSuperAdmin ? (
+        {view === 'team_time' && canViewTeamTime ? (
           <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><TeamTimePanel /></main>
         ) : (
         <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6">
@@ -657,6 +694,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               <div className="hidden items-center gap-1 lg:flex"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
             </div>
           </div>
+
+          {showManager && <ManagerDayPanel today={today} team={managerTeam} stalled={managerStalled} allSchools={managerAllSchools} canViewTeamTime={canViewTeamTime} onOpenSchool={openSchool} onOpenTeamTime={() => { setCardFilter(null); setView('team_time'); }} />}
 
           <MyDayPanel
             schools={myDaySchools}
@@ -740,7 +779,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       </div>
 
       <Dialog open={!!toggleSchool} onOpenChange={open => { if (!open) setToggleSchool(null); }}><DialogContent><DialogHeader><DialogTitle>{toggleSchool?.ativo ? 'Reativar' : 'Inativar'} {toggleSchool?.name}?</DialogTitle><DialogDescription>{toggleSchool?.ativo ? 'A empresa volta para a carteira da responsável e o cliente volta a ter acesso.' : 'Nada será apagado. A empresa sai da carteira e das porcentagens, e o cliente deixa de ter acesso. Você pode reativar quando quiser.'}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setToggleSchool(null)}>Cancelar</Button><Button onClick={() => void confirmToggle()} disabled={toggling}>{toggling ? 'Salvando…' : toggleSchool?.ativo ? 'Reativar' : 'Inativar'}</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={newSchoolRestricted} onChange={e => setNewSchoolRestricted(e.target.checked)} /><span><strong className="font-medium">Empresa restrita</strong><span className="block text-xs text-muted-foreground">Só a proprietária vê (ex.: financeiro da Conta Muito). Fica oculta para toda a equipe.</span></span></label><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
       <ClosingStepTemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
       <SchoolStepsDialog open={stepsSchool !== null} onOpenChange={open => { if (!open) setStepsSchool(null); }} schoolId={stepsSchool?.id ?? null} schoolName={stepsSchool?.name ?? ''} month={month} canEditTemplates={isSuperAdmin} onOpenTemplates={() => { setStepsSchool(null); setTemplatesOpen(true); }} />
     </div>
