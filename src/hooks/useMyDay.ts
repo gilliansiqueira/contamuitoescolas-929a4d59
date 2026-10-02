@@ -164,6 +164,7 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
       return r.data ?? [];
     }),
   ]);
+  mark(`dados entries=${entries.length} paidOuts=${paidOuts.length}`);
 
   const classifications: TypeClassification[] = (itemRows as any[]).map(it => {
     const isIgnorar = it.tipo === 'ignorar';
