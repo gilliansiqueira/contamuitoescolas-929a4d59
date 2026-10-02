@@ -17,6 +17,7 @@ import {
   type PortfolioRow,
 } from '@/hooks/useManagementPortfolio';
 import { ReconciliationBacklog } from '@/components/management/ReconciliationBacklog';
+import { MyDayPanel, type MyDayPendingItem } from '@/components/management/MyDayPanel';
 import { useAddSchool } from '@/hooks/useFinancialData';
 import { useClosingStepTemplates, useEnsureMonthlyChecklist, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
 import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/management/ClosingStepsDialog';
@@ -304,6 +305,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const [focusSchoolId, setFocusSchoolId] = useState<string | null>(null);
   const [cardFilter, setCardFilter] = useState<string | null>(null);
   const [cardGroupMode, setCardGroupMode] = useState<'open' | 'done'>('open');
+  // Painel "Meu dia": por padrão a pessoa logada; super admin pode ver o de outra.
+  const [myDayPerson, setMyDayPerson] = useState<string | null>(null);
   const today = todaySaoPaulo();
   const qc = useQueryClient();
   const [toggleSchool, setToggleSchool] = useState<{ id: string; name: string; ativo: boolean } | null>(null);
