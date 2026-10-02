@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, CircleDollarSign, ListTodo, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, CircleDollarSign, ListTodo, Wallet, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAcknowledgePayable, useMyDay, type MyDayPayable } from '@/hooks/useMyDay';
+import { useAcknowledgePayable, useUnacknowledgePayable, useMyDay, type MyDayPayable } from '@/hooks/useMyDay';
 import { fmtBRL, fmtDate } from '@/components/fluxo-bancario/shared';
 import { toast } from 'sonner';
 
