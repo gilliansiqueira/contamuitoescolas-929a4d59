@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, type TeamSituacao, type TeamTimeData } from '@/hooks/useTeamTime';
 import { Button } from '@/components/ui/button';
