@@ -43,3 +43,4 @@ Updated: agora
 - [Aba Vendas](mem://features/relatorio-realizado-vendas) — Receitas por forma de pagamento + bandeiras de cartão com ícones
 - [SSOT Financeira](mem://financeiro/single-source-of-truth) — classificationUtils + tipoMeta + useSchoolModel em todas as telas, sem heurística por nome
 - [Mês parcial e prazo único](mem://features/mes-parcial-corte-realizado) — Corte do realizado em meses abertos, prazo não reaplicado, observações por mês
+- [Operações previstas no Fluxo Diário](mem://features/fluxo-diario-operacoes-previstas) — Aplicação/Compra da Escola/Empréstimo fora da Saída Prevista, intencional
