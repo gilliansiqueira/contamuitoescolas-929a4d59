@@ -844,6 +844,16 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
       toast.error('Nenhum registro válido para importar.');
       return;
     }
+    // Proteção contra ano errado (ex.: planilha de outubro com datas de 2024).
+    {
+      const d = new Date(); d.setMonth(d.getMonth() - 6);
+      const limite = d.toISOString().slice(0, 7);
+      const antigas = preview.filter(e => String(e.data).slice(0, 7) < limite);
+      if (antigas.length > preview.length / 2) {
+        const anos = [...new Set(antigas.map(e => String(e.data).slice(0, 4)))].join(', ');
+        if (!window.confirm(`As datas estão em ${anos}. Confira o ano antes de importar.\n\nDeseja importar mesmo assim?`)) return;
+      }
+    }
 
     // Para tipos de projeção, verifica se já existem projeções no banco e abre diálogo.
     if (PROJECTION_REPLACE_TYPES.has(selectedType.key)) {
