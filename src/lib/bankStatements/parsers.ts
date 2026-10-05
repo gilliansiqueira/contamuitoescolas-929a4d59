@@ -344,7 +344,7 @@ export function parseXLSX(buffer: ArrayBuffer): BankParseResult {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
   const tpl = parseBankTemplate(XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' }));
-  if (tpl) { tpl.avisos = [`Modelo de planilha do sistema: ${tpl.transactions.length} lançamento(s), conferidos pelo saldo.`]; return tpl; }
+  if (tpl) { tpl.avisos = [`Modelo de planilha do sistema: ${tpl.transactions.length} lançamento(s), conferidos pelo saldo.`, ...(tpl.divergencias ?? [])]; return tpl; }
   const bb = parseBancoDoBrasilXLSX(rows);
   if (bb) return finish('xlsx', bb, { banco: 'Banco do Brasil' });
   const txs = rowsToTx(rows);
