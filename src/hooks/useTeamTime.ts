@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 export type TeamSituacao = 'regular' | 'atraso' | 'sem_marcacao' | 'incompleta' | 'falta' | 'hora_extra' | 'inconsistencia' | 'aguardando' | 'em_andamento';
 
 export interface TeamEmployee { external_id: string; matricula: string | null; nome: string; horario_previsto: string | null; ativo: boolean; oculto?: boolean }
-export interface TeamDaily { employee_external_id: string; dia: string; horario_previsto: string | null; primeira_marcacao: string | null; ultima_marcacao: string | null; horas_trabalhadas: string | null; horas_extras: string | null; situacao: TeamSituacao; ocorrencia: string | null; synced_at: string }
+export interface TeamDaily { employee_external_id: string; dia: string; horario_previsto: string | null; primeira_marcacao: string | null; ultima_marcacao: string | null; marcacoes?: string[]; horas_trabalhadas: string | null; horas_extras: string | null; situacao: TeamSituacao; ocorrencia: string | null; synced_at: string }
 export interface TeamOccurrence { external_key: string; employee_external_id: string; dia: string; tipo: string; descricao: string | null; origem: string }
 export interface TeamHourBank { employee_external_id: string; competencia: string; saldo: string | null; saldo_minutos: number | null }
 export interface TeamSyncRun { id: string; status: 'running' | 'success' | 'error' | 'not_configured'; started_at: string; finished_at: string | null; message: string | null }
@@ -80,15 +80,19 @@ export function buildSampleData(today: string): TeamTimeData {
   const names = ['Ana Souza', 'Beatriz Lima', 'Carla Mendes', 'Daniela Rocha', 'Eduarda Alves', 'Fernanda Costa'];
   const sits: TeamSituacao[] = ['regular', 'atraso', 'sem_marcacao', 'incompleta', 'hora_extra', 'aguardando'];
   const employees = names.map((nome, i) => ({ external_id: `ex-${i}`, matricula: String(100 + i), nome, horario_previsto: '08:00 - 17:48', ativo: true }));
-  const daily: TeamDaily[] = employees.map((e, i) => ({
-    employee_external_id: e.external_id, dia: today, horario_previsto: e.horario_previsto,
-    primeira_marcacao: sits[i] === 'sem_marcacao' ? null : sits[i] === 'atraso' ? '08:27' : '07:58',
-    ultima_marcacao: ['regular', 'hora_extra'].includes(sits[i]) ? (sits[i] === 'hora_extra' ? '19:05' : '17:50') : null,
-    horas_trabalhadas: sits[i] === 'sem_marcacao' ? null : sits[i] === 'hora_extra' ? '10:07' : '08:48',
-    horas_extras: sits[i] === 'hora_extra' ? '01:19' : null, situacao: sits[i],
-    ocorrencia: sits[i] === 'atraso' ? 'Entrada atrasada' : sits[i] === 'incompleta' ? 'Marcação incorreta' : sits[i] === 'hora_extra' ? 'Horas extras' : null,
-    synced_at: new Date().toISOString(),
-  }));
+  const daily: TeamDaily[] = employees.map((e, i) => {
+    const sit = sits[i];
+    const marc: string[] = { regular: ['07:58', '13:00', '14:00', '17:50'], atraso: ['08:27', '13:00', '14:00', '17:50'], sem_marcacao: [], incompleta: ['07:58', '13:00', '17:50'], hora_extra: ['07:58', '13:00', '14:00', '19:05'], aguardando: ['07:58', '17:50'] }[sit] ?? [];
+    return {
+      employee_external_id: e.external_id, dia: today, horario_previsto: e.horario_previsto, marcacoes: marc,
+      primeira_marcacao: marc[0] ?? null,
+      ultima_marcacao: marc.length > 1 ? marc[marc.length - 1] : null,
+      horas_trabalhadas: sit === 'sem_marcacao' ? null : sit === 'hora_extra' ? '10:07' : '08:48',
+      horas_extras: sit === 'hora_extra' ? '01:19' : null, situacao: sit,
+      ocorrencia: sit === 'atraso' ? 'Entrada atrasada' : sit === 'incompleta' ? 'Marcação incorreta' : sit === 'hora_extra' ? 'Horas extras' : null,
+      synced_at: new Date().toISOString(),
+    };
+  });
   const occurrences: TeamOccurrence[] = daily.filter(d => d.ocorrencia).map(d => ({ external_key: `${d.employee_external_id}-${d.dia}`, employee_external_id: d.employee_external_id, dia: d.dia, tipo: d.ocorrencia!, descricao: null, origem: 'ocorrencias' }));
   const hourBank = employees.map((e, i) => ({ employee_external_id: e.external_id, competencia: today.slice(0, 7), saldo: ['+02:10', '-00:45', '-08:48', '+00:00', '+05:30', '-12:15'][i], saldo_minutos: [130, -45, -528, 0, 330, -735][i] }));
   const run: TeamSyncRun = { id: 'sample', status: 'success', started_at: new Date().toISOString(), finished_at: new Date().toISOString(), message: null };
