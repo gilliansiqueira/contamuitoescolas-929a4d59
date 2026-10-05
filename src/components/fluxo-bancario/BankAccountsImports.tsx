@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useBankImports, useInvalidateBank, useAutoInvestPatterns, useOwnTransferNames, useSetMovementKind, autoPairTransfers } from '@/hooks/useBankPilot';
 import { Checkbox } from '@/components/ui/checkbox';
-import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, type BankParseResult } from '@/lib/bankStatements/parsers';
+import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, buildBankTemplateXlsx, toIsoDate, type BankParseResult } from '@/lib/bankStatements/parsers';
 import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 
@@ -81,6 +81,21 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
   const toggleActive = async (a: BankAccount) => {
     const { error } = await db.from('bank_accounts').update({ ativa: !a.ativa }).eq('id', a.id);
     if (error) toast.error(error.message); else invalidate();
+  };
+
+  const informManualBalance = async () => {
+    const d = window.prompt('Data do saldo (dd/mm/aaaa):'); if (!d) return;
+    const iso = toIsoDate(d); if (!iso) return toast.error('Data inválida');
+    const v = window.prompt(`Saldo em conta no fim de ${d}:`); if (v == null || !v.trim()) return;
+    const saldo = Math.round(parseBRNumber(v) * 100) / 100;
+    const { error } = await db.from('bank_statement_imports').insert({
+      school_id: schoolId, account_id: accountId, file_name: `Saldo informado manualmente (${d})`, file_path: null,
+      file_hash: `manual-${iso}-${Date.now()}`, formato: 'xlsx', periodo_inicio: iso, periodo_fim: iso, total_linhas: 0,
+      inseridas: 0, duplicadas: 0, total_entradas: 0, total_saidas: 0, imported_by: user?.id ?? null, saldo_final_informado: saldo,
+    });
+    if (error) return toast.error(error.message);
+    await db.from('audit_log').insert({ school_id: schoolId, action: 'bank_saldo_manual', description: `Saldo informado manualmente: ${accName.get(accountId)} em ${d} = ${saldo} por ${user?.email ?? 'desconhecido'}` });
+    toast.success('Saldo informado salvo'); invalidate();
   };
 
   const onFile = async (file: File | undefined) => {
@@ -327,7 +342,13 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
             <Upload className="h-4 w-4" />{busy ? 'Lendo…' : 'Escolher arquivo (OFX, CSV, Excel, PDF)'}
             <input type="file" className="hidden" accept=".ofx,.csv,.txt,.xlsx,.xls,.pdf" onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
           </label>
+          <Button variant="outline" size="sm" onClick={() => {
+            const blob = new Blob([buildBankTemplateXlsx()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'modelo-extrato.xlsx'; a.click(); URL.revokeObjectURL(a.href);
+          }}><Download className="mr-1 h-4 w-4" />Baixar modelo Excel</Button>
+          {isSuperAdmin && <Button variant="outline" size="sm" disabled={!accountId || busy} onClick={informManualBalance}>Informar saldo da conta numa data</Button>}
         </div>
+        <p className="mt-2 text-xs text-muted-foreground">Quando o PDF do banco não puder ser lido, preencha o modelo Excel com o saldo anterior e os lançamentos. O sistema só importa se os saldos fecharem. Use "Informar saldo" apenas como último recurso: o valor serve só como saldo conferido e não cria lançamentos.</p>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-4">
