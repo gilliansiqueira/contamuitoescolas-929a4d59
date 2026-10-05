@@ -56,12 +56,13 @@ export async function fetchBankAccounts(schoolId: string): Promise<BankAccount[]
           if (i.account_id !== a.id) continue;
           const retido = Number(i.saldo_retido_informado ?? 0);
           const conta = Number(i.saldo_final_informado);
-          if (a.has_auto_invest && i.saldo_aplicado_informado == null) continue; // sem aplicado no arquivo: mantém o calculado
+          // Conta com aplicação automática e arquivo sem o aplicado: vale o saldo em conta impresso; o aplicado segue calculado.
+          const aplicadoCalc = !!a.has_auto_invest && i.saldo_aplicado_informado == null;
           // Total com aplicação informado (ex.: Bradesco soma CDB no saldo do arquivo) vale também sem aplicação automática.
           const total = i.saldo_aplicado_informado != null ? Number(i.saldo_aplicado_informado) : conta;
           const dataAnchor = shifted.has(i.id) ? prevDay(i.periodo_fim) : i.periodo_fim;
           // Cheques retidos pelo banco: já estão nos lançamentos, então somam ao saldo disponível.
-          byDate.set(dataAnchor, { id: i.id, data: dataAnchor, saldo_conta: Math.round((conta + retido) * 100) / 100, saldo_aplicado: Math.round((total - conta) * 100) / 100, retido });
+          byDate.set(dataAnchor, { id: i.id, data: dataAnchor, saldo_conta: Math.round((conta + retido) * 100) / 100, saldo_aplicado: aplicadoCalc ? 0 : Math.round((total - conta) * 100) / 100, retido, aplicado_calc: aplicadoCalc });
         }
         // Só o extrato mais recente vale como saldo oficial. Saldos de extratos anteriores costumam ser
         // "fotos" do meio do dia (o banco ainda lança depois), e usá-los criava diferenças falsas.

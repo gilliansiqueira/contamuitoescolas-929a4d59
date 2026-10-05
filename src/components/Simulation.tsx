@@ -523,7 +523,7 @@ export function Simulation({ schoolId }: SimulationProps) {
               <tr className="border-t border-border/30">
                 <td className="px-2 py-2 text-muted-foreground">Receita (realizado + previsto)</td>
                 {months.map(m => (
-                  <td key={m} className="px-2 py-2 text-right">{formatCurrency(sistemaProjetadoPorMes[m] || 0)}{(flowTotals[m]?.entradaRealizada ?? 0) > 0 && (flowTotals[m]?.entradaRestante ?? 0) > 0 && <p className="text-[10px] text-muted-foreground whitespace-nowrap">{formatCurrency(flowTotals[m].entradaRealizada)} recebidos · {formatCurrency(flowTotals[m].entradaRestante)} a receber</p>}</td>
+                  <td key={m} className="px-2 py-2 text-right">{formatCurrency(sistemaProjetadoPorMes[m] || 0)}</td>
                 ))}
               </tr>
               <tr className="border-t border-border/30">
