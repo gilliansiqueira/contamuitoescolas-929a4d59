@@ -296,7 +296,7 @@ export function parseCashFlowSheet(rows: unknown[][]): BankParseResult | null {
     return s && /\d/.test(s) ? parseBRNumber(s) : null;
   };
   const toIso = (v: unknown): string | null => {
-    if (v instanceof Date && !isNaN(v.getTime())) return new Date(v.getTime() + 12 * 3600e3).toISOString().slice(0, 10);
+    if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN((v as Date).getTime())) return new Date((v as Date).getTime() + 12 * 3600e3).toISOString().slice(0, 10);
     const s = norm(v);
     const m = s.match(/^(\d{1,2})[/\-.\s]([a-z]{3})/);
     if (m && MESES_ABREV[m[2]] && ano) return `${ano}-${MESES_ABREV[m[2]]}-${m[1].padStart(2, '0')}`;
