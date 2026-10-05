@@ -21,7 +21,7 @@ export interface BankAccount {
 }
 
 /** saldo_conta já inclui `retido` (cheques/depósitos que o banco ainda segura, informados na conferência). */
-export interface BalanceAnchor { id: string; data: string; saldo_conta: number; saldo_aplicado: number; retido?: number }
+export interface BalanceAnchor { id: string; data: string; saldo_conta: number; saldo_aplicado: number; retido?: number; /** Extrato sem valor aplicado: o aplicado vem do cálculo. */ aplicado_calc?: boolean }
 
 export type MovementKind = 'normal' | 'auto_aplicacao' | 'auto_resgate' | 'operacao' | 'ignorar' | 'transferencia';
 export type SplitCategoria = 'normal' | 'operacao' | 'ignorar';
@@ -82,7 +82,7 @@ export function accountBalances(acc: BankAccount, txs: BankTx[], upTo: string): 
   const anchor = (acc.anchors ?? []).filter(a => a.data <= upTo).sort((a, b) => b.data.localeCompare(a.data))[0];
   if (anchor) {
     let emConta = Number(anchor.saldo_conta) || 0;
-    let aplicado = Number(anchor.saldo_aplicado) || 0;
+    let aplicado = anchorAplicado(acc, txs, anchor);
     for (const t of txs) {
       if (t.account_id !== acc.id || t.data <= anchor.data || t.data > upTo) continue;
       emConta += signed(t);
@@ -92,6 +92,13 @@ export function accountBalances(acc: BankAccount, txs: BankTx[], upTo: string): 
   }
   const b = rawAccountBalances(acc, txs, upTo);
   return cover(acc, b.emConta, b.aplicado);
+}
+
+/** Aplicado da âncora; se o extrato não trouxe o aplicado, usa o calculado até a data da âncora. */
+function anchorAplicado(acc: BankAccount, txs: BankTx[], a: BalanceAnchor): number {
+  if (!a.aplicado_calc) return Number(a.saldo_aplicado) || 0;
+  const prev = { ...acc, anchors: (acc.anchors ?? []).filter(x => x.data < a.data) };
+  return accountBalances(prev, txs, a.data).aplicado;
 }
 
 /** Conta com aplicação automática: saldo negativo em conta é coberto pela aplicação (o total não muda). */
@@ -122,7 +129,7 @@ export function anchorAdjustments(acc: BankAccount, txs: BankTx[], from: string,
   for (const a of acc.anchors ?? []) {
     if (a.data < from || a.data > to) continue;
     const before = accountBalances({ ...acc, anchors: (acc.anchors ?? []).filter(x => x.data < a.data) }, txs, a.data).total;
-    s += Number(a.saldo_conta) + Number(a.saldo_aplicado) - before;
+    s += Number(a.saldo_conta) + anchorAplicado(acc, txs, a) - before;
   }
   return r2(s);
 }
