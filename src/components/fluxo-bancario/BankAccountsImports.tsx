@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Upload, Trash2, Pencil, FileText, Download, AlertTriangle } from 'lucide-react';
+import { Plus, Upload, Trash2, Pencil, FileText, Download, AlertTriangle, PiggyBank } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -349,6 +349,17 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
                   </div>
                 </div>
                 <div className="flex">
+                  {i.saldo_final_informado != null && (
+                    <Button size="sm" variant="ghost" title="Informar saldo aplicado (quando o arquivo não traz)" onClick={async () => {
+                      const atual = i.saldo_aplicado_informado != null ? Number(i.saldo_aplicado_informado) - Number(i.saldo_final_informado) : null;
+                      const v = window.prompt(`Saldo aplicado em ${fmtDate(i.periodo_fim)} (deixe vazio para voltar ao cálculo automático):`, atual != null ? String(atual.toFixed(2)).replace('.', ',') : '');
+                      if (v === null) return;
+                      const total = v.trim() === '' ? null : Math.round((Number(i.saldo_final_informado) + parseBRNumber(v)) * 100) / 100;
+                      const { error } = await db.from('bank_statement_imports').update({ saldo_aplicado_informado: total }).eq('id', i.id);
+                      if (error) return toast.error(error.message);
+                      toast.success(total == null ? 'Aplicado volta a ser calculado' : 'Saldo aplicado salvo'); invalidate();
+                    }}><PiggyBank className="h-4 w-4" /></Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => download(i.file_path)} title="Baixar arquivo original"><Download className="h-4 w-4" /></Button>
                   <Button size="sm" variant="ghost" className="hover:text-destructive" onClick={() => setDeleteId(i.id)} title="Excluir importação"><Trash2 className="h-4 w-4" /></Button>
                 </div>
