@@ -10,6 +10,7 @@ import { Calculator, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { getEffectiveClassification } from '@/lib/classificationUtils';
+import { useDailyFlowMonthlyTotals } from '@/hooks/useDailyFlowMonthlyTotals';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 
 interface SimulationProps { schoolId: string; }
@@ -221,46 +222,11 @@ export function Simulation({ schoolId }: SimulationProps) {
     return map;
   }, [products, cells, months]);
 
-  // Receita projetada (sistema) — usa dataProjetada (mesma base de Recebíveis)
-  const sistemaProjetadoPorMes = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const e of entries) {
-      if (e.origem === 'fluxo') continue;
-      if (e.tipoRegistro !== 'projetado') continue;
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls !== 'receita') continue;
-      const mes = (e.dataProjetada || e.data).slice(0, 7);
-      map[mes] = (map[mes] || 0) + e.valor;
-    }
-    return map;
-  }, [entries, classifications]);
-
-  // Contas a pagar projetadas (sistema) — despesas, também por dataProjetada
-  const contasPagarPorMes = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const e of entries) {
-      if (e.origem === 'fluxo') continue;
-      if (e.tipoRegistro !== 'projetado') continue;
-      const cls = getEffectiveClassification(e, classifications);
-      if (cls !== 'despesa') continue;
-      const mes = (e.dataProjetada || e.data).slice(0, 7);
-      map[mes] = (map[mes] || 0) + e.valor;
-    }
-    return map;
-  }, [entries, classifications]);
-
-  // Operações projetadas (ex.: Empréstimo) — impactam só o caixa (impacto do SSOT)
-  const operacoesPorMes = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const e of entries) {
-      if (e.origem === 'fluxo') continue;
-      if (e.tipoRegistro !== 'projetado') continue;
-      if (getEffectiveClassification(e, classifications) !== 'operacao') continue;
-      const mes = (e.dataProjetada || e.data).slice(0, 7);
-      map[mes] = (map[mes] || 0) + (e.impacto || 0);
-    }
-    return map;
-  }, [entries, classifications]);
+  // Mesmos totais do Fluxo Diário: realizado até o último extrato + previsto depois (atualiza sozinho).
+  const flowTotals = useDailyFlowMonthlyTotals(schoolId, months);
+  const sistemaProjetadoPorMes = useMemo(() => Object.fromEntries(months.map(m => [m, flowTotals[m]?.entrada ?? 0])) as Record<string, number>, [months, flowTotals]);
+  const contasPagarPorMes = useMemo(() => Object.fromEntries(months.map(m => [m, flowTotals[m]?.saida ?? 0])) as Record<string, number>, [months, flowTotals]);
+  const operacoesPorMes = useMemo(() => Object.fromEntries(months.map(m => [m, flowTotals[m]?.operacoes ?? 0])) as Record<string, number>, [months, flowTotals]);
 
   // Ajustes manuais (entradas/saídas específicas) — não entram em "Receita simulada"
   const { data: dbAdjustments = [] } = useQuery({
@@ -555,9 +521,9 @@ export function Simulation({ schoolId }: SimulationProps) {
                 })}
               </tr>
               <tr className="border-t border-border/30">
-                <td className="px-2 py-2 text-muted-foreground">Receita projetada (sistema)</td>
+                <td className="px-2 py-2 text-muted-foreground">Receita (realizado + previsto)</td>
                 {months.map(m => (
-                  <td key={m} className="px-2 py-2 text-right">{formatCurrency(sistemaProjetadoPorMes[m] || 0)}</td>
+                  <td key={m} className="px-2 py-2 text-right">{formatCurrency(sistemaProjetadoPorMes[m] || 0)}{(flowTotals[m]?.entradaRealizada ?? 0) > 0 && (flowTotals[m]?.entradaRestante ?? 0) > 0 && <p className="text-[10px] text-muted-foreground whitespace-nowrap">{formatCurrency(flowTotals[m].entradaRealizada)} recebidos · {formatCurrency(flowTotals[m].entradaRestante)} a receber</p>}</td>
                 ))}
               </tr>
               <tr className="border-t border-border/30">
@@ -580,7 +546,7 @@ export function Simulation({ schoolId }: SimulationProps) {
                 ))}
               </tr>
               <tr className="border-t border-border/30">
-                <td className="px-2 py-2 text-muted-foreground">Contas a pagar (projetado)</td>
+                <td className="px-2 py-2 text-muted-foreground">Contas a pagar (realizado + previsto)</td>
                 {months.map(m => (
                   <td key={m} className="px-2 py-2 text-right text-destructive">{formatCurrency(contasPagarPorMes[m] || 0)}</td>
                 ))}

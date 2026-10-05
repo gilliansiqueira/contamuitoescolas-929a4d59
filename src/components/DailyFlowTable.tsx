@@ -19,6 +19,7 @@ import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CompactStat } from '@/components/mobile/CompactStat';
+import { buildDailyRows } from '@/lib/dailyFlow';
 import type { FinancialEntry } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
 import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
@@ -32,25 +33,6 @@ interface DailyFlowTableProps {
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
-
-interface DayRow {
-  data: string;
-  saldoFinalPrevisto: number;
-  saldoFinalRealizado: number;
-  saldoFinalProjecao: number;
-  entradaPrevista: number;
-  entradaRealizada: number;
-  saidaPrevista: number;
-  saidaRealizada: number;
-  operacoes: number;
-  ignorados: number;
-  saldoFinal: number;
-  isWeekend: boolean;
-  dayOfWeek: string;
-  isAfterCutoff: boolean;
-  isCutoff: boolean;
-}
-
 
 export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps) {
   const isMobile = useIsMobile();
@@ -127,125 +109,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   }, [months, movementCtx, isInModel, saldoInicialPeriodo]);
 
 
-  const dailyData = useMemo(() => {
-    const priorSaldo = saldoInicialPeriodo;
-
-    const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoesPrev: number; operacoesReal: number; ignorados: number }> = {};
-    const ensureDay = (data: string) => {
-      if (!byDate[data]) byDate[data] = { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0, ignorados: 0 };
-      return byDate[data];
-    };
-
-    // Meses que já têm fluxo realizado dia a dia na tabela: o histórico mensal
-    // não pode ser somado de novo no último dia (dupla contagem).
-    const mesesComFluxoDiario = new Set(realizedEntries.map(e => e.data.slice(0, 7)));
-
-    historicalRows.forEach(r => {
-      if (monthSources[r.month] !== 'historico') return;
-      if (mesesComFluxoDiario.has(r.month)) return;
-      const monthDays = allDays.filter(d => d.startsWith(r.month));
-      const data = monthDays[monthDays.length - 1];
-      if (!data) return;
-
-      const meta = resolveTipoMeta(r.tipo_valor, classifications, modelItems);
-      if (!meta.impactaCaixa) return;
-      const valor = Number(r.valor) || 0;
-      if (valor === 0) return;
-      const d = ensureDay(data);
-      if (!meta.entraNoResultado) {
-        d.operacoesReal += meta.sinal === 'somar' ? valor : -valor;
-      } else if (meta.sinal === 'somar') {
-        d.entradaRealizada += valor;
-      } else {
-        d.saidaRealizada += valor;
-      }
-    });
-
-    adjustedProjectedEntries.forEach(e => {
-      const data = e.dataProjetada;
-      if (!allDays.includes(data)) return;
-      ensureDay(data);
-      const impact = e.impacto;
-      if (impact === 0) return;
-      // Operação (entraNoResultado=false) impacta caixa mas vai para coluna Operações
-      if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
-        byDate[data].operacoesPrev += impact;
-        return;
-      }
-      if (impact > 0) {
-        byDate[data].entradaPrevista += impact;
-      } else {
-        byDate[data].saidaPrevista += Math.abs(impact);
-      }
-    });
-
-    realizedEntries.forEach(e => {
-      const data = e.data;
-      if (!allDays.includes(data)) return;
-      ensureDay(data);
-      const impact = e.impacto;
-      if (impact === 0) return;
-      if (IGNORADOS_BANCO.has((e as any).tipoOriginal ?? '')) {
-        byDate[data].ignorados += impact;
-        return;
-      }
-      if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) {
-        byDate[data].operacoesReal += impact;
-        return;
-      }
-      if (impact > 0) {
-        byDate[data].entradaRealizada += impact;
-      } else {
-        byDate[data].saidaRealizada += Math.abs(impact);
-      }
-    });
-
-
-    // Cutoff: último dia com QUALQUER movimento realizado.
-    const cutoffIdx = allDays.reduce((last, data, i) => {
-      const d = byDate[data];
-      if (d && (d.entradaRealizada > 0 || d.saidaRealizada > 0 || d.operacoesReal !== 0 || d.ignorados !== 0)) return i;
-      return last;
-    }, -1);
-
-    let saldo = priorSaldo;
-    let saldoPrev = priorSaldo;
-    let saldoReal = priorSaldo;
-    let saldoProj = priorSaldo; // híbrido: realizado até cutoff, previsto depois
-    return allDays.map((data, i) => {
-      const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0, ignorados: 0 };
-      const isAfterCutoff = cutoffIdx >= 0 && i > cutoffIdx;
-      // Até o último dia realizado, Operações mostra só o que aconteceu (previsões antigas não somam).
-      const operacoes = cutoffIdx >= 0 && !isAfterCutoff ? d.operacoesReal : d.operacoesPrev + d.operacoesReal;
-      saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + d.operacoesPrev + d.operacoesReal + d.ignorados;
-      saldoPrev += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
-      saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados;
-      if (!isAfterCutoff) {
-        saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados;
-      } else {
-        saldoProj += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
-      }
-      return {
-        data,
-        entradaPrevista: d.entradaPrevista,
-        entradaRealizada: d.entradaRealizada,
-        saidaPrevista: d.saidaPrevista,
-        saidaRealizada: d.saidaRealizada,
-        operacoes,
-        ignorados: d.ignorados,
-        saldoFinal: saldo,
-        saldoFinalPrevisto: saldoPrev,
-        saldoFinalRealizado: saldoReal,
-        saldoFinalProjecao: saldoProj,
-        isWeekend: isWeekend(data),
-        dayOfWeek: getDayOfWeek(data),
-        isAfterCutoff,
-        // Linha divisória só existe quando há transição realizado→previsão dentro do mês
-        isCutoff: i === cutoffIdx && cutoffIdx >= 0 && cutoffIdx < allDays.length - 1,
-      } as DayRow;
-    });
-
-  }, [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications, historicalRows, monthSources, modelItems]);
+  const dailyData = useMemo(() => buildDailyRows({
+    allDays, priorSaldo: saldoInicialPeriodo, projected: adjustedProjectedEntries, realized: realizedEntries,
+    classifications, historicalRows: historicalRows as any, monthSources, modelItems,
+  }), [allDays, adjustedProjectedEntries, realizedEntries, saldoInicialPeriodo, classifications, historicalRows, monthSources, modelItems]);
 
   // Saldo final oficial vem da SSOT (invariante saldoInicial(M+1) = saldoFinal(M)).
   const saldoFinalPeriodo = saldoFinalPeriodoSSOT;
