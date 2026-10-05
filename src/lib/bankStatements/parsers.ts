@@ -23,6 +23,8 @@ export interface BankParseResult {
   saldoDisponivelInformado?: number;
   /** Saldo total (em conta + aplicação automática), lido do próprio arquivo quando existir. */
   saldoComAplicacaoInformado?: number;
+  /** Cheque/depósito bloqueado: já está nos lançamentos, mas fora do saldo disponível impresso. */
+  saldoRetidoInformado?: number;
   /** Saldo atual destacado no cabeçalho, quando diferente do último saldo diário do quadro. */
   saldoAtualCabecalho?: number;
   /** Impede confirmar quando a leitura visual não fecha com os saldos impressos. */
@@ -502,7 +504,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   // Só o PDF do Banco do Brasil é usado apenas para futuros/saldos (os efetivados vêm do OFX).
   // Sicredi: saldos vêm no rodapé ("Saldo Atual", "Saldo bloqueado", "Saldo de investimentos com resgate automático").
   const isSicredi = /saldo de investimentos com resgate autom/i.test(all);
-  let sicData: string | undefined; let sicBloq: number | undefined;
+  let sicData: string | undefined; let sicBloq: number | undefined; let sicRetido: number | undefined;
   const isBB = /banco do brasil|bb\.com\.br|bb rende facil|invest\.?\s*resgate\s*autom|s a l d o|total diario/i.test(all);
   // Ano de referência para bancos que imprimem a data sem ano (ex.: Sicoob "01/09").
   const anoRef = all.match(/\d{2}\/\d{2}\/(\d{4})/)?.[1] ?? String(new Date().getFullYear());
@@ -584,14 +586,14 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   }
   // Sicredi: depósito de cheque cujo valor está em "Saldo bloqueado" ainda não conta no saldo.
   if (isSicredi && sicBloq && sicBloq > 0) {
-    const i = txs.findIndex(t => t.tipo === 'entrada' && /dep\.?\s*cheque/i.test(stripAccents(t.descricao)) && Math.abs(t.valor - sicBloq!) < 0.005);
-    if (i >= 0) { bloqN++; bloqT += txs[i].valor; txs.splice(i, 1); }
+    // O lançamento fica (o Sicredi não cria outra linha ao liberar); o valor vira "retido", como no Inter.
+    sicRetido = Math.round(sicBloq * 100) / 100;
   }
   // Conferência interna: saldo anterior + movimento deve dar o saldo final do PDF.
   let avisoFecha: string[] = [];
   if (saldoAnterior !== undefined && saldoConta !== undefined) {
     const mov = txs.reduce((a, t) => a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
-    const dif = Math.round((saldoAnterior + mov - saldoConta) * 100) / 100;
+    const dif = Math.round((saldoAnterior + mov - saldoConta - (sicRetido ?? 0)) * 100) / 100;
     if (Math.abs(dif) >= 0.01) avisoFecha = [`Atenção: a leitura do PDF não fecha com o saldo final do extrato (diferença de ${dif.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Confira as linhas antes de importar.`];
   }
   const saldos: Partial<BankParseResult> = {};
@@ -607,6 +609,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     const aplic = fundos ?? investido;
     if (saldoTotal === undefined && aplic !== undefined) saldoTotal = Math.round((saldoConta + aplic) * 100) / 100;
     if (saldoTotal !== undefined) saldos.saldoComAplicacaoInformado = saldoTotal;
+    if (sicRetido) saldos.saldoRetidoInformado = sicRetido;
   }
   const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const avisoSaldo = saldos.saldoComAplicacaoInformado !== undefined
@@ -627,6 +630,7 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     ...avisoSaldo,
     ...avisoFecha,
     ...avisoBloqueados(bloqN, bloqT),
+    ...(sicRetido ? [`Cheque bloqueado de R$ ${fmt(sicRetido)}: o lançamento entra normalmente e o valor aparece como "bloqueado" até a liberação (em conta ${fmt(saldoConta!)}).`] : []),
     'Leitura de PDF é aproximada: confira cada linha, os totais e o sentido (entrada/saída) antes de importar.',
     ...(futuros.length ? [`${futuros.length} lançamento(s) futuro(s) entram como "Previsto — aguardando extrato" e são trocados pelo real quando ele chegar.`] : []),
   ] });
