@@ -110,13 +110,13 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
                       const pend = anchorPending(a, txs).find(p => p.data === last.periodo_fim);
                       if (pend) checks.push({ label: 'a confirmar no próximo extrato', ok: false, diff: pend.diff });
                       else if (last.saldo_final_informado != null && !a.has_auto_invest) { const d = atFim.emConta - Number(last.saldo_final_informado); checks.push({ label: 'em conta', ok: Math.abs(d) < 0.01, diff: d }); }
-                      if (last.saldo_aplicado_informado != null) { const d = atFim.total - Number(last.saldo_aplicado_informado); checks.push({ label: 'com aplicação', ok: Math.abs(d) < 0.01, diff: d }); }
+                      if (last.saldo_aplicado_informado != null) { const d = atFim.total - Number(last.saldo_aplicado_informado) - Number((last as any).saldo_retido_informado ?? 0); checks.push({ label: 'com aplicação', ok: Math.abs(d) < 0.01, diff: d }); }
                     }
                     return (
                       <tr key={a.id} className="border-t border-border">
                         <td className="py-2 font-medium">{a.nome} <span className="text-xs text-muted-foreground">{a.banco}</span></td>
                         <td>{fmtDate(lastDates.get(a.id))}</td>
-                        <td className="text-right tabular-nums">{fmtBRL(b.emConta)}</td>
+                        <td className="text-right tabular-nums">{fmtBRL(b.emConta)}{(() => { const r = Number(a.anchors?.[0]?.retido ?? 0); return r > 0 ? <p className="text-[11px] text-muted-foreground">disponível {fmtBRL(b.emConta - r)} · {fmtBRL(r)} de cheque bloqueado</p> : null; })()}</td>
                         <td className="text-right tabular-nums">{a.has_auto_invest ? fmtBRL(b.aplicado) : '—'}</td>
                         <td className="text-right tabular-nums font-semibold">{fmtBRL(b.total)}</td>
                         <td className="pl-3 text-xs">{checks.length === 0 ? <span className="text-muted-foreground">—</span> : checks.map(c => (
