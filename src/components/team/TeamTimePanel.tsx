@@ -191,8 +191,9 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
   const monthly = data.employees.map(e => {
     const occ = data.occurrences.filter(o => o.employee_external_id === e.external_id);
     const days = data.daily.filter(d => d.employee_external_id === e.external_id);
+    const cls = days.map(d => classifyDay(d, e.horario_previsto));
     const has = (d: typeof days[number], s: TeamSituacao) => d.situacao === s;
-    return { e, atrasos: days.filter(d => has(d, 'atraso')).length, faltas: days.filter(d => has(d, 'falta')).length, incompletas: days.filter(d => has(d, 'incompleta')).length, extras: days.filter(d => has(d, 'hora_extra') || d.horas_extras).length, inconsist: occ.filter(o => o.origem === 'inconsistencias').length + days.filter(d => has(d, 'inconsistencia')).length, saldo: bankByEmp.get(e.external_id)?.saldo ?? '—' };
+    return { e, atrasos: days.filter(d => has(d, 'atraso')).length, faltas: cls.filter(c => c.faltaDia).length, faltaMin: cls.reduce((s, c) => s + c.faltaMin, 0), incompletas: days.filter(d => has(d, 'incompleta')).length, extras: cls.filter(c => c.extraMin > 0).length, exMin: cls.reduce((s, c) => s + c.extraMin, 0), inconsist: occ.filter(o => o.origem === 'inconsistencias').length + days.filter(d => has(d, 'inconsistencia')).length, saldo: bankByEmp.get(e.external_id)?.saldo ?? '—' };
   });
 
   return (
@@ -213,20 +214,21 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
             {showHidden && !!data.hidden?.length && <div className="space-y-1 border-b border-border bg-muted/30 p-3">{data.hidden.map(h => <div key={h.external_id} className="flex items-center gap-2 text-xs"><span className="font-medium">{h.nome}</span><span className="text-muted-foreground">{h.matricula ?? ''}</span><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" disabled={hide.isPending || !canEdit} onClick={() => setHidden(h.external_id, h.nome, false)}><Undo2 className="h-3 w-3" />Restaurar</Button></div>)}</div>}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Batidas', '1ª marcação', 'Última', 'Trabalhadas', 'Banco de horas', 'Ocorrência', 'Situação', 'Atualizado'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Batidas', '1ª marcação', 'Última', 'Trabalhadas', 'Extras', 'Banco de horas', 'Ocorrência', 'Situação', 'Atualizado'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
                 <tbody>
-                  {filtered.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
-                  {filtered.map(r => <tr key={r.e.external_id} className="border-t border-border">
+                  {filtered.length === 0 && <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
+                  {filtered.map(r => { const c = classifyDay(r.d, r.e.horario_previsto); const sitKey: TeamSituacao = r.situacao === 'aguardando' && c.faltaDia ? 'falta' : r.situacao; const sitLabel = r.situacao === 'aguardando' && c.faltaMin ? `Faltou ${minToHhmm(c.faltaMin)}` : SIT_LABEL[sitKey]; const sitStyle = r.situacao === 'aguardando' && c.faltaMin ? SIT_STYLE.atraso : SIT_STYLE[sitKey]; const occ = c.faltaMin ? `Faltou ${minToHhmm(c.faltaMin)}` : (r.d?.ocorrencia ?? '—'); return <tr key={r.e.external_id} className="border-t border-border">
                     <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
                     <td className="px-3 py-2"><BatidasCelula previsto={r.d ? (r.d.horario_previsto ?? r.e.horario_previsto) : null} marcacoes={r.d?.marcacoes} /></td>
                     <td className="px-3 py-2">{r.d?.primeira_marcacao ?? '—'}</td>
                     <td className="px-3 py-2">{r.d?.ultima_marcacao ?? '—'}</td>
                     <td className="px-3 py-2">{r.d?.horas_trabalhadas ?? '—'}</td>
+                    <td className="px-3 py-2 font-medium text-info">{hhmmToMin(r.d?.horas_extras) > 0 ? minToHhmm(hhmmToMin(r.d?.horas_extras)) : '—'}</td>
                     <td className={`px-3 py-2 font-medium ${(r.bank?.saldo_minutos ?? 0) < 0 ? 'text-destructive' : ''}`}>{r.bank?.saldo ?? '—'}</td>
-                    <td className="px-3 py-2">{r.d?.ocorrencia ?? '—'}</td>
-                    <td className="px-3 py-2"><span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${SIT_STYLE[r.situacao]}`}>{SIT_LABEL[r.situacao]}</span></td>
+                    <td className="px-3 py-2">{occ}</td>
+                    <td className="px-3 py-2"><span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${sitStyle}`}>{sitLabel}</span></td>
                     <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{fmtDateTime(r.d?.synced_at)}</td>
-                  </tr>)}
+                  </tr>; })}
                 </tbody>
               </table>
             </div>
@@ -241,8 +243,8 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
       <TabsContent value="mes">
         <section className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Colaboradora', 'Atrasos', 'Faltas', 'Marcações incompletas', 'Horas extras', 'Inconsistências', 'Saldo banco de horas'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
-            <tbody>{monthly.map(m => { const ex = data.daily.filter(d => d.employee_external_id === m.e.external_id).reduce((s, d) => s + hhmmToMin(d.horas_extras), 0); return <tr key={m.e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{m.e.nome}</td><td className="px-3 py-2">{m.atrasos}</td><td className="px-3 py-2">{m.faltas}</td><td className="px-3 py-2">{m.incompletas}</td><td className="px-3 py-2">{m.extras} dia(s){ex > 0 && <span className="text-muted-foreground"> · {minToHhmm(ex)}</span>}</td><td className="px-3 py-2">{m.inconsist}</td><td className="px-3 py-2 font-medium">{m.saldo}</td></tr>; })}</tbody>
+            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Colaboradora', 'Atrasos', 'Faltas (dias)', 'Atrasos/saídas antes', 'Marcações incompletas', 'Horas extras', 'Inconsistências', 'Saldo banco de horas'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+            <tbody>{monthly.map(m => <tr key={m.e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{m.e.nome}</td><td className="px-3 py-2">{m.atrasos}</td><td className="px-3 py-2">{m.faltas}</td><td className="px-3 py-2">{m.faltaMin ? minToHhmm(m.faltaMin) : '—'}</td><td className="px-3 py-2">{m.incompletas}</td><td className="px-3 py-2">{m.extras} dia(s){m.exMin > 0 && <span className="text-muted-foreground"> · {minToHhmm(m.exMin)}</span>}</td><td className="px-3 py-2">{m.inconsist}</td><td className="px-3 py-2 font-medium">{m.saldo}</td></tr>)}</tbody>
           </table>
         </section>
       </TabsContent>
@@ -269,19 +271,41 @@ function previstoMin(p?: string | null): number {
   return s;
 }
 
+const spTimeMin = (iso?: string | null) => {
+  if (!iso) return null;
+  const s = new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false });
+  return hhmmToMin(s);
+};
+/** Regra única do Ponto para as três abas: falta do dia inteiro, minutos faltando e extras. */
+export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previstoEmp: string | null, today = spToday()) {
+  if (!d) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false };
+  const isToday = d.dia === today;
+  const semBatida = !(d.marcacoes?.length) && !d.primeira_marcacao;
+  const prev = (d.horario_previsto ?? previstoEmp ?? '').split(/\s+/).find(x => TIME_RE.test(x));
+  const syncMin = spTimeMin(d.synced_at);
+  const syncedSameDay = d.synced_at ? new Date(d.synced_at).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) === d.dia : false;
+  const entradaPassou = !isToday && !syncedSameDay ? true : (prev != null && syncMin != null && syncMin > hhmmToMin(prev));
+  const marcadoFalta = d.situacao === 'falta' || /^falta$/i.test((d.ocorrencia ?? '').trim()) || d.situacao === 'sem_marcacao';
+  const faltaDia = semBatida && marcadoFalta && entradaPassou;
+  const emAndamento = isToday && !faltaDia;
+  const fm = (d.ocorrencia ?? '').match(/Faltas\s+(\d+:\d{2})/i);
+  return { faltaDia, faltaMin: emAndamento || !fm ? 0 : hhmmToMin(fm[1]), extraMin: emAndamento ? 0 : Math.max(0, hhmmToMin(d.horas_extras)), emAndamento };
+}
+
 function ExtrasFaltas({ data, date }: { data: TeamTimeData; date: string }) {
   const [open, setOpen] = useState<string | null>(null);
-  const isFalta = (d: TeamTimeData['daily'][number]) => d.situacao === 'falta' || (d.situacao !== 'em_andamento' && /falta/i.test(d.ocorrencia ?? ''));
   const rows = data.employees.map(e => {
-    const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia.slice(0, 7) === date.slice(0, 7)).sort((a, b) => a.dia.localeCompare(b.dia));
-    const today = days.find(d => d.dia === date);
-    const extraDays = days.filter(d => hhmmToMin(d.horas_extras) > 0);
-    const faltaDays = days.filter(isFalta).map(d => ({ d, occ: data.occurrences.find(o => o.employee_external_id === e.external_id && o.dia === d.dia)?.tipo ?? d.ocorrencia }));
+    const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia.slice(0, 7) === date.slice(0, 7)).sort((a, b) => a.dia.localeCompare(b.dia)).map(d => ({ d, c: classifyDay(d, e.horario_previsto) }));
+    const today = days.find(x => x.d.dia === date);
+    const extraDays = days.filter(x => x.c.extraMin > 0).map(x => x.d);
+    const faltaDays = days.filter(x => x.c.faltaDia || x.c.faltaMin > 0);
+    const faltaDias = faltaDays.filter(x => x.c.faltaDia).length;
+    const faltaMinMes = faltaDays.reduce((s, x) => s + x.c.faltaMin, 0);
     return {
-      e, extraDays, faltaDays,
-      exHoje: hhmmToMin(today?.horas_extras), exMes: extraDays.reduce((s, d) => s + hhmmToMin(d.horas_extras), 0),
-      faltouHoje: !!today && isFalta(today),
-      naoTrab: faltaDays.reduce((s, f) => s + previstoMin(f.d.horario_previsto ?? e.horario_previsto), 0),
+      e, extraDays, faltaDays, faltaDias, faltaMinMes,
+      exHoje: today?.c.extraMin ?? 0, exMes: days.reduce((s, x) => s + x.c.extraMin, 0),
+      faltouHoje: !!today?.c.faltaDia,
+      naoTrab: faltaMinMes + faltaDays.filter(x => x.c.faltaDia).reduce((s, x) => s + previstoMin(x.d.horario_previsto ?? e.horario_previsto), 0),
     };
   });
   const tot = (f: (r: typeof rows[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
@@ -306,15 +330,15 @@ function ExtrasFaltas({ data, date }: { data: TeamTimeData; date: string }) {
       </section>
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-medium"><UserX className="h-4 w-4 text-destructive" />Faltas</h2>
-        <div className="grid grid-cols-2 gap-3"><Card v={tot(r => (r.faltouHoje ? 1 : 0))} l={`Pessoas em ${fmtDate(date)}`} /><Card v={tot(r => r.faltaDays.length)} l="Dias de falta no mês" /></div>
+        <div className="grid grid-cols-3 gap-3"><Card v={tot(r => (r.faltouHoje ? 1 : 0))} l={`Faltas em ${fmtDate(date)}`} /><Card v={tot(r => r.faltaDias)} l="Dias de falta no mês" /><Card v={minToHhmm(tot(r => r.faltaMinMes))} l="Atrasos/saídas antes no mês" /></div>
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Faltou no dia</th><th className={th}>Faltas no mês</th><th className={th}>Horas não trabalhadas</th></tr></thead>
+            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Faltou no dia</th><th className={th}>Faltas (dias)</th><th className={th}>Atrasos/saídas antes</th><th className={th}>Horas não trabalhadas</th></tr></thead>
             <tbody>{rows.map(r => <Fragment key={r.e.external_id}>
               <tr className={`border-t border-border ${r.faltaDays.length ? 'cursor-pointer hover:bg-muted/30' : ''}`} onClick={() => r.faltaDays.length && setOpen(open === `f${r.e.external_id}` ? null : `f${r.e.external_id}`)}>
-                <td className="px-3 py-2 font-medium">{r.e.nome}</td><td className={`px-3 py-2 ${r.faltouHoje ? 'font-medium text-destructive' : ''}`}>{r.faltouHoje ? 'Sim' : 'Não'}</td><td className="px-3 py-2 font-medium">{r.faltaDays.length}</td><td className="px-3 py-2">{r.naoTrab ? minToHhmm(r.naoTrab) : '—'}</td>
+                <td className="px-3 py-2 font-medium">{r.e.nome}</td><td className={`px-3 py-2 ${r.faltouHoje ? 'font-medium text-destructive' : ''}`}>{r.faltouHoje ? 'Sim' : 'Não'}</td><td className="px-3 py-2 font-medium">{r.faltaDias}</td><td className="px-3 py-2">{r.faltaMinMes ? minToHhmm(r.faltaMinMes) : '—'}</td><td className="px-3 py-2">{r.naoTrab ? minToHhmm(r.naoTrab) : '—'}</td>
               </tr>
-              {open === `f${r.e.external_id}` && r.faltaDays.map(f => <tr key={f.d.dia} className="bg-muted/20 text-[11px]"><td className="px-3 py-1.5 pl-6">{fmtDate(f.d.dia)}</td><td colSpan={3} className="px-3 py-1.5 text-muted-foreground">{f.occ ?? 'Falta'}</td></tr>)}
+              {open === `f${r.e.external_id}` && r.faltaDays.map(f => <tr key={f.d.dia} className="bg-muted/20 text-[11px]"><td className="px-3 py-1.5 pl-6">{fmtDate(f.d.dia)}</td><td colSpan={4} className="px-3 py-1.5 text-muted-foreground">{f.c.faltaDia ? 'Falta (dia inteiro)' : `Faltou ${minToHhmm(f.c.faltaMin)} (atraso/saída antes)`}</td></tr>)}
             </Fragment>)}</tbody>
           </table>
         </div>
