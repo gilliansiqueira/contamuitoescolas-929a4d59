@@ -79,7 +79,7 @@ export function isPreviewEnv() {
 export function buildSampleData(today: string): TeamTimeData {
   const names = ['Ana Souza', 'Beatriz Lima', 'Carla Mendes', 'Daniela Rocha', 'Eduarda Alves', 'Fernanda Costa'];
   const sits: TeamSituacao[] = ['regular', 'atraso', 'sem_marcacao', 'incompleta', 'hora_extra', 'aguardando'];
-  const employees = names.map((nome, i) => ({ external_id: `ex-${i}`, matricula: String(100 + i), nome, horario_previsto: '08:00 - 17:48', ativo: true }));
+  const employees = names.map((nome, i) => ({ external_id: `ex-${i}`, matricula: String(100 + i), nome, horario_previsto: '08:00 13:00 14:00 17:48', ativo: true }));
   const daily: TeamDaily[] = employees.map((e, i) => {
     const sit = sits[i];
     const marc: string[] = { regular: ['07:58', '13:00', '14:00', '17:50'], atraso: ['08:27', '13:00', '14:00', '17:50'], sem_marcacao: [], incompleta: ['07:58', '13:00', '17:50'], hora_extra: ['07:58', '13:00', '14:00', '19:05'], aguardando: ['07:58', '17:50'] }[sit] ?? [];
