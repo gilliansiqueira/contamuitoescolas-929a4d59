@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, type TeamSituacao, type TeamTimeData } from '@/hooks/useTeamTime';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,36 @@ const SIT_STYLE: Record<TeamSituacao, string> = {
 const spToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 const fmtDateTime = (iso?: string | null) => iso ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '—';
 const fmtDate = (d: string) => d.split('-').reverse().join('/');
+
+const TIME_RE = /^\d{1,2}:\d{2}$/;
+const chipOk = 'rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium';
+const chipFalta = (t: string, key: string) => <span key={key} title={`Batida faltando (previsto ${t})`} className="rounded border border-dashed border-destructive/60 bg-destructive/5 px-1.5 py-0.5 text-[10px] text-destructive">{t}</span>;
+
+/** Mostra todas as batidas do dia; quando falta alguma, o slot previsto fica tracejado em vermelho. */
+function BatidasCelula({ previsto, marcacoes }: { previsto?: string | null; marcacoes?: string[] | null }) {
+  const slots = (previsto ?? '').trim().split(/\s+/).filter(t => TIME_RE.test(t));
+  const marc = (marcacoes ?? []).filter(t => TIME_RE.test(t));
+  if (!marc.length) {
+    if (!slots.length) return <span className="text-muted-foreground">—</span>;
+    return <span className="inline-flex flex-wrap gap-1">{slots.map((t, i) => chipFalta(t, String(i)))}</span>;
+  }
+  if (!slots.length || marc.length >= slots.length) {
+    return <span className="inline-flex flex-wrap gap-1">{marc.map((t, i) => <span key={i} className={chipOk}>{t}</span>)}</span>;
+  }
+  const cells: ReactNode[] = [];
+  if (slots.length - marc.length === 1 && marc.length >= 2) {
+    // Falta uma batida: as primeiras casam em ordem e a última casou com a saída final (ex.: saída do almoço faltando).
+    for (let i = 0; i < slots.length; i++) {
+      if (i < marc.length - 1) cells.push(<span key={i} className={chipOk}>{marc[i]}</span>);
+      else if (i === slots.length - 1) cells.push(<span key={i} className={chipOk}>{marc[marc.length - 1]}</span>);
+      else cells.push(chipFalta(slots[i], String(i)));
+    }
+  } else {
+    marc.forEach((t, i) => cells.push(<span key={i} className={chipOk}>{t}</span>));
+    for (let i = marc.length; i < slots.length; i++) cells.push(chipFalta(slots[i], `f${i}`));
+  }
+  return <span className="inline-flex flex-wrap gap-1">{cells}</span>;
+}
 
 type CardKey = 'all' | 'presentes' | 'sem_marcacao' | 'atraso' | 'incompleta' | 'hora_extra' | 'pendencias';
 
@@ -175,7 +205,7 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <section className="rounded-lg border border-border bg-card">
             <div className="flex flex-wrap gap-2 border-b border-border p-3">
-              <Input value={who} onChange={e => setWho(e.target.value)} placeholder="Colaboradora ou matrícula" className="h-8 w-52 text-xs" />
+              <Input value={who} onChange={e => setWho(e.target.value)} placeholder="Colaboradora" className="h-8 w-52 text-xs" />
               <Select value={sit} onValueChange={v => setSit(v as typeof sit)}><SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as situações</SelectItem>{(Object.keys(SIT_LABEL) as TeamSituacao[]).map(s => <SelectItem key={s} value={s}>{SIT_LABEL[s]}</SelectItem>)}</SelectContent></Select>
               {!!data.hidden?.length && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowHidden(v => !v)}>Ver ocultos ({data.hidden.length})</Button>}
               <Select value={occFilter} onValueChange={setOccFilter}><SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as ocorrências</SelectItem>{occTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
@@ -183,13 +213,12 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
             {showHidden && !!data.hidden?.length && <div className="space-y-1 border-b border-border bg-muted/30 p-3">{data.hidden.map(h => <div key={h.external_id} className="flex items-center gap-2 text-xs"><span className="font-medium">{h.nome}</span><span className="text-muted-foreground">{h.matricula ?? ''}</span><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" disabled={hide.isPending || !canEdit} onClick={() => setHidden(h.external_id, h.nome, false)}><Undo2 className="h-3 w-3" />Restaurar</Button></div>)}</div>}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Matrícula', 'Previsto', '1ª marcação', 'Última', 'Trabalhadas', 'Banco de horas', 'Ocorrência', 'Situação', 'Atualizado'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Batidas', '1ª marcação', 'Última', 'Trabalhadas', 'Banco de horas', 'Ocorrência', 'Situação', 'Atualizado'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
                 <tbody>
-                  {filtered.length === 0 && <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
+                  {filtered.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
                   {filtered.map(r => <tr key={r.e.external_id} className="border-t border-border">
                     <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.e.matricula ?? '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{r.d?.horario_previsto ?? r.e.horario_previsto ?? '—'}</td>
+                    <td className="px-3 py-2"><BatidasCelula previsto={r.d ? (r.d.horario_previsto ?? r.e.horario_previsto) : null} marcacoes={r.d?.marcacoes} /></td>
                     <td className="px-3 py-2">{r.d?.primeira_marcacao ?? '—'}</td>
                     <td className="px-3 py-2">{r.d?.ultima_marcacao ?? '—'}</td>
                     <td className="px-3 py-2">{r.d?.horas_trabalhadas ?? '—'}</td>
