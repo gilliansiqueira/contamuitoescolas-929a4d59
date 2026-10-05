@@ -228,7 +228,7 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
                     <td className="px-3 py-2">{occ}</td>
                     <td className="px-3 py-2"><span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${sitStyle}`}>{sitLabel}</span></td>
                     <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{fmtDateTime(r.d?.synced_at)}</td>
-                  </tr>)}
+                  </tr>; })}
                 </tbody>
               </table>
             </div>
