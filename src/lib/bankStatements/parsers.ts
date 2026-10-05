@@ -809,6 +809,69 @@ export function parseCaixaImageText(text: string): BankParseResult {
   return result;
 }
 
+const MESES_PT: Record<string, string> = { janeiro: '01', fevereiro: '02', marco: '03', abril: '04', maio: '05', junho: '06', julho: '07', agosto: '08', setembro: '09', outubro: '10', novembro: '11', dezembro: '12' };
+
+/**
+ * Extrato PicPay (PDF com texto): blocos por dia "dd de mês aaaa — Saldo ao final do dia".
+ * O sentido vem do indicador impresso pelo banco (+R$ crédito / −R$ débito). Cada dia precisa fechar
+ * com o saldo do fim do dia; qualquer diferença bloqueia a importação.
+ */
+export function parsePicPayLines(lines: string[]): BankParseResult {
+  const dayRe = /^\s*(\d{1,2}) de ([a-zç]+) (\d{4})\s+saldo ao final do dia:\s*(-|−)?\s*r\$\s*([\d.,]+)/i;
+  const txRe = /^\s*(\d{2}:\d{2})\s+(.+?)\s*([+\-−])\s*R\$\s*([\d.]+,\d{2})\s*$/;
+  const skipRe = /^\s*(hora|tipo|documento emitido|\d{2}\/\d{2}\/\d{4} às|\d+ de \d+$|cpf:|extrato de conta|per[ií]odo|saldo final do per)/i;
+  const saldos = new Map<string, number>();
+  const txs: (ParsedBankTx & { prev: string; needsNext: boolean })[] = [];
+  let dia: string | null = null;
+  let prev = '';
+  let last: (typeof txs)[number] | null = null;
+  const titular = lines.find(l => l.trim())?.trim() ?? '';
+  for (const raw of lines) {
+    const l = raw.replace(/\s+$/, '');
+    const plain = stripAccents(l.toLowerCase());
+    const d = plain.match(dayRe);
+    if (d && MESES_PT[d[2]]) {
+      dia = `${d[3]}-${MESES_PT[d[2]]}-${d[1].padStart(2, '0')}`;
+      saldos.set(dia, (d[4] ? -1 : 1) * parseBRNumber(d[5]));
+      prev = ''; last = null; continue;
+    }
+    const t = l.match(txRe);
+    if (t && dia) {
+      const cols = t[2].split(/\s{3,}/).map(c => c.trim()).filter(c => c && !/^com saldo$/i.test(c));
+      const tipoTx = cols[0] ?? 'Lançamento';
+      const nome = cols.slice(1).join(' ').replace(/\s*com saldo$/i, '').trim();
+      const tx = { data: dia, descricao: nome ? `${tipoTx} ${nome}` : tipoTx, valor: parseBRNumber(t[4]), tipo: (t[3] === '+' ? 'entrada' : 'saida') as 'entrada' | 'saida', prev, needsNext: !nome && !!prev };
+      if (!nome && prev) tx.descricao = `${tipoTx} ${prev}`;
+      txs.push(tx); last = tx; prev = ''; continue;
+    }
+    if (skipRe.test(l) || !l.trim() || l.trim() === titular) { prev = ''; continue; }
+    if (last?.needsNext) { last.descricao = `${last.descricao} ${l.trim()}`; last.needsNext = false; prev = ''; last = null; continue; }
+    prev = l.trim(); last = null;
+  }
+  const out: ParsedBankTx[] = txs.map(({ data, descricao, valor, tipo }) => ({ data, descricao: descricao.replace(/\s+/g, ' '), valor, tipo }));
+  const dias = [...saldos.keys()].sort();
+  const divergencias: string[] = [];
+  const net = new Map<string, number>();
+  for (const x of out) net.set(x.data, Math.round(((net.get(x.data) ?? 0) + (x.tipo === 'entrada' ? x.valor : -x.valor)) * 100) / 100);
+  for (let i = 1; i < dias.length; i++) {
+    const esperado = Math.round((saldos.get(dias[i - 1])! + (net.get(dias[i]) ?? 0)) * 100) / 100;
+    if (Math.abs(esperado - saldos.get(dias[i])!) > 0.01) divergencias.push(`Dia ${dias[i].split('-').reverse().join('/')}: saldo do extrato ${saldos.get(dias[i])!.toFixed(2)}, calculado ${esperado.toFixed(2)}.`);
+  }
+  const all = lines.join('\n');
+  const finalM = stripAccents(all).match(/Saldo final do periodo[\s\S]{0,120}?R\$\s*([\d.]+,\d{2})/i);
+  const saldoFim = dias.length ? saldos.get(dias[dias.length - 1])! : undefined;
+  if (finalM && saldoFim !== undefined && Math.abs(parseBRNumber(finalM[1]) - saldoFim) > 0.01) divergencias.push(`Saldo final do período (${finalM[1]}) diferente do último dia (${saldoFim.toFixed(2)}).`);
+  if (!out.length) divergencias.push('Nenhum lançamento lido neste PDF do PicPay.');
+  const per = stripAccents(all).match(/(\d{1,2}) de ([a-z]+) de (\d{4}) a\s+(?:R\$\s*[\d.,]+\s+)?(\d{1,2}) de ([a-z]+) de (\d{4})/i);
+  const res = finish('pdf', out, { banco: 'PicPay', saldoFinalInformado: divergencias.length ? undefined : saldoFim, bloqueiaImportacao: divergencias.length > 0, divergencias });
+  if (per && MESES_PT[per[2].toLowerCase()] && MESES_PT[per[5].toLowerCase()]) {
+    res.periodoInicio = `${per[3]}-${MESES_PT[per[2].toLowerCase()]}-${per[1].padStart(2, '0')}`;
+    res.periodoFim = `${per[6]}-${MESES_PT[per[5].toLowerCase()]}-${per[4].padStart(2, '0')}`;
+  }
+  res.avisos = [`Extrato PicPay: ${out.length} lançamento(s) em ${dias.length} dia(s), conferidos pelo saldo do fim de cada dia.`, ...divergencias];
+  return res;
+}
+
 async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
@@ -880,6 +943,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
       if (plain.includes('caixa') && plain.includes('saldo dia')) return parseCaixaImageText(recognized);
       return parseItauImageText(recognized);
     }
+    if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
     return parsePdfLines(lines);
   }
   throw new Error('Formato não suportado. Use OFX, CSV, Excel ou PDF.');
