@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'; import { readFileSync } from 'fs';
 import { parseXLSX, parseCSV, decodeBankText } from '@/lib/bankStatements/parsers';
-const ab = (p: string) => { const b = readFileSync(p); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
+const ab = (p: string) => { const b = readFileSync(p); const u = new Uint8Array(b.length); u.set(b); return u.buffer; };
 for (const [k, f] of [['xlsx', () => parseXLSX(ab('src/test/fixtures/pinheirinho_fluxo.xlsx'))], ['csv', () => parseCSV(decodeBankText(ab('src/test/fixtures/pinheirinho_fluxo.csv')))]] as const)
   test(`planilha Pinheirinho ${k}`, () => {
     const r = f();
