@@ -209,6 +209,9 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         result.saldoComAplicacaoInformado = result.saldoFinalInformado;
         result.saldoFinalInformado = saldoCalc;
       }
+      if (acc?.has_auto_invest && result.formato === 'ofx' && result.saldoComAplicacaoInformado === undefined && !/bradesco/i.test(`${acc.banco} ${result.banco ?? ''}`)) {
+        result.avisos = [...(result.avisos ?? []), 'Este arquivo não traz o valor aplicado: os lançamentos entram, mas o saldo oficial da conta só atualiza com o PDF do banco (que traz a aplicação). Envie também o PDF do mesmo período.'];
+      }
       setPreview({ file, hash, result, hashes, existing, kinds, linkRefs, saldoAplicado: '', saldoCalc });
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao ler o arquivo');
@@ -236,6 +239,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         periodo_inicio: result.periodoInicio ?? null, periodo_fim: result.periodoFim ?? null, total_linhas: result.transactions.length,
         inseridas: novos.length, duplicadas: result.transactions.length - novos.length, total_entradas: entradas, total_saidas: saidas, imported_by: user?.id ?? null,
         saldo_final_informado: result.saldoFinalInformado ?? null, saldo_aplicado_informado: result.saldoComAplicacaoInformado ?? null,
+        saldo_retido_informado: result.saldoRetidoInformado ?? null,
       }).select('id').single();
       if (e1) throw e1;
       for (let i = 0; i < novos.length; i += 500) {
