@@ -197,7 +197,7 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
 
   return (
     <Tabs defaultValue="dia">
-      <TabsList><TabsTrigger value="dia">Dia</TabsTrigger><TabsTrigger value="mes">Resumo do mês</TabsTrigger></TabsList>
+      <TabsList><TabsTrigger value="dia">Dia</TabsTrigger><TabsTrigger value="mes">Resumo do mês</TabsTrigger><TabsTrigger value="extras">Extras e faltas</TabsTrigger></TabsList>
       <TabsContent value="dia" className="space-y-5">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
           {cards.map(c => <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}><c.icon className="h-4 w-4 text-primary" /><div className="mt-2 text-2xl font-semibold">{c.v}</div><div className="text-[11px] text-muted-foreground">{c.label}</div></button>)}
@@ -241,11 +241,84 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
       <TabsContent value="mes">
         <section className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Colaboradora', 'Atrasos', 'Faltas', 'Marcações incompletas', 'Horas extras (dias)', 'Inconsistências', 'Saldo banco de horas'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
-            <tbody>{monthly.map(m => <tr key={m.e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{m.e.nome}</td><td className="px-3 py-2">{m.atrasos}</td><td className="px-3 py-2">{m.faltas}</td><td className="px-3 py-2">{m.incompletas}</td><td className="px-3 py-2">{m.extras}</td><td className="px-3 py-2">{m.inconsist}</td><td className="px-3 py-2 font-medium">{m.saldo}</td></tr>)}</tbody>
+            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Colaboradora', 'Atrasos', 'Faltas', 'Marcações incompletas', 'Horas extras', 'Inconsistências', 'Saldo banco de horas'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+            <tbody>{monthly.map(m => { const ex = data.daily.filter(d => d.employee_external_id === m.e.external_id).reduce((s, d) => s + hhmmToMin(d.horas_extras), 0); return <tr key={m.e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{m.e.nome}</td><td className="px-3 py-2">{m.atrasos}</td><td className="px-3 py-2">{m.faltas}</td><td className="px-3 py-2">{m.incompletas}</td><td className="px-3 py-2">{m.extras} dia(s){ex > 0 && <span className="text-muted-foreground"> · {minToHhmm(ex)}</span>}</td><td className="px-3 py-2">{m.inconsist}</td><td className="px-3 py-2 font-medium">{m.saldo}</td></tr>; })}</tbody>
           </table>
         </section>
       </TabsContent>
+      <TabsContent value="extras"><ExtrasFaltas data={data} date={date} /></TabsContent>
     </Tabs>
+  );
+}
+
+function hhmmToMin(v?: string | null): number {
+  const m = v?.trim().match(/^([+-])?(\d{1,3}):(\d{2})$/);
+  if (!m) return 0;
+  const n = Number(m[2]) * 60 + Number(m[3]);
+  return m[1] === '-' ? -n : n;
+}
+function minToHhmm(n: number): string {
+  const a = Math.abs(n);
+  return `${n < 0 ? '-' : ''}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
+}
+/** Jornada prevista do dia a partir dos horários impressos (pares entrada/saída). */
+function previstoMin(p?: string | null): number {
+  const t = (p ?? '').split(/\s+/).filter(x => TIME_RE.test(x)).map(x => hhmmToMin(x));
+  let s = 0;
+  for (let i = 0; i + 1 < t.length; i += 2) s += Math.max(0, t[i + 1] - t[i]);
+  return s;
+}
+
+function ExtrasFaltas({ data, date }: { data: TeamTimeData; date: string }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const isFalta = (d: TeamTimeData['daily'][number]) => d.situacao === 'falta' || (d.situacao !== 'em_andamento' && /falta/i.test(d.ocorrencia ?? ''));
+  const rows = data.employees.map(e => {
+    const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia.slice(0, 7) === date.slice(0, 7)).sort((a, b) => a.dia.localeCompare(b.dia));
+    const today = days.find(d => d.dia === date);
+    const extraDays = days.filter(d => hhmmToMin(d.horas_extras) > 0);
+    const faltaDays = days.filter(isFalta).map(d => ({ d, occ: data.occurrences.find(o => o.employee_external_id === e.external_id && o.dia === d.dia)?.tipo ?? d.ocorrencia }));
+    return {
+      e, extraDays, faltaDays,
+      exHoje: hhmmToMin(today?.horas_extras), exMes: extraDays.reduce((s, d) => s + hhmmToMin(d.horas_extras), 0),
+      faltouHoje: !!today && isFalta(today),
+      naoTrab: faltaDays.reduce((s, f) => s + previstoMin(f.d.horario_previsto ?? e.horario_previsto), 0),
+    };
+  });
+  const tot = (f: (r: typeof rows[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
+  const Card = ({ v, l }: { v: string | number; l: string }) => <div className="rounded-lg border border-border bg-card p-3"><div className="text-2xl font-semibold">{v}</div><div className="text-[11px] text-muted-foreground">{l}</div></div>;
+  const th = 'whitespace-nowrap px-3 py-2 font-medium';
+  return (
+    <div className="grid gap-5 xl:grid-cols-2">
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-medium"><Timer className="h-4 w-4 text-primary" />Horas extras</h2>
+        <div className="grid grid-cols-2 gap-3"><Card v={minToHhmm(tot(r => r.exHoje))} l={`Equipe em ${fmtDate(date)}`} /><Card v={minToHhmm(tot(r => r.exMes))} l="Equipe no mês" /></div>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>No dia</th><th className={th}>No mês</th><th className={th}>Dias com extra</th></tr></thead>
+            <tbody>{rows.map(r => <Fragment key={r.e.external_id}>
+              <tr className={`border-t border-border ${r.extraDays.length ? 'cursor-pointer hover:bg-muted/30' : ''}`} onClick={() => r.extraDays.length && setOpen(open === `x${r.e.external_id}` ? null : `x${r.e.external_id}`)}>
+                <td className="px-3 py-2 font-medium">{r.e.nome}</td><td className="px-3 py-2">{r.exHoje ? minToHhmm(r.exHoje) : '—'}</td><td className="px-3 py-2 font-medium">{r.exMes ? minToHhmm(r.exMes) : '—'}</td><td className="px-3 py-2">{r.extraDays.length}</td>
+              </tr>
+              {open === `x${r.e.external_id}` && r.extraDays.map(d => <tr key={d.dia} className="bg-muted/20 text-[11px]"><td className="px-3 py-1.5 pl-6">{fmtDate(d.dia)}</td><td colSpan={2} className="px-3 py-1.5 text-muted-foreground">{(d.marcacoes ?? []).join(' · ') || '—'}</td><td className="px-3 py-1.5 font-medium">{d.horas_extras}</td></tr>)}
+            </Fragment>)}</tbody>
+          </table>
+        </div>
+      </section>
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-medium"><UserX className="h-4 w-4 text-destructive" />Faltas</h2>
+        <div className="grid grid-cols-2 gap-3"><Card v={tot(r => (r.faltouHoje ? 1 : 0))} l={`Pessoas em ${fmtDate(date)}`} /><Card v={tot(r => r.faltaDays.length)} l="Dias de falta no mês" /></div>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Faltou no dia</th><th className={th}>Faltas no mês</th><th className={th}>Horas não trabalhadas</th></tr></thead>
+            <tbody>{rows.map(r => <Fragment key={r.e.external_id}>
+              <tr className={`border-t border-border ${r.faltaDays.length ? 'cursor-pointer hover:bg-muted/30' : ''}`} onClick={() => r.faltaDays.length && setOpen(open === `f${r.e.external_id}` ? null : `f${r.e.external_id}`)}>
+                <td className="px-3 py-2 font-medium">{r.e.nome}</td><td className={`px-3 py-2 ${r.faltouHoje ? 'font-medium text-destructive' : ''}`}>{r.faltouHoje ? 'Sim' : 'Não'}</td><td className="px-3 py-2 font-medium">{r.faltaDays.length}</td><td className="px-3 py-2">{r.naoTrab ? minToHhmm(r.naoTrab) : '—'}</td>
+              </tr>
+              {open === `f${r.e.external_id}` && r.faltaDays.map(f => <tr key={f.d.dia} className="bg-muted/20 text-[11px]"><td className="px-3 py-1.5 pl-6">{fmtDate(f.d.dia)}</td><td colSpan={3} className="px-3 py-1.5 text-muted-foreground">{f.occ ?? 'Falta'}</td></tr>)}
+            </Fragment>)}</tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }
