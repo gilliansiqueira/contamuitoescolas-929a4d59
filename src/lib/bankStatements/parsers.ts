@@ -277,9 +277,74 @@ export function parseCSV(content: string): BankParseResult {
   return finish('csv', rowsToTx(rows));
 }
 
+export const TEMPLATE_HEADER = ['Data', 'Descrição', 'Entrada', 'Saída', 'Saldo do dia'];
+
+/** Gera o modelo de planilha de extrato (quando o PDF do banco não pode ser lido). */
+export function buildBankTemplateXlsx(): ArrayBuffer {
+  const ws = XLSX.utils.aoa_to_sheet([
+    TEMPLATE_HEADER,
+    ['Saldo anterior', '', '', '', 0],
+    ['01/09/2026', 'Exemplo: tarifa (apague esta linha)', '', 75, -75],
+  ]);
+  ws['!cols'] = [{ wch: 14 }, { wch: 44 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Extrato');
+  return XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+}
+
+/**
+ * Modelo de planilha do sistema. Sentido pela coluna (Entrada/Saída); "Saldo do dia", quando preenchido,
+ * confere linha a linha. Qualquer diferença bloqueia a importação.
+ */
+export function parseBankTemplate(rows: unknown[][]): BankParseResult | null {
+  const norm = (v: unknown) => stripAccents(String(v ?? '').toLowerCase().trim());
+  const want = TEMPLATE_HEADER.map(norm);
+  const h = rows.slice(0, 10).findIndex(r => want.every((w, j) => norm(r?.[j]) === w));
+  if (h < 0) return null;
+  const num = (v: unknown): number | null => {
+    if (typeof v === 'number' && isFinite(v)) return v;
+    const s = String(v ?? '').trim();
+    return s && /\d/.test(s) ? parseBRNumber(s) : null;
+  };
+  const toIso = (v: unknown): string | null => {
+    if (v instanceof Date && !isNaN(v.getTime())) return new Date(v.getTime() + 12 * 3600e3).toISOString().slice(0, 10);
+    return toIsoDate(String(v ?? ''));
+  };
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  let saldo: number | undefined;
+  const txs: ParsedBankTx[] = [];
+  const divergencias: string[] = [];
+  rows.slice(h + 1).forEach((r, k) => {
+    if (!r || r.every(c => String(c ?? '').trim() === '')) return;
+    const linha = h + 2 + k;
+    if (norm(r[0]).startsWith('saldo anterior')) { saldo = r2(num(r[4]) ?? num(r[2]) ?? 0); return; }
+    const data = toIso(r[0]);
+    if (!data) { divergencias.push(`Linha ${linha}: data inválida.`); return; }
+    const ent = num(r[2]), sai = num(r[3]);
+    if ((ent && sai) || (!ent && !sai)) { divergencias.push(`Linha ${linha}: preencha Entrada OU Saída.`); return; }
+    const tipo = ent ? 'entrada' : 'saida';
+    const valor = r2(Math.abs((ent ?? sai) as number));
+    txs.push({ data, descricao: String(r[1] ?? '').trim() || 'Lançamento', valor, tipo });
+    if (saldo !== undefined) {
+      saldo = r2(saldo + (tipo === 'entrada' ? valor : -valor));
+      const imp = num(r[4]);
+      if (imp !== null && Math.abs(imp - saldo) > 0.01) divergencias.push(`Linha ${linha} (${data.split('-').reverse().join('/')}): saldo da planilha ${imp.toFixed(2)}, calculado ${saldo.toFixed(2)}.`);
+    }
+  });
+  if (saldo === undefined) divergencias.unshift('Falta a linha "Saldo anterior" com o valor na coluna "Saldo do dia".');
+  if (!txs.length) divergencias.push('Nenhum lançamento preenchido.');
+  return finish('xlsx', txs, {
+    saldoFinalInformado: divergencias.length ? undefined : saldo,
+    bloqueiaImportacao: divergencias.length > 0,
+    divergencias,
+  });
+}
+
 export function parseXLSX(buffer: ArrayBuffer): BankParseResult {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+  const tpl = parseBankTemplate(XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' }));
+  if (tpl) { tpl.avisos = [`Modelo de planilha do sistema: ${tpl.transactions.length} lançamento(s), conferidos pelo saldo.`]; return tpl; }
   const bb = parseBancoDoBrasilXLSX(rows);
   if (bb) return finish('xlsx', bb, { banco: 'Banco do Brasil' });
   const txs = rowsToTx(rows);
