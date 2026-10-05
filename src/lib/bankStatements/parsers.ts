@@ -269,11 +269,75 @@ function parseBancoDoBrasilXLSX(rows: (string | number)[][]): ParsedBankTx[] | n
   return txs.length ? txs : null;
 }
 
+const MESES_ABREV: Record<string, string> = { jan: '01', fev: '02', mar: '03', abr: '04', mai: '05', jun: '06', jul: '07', ago: '08', set: '09', out: '10', nov: '11', dez: '12' };
+
+/**
+ * Planilha "Fluxo de caixa" da equipe (ex.: Pinheirinho – CEF): colunas "Saldo inicial:", Data, Valor,
+ * Observação, Tipo Movimentação, Categoria, Entrada/Saída, Saldo. Sentido SEMPRE pela coluna "Entrada/Saída";
+ * a coluna "Saldo" confere linha a linha e qualquer diferença bloqueia a importação.
+ */
+export function parseCashFlowSheet(rows: unknown[][]): BankParseResult | null {
+  const norm = (v: unknown) => stripAccents(String(v ?? '').toLowerCase().trim());
+  const h = rows.slice(0, 15).findIndex(r => {
+    const c = (r ?? []).map(norm);
+    return c.some(x => x.startsWith('saldo inicial')) && c.some(x => /^entrada\s*\/\s*saida$/.test(x)) && c.includes('data') && c.includes('valor');
+  });
+  if (h < 0) return null;
+  const hdr = (rows[h] ?? []).map(norm);
+  const iIni = hdr.findIndex(x => x.startsWith('saldo inicial'));
+  const iData = hdr.indexOf('data'), iValor = hdr.indexOf('valor');
+  const iCD = hdr.findIndex(x => /^entrada\s*\/\s*saida$/.test(x));
+  const iSaldo = hdr.findIndex(x => x === 'saldo');
+  const iDesc = hdr.findIndex(x => /observ|descri|histor|empresa/.test(x));
+  const ano = rows.slice(0, h).flat().map(c => String(c ?? '').match(/\b(20\d{2})\b/)?.[1]).find(Boolean);
+  const num = (v: unknown): number | null => {
+    if (typeof v === 'number' && isFinite(v)) return v;
+    const s = String(v ?? '').trim();
+    return s && /\d/.test(s) ? parseBRNumber(s) : null;
+  };
+  const toIso = (v: unknown): string | null => {
+    if (Object.prototype.toString.call(v) === '[object Date]' && !isNaN((v as Date).getTime())) return new Date((v as Date).getTime() + 12 * 3600e3).toISOString().slice(0, 10);
+    const s = norm(v);
+    const m = s.match(/^(\d{1,2})[/\-.\s]([a-z]{3})/);
+    if (m && MESES_ABREV[m[2]] && ano) return `${ano}-${MESES_ABREV[m[2]]}-${m[1].padStart(2, '0')}`;
+    return toIsoDate(String(v ?? ''));
+  };
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  let saldo: number | undefined;
+  const txs: ParsedBankTx[] = [];
+  const divergencias: string[] = [];
+  rows.slice(h + 1).forEach((r, k) => {
+    if (!r) return;
+    const linha = h + 2 + k;
+    if (saldo === undefined && iIni >= 0) { const ini = num(r[iIni]); if (ini !== null) saldo = r2(ini); }
+    const data = toIso(r[iData]);
+    const v = num(r[iValor]);
+    if (!data || v === null || v === 0) return; // linhas só com fórmulas
+    const cd = norm(r[iCD]);
+    const tipo: 'entrada' | 'saida' | null = cd.startsWith('entrada') ? 'entrada' : cd.startsWith('saida') ? 'saida' : null;
+    if (!tipo) { divergencias.push(`Linha ${linha}: coluna "Entrada/Saída" vazia.`); return; }
+    const valor = r2(Math.abs(v));
+    txs.push({ data, descricao: (iDesc >= 0 ? String(r[iDesc] ?? '').trim() : '') || 'Lançamento', valor, tipo });
+    if (saldo !== undefined) {
+      saldo = r2(saldo + (tipo === 'entrada' ? valor : -valor));
+      const imp = iSaldo >= 0 ? num(r[iSaldo]) : null;
+      if (imp !== null && Math.abs(imp - saldo) > 0.01) divergencias.push(`Linha ${linha} (${data.split('-').reverse().join('/')}): saldo da planilha ${imp.toFixed(2)}, calculado ${saldo.toFixed(2)}.`);
+    }
+  });
+  if (!txs.length) return null;
+  if (saldo === undefined) divergencias.unshift('Saldo inicial não encontrado na coluna "Saldo inicial:".');
+  const res = finish('xlsx', txs, { saldoFinalInformado: divergencias.length ? undefined : saldo, bloqueiaImportacao: divergencias.length > 0, divergencias });
+  res.avisos = [`Planilha de fluxo de caixa: ${txs.length} lançamento(s); sentido pela coluna "Entrada/Saída", conferidos pelo saldo.`, ...divergencias];
+  return res;
+}
+
 export function parseCSV(content: string): BankParseResult {
   const bb = parseBancoDoBrasilCSV(content);
   if (bb) return finish('csv', bb, { banco: 'Banco do Brasil' });
   const wb = XLSX.read(content, { type: 'string', raw: true });
   const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+  const cf = parseCashFlowSheet(rows);
+  if (cf) { cf.formato = 'csv'; return cf; }
   return finish('csv', rowsToTx(rows));
 }
 
@@ -344,6 +408,8 @@ export function parseXLSX(buffer: ArrayBuffer): BankParseResult {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
   const tpl = parseBankTemplate(XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' }));
+  const cf = parseCashFlowSheet(XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' }));
+  if (cf) return cf;
   if (tpl) { tpl.avisos = [`Modelo de planilha do sistema: ${tpl.transactions.length} lançamento(s), conferidos pelo saldo.`, ...(tpl.divergencias ?? [])]; return tpl; }
   const bb = parseBancoDoBrasilXLSX(rows);
   if (bb) return finish('xlsx', bb, { banco: 'Banco do Brasil' });
