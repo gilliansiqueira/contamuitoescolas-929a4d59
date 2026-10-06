@@ -171,11 +171,15 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
   });
   const count = (f: (r: typeof rows[number]) => boolean) => rows.filter(f).length;
   const isPend = (r: typeof rows[number]) => r.situacao !== 'em_andamento' && r.occ.length > 0 || ['atraso', 'incompleta', 'falta', 'inconsistencia', 'sem_marcacao'].includes(r.situacao);
-  const cards: { k: CardKey; label: string; v: number; icon: typeof Users; f: (r: typeof rows[number]) => boolean }[] = [
+  // Minutos devidos no dia (atraso na entrada ou saída antes do previsto). Dia em andamento não conta.
+  const devMin = (r: typeof rows[number]) => { const c = classifyDay(r.d, r.e.horario_previsto); return c.emAndamento ? 0 : c.faltaMin; };
+  const devendo = (r: typeof rows[number]) => r.situacao === 'atraso' || devMin(r) > 0;
+  const devTotal = rows.reduce((s, r) => s + (devendo(r) ? devMin(r) : 0), 0);
+  const cards: { k: CardKey; label: string; v: number; sub?: string; icon: typeof Users; f: (r: typeof rows[number]) => boolean }[] = [
     { k: 'all', label: 'Colaboradoras ativas', v: rows.length, icon: Users, f: () => true },
     { k: 'presentes', label: 'Presentes hoje', v: count(r => !!r.d?.primeira_marcacao), icon: UserCheck, f: r => !!r.d?.primeira_marcacao },
     { k: 'sem_marcacao', label: 'Sem marcação', v: count(r => r.situacao === 'sem_marcacao'), icon: UserX, f: r => r.situacao === 'sem_marcacao' },
-    { k: 'atraso', label: 'Atrasos', v: count(r => r.situacao === 'atraso'), icon: Clock3, f: r => r.situacao === 'atraso' },
+    { k: 'atraso', label: 'Atrasos / horas devidas', v: count(devendo), sub: devTotal > 0 ? `${minToHhmm(devTotal)} devidas` : undefined, icon: Clock3, f: devendo },
     { k: 'incompleta', label: 'Marcações incompletas', v: count(r => r.situacao === 'incompleta'), icon: AlertTriangle, f: r => r.situacao === 'incompleta' },
     { k: 'hora_extra', label: 'Horas extras', v: count(r => r.situacao === 'hora_extra' || !!r.d?.horas_extras), icon: Timer, f: r => r.situacao === 'hora_extra' || !!r.d?.horas_extras },
     { k: 'pendencias', label: 'Pendências do dia', v: count(isPend), icon: ListChecks, f: isPend },
