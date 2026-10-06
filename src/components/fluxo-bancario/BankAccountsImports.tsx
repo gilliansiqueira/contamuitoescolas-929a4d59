@@ -420,6 +420,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
                 <div><Label>Data do saldo aplicado</Label><Input type="date" value={form.autoData} onChange={e => setForm({ ...form, autoData: e.target.value })} /></div>
                 <p className="col-span-2 text-xs text-muted-foreground">Informe só a parte aplicada (saldo com aplicação menos o saldo em conta).</p>
               </>}
+              <label className="col-span-2 flex items-start gap-2 text-sm"><Checkbox checked={form.esporadico} onCheckedChange={v => setForm({ ...form, esporadico: !!v })} /><span>Extrato esporádico<span className="block text-xs text-muted-foreground">O cliente envia o extrato só de vez em quando: a Central não marca a bolinha de vermelho nem cobra extrato no Meu Dia, e o saldo fica valendo o do último extrato até chegar outro.</span></span></label>
             </div>
           )}
           <DialogFooter><Button onClick={saveAccount}>Salvar</Button></DialogFooter>
