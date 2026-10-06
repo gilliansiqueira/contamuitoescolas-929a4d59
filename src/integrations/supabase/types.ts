@@ -103,6 +103,7 @@ export type Database = {
           banco: string
           conta: string | null
           created_at: string
+          extrato_esporadico: boolean
           has_auto_invest: boolean
           id: string
           is_virtual: boolean
@@ -120,6 +121,7 @@ export type Database = {
           banco?: string
           conta?: string | null
           created_at?: string
+          extrato_esporadico?: boolean
           has_auto_invest?: boolean
           id?: string
           is_virtual?: boolean
@@ -137,6 +139,7 @@ export type Database = {
           banco?: string
           conta?: string | null
           created_at?: string
+          extrato_esporadico?: boolean
           has_auto_invest?: boolean
           id?: string
           is_virtual?: boolean

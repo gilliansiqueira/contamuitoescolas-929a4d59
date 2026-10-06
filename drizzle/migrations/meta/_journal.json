@@ -498,6 +498,13 @@
       "when": 1790967969145,
       "tag": "0070_ensure_bulk_central",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791295990010,
+      "tag": "0071_bank_accounts_extrato_esporadico",
+      "breakpoints": true
     }
   ]
 }

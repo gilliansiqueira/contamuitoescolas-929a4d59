@@ -140,14 +140,17 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
     .select('status, dashboard_source').eq('school_id', schoolId).maybeSingle();
   const usesBank = source?.status === 'ativo' && source?.dashboard_source === 'fluxo_caixa';
   const accounts = usesBank ? (await fetchBankAccounts(schoolId)).filter(a => a.ativa) : [];
-  const bankBalance = usesBank && accounts.length ? confirmedBankBalance(accounts) : null;
+  const bankBalance = usesBank && accounts.length ? confirmedBankBalance(accounts, { allowStaleSporadic: true }) : null;
+  // Contas "extrato esporádico" ficam fora da cobertura de extrato: o cliente envia de vez em
+  // quando, então não há cobrança diária — e sem conta regular não se afirma que algo "não saiu".
   let statementCoverage: string | null = null;
-  if (accounts.length) {
+  const regularAccounts = accounts.filter(a => !a.extrato_esporadico);
+  if (regularAccounts.length) {
     const { data: imps } = await db.from('bank_statement_imports').select('account_id, periodo_fim')
-      .in('account_id', accounts.map(a => a.id)).gte('periodo_fim', addDays(today, -40));
+      .in('account_id', regularAccounts.map(a => a.id)).gte('periodo_fim', addDays(today, -40));
     const lastBy = new Map<string, string>();
     for (const i of (imps ?? []) as any[]) if (i.periodo_fim && (lastBy.get(i.account_id) ?? '') < i.periodo_fim) lastBy.set(i.account_id, i.periodo_fim);
-    const ends = accounts.map(a => lastBy.get(a.id) ?? '');
+    const ends = regularAccounts.map(a => lastBy.get(a.id) ?? '');
     statementCoverage = ends.some(e => !e) ? null : ends.sort()[0];
   }
   // Só a janela necessária: margem para prazos de recebimento + 15 dias à frente.
