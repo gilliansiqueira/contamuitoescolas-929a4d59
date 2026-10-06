@@ -71,6 +71,15 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({})) as Row;
   if (body.action === "import_report") return importReport(body, admin, u.user.id);
+  if (body.action === "link_user") {
+    const ext = typeof body.external_id === "string" ? body.external_id.slice(0, 100) : "";
+    const uid = body.user_id === null ? null : (typeof body.user_id === "string" && /^[0-9a-f-]{36}$/i.test(body.user_id) ? body.user_id : undefined);
+    if (!ext || uid === undefined) return json({ error: "Dados inválidos." }, 400);
+    if (uid) await admin.from("team_time_employees").update({ user_id: null }).eq("user_id", uid).neq("external_id", ext);
+    const { error } = await admin.from("team_time_employees").update({ user_id: uid }).eq("external_id", ext);
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true });
+  }
   if (body.action === "set_employee_hidden") {
     const ext = typeof body.external_id === "string" ? body.external_id.slice(0, 100) : "";
     if (!ext || typeof body.hidden !== "boolean") return json({ error: "Dados inválidos." }, 400);
