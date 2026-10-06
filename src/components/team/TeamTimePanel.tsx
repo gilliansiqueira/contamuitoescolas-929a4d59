@@ -171,11 +171,15 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
   });
   const count = (f: (r: typeof rows[number]) => boolean) => rows.filter(f).length;
   const isPend = (r: typeof rows[number]) => r.situacao !== 'em_andamento' && r.occ.length > 0 || ['atraso', 'incompleta', 'falta', 'inconsistencia', 'sem_marcacao'].includes(r.situacao);
-  const cards: { k: CardKey; label: string; v: number; icon: typeof Users; f: (r: typeof rows[number]) => boolean }[] = [
+  // Minutos devidos no dia (atraso na entrada ou saída antes do previsto). Dia em andamento não conta.
+  const devMin = (r: typeof rows[number]) => { const c = classifyDay(r.d, r.e.horario_previsto); return c.emAndamento ? 0 : c.faltaMin; };
+  const devendo = (r: typeof rows[number]) => r.situacao === 'atraso' || devMin(r) > 0;
+  const devTotal = rows.reduce((s, r) => s + (devendo(r) ? devMin(r) : 0), 0);
+  const cards: { k: CardKey; label: string; v: number; sub?: string; icon: typeof Users; f: (r: typeof rows[number]) => boolean }[] = [
     { k: 'all', label: 'Colaboradoras ativas', v: rows.length, icon: Users, f: () => true },
     { k: 'presentes', label: 'Presentes hoje', v: count(r => !!r.d?.primeira_marcacao), icon: UserCheck, f: r => !!r.d?.primeira_marcacao },
     { k: 'sem_marcacao', label: 'Sem marcação', v: count(r => r.situacao === 'sem_marcacao'), icon: UserX, f: r => r.situacao === 'sem_marcacao' },
-    { k: 'atraso', label: 'Atrasos', v: count(r => r.situacao === 'atraso'), icon: Clock3, f: r => r.situacao === 'atraso' },
+    { k: 'atraso', label: 'Atrasos / horas devidas', v: count(devendo), sub: devTotal > 0 ? `${minToHhmm(devTotal)} devidas` : undefined, icon: Clock3, f: devendo },
     { k: 'incompleta', label: 'Marcações incompletas', v: count(r => r.situacao === 'incompleta'), icon: AlertTriangle, f: r => r.situacao === 'incompleta' },
     { k: 'hora_extra', label: 'Horas extras', v: count(r => r.situacao === 'hora_extra' || !!r.d?.horas_extras), icon: Timer, f: r => r.situacao === 'hora_extra' || !!r.d?.horas_extras },
     { k: 'pendencias', label: 'Pendências do dia', v: count(isPend), icon: ListChecks, f: isPend },
@@ -204,7 +208,7 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
       <TabsContent value="acessos"><AccessAndJustifications data={data} date={date} canEdit={canEdit} /></TabsContent>
       <TabsContent value="dia" className="space-y-5">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
-          {cards.map(c => <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}><c.icon className="h-4 w-4 text-primary" /><div className="mt-2 text-2xl font-semibold">{c.v}</div><div className="text-[11px] text-muted-foreground">{c.label}</div></button>)}
+          {cards.map(c => <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}><c.icon className="h-4 w-4 text-primary" /><div className="mt-2 text-2xl font-semibold">{c.v}</div><div className="text-[11px] text-muted-foreground">{c.label}</div>{c.sub && <div className="mt-0.5 text-[10px] font-medium text-warning">{c.sub}</div>}</button>)}
         </div>
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <section className="rounded-lg border border-border bg-card">
