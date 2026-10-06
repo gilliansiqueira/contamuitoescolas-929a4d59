@@ -17,6 +17,7 @@ import {
   type PortfolioRow,
 } from '@/hooks/useManagementPortfolio';
 import { ReconciliationBacklog } from '@/components/management/ReconciliationBacklog';
+import { MyTeamTimeCard } from '@/components/team/MyTeamTimeCard';
 import { MyDayPanel, type MyDayPendingItem } from '@/components/management/MyDayPanel';
 import { useAddSchool } from '@/hooks/useFinancialData';
 import { useClosingStepTemplates, useDailyTasksSummary, useMonthlyChecklistSummary } from '@/hooks/useClosingSteps';
@@ -698,6 +699,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           </div>
 
           {showManager && <ManagerDayPanel today={today} team={managerTeam} stalled={managerStalled} allSchools={managerAllSchools} canViewTeamTime={canViewTeamTime} onOpenSchool={openSchool} onOpenTeamTime={() => { setCardFilter(null); setView('team_time'); }} />}
+
+          <MyTeamTimeCard />
 
           <MyDayPanel
             schools={myDaySchools}
