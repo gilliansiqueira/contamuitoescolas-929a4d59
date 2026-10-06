@@ -208,7 +208,7 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
       <TabsContent value="acessos"><AccessAndJustifications data={data} date={date} canEdit={canEdit} /></TabsContent>
       <TabsContent value="dia" className="space-y-5">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
-          {cards.map(c => <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}><c.icon className="h-4 w-4 text-primary" /><div className="mt-2 text-2xl font-semibold">{c.v}</div><div className="text-[11px] text-muted-foreground">{c.label}</div></button>)}
+          {cards.map(c => <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}><c.icon className="h-4 w-4 text-primary" /><div className="mt-2 text-2xl font-semibold">{c.v}</div><div className="text-[11px] text-muted-foreground">{c.label}</div>{c.sub && <div className="mt-0.5 text-[10px] font-medium text-warning">{c.sub}</div>}</button>)}
         </div>
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <section className="rounded-lg border border-border bg-card">
