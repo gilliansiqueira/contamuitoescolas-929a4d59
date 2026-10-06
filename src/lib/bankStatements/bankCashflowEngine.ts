@@ -13,6 +13,8 @@ export interface BankAccount {
   saldo_inicial: number;
   saldo_inicial_data: string | null;
   ativa: boolean;
+  /** Cliente envia o extrato só de vez em quando: sem cobrança diária; o saldo vale o do último extrato. */
+  extrato_esporadico?: boolean;
   has_auto_invest?: boolean;
   auto_invest_saldo_inicial?: number | null;
   auto_invest_saldo_data?: string | null;
