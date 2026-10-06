@@ -92,6 +92,7 @@ export function parseOFX(content: string): BankParseResult {
   const txs: ParsedBankTx[] = [];
   let bloqN = 0, bloqT = 0;
   const bank = content.match(/<BANKID>([^<\r\n]+)/i)?.[1]?.trim();
+  const bradSeen = new Set<string>(); let bradDup = 0;
   for (const s of content.matchAll(/<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>)|(?=<\/BANKTRANLIST>))/gi)) {
     const body = s[1];
     const data = toIsoDate(body.match(/<DTPOSTED>([^<\r\n]+)/i)?.[1] ?? '');
@@ -99,6 +100,13 @@ export function parseOFX(content: string): BankParseResult {
     const memo = (body.match(/<MEMO>([^<\r\n]+)/i)?.[1] ?? body.match(/<NAME>([^<\r\n]+)/i)?.[1] ?? '').trim();
     const fitid = body.match(/<FITID>([^<\r\n]+)/i)?.[1]?.trim();
     if (!data || valor === 0) continue;
+    // Bradesco repete no OFX o lançamento exibido também em "Últimos lançamentos" (mesmo documento, outro FITID).
+    const checknum = body.match(/<CHECKNUM>([^<\r\n]+)/i)?.[1]?.trim();
+    if (bank && /^0*237$/.test(bank) && checknum) {
+      const k = `${data}|${valor}|${checknum}|${memo}`;
+      if (bradSeen.has(k)) { bradDup++; continue; }
+      bradSeen.add(k);
+    }
     if (valor > 0 && BLOCKED_DEPOSIT_RE.test(memo)) { bloqN++; bloqT += valor; continue; }
     txs.push({ data, descricao: memo || 'Transação', valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada', bankRef: fitid || undefined });
   }
@@ -137,6 +145,7 @@ export function parseOFX(content: string): BankParseResult {
     r.saldoAtualCabecalho = r.saldoFinalInformado;
     r.saldoFinalInformado = undefined;
   }
+  if (bradDup) avisosExtra.push(`${bradDup} lançamento(s) repetido(s) pelo Bradesco no arquivo (mesmo documento, data e valor) foram considerados uma vez só.`);
   r.avisos = [...avisoBloqueados(bloqN, bloqT), ...avisosExtra];
   return r;
 }
@@ -876,6 +885,66 @@ export function parsePicPayLines(lines: string[]): BankParseResult {
   return res;
 }
 
+export const isBradescoPdf = (lines: string[]) => {
+  const all = stripAccents(lines.join(' '));
+  return /extrato mensal \/ por periodo/i.test(all) && /total disponivel/i.test(all) && /dcto\./i.test(all);
+};
+
+/**
+ * Bradesco "Extrato Mensal / Por Período": descrição em duas linhas (antes e depois do valor) e
+ * um bloco "Últimos Lançamentos" que repete lançamentos já listados. Saldo final = último saldo
+ * impresso; "Saldo Invest Fácil" nunca é saldo da conta. Cada bloco precisa fechar com os saldos.
+ */
+export function parseBradescoPdfLines(lines: string[]): BankParseResult {
+  const VALLINE = /^(?:(\d{2}\/\d{2}\/\d{4})\s+)?(.*?)\s*(\d{3,})\s+(-?[\d.]+,\d{2})\s+(-?[\d.]+,\d{2})$/;
+  const L = lines.map(l => l.replace(/\s+/g, ' ').trim());
+  const out: ParsedBankTx[] = []; const seen = new Set<string>();
+  const divergencias: string[] = [];
+  let data: string | null = null; let head = ''; let last: ParsedBankTx | null = null;
+  let saldo: number | undefined; let saldoFinal: number | undefined; let repetidos = 0;
+  for (let i = 0; i < L.length; i++) {
+    const line = L[i]; const plain = stripAccents(line);
+    if (!line) continue;
+    if (/^saldos invest/i.test(plain)) break;
+    const sa = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+SALDO ANTERIOR\s+(-?[\d.]+,\d{2})$/i);
+    if (sa) { data = toIsoDate(sa[1]); saldo = parseBRNumber(sa[2]); last = null; head = ''; continue; }
+    if (/^(total|data |os dados|extrato|agencia|ultimos lanc|\d{5} \|)/i.test(plain)) { last = null; continue; }
+    const m = line.match(VALLINE);
+    if (m && data !== null || (m && m[1])) {
+      if (m![1]) data = toIsoDate(m![1]);
+      const v = parseBRNumber(m![4]); const s = parseBRNumber(m![5]);
+      const descricao = [head, m![2]].filter(Boolean).join(' ').trim() || 'Lançamento';
+      head = '';
+      if (saldo !== undefined && Math.abs(Math.round((saldo + v - s) * 100)) >= 1) divergencias.push(`Linha "${descricao}" (${m![4]}) não fecha com o saldo impresso ${m![5]}.`);
+      saldo = s; saldoFinal = s;
+      const key = `${data}|${m![3]}|${v}`;
+      if (seen.has(key)) { repetidos++; last = null; continue; }
+      seen.add(key);
+      last = { data: data!, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' };
+      out.push(last);
+      continue;
+    }
+    // Linha só de texto: cabeçalho do próximo lançamento (se a seguinte for valor sem descrição) ou complemento do anterior.
+    const next = L[i + 1]?.match(VALLINE);
+    if (next && !next[2]) { head = line; continue; }
+    if (last) { last.descricao = `${last.descricao} - ${line}`; last = null; continue; }
+    head = line;
+  }
+  if (saldoFinal === undefined || !out.length) throw new Error('Não foi possível ler os lançamentos deste PDF do Bradesco. Nada foi importado.');
+  const res = finish('pdf', out, { banco: 'Bradesco', saldoFinalInformado: saldoFinal });
+  const datas = out.map(t => t.data).sort();
+  res.periodoInicio = datas[0]; res.periodoFim = datas[datas.length - 1];
+  res.saldoFinalInformado = saldoFinal;
+  if (divergencias.length) res.bloqueiaImportacao = true;
+  res.avisos = [
+    `Extrato Bradesco: ${out.length} lançamento(s), saldo final em conta ${saldoFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+    ...(repetidos ? [`${repetidos} lançamento(s) repetido(s) em "Últimos Lançamentos" considerados uma vez só.`] : []),
+    'O PDF não separa o valor aplicado: o aplicado segue calculado (informe-o em Contas e Extratos se precisar).',
+    ...divergencias,
+  ];
+  return res;
+}
+
 async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
@@ -947,6 +1016,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
       if (plain.includes('caixa') && plain.includes('saldo dia')) return parseCaixaImageText(recognized);
       return parseItauImageText(recognized);
     }
+    if (isBradescoPdf(lines)) return parseBradescoPdfLines(lines);
     if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
     return parsePdfLines(lines);
   }
