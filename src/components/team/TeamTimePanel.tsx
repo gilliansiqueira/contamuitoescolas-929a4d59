@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, type TeamSituacao, type TeamTimeData } from '@/hooks/useTeamTime';
+import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, useLinkEmployeeUser, useTeamJustifications, useReviewJustification, type TeamSituacao, type TeamTimeData } from '@/hooks/useTeamTime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, CheckCircle2, Clock3, KeyRound, Loader2, RefreshCw, ShieldAlert, UserCheck, UserX, Trash2, Undo2, Users, Timer, ListChecks, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImportCartaoPonto } from './ImportCartaoPonto';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const SIT_LABEL: Record<TeamSituacao, string> = {
   regular: 'Regular', atraso: 'Atraso', sem_marcacao: 'Sem marcação', incompleta: 'Marcação incompleta',
@@ -198,7 +200,8 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
 
   return (
     <Tabs defaultValue="dia">
-      <TabsList><TabsTrigger value="dia">Dia</TabsTrigger><TabsTrigger value="mes">Resumo do mês</TabsTrigger><TabsTrigger value="extras">Extras e faltas</TabsTrigger></TabsList>
+      <TabsList><TabsTrigger value="dia">Dia</TabsTrigger><TabsTrigger value="mes">Resumo do mês</TabsTrigger><TabsTrigger value="extras">Extras e faltas</TabsTrigger><TabsTrigger value="acessos">Logins e justificativas</TabsTrigger></TabsList>
+      <TabsContent value="acessos"><AccessAndJustifications data={data} date={date} canEdit={canEdit} /></TabsContent>
       <TabsContent value="dia" className="space-y-5">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
           {cards.map(c => <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}><c.icon className="h-4 w-4 text-primary" /><div className="mt-2 text-2xl font-semibold">{c.v}</div><div className="text-[11px] text-muted-foreground">{c.label}</div></button>)}
@@ -253,13 +256,13 @@ function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilte
   );
 }
 
-function hhmmToMin(v?: string | null): number {
+export function hhmmToMin(v?: string | null): number {
   const m = v?.trim().match(/^([+-])?(\d{1,3}):(\d{2})$/);
   if (!m) return 0;
   const n = Number(m[2]) * 60 + Number(m[3]);
   return m[1] === '-' ? -n : n;
 }
-function minToHhmm(n: number): string {
+export function minToHhmm(n: number): string {
   const a = Math.abs(n);
   return `${n < 0 ? '-' : ''}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
 }
@@ -342,6 +345,52 @@ function ExtrasFaltas({ data, date }: { data: TeamTimeData; date: string }) {
             </Fragment>)}</tbody>
           </table>
         </div>
+      </section>
+    </div>
+  );
+}
+
+function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; date: string; canEdit: boolean }) {
+  const { user } = useAuth();
+  const link = useLinkEmployeeUser();
+  const review = useReviewJustification();
+  const just = useTeamJustifications(date.slice(0, 7), true);
+  const users = useQuery({
+    queryKey: ['team-time-logins'], enabled: canEdit,
+    queryFn: async () => { const { data: p } = await supabase.from('profiles').select('user_id,email').order('email'); return (p ?? []) as { user_id: string; email: string }[]; },
+  });
+  const nameBy = new Map(data.employees.map(e => [e.external_id, e.nome]));
+  const onLink = async (ext: string, v: string) => {
+    try { await link.mutateAsync({ external_id: ext, user_id: v === 'none' ? null : v }); toast.success('Login vinculado atualizado.'); }
+    catch { toast.error('Não foi possível vincular o login.'); }
+  };
+  const th = 'whitespace-nowrap px-3 py-2 font-medium';
+  const ST: Record<string, string> = { pendente: 'border-warning/40 bg-warning/10 text-warning', aceita: 'border-success/40 bg-success/10 text-success', recusada: 'border-destructive/40 bg-destructive/10 text-destructive' };
+  return (
+    <div className="grid gap-5 xl:grid-cols-2">
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Login de cada colaboradora</h2>
+        <p className="text-[11px] text-muted-foreground">Quem tiver login vinculado vê somente o próprio ponto na Central e pode justificar dias com falta ou batida faltando.</p>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card"><table className="w-full text-xs">
+          <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Login vinculado</th></tr></thead>
+          <tbody>{data.employees.map(e => <tr key={e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{e.nome}</td><td className="px-3 py-2">
+            <Select value={e.user_id ?? 'none'} disabled={!canEdit || link.isPending} onValueChange={v => onLink(e.external_id, v)}>
+              <SelectTrigger className="h-8 w-64 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="none">Sem login</SelectItem>{(users.data ?? []).map(u => <SelectItem key={u.user_id} value={u.user_id}>{u.email}</SelectItem>)}</SelectContent>
+            </Select></td></tr>)}</tbody>
+        </table></div>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Justificativas do mês</h2>
+        {!just.data?.length ? <p className="rounded-md bg-muted/40 p-3 text-[11px] text-muted-foreground">Nenhuma justificativa neste mês.</p> :
+        <div className="space-y-2">{just.data.map(j => <div key={j.id} className="rounded-lg border border-border bg-card p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2"><strong>{nameBy.get(j.employee_external_id) ?? j.employee_external_id}</strong><span className="text-muted-foreground">{fmtDate(j.dia)}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${ST[j.status]}`}>{j.status === 'pendente' ? 'Pendente' : j.status === 'aceita' ? 'Aceita' : 'Recusada'}</span></div>
+          <p className="mt-1 whitespace-pre-wrap">{j.motivo}</p>
+          {canEdit && user && <div className="mt-2 flex gap-2">
+            {j.status !== 'aceita' && <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={review.isPending} onClick={() => review.mutate({ id: j.id, status: 'aceita', reviewer: user.id })}>Aceitar</Button>}
+            {j.status !== 'recusada' && <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={review.isPending} onClick={() => review.mutate({ id: j.id, status: 'recusada', reviewer: user.id })}>Recusar</Button>}
+          </div>}
+        </div>)}</div>}
       </section>
     </div>
   );

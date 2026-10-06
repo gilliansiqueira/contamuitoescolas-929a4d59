@@ -3488,6 +3488,7 @@ export type Database = {
           oculto_em: string | null
           oculto_por: string | null
           synced_at: string
+          user_id: string | null
         }
         Insert: {
           ativo?: boolean
@@ -3503,6 +3504,7 @@ export type Database = {
           oculto_em?: string | null
           oculto_por?: string | null
           synced_at?: string
+          user_id?: string | null
         }
         Update: {
           ativo?: boolean
@@ -3518,6 +3520,7 @@ export type Database = {
           oculto_em?: string | null
           oculto_por?: string | null
           synced_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -3555,6 +3558,45 @@ export type Database = {
             referencedColumns: ["external_id"]
           },
         ]
+      }
+      team_time_justifications: {
+        Row: {
+          created_at: string
+          criado_por: string
+          dia: string
+          employee_external_id: string
+          id: string
+          motivo: string
+          revisado_em: string | null
+          revisado_por: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string
+          dia: string
+          employee_external_id: string
+          id?: string
+          motivo: string
+          revisado_em?: string | null
+          revisado_por?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string
+          dia?: string
+          employee_external_id?: string
+          id?: string
+          motivo?: string
+          revisado_em?: string | null
+          revisado_por?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       team_time_occurrences: {
         Row: {
@@ -3963,6 +4005,7 @@ export type Database = {
       }
       is_platform_member: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      my_team_time_external_id: { Args: never; Returns: string }
       refresh_bank_cashflow_status: {
         Args: { _school_id: string }
         Returns: undefined

@@ -505,6 +505,13 @@
       "when": 1791295990010,
       "tag": "0071_bank_accounts_extrato_esporadico",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1791297190092,
+      "tag": "0072_team_time_own_view",
+      "breakpoints": true
     }
   ]
 }
