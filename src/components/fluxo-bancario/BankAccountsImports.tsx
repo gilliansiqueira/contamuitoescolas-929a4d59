@@ -298,7 +298,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
             <tbody>
               {accounts.map(a => (
                 <tr key={a.id} className={`border-t border-border ${a.ativa ? '' : 'opacity-50'}`}>
-                  <td className="py-2 font-medium">{a.nome}{a.has_auto_invest && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Aplicação automática · {fmtBRL(Number(a.auto_invest_saldo_inicial ?? 0))}</span>}</td><td>{a.banco}</td><td>{[a.agencia, a.conta].filter(Boolean).join(' / ')}</td>
+                  <td className="py-2 font-medium">{a.nome}{a.extrato_esporadico && <span className="ml-1 rounded bg-warning/15 px-1.5 text-[10px] font-semibold text-warning-foreground">Extrato esporádico</span>}{a.has_auto_invest && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Aplicação automática · {fmtBRL(Number(a.auto_invest_saldo_inicial ?? 0))}</span>}</td><td>{a.banco}</td><td>{[a.agencia, a.conta].filter(Boolean).join(' / ')}</td>
                   <td className="text-right tabular-nums">{fmtBRL(Number(a.saldo_inicial))}</td><td>{fmtDate(a.saldo_inicial_data)}</td>
                   <td className="text-right">
                     <Button size="sm" variant="ghost" onClick={() => setForm({ id: a.id, nome: a.nome, banco: a.banco, agencia: a.agencia ?? '', conta: a.conta ?? '', saldo: String(a.saldo_inicial).replace('.', ','), saldoData: a.saldo_inicial_data ?? '', auto: !!a.has_auto_invest, autoSaldo: String(a.auto_invest_saldo_inicial ?? 0).replace('.', ','), autoData: a.auto_invest_saldo_data ?? '', esporadico: !!a.extrato_esporadico })}><Pencil className="h-4 w-4" /></Button>
