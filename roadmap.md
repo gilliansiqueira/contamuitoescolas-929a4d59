@@ -13,3 +13,4 @@
 - Dados de acesso/API do PontoFopag/ePays não fornecidos
 
 - [x] Central Press: selo "Falta no Nibo" + filtro
+- [ ] Bairro Alto BB: saldo não zerou após correção; pensar forma de não atrapalhar a equipe com extratos esporádicos
