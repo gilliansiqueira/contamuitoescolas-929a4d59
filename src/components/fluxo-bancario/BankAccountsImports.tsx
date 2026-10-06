@@ -26,7 +26,7 @@ interface Preview {
 }
 
 const lastDayPrevMonth = (() => { const d = new Date(); const x = new Date(d.getFullYear(), d.getMonth(), 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; })();
-const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: '', saldoData: lastDayPrevMonth, auto: false, autoSaldo: '', autoData: lastDayPrevMonth };
+const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', saldo: '', saldoData: lastDayPrevMonth, auto: false, autoSaldo: '', autoData: lastDayPrevMonth, esporadico: false };
 
 export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }: Props) {
   const autoByImport = new Map<string, number>();
@@ -72,6 +72,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       saldo_inicial: parseBRNumber(form.saldo), saldo_inicial_data: form.saldoData || null,
       has_auto_invest: form.auto, auto_invest_saldo_inicial: form.auto ? parseBRNumber(form.autoSaldo) : 0,
       auto_invest_saldo_data: form.auto ? (form.autoData || form.saldoData || null) : null,
+      extrato_esporadico: form.esporadico,
     };
     const { error } = form.id ? await db.from('bank_accounts').update(row).eq('id', form.id) : await db.from('bank_accounts').insert(row);
     if (error) return toast.error(error.message);
@@ -300,7 +301,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
                   <td className="py-2 font-medium">{a.nome}{a.has_auto_invest && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Aplicação automática · {fmtBRL(Number(a.auto_invest_saldo_inicial ?? 0))}</span>}</td><td>{a.banco}</td><td>{[a.agencia, a.conta].filter(Boolean).join(' / ')}</td>
                   <td className="text-right tabular-nums">{fmtBRL(Number(a.saldo_inicial))}</td><td>{fmtDate(a.saldo_inicial_data)}</td>
                   <td className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setForm({ id: a.id, nome: a.nome, banco: a.banco, agencia: a.agencia ?? '', conta: a.conta ?? '', saldo: String(a.saldo_inicial).replace('.', ','), saldoData: a.saldo_inicial_data ?? '', auto: !!a.has_auto_invest, autoSaldo: String(a.auto_invest_saldo_inicial ?? 0).replace('.', ','), autoData: a.auto_invest_saldo_data ?? '' })}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => setForm({ id: a.id, nome: a.nome, banco: a.banco, agencia: a.agencia ?? '', conta: a.conta ?? '', saldo: String(a.saldo_inicial).replace('.', ','), saldoData: a.saldo_inicial_data ?? '', auto: !!a.has_auto_invest, autoSaldo: String(a.auto_invest_saldo_inicial ?? 0).replace('.', ','), autoData: a.auto_invest_saldo_data ?? '', esporadico: !!a.extrato_esporadico })}><Pencil className="h-4 w-4" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => toggleActive(a)}>{a.ativa ? 'Desativar' : 'Ativar'}</Button>
                   </td>
                 </tr>
