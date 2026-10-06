@@ -113,3 +113,78 @@ export function useTeamTimeImportReport() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['team-time'] }),
   });
 }
+
+/** Vincula (ou desvincula) o login de uma pessoa ao cadastro do ponto. Só super_admin, via Edge Function. */
+export function useLinkEmployeeUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { external_id: string; user_id: string | null }) => {
+      const { data, error } = await supabase.functions.invoke('pontofopag-sync', { body: { action: 'link_user', ...p } });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['team-time'] }),
+  });
+}
+
+/** Ponto da própria pessoa logada (RLS libera apenas o vínculo dela). */
+export function useMyTeamTime(month: string, userId: string | undefined) {
+  return useQuery({
+    queryKey: ['team-time-mine', month, userId],
+    enabled: !!userId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: emp } = await db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id').eq('user_id', userId).maybeSingle();
+      if (!emp || emp.oculto) return null;
+      const start = `${month}-01`;
+      const [y, m] = month.split('-').map(Number);
+      const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+      const [d, b, j] = await Promise.all([
+        db.from('team_time_daily').select('*').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
+        db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').eq('employee_external_id', emp.external_id).eq('competencia', month),
+        db.from('team_time_justifications').select('id,employee_external_id,dia,motivo,status,created_at').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
+      ]);
+      const err = [d, b, j].find(x => x.error)?.error;
+      if (err) throw err;
+      return { employee: emp as TeamEmployee, daily: (d.data ?? []) as TeamDaily[], hourBank: (b.data ?? []) as TeamHourBank[], justifications: (j.data ?? []) as TeamJustification[] };
+    },
+  });
+}
+
+export function useTeamJustifications(month: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['team-time-just', month],
+    enabled,
+    queryFn: async (): Promise<TeamJustification[]> => {
+      const [y, m] = month.split('-').map(Number);
+      const { data, error } = await db.from('team_time_justifications').select('id,employee_external_id,dia,motivo,status,created_at')
+        .gte('dia', `${month}-01`).lte('dia', `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`).order('dia', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSaveJustification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { id?: string; employee_external_id: string; dia: string; motivo: string }) => {
+      const r = p.id
+        ? await db.from('team_time_justifications').update({ motivo: p.motivo }).eq('id', p.id)
+        : await db.from('team_time_justifications').insert({ employee_external_id: p.employee_external_id, dia: p.dia, motivo: p.motivo });
+      if (r.error) throw r.error;
+    },
+    onSettled: () => { qc.invalidateQueries({ queryKey: ['team-time-mine'] }); qc.invalidateQueries({ queryKey: ['team-time-just'] }); },
+  });
+}
+
+export function useReviewJustification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { id: string; status: 'aceita' | 'recusada' | 'pendente'; reviewer: string }) => {
+      const { error } = await db.from('team_time_justifications').update({ status: p.status, revisado_por: p.status === 'pendente' ? null : p.reviewer, revisado_em: p.status === 'pendente' ? null : new Date().toISOString() }).eq('id', p.id);
+      if (error) throw error;
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['team-time-just'] }),
+  });
+}
