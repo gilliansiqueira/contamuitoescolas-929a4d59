@@ -64,7 +64,10 @@ export async function parseTemplate(buf: ArrayBuffer): Promise<TemplateStructure
     const width = ws.getColumn(c).width;
     const f = matchField(title, used);
     let col: RenewalColumn;
-    if (f) { used.add(f.field); col = columnFromField(f.field, title); }
+    if (f) {
+      used.add(f.field); col = columnFromField(f.field, title);
+      if (f.field === 'forma_pagamento_negociada' && !norm(title).includes('negoci')) col.doubt = 'Tratada como forma negociada na renovação (vazia no modelo). Confirme se não é a forma atual.';
+    }
     else col = { id: newColId(), title, kind: 'manual', type: 'text', doubt: 'Sem regra validada: preenchida pela equipe até cadastrarmos a fonte.' };
     const list = listsByCol.get(c);
     if (list?.length) { col.type = 'list'; col.options = list; }
