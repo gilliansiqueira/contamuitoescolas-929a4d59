@@ -350,8 +350,14 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
   const open = main.filter(i => !i.resolved);
   const kinds = [...new Set(open.map(i => i.kind))];
   const conflicts = rows.filter(r => Object.keys(r.conflicts ?? {}).length).length;
-  const toggle = async (id: string, resolved: boolean) => { await db.from('renewal_issues').update({ resolved }).eq('id', id); invalidate(sheet.school_id, sheet.id); };
+  const toggle = async (id: string, resolved: boolean) => { const it = issues.find(x => x.id === id); await db.from('renewal_issues').update({ resolved, detail: { ...((it?.detail as any) ?? {}), ignored: false } }).eq('id', id); invalidate(sheet.school_id, sheet.id); };
   const list = (kind ? main.filter(i => i.kind === kind) : main).slice(0, 500);
+  const setMany = async (items: typeof list, resolved: boolean, ignored: boolean) => {
+    await Promise.all(items.map(i => db.from('renewal_issues').update({ resolved, detail: { ...(i.detail ?? {}), ignored } }).eq('id', i.id)));
+    invalidate(sheet.school_id, sheet.id);
+    toast.success(`${items.length} item(ns) ${!resolved ? 'reabertos' : ignored ? 'desconsiderados' : 'marcados como conferidos'}.`);
+  };
+  const pend = list.filter(i => !i.resolved);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
@@ -359,11 +365,20 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
         {kinds.map(k => <button key={k} onClick={() => setKind(k)} className={`rounded-lg border px-3 py-1.5 text-xs ${kind === k ? 'border-primary bg-primary/10' : 'border-border'}`}>{ISSUE_LABEL[k] ?? k} ({open.filter(i => i.kind === k).length})</button>)}
         {conflicts > 0 && <span className="rounded-lg border border-destructive px-3 py-1.5 text-xs text-destructive">{conflicts} linha(s) com conflito de importação — resolva na planilha</span>}
       </div>
+      {list.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{kind ? `Filtro "${ISSUE_LABEL[kind] ?? kind}"` : 'Todos os itens'}:</span>
+          <Button size="sm" variant="outline" disabled={!pend.length} onClick={() => setMany(pend, true, false)}>Marcar todos como conferidos ({pend.length})</Button>
+          <Button size="sm" variant="outline" disabled={!pend.length} onClick={() => setMany(pend, true, true)}>Desconsiderar todos ({pend.length})</Button>
+          {list.some(i => i.resolved) && <Button size="sm" variant="ghost" onClick={() => setMany(list.filter(i => i.resolved), false, false)}>Reabrir todos</Button>}
+        </div>
+      )}
       <div className="rounded-xl border border-border bg-card">
         {list.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Nada para conferir.</p> : list.map(i => (
           <label key={i.id} className={`flex items-start gap-2 border-b border-border px-3 py-2 text-sm last:border-0 ${i.resolved ? 'opacity-50' : ''}`}>
             <input type="checkbox" className="mt-1" checked={i.resolved} onChange={e => toggle(i.id, e.target.checked)} />
-            <span><Badge variant="outline" className="mr-2 text-[10px]">{ISSUE_LABEL[i.kind] ?? i.kind}</Badge>{i.message}</span>
+            <span className="flex-1"><Badge variant="outline" className="mr-2 text-[10px]">{ISSUE_LABEL[i.kind] ?? i.kind}</Badge>{(i.detail as any)?.ignored && i.resolved && <Badge variant="secondary" className="mr-2 text-[10px]">Desconsiderado</Badge>}{i.message}</span>
+            {!i.resolved && <button type="button" className="shrink-0 text-xs text-muted-foreground underline" onClick={e => { e.preventDefault(); setMany([i], true, true); }}>Desconsiderar</button>}
           </label>
         ))}
       </div>
