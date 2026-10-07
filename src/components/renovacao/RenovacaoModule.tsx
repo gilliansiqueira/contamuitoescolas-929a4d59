@@ -128,6 +128,29 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
   );
 }
 
+function NextStepBanner({ sheet, onGo }: { sheet: RenewalSheet | undefined; onGo: (step: string) => void }) {
+  const { data: imports = [] } = useSheetChildren<any>('renewal_imports', sheet?.id ?? '');
+  const { data: issues = [] } = useSheetChildren<any>('renewal_issues', sheet?.id ?? '');
+  const { data: rows = [] } = useRenewalRows(sheet?.id ?? '');
+  const { data: deliveries = [] } = useSheetChildren<any>('renewal_deliveries', sheet?.id ?? '');
+
+  let text: string; let go: string | null = null; let goLabel = '';
+  if (!sheet) text = 'Para começar: digite o período (ex.: 2027/1) no campo "Nova renovação" e clique em Criar planilha do período.';
+  else if (imports.length === 0) { text = 'Etapa 2: envie os relatórios do Sponte — primeiro Turmas Existentes, depois Contas a Receber.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
+  else if (rows.length === 0) { text = 'Etapa 2: falta o relatório de Turmas Existentes para montar a base de alunos.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
+  else if (issues.some(i => !i.resolved)) { text = `Etapa 3: confira ${issues.filter(i => !i.resolved).length} item(ns) antes de usar a planilha.`; go = 'conferencia'; goLabel = 'Ir para Conferência'; }
+  else if (deliveries.length === 0) { text = 'Etapa 4: a planilha está montada — ajuste o que precisar e baixe o Excel. Depois registre o envio na etapa 5.'; go = 'planilha'; goLabel = 'Ir para Planilha'; }
+  else if (sheet.dirty) { text = 'A planilha mudou depois do último envio. Registre um novo envio para guardar a versão atualizada.'; go = 'envios'; goLabel = 'Ir para Envios'; }
+  else { text = 'Tudo em dia: planilha montada, conferida e enviada.'; go = 'planilha'; goLabel = 'Abrir Planilha'; }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3">
+      <p className="text-sm"><span className="font-semibold">Próximo passo: </span>{text}</p>
+      {go && <Button size="sm" variant="outline" onClick={() => onGo(go)}>{goLabel}</Button>}
+    </div>
+  );
+}
+
 function SheetHeader({ sheet, onChanged }: { sheet: RenewalSheet; onChanged: () => void }) {
   const setStatus = async (status: string) => { await db.from('renewal_sheets').update({ status, updated_at: new Date().toISOString() }).eq('id', sheet.id); onChanged(); };
   return (
