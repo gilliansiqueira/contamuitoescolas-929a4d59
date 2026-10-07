@@ -245,8 +245,10 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   text(`SALDO INICIAL: ${fmtBRL(data.saldoInicial)}`, PAGE_W / 2, 58, 17, WHITE, 'bold', { align: 'center' });
   // O detalhamento já vem do mesmo `tipoAggregations` exibido no Dashboard.
   // Os totais continuam explícitos para preservar exatamente os cartões da tela.
-  const operationsIn = data.operacoesIn;
-  const operationsOut = data.operacoesOut;
+  // Somente os itens de operação (os mesmos das barras); lançamentos "Ignorar" ficam fora.
+  const opsSum = (entrada: boolean) => Math.round(data.operations.filter(r => r.isEntrada === entrada).reduce((s, r) => s + r.valor, 0) * 100) / 100;
+  const operationsIn = data.operations.length ? opsSum(true) : data.operacoesIn;
+  const operationsOut = data.operations.length ? opsSum(false) : data.operacoesOut;
   const coverItems = [
     ['Receitas', data.receitas, GREEN], ['Despesas', data.despesas, PINK],
     ['Resultado', data.resultado, data.resultado >= 0 ? TEAL : PINK], ['Operações de caixa', operationsIn - operationsOut, ORANGE],
