@@ -1,11 +1,11 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, useLinkEmployeeUser, useTeamJustifications, useReviewJustification, type TeamSituacao, type TeamTimeData } from '@/hooks/useTeamTime';
+import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, useLinkEmployeeUser, useTeamJustifications, useReviewJustification, type TeamSituacao, type TeamTimeData, type TeamOccurrence } from '@/hooks/useTeamTime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, CheckCircle2, Clock3, KeyRound, Loader2, RefreshCw, ShieldAlert, UserCheck, UserX, Trash2, Undo2, Users, Timer, ListChecks, CalendarClock } from 'lucide-react';
+import { AlertTriangle, CalendarX2, CheckCircle2, ChevronDown, ChevronRight, Clock3, Hourglass, KeyRound, ListChecks, Loader2, RefreshCw, ShieldAlert, Timer, Trash2, Undo2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImportCartaoPonto } from './ImportCartaoPonto';
 import { useQuery } from '@tanstack/react-query';
@@ -30,6 +30,8 @@ const SIT_STYLE: Record<TeamSituacao, string> = {
 const spToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 const fmtDateTime = (iso?: string | null) => iso ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '—';
 const fmtDate = (d: string) => d.split('-').reverse().join('/');
+const fmtMonth = (m: string) => { const [y, mo] = m.split('-'); return `${mo}/${y}`; };
+const monthLastDay = (m: string) => { const [y, mo] = m.split('-').map(Number); return `${m}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`; };
 
 const TIME_RE = /^\d{1,2}:\d{2}$/;
 const chipOk = 'rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium';
@@ -61,18 +63,23 @@ function BatidasCelula({ previsto, marcacoes }: { previsto?: string | null; marc
   return <span className="inline-flex flex-wrap gap-1">{cells}</span>;
 }
 
-type CardKey = 'all' | 'presentes' | 'sem_marcacao' | 'atraso' | 'incompleta' | 'hora_extra' | 'pendencias';
+type CardKey = 'all' | 'pendencias' | 'devidas' | 'extras' | 'faltas' | 'incompletas';
+type Mode = 'hoje' | 'mes';
 
 export function TeamTimePanel() {
   const { isSuperAdmin, canViewTeamTime } = useAuth();
-  const [date, setDate] = useState(spToday());
-  const month = date.slice(0, 7);
+  const today = spToday();
+  const [mode, setMode] = useState<Mode>('hoje');
+  const [date, setDate] = useState(today);
+  const [monthFrom, setMonthFrom] = useState(today.slice(0, 7));
+  const [monthTo, setMonthTo] = useState(today.slice(0, 7));
   const [sample, setSample] = useState(false);
   const [card, setCard] = useState<CardKey>('all');
-  const [who, setWho] = useState('');
+  const [who, setWho] = useState('all');
   const [sit, setSit] = useState<'all' | TeamSituacao>('all');
-  const [occFilter, setOccFilter] = useState('all');
-  const query = useTeamTime(month, canViewTeamTime);
+  const queryMonth = mode === 'hoje' ? date.slice(0, 7) : monthFrom;
+  const queryMonthTo = mode === 'hoje' ? undefined : (monthTo >= monthFrom ? monthTo : monthFrom);
+  const query = useTeamTime(queryMonth, canViewTeamTime, queryMonthTo);
   const sync = useTeamTimeSync();
 
   if (!canViewTeamTime) {
@@ -95,9 +102,13 @@ export function TeamTimePanel() {
     } catch { toast.error('Falha ao consultar o PontoFopag. Os últimos dados foram mantidos.'); }
   };
 
+  const start = mode === 'hoje' ? date : `${monthFrom}-01`;
+  const end = mode === 'hoje' ? date : monthLastDay(queryMonthTo ?? monthFrom);
+  const periodLabel = mode === 'hoje' ? fmtDate(date) : queryMonthTo && queryMonthTo !== queryMonth ? `${fmtMonth(queryMonth)} – ${fmtMonth(queryMonthTo)}` : fmtMonth(queryMonth);
+
   return (
     <div className="space-y-5">
-      <Header date={date} setDate={setDate} status={status} run={run} lastSuccess={data?.lastSuccess?.finished_at ?? null} onSync={onSync} syncing={syncing} sample={sample} setSample={setSample} canEdit={isSuperAdmin} />
+      <Header mode={mode} setMode={setMode} date={date} setDate={setDate} monthFrom={monthFrom} setMonthFrom={setMonthFrom} monthTo={monthTo} setMonthTo={setMonthTo} today={today} periodLabel={periodLabel} status={status} run={run} lastSuccess={data?.lastSuccess?.finished_at ?? null} onSync={onSync} syncing={syncing} sample={sample} setSample={setSample} canEdit={isSuperAdmin} />
       {query.isLoading && !sample ? (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carregando…</div>
       ) : query.isError && !sample ? (
@@ -109,15 +120,15 @@ export function TeamTimePanel() {
       ) : !data?.employees.length ? (
         <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">Nenhuma colaboradora recebida do PontoFopag até agora.</div>
       ) : (
-        <Content data={data} date={date} card={card} setCard={setCard} who={who} setWho={setWho} sit={sit} setSit={setSit} occFilter={occFilter} setOccFilter={setOccFilter} canEdit={isSuperAdmin} />
+        <Content data={data} mode={mode} start={start} end={end} card={card} setCard={setCard} who={who} setWho={setWho} sit={sit} setSit={setSit} canEdit={isSuperAdmin} />
       )}
     </div>
   );
 }
 
-function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, sample, setSample, canEdit }: {
-  date: string; setDate: (d: string) => void; status: string; run?: TeamTimeData['lastRun']; lastSuccess: string | null;
-  onSync: () => void; syncing: boolean; sample: boolean; setSample: (b: boolean) => void; canEdit: boolean;
+function Header({ mode, setMode, date, setDate, monthFrom, setMonthFrom, monthTo, setMonthTo, today, periodLabel, status, run, lastSuccess, onSync, syncing, sample, setSample, canEdit }: {
+  mode: Mode; setMode: (m: Mode) => void; date: string; setDate: (d: string) => void; monthFrom: string; setMonthFrom: (m: string) => void; monthTo: string; setMonthTo: (m: string) => void;
+  today: string; periodLabel: string; status: string; run?: TeamTimeData['lastRun']; lastSuccess: string | null; onSync: () => void; syncing: boolean; sample: boolean; setSample: (b: boolean) => void; canEdit: boolean;
 }) {
   const badge = {
     atualizada: { t: 'Atualizada', c: 'bg-success/15 text-success', i: CheckCircle2 },
@@ -126,6 +137,9 @@ function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, samp
     nao_configurada: { t: 'Integração não configurada', c: 'bg-muted text-muted-foreground', i: KeyRound },
     sem_dados: { t: 'Sem dados', c: 'bg-muted text-muted-foreground', i: Clock3 },
   }[status as 'atualizada']!;
+  const chip = (m: Mode, label: string) => (
+    <button type="button" onClick={() => setMode(m)} className={`h-9 rounded-md border px-3 text-xs font-medium transition-colors ${mode === m ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary/50'}`}>{label}</button>
+  );
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
@@ -134,7 +148,15 @@ function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, samp
           <p className="mt-1 text-xs text-muted-foreground">Somente consulta. Correções, justificativas e aprovações continuam no PontoFopag.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Input type="date" value={date} max={spToday()} onChange={e => e.target.value && setDate(e.target.value)} className="h-9 w-40" aria-label="Data" />
+          {chip('hoje', 'Hoje')}
+          {chip('mes', 'Por mês')}
+          {mode === 'hoje'
+            ? <Input type="date" value={date} max={today} onChange={e => e.target.value && setDate(e.target.value)} className="h-9 w-40" aria-label="Data" />
+            : <div className="flex items-center gap-1.5">
+                <Input type="month" value={monthFrom} max={today.slice(0, 7)} onChange={e => e.target.value && setMonthFrom(e.target.value)} className="h-9 w-36" aria-label="Mês inicial" />
+                <span className="text-[11px] text-muted-foreground">até</span>
+                <Input type="month" value={monthTo >= monthFrom ? monthTo : monthFrom} min={monthFrom} max={today.slice(0, 7)} onChange={e => e.target.value && setMonthTo(e.target.value)} className="h-9 w-36" aria-label="Mês final" />
+              </div>}
           <span className={`inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium ${badge.c}`}><badge.i className={`h-3.5 w-3.5 ${status === 'sincronizando' ? 'animate-spin' : ''}`} />{badge.t}</span>
           {sample ? <Button size="sm" variant="outline" className="h-9" onClick={() => setSample(false)}>Sair do exemplo</Button>
             : canEdit && <Button size="sm" className="h-9 gap-1.5" onClick={onSync} disabled={syncing}><RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />Atualizar agora</Button>}
@@ -142,7 +164,7 @@ function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, samp
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
-        <span>Data: <strong className="text-foreground">{fmtDate(date)}</strong></span>
+        <span>Período: <strong className="text-foreground">{periodLabel}</strong></span>
         <span>Última atualização concluída: <strong className="text-foreground">{fmtDateTime(lastSuccess)}</strong></span>
         {run && <span>Última tentativa: {fmtDateTime(run.started_at)}</span>}
       </div>
@@ -151,111 +173,188 @@ function Header({ date, setDate, status, run, lastSuccess, onSync, syncing, samp
   );
 }
 
-function Content({ data, date, card, setCard, who, setWho, sit, setSit, occFilter, setOccFilter, canEdit }: {
-  data: TeamTimeData; date: string; card: CardKey; setCard: (c: CardKey) => void; who: string; setWho: (s: string) => void;
-  sit: 'all' | TeamSituacao; setSit: (s: 'all' | TeamSituacao) => void; occFilter: string; setOccFilter: (s: string) => void; canEdit: boolean;
+interface PersonRow {
+  e: TeamTimeData['employees'][number];
+  cls: { d: TeamTimeData['daily'][number]; c: ReturnType<typeof classifyDay>; occ: TeamOccurrence[] }[];
+  problemas: { d: TeamTimeData['daily'][number]; c: ReturnType<typeof classifyDay>; occ: TeamOccurrence[] }[];
+  pend: boolean; faltas: number; devidasMin: number; extrasMin: number; incDias: number;
+}
+
+/** Regra: ocorrência no dia (fora de "Em andamento"), situação marcada, falta do dia ou minutos faltando = problema. */
+const dayProblem = (d: TeamTimeData['daily'][number], c: ReturnType<typeof classifyDay>, occ: TeamOccurrence[]) =>
+  (occ.length > 0 && d.situacao !== 'em_andamento') ||
+  ['atraso', 'incompleta', 'falta', 'inconsistencia', 'sem_marcacao'].includes(d.situacao) ||
+  c.faltaDia || c.faltaMin > 0;
+
+function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setSit, canEdit }: {
+  data: TeamTimeData; mode: Mode; start: string; end: string; card: CardKey; setCard: (c: CardKey) => void;
+  who: string; setWho: (s: string) => void; sit: 'all' | TeamSituacao; setSit: (s: 'all' | TeamSituacao) => void; canEdit: boolean;
 }) {
   const hide = useSetEmployeeHidden();
+  const [open, setOpen] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const setHidden = (id: string, nome: string, hidden: boolean) => {
     if (hidden && !confirm(`Ocultar ${nome} do Ponto? As horas ficam guardadas e dá para restaurar depois.`)) return;
     hide.mutate({ external_id: id, hidden }, { onSuccess: () => toast.success(hidden ? `${nome} ocultada do Ponto` : `${nome} restaurada`), onError: (e: any) => toast.error(e.message ?? 'Erro') });
   };
-  const dayByEmp = useMemo(() => new Map(data.daily.filter(d => d.dia === date).map(d => [d.employee_external_id, d])), [data.daily, date]);
-  const bankByEmp = useMemo(() => new Map(data.hourBank.map(b => [b.employee_external_id, b])), [data.hourBank]);
-  const occToday = data.occurrences.filter(o => o.dia === date);
 
-  const rows = data.employees.map(e => {
-    const d = dayByEmp.get(e.external_id);
-    return { e, d, situacao: (d?.situacao ?? 'aguardando') as TeamSituacao, bank: bankByEmp.get(e.external_id), occ: occToday.filter(o => o.employee_external_id === e.external_id) };
-  });
-  const count = (f: (r: typeof rows[number]) => boolean) => rows.filter(f).length;
-  const isPend = (r: typeof rows[number]) => r.situacao !== 'em_andamento' && r.occ.length > 0 || ['atraso', 'incompleta', 'falta', 'inconsistencia', 'sem_marcacao'].includes(r.situacao);
-  // Minutos devidos no dia (atraso na entrada ou saída antes do previsto). Dia em andamento não conta.
-  const devMin = (r: typeof rows[number]) => { const c = classifyDay(r.d, r.e.horario_previsto); return c.emAndamento ? 0 : c.faltaMin; };
-  const devendo = (r: typeof rows[number]) => r.situacao === 'atraso' || devMin(r) > 0;
-  const devTotal = rows.reduce((s, r) => s + (devendo(r) ? devMin(r) : 0), 0);
-  const cards: { k: CardKey; label: string; v: number; sub?: string; icon: typeof Users; f: (r: typeof rows[number]) => boolean }[] = [
-    { k: 'all', label: 'Colaboradoras ativas', v: rows.length, icon: Users, f: () => true },
-    { k: 'presentes', label: 'Presentes hoje', v: count(r => !!r.d?.primeira_marcacao), icon: UserCheck, f: r => !!r.d?.primeira_marcacao },
-    { k: 'sem_marcacao', label: 'Sem marcação', v: count(r => r.situacao === 'sem_marcacao'), icon: UserX, f: r => r.situacao === 'sem_marcacao' },
-    { k: 'atraso', label: 'Atrasos / horas devidas', v: count(devendo), sub: devTotal > 0 ? `${minToHhmm(devTotal)} devidas` : undefined, icon: Clock3, f: devendo },
-    { k: 'incompleta', label: 'Marcações incompletas', v: count(r => r.situacao === 'incompleta'), icon: AlertTriangle, f: r => r.situacao === 'incompleta' },
-    { k: 'hora_extra', label: 'Horas extras', v: count(r => r.situacao === 'hora_extra' || !!r.d?.horas_extras), icon: Timer, f: r => r.situacao === 'hora_extra' || !!r.d?.horas_extras },
-    { k: 'pendencias', label: 'Pendências do dia', v: count(isPend), icon: ListChecks, f: isPend },
+  const occKey = useMemo(() => {
+    const m = new Map<string, TeamOccurrence[]>();
+    for (const o of data.occurrences) {
+      const k = `${o.employee_external_id}|${o.dia}`;
+      const arr = m.get(k);
+      if (arr) arr.push(o); else m.set(k, [o]);
+    }
+    return m;
+  }, [data.occurrences]);
+
+  const rows = useMemo<PersonRow[]>(() => data.employees.map(e => {
+    const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia >= start && d.dia <= end).sort((a, b) => b.dia.localeCompare(a.dia));
+    const cls = days.map(d => ({ d, c: classifyDay(d, e.horario_previsto), occ: occKey.get(`${e.external_id}|${d.dia}`) ?? [] }));
+    const problemas = cls.filter(x => dayProblem(x.d, x.c, x.occ));
+    return {
+      e, cls, problemas,
+      pend: problemas.length > 0,
+      faltas: cls.filter(x => x.c.faltaDia).length,
+      devidasMin: cls.reduce((s, x) => s + x.c.faltaMin, 0),
+      extrasMin: cls.reduce((s, x) => s + x.c.extraMin, 0),
+      incDias: cls.filter(x => x.d.situacao === 'incompleta').length,
+    };
+  }).sort((a, b) => a.e.nome.localeCompare(b.e.nome)), [data.employees, data.daily, occKey, start, end]);
+
+  const count = (f: (r: PersonRow) => boolean) => rows.filter(f).length;
+  const totDevidas = rows.reduce((s, r) => s + r.devidasMin, 0);
+  const totExtras = rows.reduce((s, r) => s + r.extrasMin, 0);
+  const totFaltas = rows.reduce((s, r) => s + r.faltas, 0);
+  const totInc = rows.reduce((s, r) => s + r.incDias, 0);
+  const totProblemas = rows.reduce((s, r) => s + r.problemas.length, 0);
+  const cards: { k: CardKey; label: string; v: number | string; sub?: string; icon: typeof Users; f: (r: PersonRow) => boolean }[] = [
+    { k: 'all', label: 'Colaboradoras', v: rows.length, icon: Users, f: () => true },
+    { k: 'pendencias', label: 'Pendências', v: count(r => r.pend), sub: totProblemas ? `${totProblemas} ${totProblemas === 1 ? 'dia' : 'dias'} com problema` : undefined, icon: ListChecks, f: r => r.pend },
+    { k: 'devidas', label: 'Atrasos / horas devidas', v: count(r => r.devidasMin > 0), sub: totDevidas ? `${minToHhmm(totDevidas)} no período` : undefined, icon: Hourglass, f: r => r.devidasMin > 0 },
+    { k: 'extras', label: 'Horas extras', v: count(r => r.extrasMin > 0), sub: totExtras ? `${minToHhmm(totExtras)} no período` : undefined, icon: Timer, f: r => r.extrasMin > 0 },
+    { k: 'faltas', label: 'Faltas (dias)', v: totFaltas, sub: totFaltas ? `${count(r => r.faltas > 0)} ${count(r => r.faltas > 0) === 1 ? 'pessoa' : 'pessoas'}` : undefined, icon: CalendarX2, f: r => r.faltas > 0 },
+    { k: 'incompletas', label: 'Batidas faltando', v: totInc, sub: totInc ? `${count(r => r.incDias > 0)} ${count(r => r.incDias > 0) === 1 ? 'pessoa' : 'pessoas'}` : undefined, icon: AlertTriangle, f: r => r.incDias > 0 },
   ];
-  const occTypes = [...new Set(data.occurrences.map(o => o.tipo))].sort();
   const cardF = cards.find(c => c.k === card)!.f;
-  const filtered = rows.filter(r => cardF(r) && (sit === 'all' || r.situacao === sit) && (!who || r.e.nome.toLowerCase().includes(who.toLowerCase()) || (r.e.matricula ?? '').includes(who)) && (occFilter === 'all' || r.occ.some(o => o.tipo === occFilter)));
+  const filtered = rows.filter(r =>
+    cardF(r) &&
+    (who === 'all' || r.e.external_id === who) &&
+    (sit === 'all' || r.cls.some(x => x.d.situacao === sit)),
+  );
 
-  const alerts = rows.flatMap(r => [
-    ...r.occ.map(o => ({ key: o.external_key, nome: r.e.nome, dia: o.dia, texto: o.tipo })),
-    ...(r.situacao === 'sem_marcacao' && !r.occ.length ? [{ key: `${r.e.external_id}-sem`, nome: r.e.nome, dia: date, texto: 'Ausência de entrada' }] : []),
-    ...(r.situacao === 'incompleta' && !r.occ.length ? [{ key: `${r.e.external_id}-inc`, nome: r.e.nome, dia: date, texto: 'Marcação incompleta' }] : []),
-  ]);
+  // Situação de um único dia — mesma regra das três telas do Ponto.
+  const diaSit = (x?: PersonRow['cls'][number]) => {
+    if (!x) return { t: SIT_LABEL.aguardando, s: SIT_STYLE.aguardando };
+    const { d, c } = x;
+    if (c.emAndamento) return { t: 'Em andamento', s: SIT_STYLE.em_andamento };
+    if (c.faltaDia) return { t: 'Falta', s: SIT_STYLE.falta };
+    if (c.faltaMin > 0) return { t: `Atraso/saída antes · ${minToHhmm(c.faltaMin)}`, s: SIT_STYLE.atraso };
+    return { t: SIT_LABEL[d.situacao], s: SIT_STYLE[d.situacao] };
+  };
 
-  const monthly = data.employees.map(e => {
-    const occ = data.occurrences.filter(o => o.employee_external_id === e.external_id);
-    const days = data.daily.filter(d => d.employee_external_id === e.external_id);
-    const cls = days.map(d => classifyDay(d, e.horario_previsto));
-    const has = (d: typeof days[number], s: TeamSituacao) => d.situacao === s;
-    return { e, atrasos: days.filter(d => has(d, 'atraso')).length, faltas: cls.filter(c => c.faltaDia).length, faltaMin: cls.reduce((s, c) => s + c.faltaMin, 0), incompletas: days.filter(d => has(d, 'incompleta')).length, extras: cls.filter(c => c.extraMin > 0).length, exMin: cls.reduce((s, c) => s + c.extraMin, 0), inconsist: occ.filter(o => o.origem === 'inconsistencias').length + days.filter(d => has(d, 'inconsistencia')).length, saldo: bankByEmp.get(e.external_id)?.saldo ?? '—' };
-  });
+  const hiddenBlock = (!!data.hidden?.length || canEdit) && (
+    <div className="space-y-1">
+      {canEdit && !!data.hidden?.length && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowHidden(v => !v)}>{showHidden ? 'Esconder ocultos' : `Ver ocultos (${data.hidden.length})`}</Button>}
+      {showHidden && !!data.hidden?.length && (
+        <div className="space-y-1 rounded-md bg-muted/30 p-2">{data.hidden.map(h => (
+          <div key={h.external_id} className="flex items-center gap-2 text-xs">
+            <span className="font-medium">{h.nome}</span><span className="text-muted-foreground">{h.matricula ?? ''}</span>
+            <Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" disabled={hide.isPending || !canEdit} onClick={() => setHidden(h.external_id, h.nome, false)}><Undo2 className="h-3 w-3" />Restaurar</Button>
+          </div>
+        ))}</div>
+      )}
+    </div>
+  );
 
   return (
-    <Tabs defaultValue="dia">
-      <TabsList><TabsTrigger value="dia">Dia</TabsTrigger><TabsTrigger value="mes">Resumo do mês</TabsTrigger><TabsTrigger value="extras">Extras e faltas</TabsTrigger><TabsTrigger value="acessos">Logins e justificativas</TabsTrigger></TabsList>
-      <TabsContent value="acessos"><AccessAndJustifications data={data} date={date} canEdit={canEdit} /></TabsContent>
-      <TabsContent value="dia" className="space-y-5">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
-          {cards.map(c => <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}><c.icon className="h-4 w-4 text-primary" /><div className="mt-2 text-2xl font-semibold">{c.v}</div><div className="text-[11px] text-muted-foreground">{c.label}</div>{c.sub && <div className="mt-0.5 text-[10px] font-medium text-warning">{c.sub}</div>}</button>)}
+    <Tabs defaultValue="conferencia">
+      <TabsList><TabsTrigger value="conferencia">Conferência</TabsTrigger><TabsTrigger value="acessos">Logins e justificativas</TabsTrigger></TabsList>
+      <TabsContent value="acessos"><AccessAndJustifications data={data} date={spToday()} canEdit={canEdit} /></TabsContent>
+      <TabsContent value="conferencia" className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {cards.map(c => (
+            <button key={c.k} type="button" onClick={() => setCard(card === c.k ? 'all' : c.k)} className={`rounded-lg border p-3 text-left transition-colors ${card === c.k ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/50'}`}>
+              <c.icon className="h-4 w-4 text-primary" />
+              <div className="mt-2 text-2xl font-semibold">{c.v}</div>
+              <div className="text-[11px] text-muted-foreground">{c.label}</div>
+              {c.sub && <div className="mt-0.5 text-[10px] font-medium text-warning">{c.sub}</div>}
+            </button>
+          ))}
         </div>
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <section className="rounded-lg border border-border bg-card">
-            <div className="flex flex-wrap gap-2 border-b border-border p-3">
-              <Input value={who} onChange={e => setWho(e.target.value)} placeholder="Colaboradora" className="h-8 w-52 text-xs" />
-              <Select value={sit} onValueChange={v => setSit(v as typeof sit)}><SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as situações</SelectItem>{(Object.keys(SIT_LABEL) as TeamSituacao[]).map(s => <SelectItem key={s} value={s}>{SIT_LABEL[s]}</SelectItem>)}</SelectContent></Select>
-              {!!data.hidden?.length && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowHidden(v => !v)}>Ver ocultos ({data.hidden.length})</Button>}
-              <Select value={occFilter} onValueChange={setOccFilter}><SelectTrigger className="h-8 w-48 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as ocorrências</SelectItem>{occTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
-            </div>
-            {showHidden && !!data.hidden?.length && <div className="space-y-1 border-b border-border bg-muted/30 p-3">{data.hidden.map(h => <div key={h.external_id} className="flex items-center gap-2 text-xs"><span className="font-medium">{h.nome}</span><span className="text-muted-foreground">{h.matricula ?? ''}</span><Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" disabled={hide.isPending || !canEdit} onClick={() => setHidden(h.external_id, h.nome, false)}><Undo2 className="h-3 w-3" />Restaurar</Button></div>)}</div>}
+
+        <section className="rounded-lg border border-border bg-card">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+            <Select value={who} onValueChange={setWho}>
+              <SelectTrigger className="h-8 w-56 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Todas as pessoas</SelectItem>{data.employees.map(e => <SelectItem key={e.external_id} value={e.external_id}>{e.nome}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={sit} onValueChange={v => setSit(v as typeof sit)}>
+              <SelectTrigger className="h-8 w-52 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Todas as situações</SelectItem>{(Object.keys(SIT_LABEL) as TeamSituacao[]).map(s => <SelectItem key={s} value={s}>{SIT_LABEL[s]}</SelectItem>)}</SelectContent>
+            </Select>
+            {hiddenBlock}
+          </div>
+
+          {mode === 'hoje' ? (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Batidas', '1ª marcação', 'Última', 'Trabalhadas', 'Extras', 'Banco de horas', 'Ocorrência', 'Situação', 'Atualizado'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Batidas', 'Extras', 'Devidas', 'Situação'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
                 <tbody>
-                  {filtered.length === 0 && <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
-                  {filtered.map(r => { const c = classifyDay(r.d, r.e.horario_previsto); const sitKey: TeamSituacao = r.situacao === 'aguardando' && c.faltaDia ? 'falta' : r.situacao; const sitLabel = r.situacao === 'aguardando' && c.faltaMin ? `Faltou ${minToHhmm(c.faltaMin)}` : SIT_LABEL[sitKey]; const sitStyle = r.situacao === 'aguardando' && c.faltaMin ? SIT_STYLE.atraso : SIT_STYLE[sitKey]; const occ = c.faltaMin ? `Faltou ${minToHhmm(c.faltaMin)}` : (r.d?.ocorrencia ?? '—'); return <tr key={r.e.external_id} className="border-t border-border">
-                    <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
-                    <td className="px-3 py-2"><BatidasCelula previsto={r.d ? (r.d.horario_previsto ?? r.e.horario_previsto) : null} marcacoes={r.d?.marcacoes} /></td>
-                    <td className="px-3 py-2">{r.d?.primeira_marcacao ?? '—'}</td>
-                    <td className="px-3 py-2">{r.d?.ultima_marcacao ?? '—'}</td>
-                    <td className="px-3 py-2">{r.d?.horas_trabalhadas ?? '—'}</td>
-                    <td className="px-3 py-2 font-medium text-info">{hhmmToMin(r.d?.horas_extras) > 0 ? minToHhmm(hhmmToMin(r.d?.horas_extras)) : '—'}</td>
-                    <td className={`px-3 py-2 font-medium ${(r.bank?.saldo_minutos ?? 0) < 0 ? 'text-destructive' : ''}`}>{r.bank?.saldo ?? '—'}</td>
-                    <td className="px-3 py-2">{occ}</td>
-                    <td className="px-3 py-2"><span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${sitStyle}`}>{sitLabel}</span></td>
-                    <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{fmtDateTime(r.d?.synced_at)}</td>
-                  </tr>; })}
+                  {filtered.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
+                  {filtered.map(r => {
+                    const x = r.cls[0];
+                    const s = diaSit(x);
+                    return (
+                      <tr key={r.e.external_id} className="border-t border-border">
+                        <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
+                        <td className="px-3 py-2"><BatidasCelula previsto={x ? (x.d.horario_previsto ?? r.e.horario_previsto) : null} marcacoes={x?.d.marcacoes} /></td>
+                        <td className="px-3 py-2 font-medium text-info">{x?.c.extraMin ? `+${minToHhmm(x.c.extraMin)}` : '—'}</td>
+                        <td className="px-3 py-2 font-medium text-progress">{x?.c.faltaMin ? minToHhmm(x.c.faltaMin) : '—'}</td>
+                        <td className="px-3 py-2"><span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.s}`}>{s.t}</span></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          </section>
-          <aside className="h-fit rounded-lg border border-border bg-card p-3">
-            <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-medium">Alertas</h2><span className="text-[10px] text-muted-foreground">{alerts.length}</span></div>
-            {alerts.length === 0 ? <p className="rounded-md bg-muted/40 p-3 text-[11px] text-muted-foreground">Nenhuma pendência para esta data.</p> : <div className="space-y-2">{alerts.map(a => <div key={a.key} className="rounded-md border-l-4 border-primary bg-primary/10 p-2.5"><strong className="block text-[11px]">{a.nome}</strong><span className="block text-[11px] text-muted-foreground">{a.texto}</span><span className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground"><CalendarClock className="h-3 w-3" />{fmtDate(a.dia)}</span></div>)}</div>}
-            <p className="mt-3 text-[10px] text-muted-foreground">Correções são feitas diretamente no PontoFopag.</p>
-          </aside>
-        </div>
-      </TabsContent>
-      <TabsContent value="mes">
-        <section className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Colaboradora', 'Atrasos', 'Faltas (dias)', 'Atrasos/saídas antes', 'Marcações incompletas', 'Horas extras', 'Inconsistências', 'Saldo banco de horas'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
-            <tbody>{monthly.map(m => <tr key={m.e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{m.e.nome}</td><td className="px-3 py-2">{m.atrasos}</td><td className="px-3 py-2">{m.faltas}</td><td className="px-3 py-2">{m.faltaMin ? minToHhmm(m.faltaMin) : '—'}</td><td className="px-3 py-2">{m.incompletas}</td><td className="px-3 py-2">{m.extras} dia(s){m.exMin > 0 && <span className="text-muted-foreground"> · {minToHhmm(m.exMin)}</span>}</td><td className="px-3 py-2">{m.inconsist}</td><td className="px-3 py-2 font-medium">{m.saldo}</td></tr>)}</tbody>
-          </table>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Extras no período', 'Devidas no período', 'Faltas (dias)', 'Dias com problema'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+                <tbody>
+                  {filtered.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
+                  {filtered.map(r => (
+                    <Fragment key={r.e.external_id}>
+                      <tr className={`cursor-pointer border-t border-border ${open === r.e.external_id ? 'bg-muted/30' : 'hover:bg-muted/30'}`} onClick={() => setOpen(open === r.e.external_id ? null : r.e.external_id)}>
+                        <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1.5">{open === r.e.external_id ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={ev => { ev.stopPropagation(); setHidden(r.e.external_id, r.e.nome, true); }} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
+                        <td className="px-3 py-2 font-medium text-info">{r.extrasMin ? `+${minToHhmm(r.extrasMin)}` : '—'}</td>
+                        <td className="px-3 py-2 font-medium text-progress">{r.devidasMin ? minToHhmm(r.devidasMin) : '—'}</td>
+                        <td className="px-3 py-2 font-medium text-destructive">{r.faltas || '—'}</td>
+                        <td className="px-3 py-2">{r.problemas.length || '—'}</td>
+                      </tr>
+                      {open === r.e.external_id && r.cls.map(({ d, c }) => {
+                        const s = diaSit({ d, c, occ: occKey.get(`${r.e.external_id}|${d.dia}`) ?? [] });
+                        return (
+                          <tr key={d.dia} className="bg-muted/20 text-[11px]">
+                            <td className="whitespace-nowrap px-3 py-1.5 pl-7"><strong>{fmtDate(d.dia)}</strong></td>
+                            <td className="px-3 py-1.5"><BatidasCelula previsto={d.horario_previsto ?? r.e.horario_previsto} marcacoes={d.marcacoes} /></td>
+                            <td className="px-3 py-1.5 text-right">{c.emAndamento ? '—' : d.horas_trabalhadas || '—'}</td>
+                            <td className="px-3 py-1.5 text-right text-info">{c.extraMin ? `+${minToHhmm(c.extraMin)}` : '—'}</td>
+                            <td className="px-3 py-1.5 text-right text-progress">{c.faltaMin ? minToHhmm(c.faltaMin) : '—'}</td>
+                            <td className="px-3 py-1.5"><span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.s}`}>{s.t}</span></td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="border-t border-border p-2 text-[10px] text-muted-foreground">Somente consulta. Correções, justificativas e aprovações continuam no PontoFopag.</p>
         </section>
       </TabsContent>
-      <TabsContent value="extras"><ExtrasFaltas data={data} date={date} /></TabsContent>
     </Tabs>
   );
 }
@@ -270,20 +369,14 @@ export function minToHhmm(n: number): string {
   const a = Math.abs(n);
   return `${n < 0 ? '-' : ''}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
 }
-/** Jornada prevista do dia a partir dos horários impressos (pares entrada/saída). */
-function previstoMin(p?: string | null): number {
-  const t = (p ?? '').split(/\s+/).filter(x => TIME_RE.test(x)).map(x => hhmmToMin(x));
-  let s = 0;
-  for (let i = 0; i + 1 < t.length; i += 2) s += Math.max(0, t[i + 1] - t[i]);
-  return s;
-}
 
 const spTimeMin = (iso?: string | null) => {
   if (!iso) return null;
   const s = new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false });
   return hhmmToMin(s);
 };
-/** Regra única do Ponto para as três abas: falta do dia inteiro, minutos faltando e extras. */
+
+/** Regra única do Ponto: falta do dia inteiro, minutos faltando e extras. */
 export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previstoEmp: string | null, today = spToday()) {
   if (!d) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false };
   const isToday = d.dia === today;
@@ -297,61 +390,6 @@ export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previs
   const emAndamento = isToday && !faltaDia;
   const fm = (d.ocorrencia ?? '').match(/Faltas\s+(\d+:\d{2})/i);
   return { faltaDia, faltaMin: emAndamento || !fm ? 0 : hhmmToMin(fm[1]), extraMin: emAndamento ? 0 : Math.max(0, hhmmToMin(d.horas_extras)), emAndamento };
-}
-
-function ExtrasFaltas({ data, date }: { data: TeamTimeData; date: string }) {
-  const [open, setOpen] = useState<string | null>(null);
-  const rows = data.employees.map(e => {
-    const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia.slice(0, 7) === date.slice(0, 7)).sort((a, b) => a.dia.localeCompare(b.dia)).map(d => ({ d, c: classifyDay(d, e.horario_previsto) }));
-    const today = days.find(x => x.d.dia === date);
-    const extraDays = days.filter(x => x.c.extraMin > 0).map(x => x.d);
-    const faltaDays = days.filter(x => x.c.faltaDia || x.c.faltaMin > 0);
-    const faltaDias = faltaDays.filter(x => x.c.faltaDia).length;
-    const faltaMinMes = faltaDays.reduce((s, x) => s + x.c.faltaMin, 0);
-    return {
-      e, extraDays, faltaDays, faltaDias, faltaMinMes,
-      exHoje: today?.c.extraMin ?? 0, exMes: days.reduce((s, x) => s + x.c.extraMin, 0),
-      faltouHoje: !!today?.c.faltaDia,
-      naoTrab: faltaMinMes + faltaDays.filter(x => x.c.faltaDia).reduce((s, x) => s + previstoMin(x.d.horario_previsto ?? e.horario_previsto), 0),
-    };
-  });
-  const tot = (f: (r: typeof rows[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
-  const Card = ({ v, l }: { v: string | number; l: string }) => <div className="rounded-lg border border-border bg-card p-3"><div className="text-2xl font-semibold">{v}</div><div className="text-[11px] text-muted-foreground">{l}</div></div>;
-  const th = 'whitespace-nowrap px-3 py-2 font-medium';
-  return (
-    <div className="grid gap-5 xl:grid-cols-2">
-      <section className="space-y-3">
-        <h2 className="flex items-center gap-2 text-sm font-medium"><Timer className="h-4 w-4 text-primary" />Horas extras</h2>
-        <div className="grid grid-cols-2 gap-3"><Card v={minToHhmm(tot(r => r.exHoje))} l={`Equipe em ${fmtDate(date)}`} /><Card v={minToHhmm(tot(r => r.exMes))} l="Equipe no mês" /></div>
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>No dia</th><th className={th}>No mês</th><th className={th}>Dias com extra</th></tr></thead>
-            <tbody>{rows.map(r => <Fragment key={r.e.external_id}>
-              <tr className={`border-t border-border ${r.extraDays.length ? 'cursor-pointer hover:bg-muted/30' : ''}`} onClick={() => r.extraDays.length && setOpen(open === `x${r.e.external_id}` ? null : `x${r.e.external_id}`)}>
-                <td className="px-3 py-2 font-medium">{r.e.nome}</td><td className="px-3 py-2">{r.exHoje ? minToHhmm(r.exHoje) : '—'}</td><td className="px-3 py-2 font-medium">{r.exMes ? minToHhmm(r.exMes) : '—'}</td><td className="px-3 py-2">{r.extraDays.length}</td>
-              </tr>
-              {open === `x${r.e.external_id}` && r.extraDays.map(d => <tr key={d.dia} className="bg-muted/20 text-[11px]"><td className="px-3 py-1.5 pl-6">{fmtDate(d.dia)}</td><td colSpan={2} className="px-3 py-1.5 text-muted-foreground">{(d.marcacoes ?? []).join(' · ') || '—'}</td><td className="px-3 py-1.5 font-medium">{d.horas_extras}</td></tr>)}
-            </Fragment>)}</tbody>
-          </table>
-        </div>
-      </section>
-      <section className="space-y-3">
-        <h2 className="flex items-center gap-2 text-sm font-medium"><UserX className="h-4 w-4 text-destructive" />Faltas</h2>
-        <div className="grid grid-cols-3 gap-3"><Card v={tot(r => (r.faltouHoje ? 1 : 0))} l={`Faltas em ${fmtDate(date)}`} /><Card v={tot(r => r.faltaDias)} l="Dias de falta no mês" /><Card v={minToHhmm(tot(r => r.faltaMinMes))} l="Atrasos/saídas antes no mês" /></div>
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Faltou no dia</th><th className={th}>Faltas (dias)</th><th className={th}>Atrasos/saídas antes</th><th className={th}>Horas não trabalhadas</th></tr></thead>
-            <tbody>{rows.map(r => <Fragment key={r.e.external_id}>
-              <tr className={`border-t border-border ${r.faltaDays.length ? 'cursor-pointer hover:bg-muted/30' : ''}`} onClick={() => r.faltaDays.length && setOpen(open === `f${r.e.external_id}` ? null : `f${r.e.external_id}`)}>
-                <td className="px-3 py-2 font-medium">{r.e.nome}</td><td className={`px-3 py-2 ${r.faltouHoje ? 'font-medium text-destructive' : ''}`}>{r.faltouHoje ? 'Sim' : 'Não'}</td><td className="px-3 py-2 font-medium">{r.faltaDias}</td><td className="px-3 py-2">{r.faltaMinMes ? minToHhmm(r.faltaMinMes) : '—'}</td><td className="px-3 py-2">{r.naoTrab ? minToHhmm(r.naoTrab) : '—'}</td>
-              </tr>
-              {open === `f${r.e.external_id}` && r.faltaDays.map(f => <tr key={f.d.dia} className="bg-muted/20 text-[11px]"><td className="px-3 py-1.5 pl-6">{fmtDate(f.d.dia)}</td><td colSpan={4} className="px-3 py-1.5 text-muted-foreground">{f.c.faltaDia ? 'Falta (dia inteiro)' : `Faltou ${minToHhmm(f.c.faltaMin)} (atraso/saída antes)`}</td></tr>)}
-            </Fragment>)}</tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
 }
 
 function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; date: string; canEdit: boolean }) {

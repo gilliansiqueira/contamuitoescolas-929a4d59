@@ -31,9 +31,11 @@ export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
       const [y, m] = endMonth.split('-').map(Number);
       const end = `${endMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
       const meses: string[] = [];
-      for (let [yy, mm] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))]; `${yy}-${String(mm).padStart(2, '0')}` <= endMonth; mm++) {
-        if (mm > 12) { yy++; mm = 0; }
-        meses.push(`${yy}-${String(mm).padStart(2, '0')}`);
+      for (let yy = Number(month.slice(0, 4)), mm = Number(month.slice(5, 7));; mm++) {
+        if (mm > 12) { mm = 1; yy++; }
+        const cur = `${yy}-${String(mm).padStart(2, '0')}`;
+        meses.push(cur);
+        if (cur >= endMonth) break;
       }
       const [e, d, o, b, r, s] = await Promise.all([
         db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id').eq('ativo', true).order('nome'),
