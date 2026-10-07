@@ -22,7 +22,7 @@ import { defaultMinDue } from '@/lib/renewal/mergeEngine';
 import { defaultColumns } from '@/lib/renewal/fields';
 import { buildWorkbook, computeSummary } from '@/lib/renewal/exportXlsx';
 import { SHEET_STATUS, type RenewalColumn, type RenewalRow, type TemplateStructure } from '@/lib/renewal/types';
-import { saveImport, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
+import { saveImport, INFO_KINDS, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
 import { RenewalGrid, type CellEdit } from './RenewalGrid';
 
 const statusLabel = (k: string) => SHEET_STATUS.find(s => s.key === k)?.label ?? k;
