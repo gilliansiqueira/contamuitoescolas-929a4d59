@@ -1,6 +1,7 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -60,6 +61,21 @@ export default function AuthPage() {
       toast.success('Login realizado');
       navigate('/', { replace: true });
     }
+  };
+
+  const handleForgot = async () => {
+    const target = email.trim();
+    if (!target) {
+      toast.error('Digite seu e-mail no campo acima e clique de novo em "Esqueci minha senha"');
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(target, {
+      redirectTo: `${window.location.origin}/redefinir-senha`,
+    });
+    setSubmitting(false);
+    if (error) toast.error('Não foi possível enviar agora. Tente novamente em alguns minutos.');
+    else toast.success('Se o e-mail tiver acesso, enviamos um link para criar uma nova senha.');
   };
 
   return (
@@ -158,6 +174,11 @@ export default function AuthPage() {
                   <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 h-10 w-10 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </Button>
+                </div>
+                <div className="text-right">
+                  <button type="button" onClick={handleForgot} disabled={submitting} className="text-xs font-semibold text-primary underline-offset-4 hover:underline">
+                    Esqueci minha senha
+                  </button>
                 </div>
               </div>
 
