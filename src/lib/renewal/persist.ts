@@ -20,6 +20,9 @@ export async function saveImport(sheet: RenewalSheet, parsed: ParsedSource, file
   if (error) throw error;
 }
 
+/** Avisos só informativos: entram como conferidos e não contam como pendência. */
+export const INFO_KINDS = new Set(['formacao_aluno_novo', 'formacao_aluno_novo_parcelas']);
+
 /** Recalcula a planilha a partir das últimas importações, preservando o que a equipe editou. */
 export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSettings, existing: RenewalRow[]) {
   const { data: imps, error } = await db.from('renewal_imports').select('*').eq('sheet_id', sheet.id).order('created_at', { ascending: false });
@@ -52,12 +55,12 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
     }
   }
   const all2 = [...issues, ...extra];
-  await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: i.detail ?? {} }))); if (e) throw e; });
+  await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: i.detail ?? {}, resolved: INFO_KINDS.has(i.kind) }))); if (e) throw e; });
   const patch: any = { updated_at: new Date().toISOString() };
   if (c && sheet.status === 'aguardando_relatorios') patch.status = 'em_preparacao';
   if (sheet.sent_version) patch.dirty = true;
   await db.from('renewal_sheets').update(patch).eq('id', sheet.id);
-  return { stats, issues: all2.length };
+  return { stats, issues: all2.filter(i => !INFO_KINDS.has(i.kind)).length };
 }
 
 export function applyEdit(row: RenewalRow, col: RenewalColumn, value: any, userEmail?: string): RenewalRow {

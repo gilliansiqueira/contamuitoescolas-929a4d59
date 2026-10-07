@@ -22,7 +22,7 @@ import { defaultMinDue } from '@/lib/renewal/mergeEngine';
 import { defaultColumns } from '@/lib/renewal/fields';
 import { buildWorkbook, computeSummary } from '@/lib/renewal/exportXlsx';
 import { SHEET_STATUS, type RenewalColumn, type RenewalRow, type TemplateStructure } from '@/lib/renewal/types';
-import { saveImport, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
+import { saveImport, INFO_KINDS, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
 import { RenewalGrid, type CellEdit } from './RenewalGrid';
 
 const statusLabel = (k: string) => SHEET_STATUS.find(s => s.key === k)?.label ?? k;
@@ -139,7 +139,7 @@ function NextStepBanner({ sheet, onGo }: { sheet: RenewalSheet | undefined; onGo
   if (!sheet) text = 'Para começar: digite o período (ex.: 2027/1) no campo "Nova renovação" e clique em Criar planilha do período.';
   else if (imports.length === 0) { text = 'Etapa 2: envie os relatórios do Sponte — primeiro Turmas Existentes, depois Contas a Receber.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
   else if (rows.length === 0) { text = 'Etapa 2: falta o relatório de Turmas Existentes para montar a base de alunos.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
-  else if (issues.some(i => !i.resolved)) { text = `Etapa 3: confira ${issues.filter(i => !i.resolved).length} item(ns) antes de usar a planilha.`; go = 'conferencia'; goLabel = 'Ir para Conferência'; }
+  else if (issues.some(i => !i.resolved && !INFO_KINDS.has(i.kind))) { text = `Etapa 3: confira ${issues.filter(i => !i.resolved && !INFO_KINDS.has(i.kind)).length} item(ns) antes de usar a planilha.`; go = 'conferencia'; goLabel = 'Ir para Conferência'; }
   else if (deliveries.length === 0) { text = 'Etapa 4: a planilha está montada — ajuste o que precisar e baixe o Excel. Depois registre o envio na etapa 5.'; go = 'planilha'; goLabel = 'Ir para Planilha'; }
   else if (sheet.dirty) { text = 'A planilha mudou depois do último envio. Registre um novo envio para guardar a versão atualizada.'; go = 'envios'; goLabel = 'Ir para Envios'; }
   else { text = 'Tudo em dia: planilha montada, conferida e enviada.'; go = 'planilha'; goLabel = 'Abrir Planilha'; }
@@ -345,11 +345,13 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
   const { data: rows = [] } = useRenewalRows(sheet.id);
   const invalidate = useInvalidateRenewal();
   const [kind, setKind] = useState('');
-  const open = issues.filter(i => !i.resolved);
+  const info = issues.filter(i => INFO_KINDS.has(i.kind));
+  const main = issues.filter(i => !INFO_KINDS.has(i.kind));
+  const open = main.filter(i => !i.resolved);
   const kinds = [...new Set(open.map(i => i.kind))];
   const conflicts = rows.filter(r => Object.keys(r.conflicts ?? {}).length).length;
   const toggle = async (id: string, resolved: boolean) => { await db.from('renewal_issues').update({ resolved }).eq('id', id); invalidate(sheet.school_id, sheet.id); };
-  const list = (kind ? issues.filter(i => i.kind === kind) : issues).slice(0, 500);
+  const list = (kind ? main.filter(i => i.kind === kind) : main).slice(0, 500);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
@@ -365,6 +367,16 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
           </label>
         ))}
       </div>
+      {info.length > 0 && (
+        <details className="rounded-xl border border-border bg-card">
+          <summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground">Informativo (não precisa conferir) — {info.length}</summary>
+          {info.map(i => (
+            <div key={i.id} className="border-t border-border px-3 py-2 text-sm text-muted-foreground">
+              <Badge variant="outline" className="mr-2 text-[10px]">{ISSUE_LABEL[i.kind] ?? i.kind}</Badge>{i.message}
+            </div>
+          ))}
+        </details>
+      )}
       <p className="text-xs text-muted-foreground">Marque como conferido depois de ajustar na planilha. Alunos sem parcelas continuam na planilha como "Sem informação" — não significa quitado.</p>
     </div>
   );
