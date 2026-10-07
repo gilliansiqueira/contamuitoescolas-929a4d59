@@ -2298,6 +2298,44 @@ export type Database = {
           },
         ]
       }
+      product_sales_monthly: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          produto: string
+          quantidade: number
+          school_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          produto: string
+          quantidade?: number
+          school_id: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          produto?: string
+          quantidade?: number
+          school_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_sales_monthly_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           admin_scope: string
