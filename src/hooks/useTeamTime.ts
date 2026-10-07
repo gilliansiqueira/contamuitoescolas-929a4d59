@@ -18,21 +18,28 @@ export interface TeamTimeData {
 // Tabelas team_time_* são protegidas por RLS (somente super_admin). Tipagem local para não depender do arquivo gerado.
 const db = supabase as unknown as { from: (t: string) => any };
 
-export function useTeamTime(month: string, enabled: boolean) {
+/** `monthTo` opcional: quando informado, busca o intervalo fechado entre os dois meses. */
+export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
+  const endMonth = monthTo && monthTo >= month ? monthTo : month;
   return useQuery({
-    queryKey: ['team-time', month],
+    queryKey: ['team-time', month, endMonth],
     enabled,
     staleTime: 60_000,
     refetchInterval: q => ((q.state.data as TeamTimeData | undefined)?.lastRun?.status === 'running' ? 5000 : false),
     queryFn: async (): Promise<TeamTimeData> => {
       const start = `${month}-01`;
-      const [y, m] = month.split('-').map(Number);
-      const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+      const [y, m] = endMonth.split('-').map(Number);
+      const end = `${endMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+      const meses: string[] = [];
+      for (let [yy, mm] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))]; `${yy}-${String(mm).padStart(2, '0')}` <= endMonth; mm++) {
+        if (mm > 12) { yy++; mm = 0; }
+        meses.push(`${yy}-${String(mm).padStart(2, '0')}`);
+      }
       const [e, d, o, b, r, s] = await Promise.all([
         db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id').eq('ativo', true).order('nome'),
         db.from('team_time_daily').select('*').gte('dia', start).lte('dia', end),
         db.from('team_time_occurrences').select('external_key,employee_external_id,dia,tipo,descricao,origem').gte('dia', start).lte('dia', end),
-        db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').eq('competencia', month),
+        db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').in('competencia', meses),
         db.from('team_time_sync_runs').select('id,status,started_at,finished_at,message').order('started_at', { ascending: false }).limit(1),
         db.from('team_time_sync_runs').select('id,status,started_at,finished_at,message').eq('status', 'success').order('started_at', { ascending: false }).limit(1),
       ]);
