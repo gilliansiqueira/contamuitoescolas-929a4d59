@@ -533,6 +533,13 @@
       "when": 1791379869424,
       "tag": "0075_contas_pagas_marca_com_atraso",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1791392330984,
+      "tag": "0076_renewal_module",
+      "breakpoints": true
     }
   ]
 }

@@ -2573,6 +2573,487 @@ export type Database = {
         }
         Relationships: []
       }
+      renewal_change_requests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          resolution: string | null
+          resolved_at: string | null
+          school_id: string
+          sheet_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          school_id: string
+          sheet_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          school_id?: string
+          sheet_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_change_requests_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_change_requests_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "renewal_sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_deliveries: {
+        Row: {
+          channel: string
+          created_at: string
+          created_by: string | null
+          id: string
+          recipient: string
+          school_id: string
+          sent_at: string
+          sheet_id: string
+          version: number
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          recipient: string
+          school_id: string
+          sent_at: string
+          sheet_id: string
+          version: number
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          recipient?: string
+          school_id?: string
+          sent_at?: string
+          sheet_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_deliveries_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_deliveries_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "renewal_sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_imports: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          imported_by: string | null
+          row_count: number
+          school_id: string
+          sheet_id: string
+          source_key: string
+          summary: Json
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          imported_by?: string | null
+          row_count?: number
+          school_id: string
+          sheet_id: string
+          source_key: string
+          summary?: Json
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          imported_by?: string | null
+          row_count?: number
+          school_id?: string
+          sheet_id?: string
+          source_key?: string
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_imports_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_imports_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "renewal_sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_issues: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: string
+          kind: string
+          message: string
+          resolved: boolean
+          row_key: string | null
+          school_id: string
+          sheet_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          kind: string
+          message: string
+          resolved?: boolean
+          row_key?: string | null
+          school_id: string
+          sheet_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          kind?: string
+          message?: string
+          resolved?: boolean
+          row_key?: string | null
+          school_id?: string
+          sheet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_issues_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_issues_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "renewal_sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_rows: {
+        Row: {
+          conflicts: Json
+          id: string
+          imported: Json
+          manual: boolean
+          overrides: Json
+          row_key: string
+          school_id: string
+          sheet_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          conflicts?: Json
+          id?: string
+          imported?: Json
+          manual?: boolean
+          overrides?: Json
+          row_key: string
+          school_id: string
+          sheet_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          conflicts?: Json
+          id?: string
+          imported?: Json
+          manual?: boolean
+          overrides?: Json
+          row_key?: string
+          school_id?: string
+          sheet_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_rows_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_rows_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "renewal_sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_settings: {
+        Row: {
+          include_material: boolean
+          module_categories: string[]
+          school_id: string
+          separate_modalities: string[]
+          updated_at: string
+        }
+        Insert: {
+          include_material?: boolean
+          module_categories?: string[]
+          school_id: string
+          separate_modalities?: string[]
+          updated_at?: string
+        }
+        Update: {
+          include_material?: boolean
+          module_categories?: string[]
+          school_id?: string
+          separate_modalities?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_settings_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: true
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_sheets: {
+        Row: {
+          columns: Json
+          created_at: string
+          current_version: number
+          dirty: boolean
+          id: string
+          params: Json
+          period: string
+          responsible_user_id: string | null
+          school_id: string
+          sent_version: number | null
+          status: string
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          current_version?: number
+          dirty?: boolean
+          id?: string
+          params?: Json
+          period: string
+          responsible_user_id?: string | null
+          school_id: string
+          sent_version?: number | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          current_version?: number
+          dirty?: boolean
+          id?: string
+          params?: Json
+          period?: string
+          responsible_user_id?: string | null
+          school_id?: string
+          sent_version?: number | null
+          status?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_sheets_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_sheets_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "renewal_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_sources: {
+        Row: {
+          created_at: string
+          fields: Json
+          filters: string | null
+          id: string
+          key: string
+          name: string
+          purpose: string
+          sponte_path: string | null
+          validated: boolean
+        }
+        Insert: {
+          created_at?: string
+          fields?: Json
+          filters?: string | null
+          id?: string
+          key: string
+          name: string
+          purpose?: string
+          sponte_path?: string | null
+          validated?: boolean
+        }
+        Update: {
+          created_at?: string
+          fields?: Json
+          filters?: string | null
+          id?: string
+          key?: string
+          name?: string
+          purpose?: string
+          sponte_path?: string | null
+          validated?: boolean
+        }
+        Relationships: []
+      }
+      renewal_templates: {
+        Row: {
+          approved: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          school_id: string
+          source_file: string | null
+          structure: Json
+          version: number
+        }
+        Insert: {
+          approved?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          school_id: string
+          source_file?: string | null
+          structure?: Json
+          version: number
+        }
+        Update: {
+          approved?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          school_id?: string
+          source_file?: string | null
+          structure?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_templates_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      renewal_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          file_path: string | null
+          id: string
+          school_id: string
+          sheet_id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          file_path?: string | null
+          id?: string
+          school_id: string
+          sheet_id: string
+          snapshot?: Json
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          file_path?: string | null
+          id?: string
+          school_id?: string
+          sheet_id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "renewal_versions_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "renewal_versions_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "renewal_sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_deliveries: {
         Row: {
           channel: string | null
