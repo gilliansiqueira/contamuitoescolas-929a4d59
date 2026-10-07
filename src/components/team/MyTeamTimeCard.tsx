@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useMyTeamTime, useSaveJustification, type TeamDaily, type TeamJustification } from '@/hooks/useTeamTime';
-import { classifyDay, hhmmToMin, minToHhmm } from './TeamTimePanel';
+import { classifyDay, minToHhmm } from './TeamTimePanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -112,7 +112,7 @@ export function MyTeamTimeCard({ showEmpty = false }: { showEmpty?: boolean }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-muted-foreground">Só é possível justificar batidas que não foram registradas. Atrasos e saídas antes do horário aparecem em "Horas devidas". {hhmmToMin('0:00') === 0 ? '' : ''}</p>
+      <p className="text-[10px] text-muted-foreground">Só é possível justificar batidas que não foram registradas. Atrasos e saídas antes do horário aparecem em "Horas devidas".</p>
 
       <Dialog open={!!editing} onOpenChange={o => !o && setEditing(null)}>
         <DialogContent>
