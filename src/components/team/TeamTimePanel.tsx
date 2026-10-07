@@ -370,14 +370,26 @@ export function minToHhmm(n: number): string {
   return `${n < 0 ? '-' : ''}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
 }
 
+const spTimeMin = (iso?: string | null) => {
+  if (!iso) return null;
+  const s = new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false });
+  return hhmmToMin(s);
+};
+
 /** Regra única do Ponto: falta do dia inteiro, minutos faltando e extras. */
 export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previstoEmp: string | null, today = spToday()) {
   if (!d) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false };
   const isToday = d.dia === today;
   const semBatida = !(d.marcacoes?.length) && !d.primeira_marcacao;
   const prev = (d.horario_previsto ?? previstoEmp ?? '').split(/\s+/).find(x => TIME_RE.test(x));
-  const syncMin = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(d.synced_at)) |> undefined;
-  return { faltaDia, faltaMin: 0, extraMin: 0, emAndamento: false };
+  const syncMin = spTimeMin(d.synced_at);
+  const syncedSameDay = d.synced_at ? new Date(d.synced_at).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) === d.dia : false;
+  const entradaPassou = !isToday && !syncedSameDay ? true : (prev != null && syncMin != null && syncMin > hhmmToMin(prev));
+  const marcadoFalta = d.situacao === 'falta' || /^falta$/i.test((d.ocorrencia ?? '').trim()) || d.situacao === 'sem_marcacao';
+  const faltaDia = semBatida && marcadoFalta && entradaPassou;
+  const emAndamento = isToday && !faltaDia;
+  const fm = (d.ocorrencia ?? '').match(/Faltas\s+(\d+:\d{2})/i);
+  return { faltaDia, faltaMin: emAndamento || !fm ? 0 : hhmmToMin(fm[1]), extraMin: emAndamento ? 0 : Math.max(0, hhmmToMin(d.horas_extras)), emAndamento };
 }
 
 function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; date: string; canEdit: boolean }) {
