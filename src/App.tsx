@@ -12,6 +12,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const Auth = lazy(() => import("./pages/Auth.tsx"));
+const RedefinirSenha = lazy(() => import("./pages/RedefinirSenha.tsx"));
 const Demo = lazy(() => import("./pages/Demo.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -45,6 +46,7 @@ const App = () => (
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />
+                  <Route path="/redefinir-senha" element={<RedefinirSenha />} />
                   <Route path="/demo" element={<Demo />} />
                   <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
                   <Route path="*" element={<NotFound />} />
