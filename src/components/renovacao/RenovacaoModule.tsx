@@ -102,18 +102,20 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
           </Select>
         </div>
         <div className="space-y-1"><Label className="text-xs">Nova renovação (período)</Label>
-          <div className="flex gap-2"><Input className="h-9 w-32" placeholder="2027/1" value={newPeriod} onChange={e => setNewPeriod(e.target.value)} /><Button size="sm" onClick={createSheet}>Criar</Button></div>
+          <div className="flex gap-2"><Input className="h-9 w-32" placeholder="2027/1" value={newPeriod} onChange={e => setNewPeriod(e.target.value)} /><Button size="sm" onClick={createSheet}>Criar planilha do período</Button></div>
         </div>
         {sheet && <SheetHeader sheet={sheet} onChanged={() => invalidate(schoolId, sheet.id)} />}
       </div>
+      <NextStepBanner sheet={sheet} onGo={setStep} />
       <Tabs value={step} onValueChange={setStep}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="modelo">1. Modelo</TabsTrigger>
-          <TabsTrigger value="relatorios" disabled={!sheet}>2. Relatórios</TabsTrigger>
-          <TabsTrigger value="conferencia" disabled={!sheet}>3. Conferência</TabsTrigger>
-          <TabsTrigger value="planilha" disabled={!sheet}>4. Planilha</TabsTrigger>
-          <TabsTrigger value="envios" disabled={!sheet}>5. Envios</TabsTrigger>
+          <TabsTrigger value="relatorios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>2. Relatórios</TabsTrigger>
+          <TabsTrigger value="conferencia" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>3. Conferência</TabsTrigger>
+          <TabsTrigger value="planilha" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>4. Planilha</TabsTrigger>
+          <TabsTrigger value="envios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>5. Envios</TabsTrigger>
         </TabsList>
+        {!sheet && <p className="mt-2 text-xs text-muted-foreground">Crie a planilha do período no campo acima para liberar as próximas etapas.</p>}
         <TabsContent value="modelo"><TemplatePanel schoolId={schoolId} templates={templates} /></TabsContent>
         {sheet && <>
           <TabsContent value="relatorios"><ReportsPanel sheet={sheet} /></TabsContent>
@@ -122,6 +124,29 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
           <TabsContent value="envios"><DeliveriesPanel sheet={sheet} templates={templates} /></TabsContent>
         </>}
       </Tabs>
+    </div>
+  );
+}
+
+function NextStepBanner({ sheet, onGo }: { sheet: RenewalSheet | undefined; onGo: (step: string) => void }) {
+  const { data: imports = [] } = useSheetChildren<any>('renewal_imports', sheet?.id ?? '');
+  const { data: issues = [] } = useSheetChildren<any>('renewal_issues', sheet?.id ?? '');
+  const { data: rows = [] } = useRenewalRows(sheet?.id ?? '');
+  const { data: deliveries = [] } = useSheetChildren<any>('renewal_deliveries', sheet?.id ?? '');
+
+  let text: string; let go: string | null = null; let goLabel = '';
+  if (!sheet) text = 'Para começar: digite o período (ex.: 2027/1) no campo "Nova renovação" e clique em Criar planilha do período.';
+  else if (imports.length === 0) { text = 'Etapa 2: envie os relatórios do Sponte — primeiro Turmas Existentes, depois Contas a Receber.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
+  else if (rows.length === 0) { text = 'Etapa 2: falta o relatório de Turmas Existentes para montar a base de alunos.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
+  else if (issues.some(i => !i.resolved)) { text = `Etapa 3: confira ${issues.filter(i => !i.resolved).length} item(ns) antes de usar a planilha.`; go = 'conferencia'; goLabel = 'Ir para Conferência'; }
+  else if (deliveries.length === 0) { text = 'Etapa 4: a planilha está montada — ajuste o que precisar e baixe o Excel. Depois registre o envio na etapa 5.'; go = 'planilha'; goLabel = 'Ir para Planilha'; }
+  else if (sheet.dirty) { text = 'A planilha mudou depois do último envio. Registre um novo envio para guardar a versão atualizada.'; go = 'envios'; goLabel = 'Ir para Envios'; }
+  else { text = 'Tudo em dia: planilha montada, conferida e enviada.'; go = 'planilha'; goLabel = 'Abrir Planilha'; }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3">
+      <p className="text-sm"><span className="font-semibold">Próximo passo: </span>{text}</p>
+      {go && <Button size="sm" variant="outline" onClick={() => onGo(go)}>{goLabel}</Button>}
     </div>
   );
 }
@@ -294,6 +319,7 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
       </div>
       <div className="h-fit space-y-3 rounded-xl border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">Enviar relatório do Sponte</h3>
+        {imports.length === 0 && <p className="rounded-md bg-primary/10 p-2 text-xs font-medium">Comece pelo relatório de Turmas Existentes; depois envie o de Contas a Receber.</p>}
         <p className="text-xs text-muted-foreground">Excel (.xls/.xlsx) ou CSV. O sistema reconhece qual relatório é.</p>
         <Input type="file" accept=".xls,.xlsx,.csv" onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
         {parsed && (
