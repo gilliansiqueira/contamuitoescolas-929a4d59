@@ -29,7 +29,10 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   if (!t) return { stats: null, issues: 0 };
   const { rows: imported, issues } = buildImported(t.summary.rows, c?.summary.rows ?? null, { settings, minDue: sheet.params?.minDue });
   const f = latest('turmas_formacao');
-  if (f) issues.push(...applyRenewedFromNextPeriod(imported, f.summary.rows));
+  if (f) {
+    issues.push(...applyRenewedFromNextPeriod(imported, f.summary.rows));
+    reclassifyNewStudents(issues, f.summary.rows);
+  }
   const auto = new Map(existing.filter(r => !r.manual).map(r => [r.row_key, r]));
   const manualRows = existing.filter(r => r.manual);
   const { rows, stats } = mergeRows([...auto.values()], imported, sheet.columns);

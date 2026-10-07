@@ -99,7 +99,8 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
     }
     if (!ps.length) {
       Object.assign(r, { venc_ultima_parcela: SEM_INFO, forma_pagamento_atual: SEM_INFO, termino_pagamento: SEM_INFO });
-      issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: nenhuma parcela do módulo encontrada (não significa quitado).` });
+      const corte = minDue ? ` com vencimento a partir de ${minDue.split('-').reverse().join('/')}` : '';
+      issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: nenhuma parcela do módulo${corte} (não significa quitado — confira se pagou à vista, é bolsista ou se a data de corte está tarde).` });
       continue;
     }
     const last = ps.reduce((a, b) => (b._due > a._due ? b : a));
@@ -143,6 +144,20 @@ export function mergeRows(existing: RenewalRow[], imported: Map<string, Record<s
 
 /** Turmas em formação do próximo período: aluno da base já matriculado vira "Rematriculado" com a turma de destino.
  *  Só preenche o valor importado; correções da equipe (overrides) continuam valendo. Alunos novos não entram. */
+/** Alunos com parcelas mas fora das turmas atuais que aparecem nas turmas em formação são alunos novos (informativo). */
+export function reclassifyNewStudents(issues: Issue[], formacao: Record<string, any>[]) {
+  const mats = new Set(formacao.map(r => toId(r.NumeroMatricula)).filter(Boolean));
+  const names = new Set(formacao.map(r => norm(r.Aluno)));
+  for (const i of issues) {
+    if (i.kind !== 'sem_correspondencia') continue;
+    const d: any = i.detail ?? {};
+    if ((d.mat && mats.has(d.mat)) || names.has(norm(d.sacado))) {
+      i.kind = 'formacao_aluno_novo_parcelas' as any;
+      i.message = `"${d.sacado}" (mat. ${d.mat || '—'}) é aluno novo do próximo período (está nas turmas em formação) e já tem ${d.count} parcela(s).`;
+    }
+  }
+}
+
 export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>>, formacao: Record<string, any>[]): Issue[] {
   const issues: Issue[] = [];
   const byMat = new Map<string, string[]>(); const byName = new Map<string, string[]>();
