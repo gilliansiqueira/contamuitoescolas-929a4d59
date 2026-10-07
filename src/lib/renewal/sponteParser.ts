@@ -1,4 +1,8 @@
 import * as XLSX from 'xlsx';
+/** Turmas com todas as linhas "Em formação" são do próximo período, nunca a base atual. */
+export function looksLikeFormacao(rows: Record<string, any>[]) {
+  return rows.length > 0 && rows.every(r => /forma[cç][aã]o/i.test(String(r.SituacaoTurma ?? '')));
+}
 import { norm } from './fields';
 
 export type SourceKey = 'turmas_existentes' | 'contas_receber' | 'turmas_formacao';
