@@ -1,18 +1,13 @@
-# Limpar duplicados do Bradesco + conferir Portão
+# Hubla da Go Company ainda lendo 2 lançamentos
 
-## O que vai ser feito
-1. Remover as 6 cópias pendentes (R$ 3.472,35), mantendo a original.
-2. Remover as 25 cópias já conciliadas (R$ 35.789,49), sempre mantendo uma versão conciliada de cada lançamento.
-3. Gravar o Pix do Raimundo Marques (R$ 315,00, 05/10) em Manaus Laranjeiras, ligado ao extrato de 07/10.
-4. Cada remoção fica no histórico com o motivo "duplicado – banco renumerou o código".
-5. Conferir de novo, depois da limpeza, que nenhuma empresa ficou com duplicados e que os saldos conferidos continuam batendo.
+Você não fez nada errado. A correção está na versão de testes, mas o endereço que a equipe usa (relatorioscontamuito.online) só recebe mudanças depois de publicar — e essa correção provavelmente ainda não foi publicada. Antes de publicar, quero confirmar que ela funciona com o PDF de verdade, e não só com o teste.
 
-## Portão
-Portão não estava na lista. Hoje existe lá só um par igual: "DEBITO CONVENIOS PMCURIT" de R$ 911,27 em 18/09, os dois conciliados. Como tem o mesmo código da prefeitura, pode ser um débito realmente cobrado duas vezes — vou comparar com o extrato antes de mexer: só removo se o extrato mostrar uma única cobrança. As cópias que você já apagou em Portão hoje não aparecem mais.
-
-A correção da importação (já feita) evita que Portão e as outras empresas dupliquem de novo.
+## Passos
+1. Abrir a versão de testes, entrar como administradora, ir na Go Company → Fluxo Bancário → importar o PDF "Contas & Extratos" que você mandou, e conferir se a tela de conferência mostra 24 lançamentos (entradas e saídas de R$ 8.194,70, saldo final R$ 0,00).
+2. Se mostrar menos que 24: comparar como o navegador lê as linhas do PDF com as linhas usadas no teste, ajustar o reconhecimento desse formato do Nibo e repetir o passo 1 até fechar.
+3. Não gravar nada na Go Company durante o teste (só a tela de conferência).
+4. Pedir para você publicar; depois disso basta reenviar o PDF — as 2 linhas já importadas não se repetem.
 
 ## Detalhes técnicos
-- Remoção via RPC `delete_bank_tx(_tx_id, _motivo)`; mantém a linha mais antiga (ou a conciliada quando só uma estiver).
-- Pix Raimundo inserido com `origem` do import de 07/10 (rastreabilidade) e `recon_status` pendente.
-- Portão: comparar `bank_ref`/arquivo das duas linhas de 18/09 com o OFX/saldo da conta.
+- `parseBankFile` já chama `isNiboContasPdf` → `parseNiboContasPdfLines`, mas depois de `isBradescoPdf`; checar se o PDF real não cai antes em outro parser ou se `readPdfLines` no navegador agrupa as linhas diferente da fixture `niboHublaGo.json`.
+- Validação via Playwright com upload do arquivo `Contas_Extratos_GO_COMPANY_LTDA.pdf`.
