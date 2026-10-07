@@ -41,8 +41,9 @@ export interface CashflowOverlayRow {
 export function applyCashflowOverlay(
   entries: FinancialEntry[], cashflow: CashflowOverlayRow[], startDate: string, schoolId: string,
 ): FinancialEntry[] {
-  // Todo realizado antigo (planilha e lançamentos manuais) sai do cálculo a partir do corte.
-  const kept = entries.filter(e => !((e.tipoRegistro ?? 'realizado') === 'realizado' && e.data >= startDate));
+  // Realizado antigo (planilha) sai do cálculo a partir do corte. Lançamentos
+  // manuais ficam: representam contas que não estão no Fluxo Bancário.
+  const kept = entries.filter(e => e.origem === 'manual' || !((e.tipoRegistro ?? 'realizado') === 'realizado' && e.data >= startDate));
   const added: FinancialEntry[] = cashflow.filter(c => c.data >= startDate).map(c => ({
     id: `bcf-${c.id}`,
     data: c.data,
