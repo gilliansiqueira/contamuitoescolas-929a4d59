@@ -945,6 +945,53 @@ export function parseBradescoPdfLines(lines: string[]): BankParseResult {
   return res;
 }
 
+export const isNiboContasPdf = (lines: string[]) => {
+  const all = stripAccents(lines.join(' '));
+  return /contas & extratos/i.test(all) && /identif\./i.test(all) && /saldo anterior/i.test(all);
+};
+
+/**
+ * Nibo "Contas & Extratos": a data aparece só na 1ª linha de cada dia; saídas vêm entre parênteses;
+ * o "Saldo" impresso (no fim do dia) é usado para conferir — se não fechar, bloqueia a importação.
+ */
+export function parseNiboContasPdfLines(lines: string[]): BankParseResult {
+  const MONEY = /\(?-?[\d.]+,\d{2}\)?/;
+  const TAIL = new RegExp(`^(?:(\\d{2}\\/\\d{2}\\/\\d{2,4})\\s+)?(.*?)\\s*(${MONEY.source})(?:\\s+(${MONEY.source}))?$`);
+  const val = (s: string) => (s.startsWith('(') || s.startsWith('-') ? -1 : 1) * parseBRNumber(s.replace(/[()\-]/g, ''));
+  const out: ParsedBankTx[] = []; const divergencias: string[] = [];
+  let data: string | null = null; let saldo: number | undefined; let inicial: number | undefined; let started = false;
+  for (const raw of lines) {
+    const line = raw.replace(/\s+/g, ' ').trim();
+    const plain = stripAccents(line.toLowerCase());
+    if (!line || /^https?:/.test(plain) || /contas & extratos/.test(plain) || /^data nome/.test(plain)) continue;
+    const sa = line.match(/^(\d{2}\/\d{2}\/\d{2,4})\s+Saldo anterior\s+(\(?-?[\d.]+,\d{2}\)?)$/i);
+    if (sa) { saldo = val(sa[2]); inicial = saldo; started = true; continue; }
+    if (!started) continue;
+    const m = line.match(TAIL);
+    if (!m || (!m[1] && !data) || !m[2]) continue;
+    if (m[1]) data = toIsoDate(m[1]);
+    if (!data) continue;
+    const v = val(m[3]);
+    const descricao = m[2].replace(/\bSem descri[cç][aã]o\b/i, '').replace(/\s+/g, ' ').trim() || 'Lançamento';
+    out.push({ data, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' });
+    if (saldo !== undefined) saldo = Math.round((saldo + v) * 100) / 100;
+    if (m[4] !== undefined) {
+      const impresso = val(m[4]);
+      if (saldo !== undefined && Math.abs(saldo - impresso) > 0.005) {
+        divergencias.push(`Dia ${data.split('-').reverse().join('/')}: saldo impresso ${m[4]}, calculado ${saldo.toFixed(2)}.`);
+      }
+      saldo = impresso;
+    }
+  }
+  if (!out.length || inicial === undefined) throw new Error('Não foi possível ler os lançamentos deste PDF do Nibo. Nada foi importado.');
+  const res = finish('pdf', out, { banco: 'Nibo', saldoFinalInformado: divergencias.length ? undefined : saldo, bloqueiaImportacao: divergencias.length > 0, divergencias });
+  const datas = out.map(t => t.data).sort();
+  res.periodoInicio = datas[0]; res.periodoFim = datas[datas.length - 1];
+  res.saldoFinalInformado = divergencias.length ? undefined : saldo;
+  res.avisos = [`Extrato Nibo: ${out.length} lançamento(s), conferidos pelos saldos impressos.`, ...divergencias];
+  return res;
+}
+
 async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
@@ -1017,6 +1064,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
       return parseItauImageText(recognized);
     }
     if (isBradescoPdf(lines)) return parseBradescoPdfLines(lines);
+    if (isNiboContasPdf(lines)) return parseNiboContasPdfLines(lines);
     if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
     return parsePdfLines(lines);
   }
