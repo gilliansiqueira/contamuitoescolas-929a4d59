@@ -519,6 +519,13 @@
       "when": 1791334270183,
       "tag": "0073_product_sales_monthly",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1791334854243,
+      "tag": "0074_product_sales_admin_bypass",
+      "breakpoints": true
     }
   ]
 }

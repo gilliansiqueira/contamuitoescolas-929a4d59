@@ -273,7 +273,7 @@ function IndexBody({
     {
       key: 'resultados',
       title: 'Resultados',
-      items: (['relatorio', 'indicadores', 'recebimento_categoria', 'teto_gastos', 'detalhamento'] as RealizadoView[])
+      items: (['relatorio', 'indicadores', 'recebimento_categoria', 'teto_gastos', 'detalhamento', 'produtos_vendidos'] as RealizadoView[])
         .map(realItem)
         .filter(Boolean) as SidebarGroup['items'],
     },

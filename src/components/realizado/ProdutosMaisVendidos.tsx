@@ -78,13 +78,31 @@ function RankingTable({ title, rows, mode }: { title: string; rows: AggRow[]; mo
   );
 }
 
+const NUM_TOKEN = /-?R?\$?\s?[\d.]+,\d{1,2}|-?[\d.]+/g;
+
 function parsePasted(text: string): ProductSaleInput[] {
   const out: ProductSaleInput[] = [];
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
-    const parts = line.split(/\t|;|,(?=\s*[\dR$])/).map(p => p.trim()).filter(Boolean);
-    if (parts.length < 2) continue;
+    // 1) separa por tab ou ponto-e-vírgula (nunca por vírgula — é decimal BR)
+    let parts = line.split(/\t|;/).map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) {
+      // 2) fallback: números no fim da linha (valor e, opcional, quantidade)
+      const tokens = line.match(NUM_TOKEN) ?? [];
+      if (tokens.length < 1) continue;
+      const qtdTok = tokens.length >= 2 ? tokens[tokens.length - 1] : null;
+      const valorTok = tokens.length >= 2 ? tokens[tokens.length - 2] : tokens[0];
+      const produto = line
+        .slice(0, qtdTok ? line.lastIndexOf(qtdTok) : line.length)
+        .slice(0, line.lastIndexOf(valorTok))
+        .trim();
+      const valor = parseBRNumber(valorTok);
+      const quantidade = qtdTok ? parseBRNumber(qtdTok) : 0;
+      if (!produto || Number.isNaN(valor)) continue;
+      out.push({ produto, valor, quantidade: Number.isNaN(quantidade) ? 0 : quantidade });
+      continue;
+    }
     const produto = parts[0];
     const valor = parseBRNumber(parts[1]);
     const quantidade = parts.length >= 3 ? parseBRNumber(parts[2]) : 0;
