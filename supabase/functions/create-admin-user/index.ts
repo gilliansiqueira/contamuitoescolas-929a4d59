@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       {
         user_id: userId,
         email,
-        school_id: role === "cliente" ? school_id : (school_id ?? null),
+        school_id: role === "cliente" ? school_id : null,
         admin_scope: role === "admin" ? scope : "all",
       },
       { onConflict: "user_id" },
@@ -93,6 +93,11 @@ Deno.serve(async (req) => {
     // 3. Insere role
     const { error: rErr } = await adminClient.from("user_roles").insert({ user_id: userId, role });
     if (rErr && !rErr.message.includes("duplicate")) throw rErr;
+
+    // Equipe não tem "empresa principal": a empresa escolhida entra na carteira (user_schools).
+    if (role === "admin" && school_id) {
+      await adminClient.from("user_schools").insert({ user_id: userId, school_id });
+    }
 
     return new Response(JSON.stringify({ success: true, user_id: userId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -215,7 +215,7 @@ export function UsersConfig() {
           )}
           <div className="space-y-1.5">
             <Label>
-              Empresa principal {role === 'admin' && <span className="text-xs text-muted-foreground">(opcional)</span>}
+              {role === 'admin' ? <>Primeira empresa da carteira <span className="text-xs text-muted-foreground">(opcional)</span></> : 'Empresa principal'}
             </Label>
             <Select value={schoolId} onValueChange={setSchoolId}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
@@ -324,7 +324,7 @@ export function UsersConfig() {
                           </Select>
                           {u.admin_scope === 'list' && (
                             <p className="text-[11px] text-muted-foreground">
-                              Este admin verá apenas a empresa principal e as adicionais vinculadas abaixo.
+                              Este admin verá apenas as empresas da carteira vinculadas abaixo.
                             </p>
                           )}
                         </div>
