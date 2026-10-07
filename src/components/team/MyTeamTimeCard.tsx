@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CalendarX2, Clock3, Hourglass, MessageSquareText, PiggyBank, TrendingUp } from 'lucide-react';
+import { CalendarX2, Clock3, Hourglass, MessageSquareText, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 const spToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -29,7 +29,7 @@ export function MyTeamTimeCard({ showEmpty = false }: { showEmpty?: boolean }) {
   const [motivo, setMotivo] = useState('');
 
   if (!q.data) return showEmpty ? <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{q.isLoading ? 'Carregando seu ponto…' : 'Seu login ainda não está ligado ao ponto. Fale com a Bruna.'}</p> : null;
-  const { employee: e, daily, hourBank, justifications } = q.data;
+  const { employee: e, daily, justifications } = q.data;
   const days = [...daily].sort((a, b) => b.dia.localeCompare(a.dia)).map(d => {
     const c = classifyDay(d, e.horario_previsto, today);
     const previstas = (d.horario_previsto ?? e.horario_previsto ?? '').split(/\s+/).filter(x => TIME_RE.test(x)).length;
@@ -56,7 +56,6 @@ export function MyTeamTimeCard({ showEmpty = false }: { showEmpty?: boolean }) {
     { l: 'Horas extras no mês', v: exMes ? minToHhmm(exMes) : '0:00', icon: TrendingUp, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success' },
     { l: 'Horas devidas no mês', v: devidas ? minToHhmm(devidas) : '0:00', note: 'atrasos + saídas antes', icon: Hourglass, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
     { l: 'Faltas no mês', v: `${faltaDias} ${faltaDias === 1 ? 'dia' : 'dias'}`, icon: CalendarX2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
-    { l: 'Banco de horas', v: hourBank[0]?.saldo ?? '—', icon: PiggyBank, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
   ];
 
   return (
@@ -69,7 +68,7 @@ export function MyTeamTimeCard({ showEmpty = false }: { showEmpty?: boolean }) {
         <Input aria-label="Mês" type="month" value={month} max={today.slice(0, 7)} onChange={ev => ev.target.value && setMonth(ev.target.value)} className="h-9 w-[168px] bg-card text-xs" />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
         {cards.map(c => (
           <div key={c.l} className={`rounded-lg border border-border border-t-4 p-3 shadow-sm ${c.strip}`}>
             <div className="flex min-h-8 items-start justify-between gap-1.5"><span className="text-xs font-medium text-foreground/80">{c.l}</span><span className={`flex h-7 w-7 items-center justify-center rounded-md shadow-sm ${c.tone}`}><c.icon className="h-3.5 w-3.5" /></span></div>
