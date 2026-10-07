@@ -4,7 +4,7 @@ import { useExpenseDetailConfig } from '@/hooks/useExpenseDetail';
 import { ExportPdfSection } from '@/components/ExportPdfSection';
 // SharedMonthProvider is now provided at the app root (Index.tsx) so the
 // global period filter reaches every tab.
-import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target, Layers } from 'lucide-react';
+import { Settings, ChevronLeft, Gauge, ArrowRightLeft, CreditCard, FileDown, BarChart3, Wallet, Target, Layers, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileTabStrip } from '@/components/mobile/MobileTabStrip';
 import { motion } from 'framer-motion';
@@ -33,6 +33,7 @@ const FechamentoMeses = lazyNamed(() => import('./FechamentoMeses'), 'Fechamento
 const TetoGastos = lazyNamed(() => import('./TetoGastos'), 'TetoGastos');
 const DetalhamentoDespesas = lazyNamed(() => import('./DetalhamentoDespesas'), 'DetalhamentoDespesas');
 const DetalhamentoConfig = lazyNamed(() => import('./DetalhamentoConfig'), 'DetalhamentoConfig');
+const ProdutosMaisVendidos = lazyNamed(() => import('./ProdutosMaisVendidos'), 'ProdutosMaisVendidos');
 
 const ScreenLoading = () => <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>;
 
@@ -44,7 +45,7 @@ interface Props {
 }
 
 type ConfigTab = 'plano' | 'importacao' | 'regras' | 'historico' | 'fechamento' | 'dados' | 'detalhamento' | 'icones';
-export type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento';
+export type MainView = 'relatorio' | 'indicadores' | 'conversao' | 'vendas' | 'analise_vendas' | 'recebimento_categoria' | 'teto_gastos' | 'detalhamento' | 'produtos_vendidos';
 
 const configTabs: { key: ConfigTab; label: string; adminOnly?: boolean }[] = [
   { key: 'plano', label: 'Plano de Contas' },
@@ -65,6 +66,7 @@ interface TabVisibility {
   analise_vendas: boolean;
   recebimento_categoria: boolean;
   teto_gastos: boolean;
+  produtos_vendidos: boolean;
 }
 
 function useTabVisibility(schoolId: string) {
@@ -80,7 +82,7 @@ function useTabVisibility(schoolId: string) {
   });
 
   const visibility = useMemo<TabVisibility>(() => {
-    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true, analise_vendas: true, recebimento_categoria: true, teto_gastos: true };
+    const defaults: TabVisibility = { relatorio: true, indicadores: true, conversao: true, vendas: true, analise_vendas: true, recebimento_categoria: true, teto_gastos: true, produtos_vendidos: false };
     if (!tabs) return defaults;
     tabs.forEach(t => {
       if (t.tab_key in defaults) {
@@ -120,6 +122,7 @@ export function useRealizadoViews(schoolId: string): { key: MainView; label: str
     if (visibility.analise_vendas) list.push({ key: 'analise_vendas', label: 'Análise de Vendas', icon: BarChart3 });
     if (visibility.recebimento_categoria) list.push({ key: 'recebimento_categoria', label: 'Recebimento por Categoria', icon: Wallet });
     if (visibility.teto_gastos) list.push({ key: 'teto_gastos', label: 'Teto de Gastos', icon: Target });
+    if (visibility.produtos_vendidos) list.push({ key: 'produtos_vendidos', label: 'Produtos mais vendidos', icon: Trophy });
     if (detalhamentoEnabled) list.push({ key: 'detalhamento', label: detalhamentoLabel, icon: Layers });
     return list;
   }, [visibility, detalhamentoEnabled, detalhamentoLabel]);
@@ -173,6 +176,7 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
     if (mainView === 'analise_vendas' && !visibility.analise_vendas) return 'relatorio';
     if (mainView === 'recebimento_categoria' && !visibility.recebimento_categoria) return 'relatorio';
     if (mainView === 'teto_gastos' && !visibility.teto_gastos) return 'relatorio';
+    if (mainView === 'produtos_vendidos' && !visibility.produtos_vendidos) return 'relatorio';
     if (mainView === 'detalhamento' && !detalhamentoEnabled) return 'relatorio';
     return mainView;
   }, [mainView, visibility, detalhamentoEnabled]);
@@ -198,6 +202,7 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
               { key: 'analise_vendas', label: 'Análise de Vendas' },
               { key: 'recebimento_categoria', label: 'Recebimento por Categoria' },
               { key: 'teto_gastos', label: 'Teto de Gastos' },
+              { key: 'produtos_vendidos', label: 'Produtos mais vendidos' },
             ].map(tab => (
               <label key={tab.key} className="flex items-center gap-2 text-sm">
                 <input
@@ -322,6 +327,9 @@ export function RealizadoModule({ schoolId, view, onViewChange }: Props) {
         )}
         {activeView === 'teto_gastos' && (
           <ExportPdfSection fileName="teto-de-gastos"><TetoGastos schoolId={schoolId} /></ExportPdfSection>
+        )}
+        {activeView === 'produtos_vendidos' && (
+          <ExportPdfSection fileName="produtos-mais-vendidos"><ProdutosMaisVendidos schoolId={schoolId} /></ExportPdfSection>
         )}
         {activeView === 'detalhamento' && (
           <ExportPdfSection fileName="detalhamento-despesas"><DetalhamentoDespesas schoolId={schoolId} /></ExportPdfSection>
