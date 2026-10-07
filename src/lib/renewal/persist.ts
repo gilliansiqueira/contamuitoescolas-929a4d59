@@ -1,7 +1,7 @@
 import { renewalDb as db } from '@/hooks/useRenewal';
 import type { RenewalSheet } from '@/hooks/useRenewal';
 import { buildImported, mergeRows } from './mergeEngine';
-import type { RenewalRow, RenewalSettings, Override, RenewalColumn } from './types';
+import type { RenewalRow, RenewalSettings, Override, RenewalColumn, Issue } from './types';
 import type { ParsedSource } from './sponteParser';
 import { buildWorkbook } from './exportXlsx';
 import type { TemplateStructure } from './types';
@@ -36,7 +36,7 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
     if (e) throw e;
   });
   await db.from('renewal_issues').delete().eq('sheet_id', sheet.id).eq('resolved', false);
-  const extra = stats.removed.map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` }));
+  const extra: Issue[] = stats.removed.map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` }));
   const all2 = [...issues, ...extra];
   await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: i.detail ?? {} }))); if (e) throw e; });
   const patch: any = { updated_at: new Date().toISOString() };
