@@ -21,7 +21,7 @@ import { ManagementCenter } from '@/components/management/ManagementCenter';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
-  CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark,
+  CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark, GraduationCap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -50,13 +50,14 @@ const HistoricoFinanceiroConfig = lazyNamed(() => import('@/components/Historico
 const ModelosFinanceirosManager = lazyNamed(() => import('@/components/ModelosFinanceirosManager'), 'ModelosFinanceirosManager');
 const EmpresaModeloConfig = lazyNamed(() => import('@/components/EmpresaModeloConfig'), 'EmpresaModeloConfig');
 const ReconReasonsConfig = lazyNamed(() => import('@/components/fluxo-bancario/ReconReasonsConfig'), 'ReconReasonsConfig');
+const RenovacaoModule = lazyNamed(() => import('@/components/renovacao/RenovacaoModule'), 'RenovacaoModule');
 const FluxoBancario = lazyNamed(() => import('@/components/fluxo-bancario/FluxoBancario'), 'FluxoBancario');
 
 const ScreenLoading = () => (
   <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>
 );
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons' | 'renewal';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -70,6 +71,7 @@ const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean; pilot
   { key: 'simulation', label: 'Simulação', icon: Calculator },
   { key: 'datatable', label: 'Dados', icon: Database, adminOnly: true },
   { key: 'bank_flow', label: 'Fluxo Bancário', icon: Landmark, adminOnly: true, pilotOnly: true },
+  { key: 'renewal', label: 'Renovação escolar', icon: GraduationCap, adminOnly: true },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
@@ -297,6 +299,7 @@ function IndexBody({
       items: canSeeAdminTabs
         ? [
             ...(['datatable'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
+            ...(['renewal'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['bank_flow'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['upload', 'uploads_history', 'audit_history'] as Tab[])
               .filter(t => settingsTabs.some(s => s.key === t))
@@ -399,6 +402,7 @@ function IndexBody({
                   {activeTab === 'bank_flow' && bankPilotEnabled && canSeeAdminTabs && (
                     <FluxoBancario schoolId={school.id} selectedMonth={selectedMonth} />
                   )}
+                  {activeTab === 'renewal' && canSeeAdminTabs && <RenovacaoModule schoolId={school.id} schoolName={school.nome} />}
                   {activeTab === 'datatable' && (
                     <ExportPdfSection fileName={`dados-${selectedMonth}`}>
                       <DataTable schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />
