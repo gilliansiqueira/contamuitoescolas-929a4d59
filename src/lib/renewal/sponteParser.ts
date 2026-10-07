@@ -1,4 +1,8 @@
 import * as XLSX from 'xlsx';
+/** Turmas com todas as linhas "Em formação" são do próximo período, nunca a base atual. */
+export function looksLikeFormacao(rows: Record<string, any>[]) {
+  return rows.length > 0 && rows.every(r => /forma[cç][aã]o/i.test(String(r.SituacaoTurma ?? '')));
+}
 import { norm } from './fields';
 
 export type SourceKey = 'turmas_existentes' | 'contas_receber' | 'turmas_formacao';
@@ -65,7 +69,8 @@ export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSou
     headers.forEach((h, i) => { if (h) o[h] = line[i]; });
     rows.push(o);
   }
-  return { source: det.source, headers, rows, discarded };
+  const source = det.source === 'turmas_existentes' && looksLikeFormacao(rows) ? 'turmas_formacao' : det.source;
+  return { source, headers, rows, discarded };
 }
 
 export async function parseSponteFile(file: File, force?: SourceKey): Promise<ParsedSource> {
