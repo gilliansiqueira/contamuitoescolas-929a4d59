@@ -102,18 +102,20 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
           </Select>
         </div>
         <div className="space-y-1"><Label className="text-xs">Nova renovação (período)</Label>
-          <div className="flex gap-2"><Input className="h-9 w-32" placeholder="2027/1" value={newPeriod} onChange={e => setNewPeriod(e.target.value)} /><Button size="sm" onClick={createSheet}>Criar</Button></div>
+          <div className="flex gap-2"><Input className="h-9 w-32" placeholder="2027/1" value={newPeriod} onChange={e => setNewPeriod(e.target.value)} /><Button size="sm" onClick={createSheet}>Criar planilha do período</Button></div>
         </div>
         {sheet && <SheetHeader sheet={sheet} onChanged={() => invalidate(schoolId, sheet.id)} />}
       </div>
+      <NextStepBanner sheet={sheet} onGo={setStep} />
       <Tabs value={step} onValueChange={setStep}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="modelo">1. Modelo</TabsTrigger>
-          <TabsTrigger value="relatorios" disabled={!sheet}>2. Relatórios</TabsTrigger>
-          <TabsTrigger value="conferencia" disabled={!sheet}>3. Conferência</TabsTrigger>
-          <TabsTrigger value="planilha" disabled={!sheet}>4. Planilha</TabsTrigger>
-          <TabsTrigger value="envios" disabled={!sheet}>5. Envios</TabsTrigger>
+          <TabsTrigger value="relatorios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>2. Relatórios</TabsTrigger>
+          <TabsTrigger value="conferencia" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>3. Conferência</TabsTrigger>
+          <TabsTrigger value="planilha" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>4. Planilha</TabsTrigger>
+          <TabsTrigger value="envios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>5. Envios</TabsTrigger>
         </TabsList>
+        {!sheet && <p className="mt-2 text-xs text-muted-foreground">Crie a planilha do período no campo acima para liberar as próximas etapas.</p>}
         <TabsContent value="modelo"><TemplatePanel schoolId={schoolId} templates={templates} /></TabsContent>
         {sheet && <>
           <TabsContent value="relatorios"><ReportsPanel sheet={sheet} /></TabsContent>
