@@ -1,9 +1,9 @@
 import * as XLSX from 'xlsx';
 import { norm } from './fields';
 
-export type SourceKey = 'turmas_existentes' | 'contas_receber';
+export type SourceKey = 'turmas_existentes' | 'contas_receber' | 'turmas_formacao';
 
-const REQUIRED: Record<SourceKey, string[]> = {
+const REQUIRED: Partial<Record<SourceKey, string[]>> = {
   turmas_existentes: ['nome', 'aluno', 'numeromatricula'],
   contas_receber: ['sacado', 'datavencimento', 'categoria'],
 };
@@ -46,11 +46,13 @@ export function detectSource(matrix: any[][]): { source: SourceKey; headerRow: n
   return null;
 }
 
-export function parseSponteMatrix(matrix: any[][]): ParsedSource {
-  const det = detectSource(matrix);
+export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSource {
+  const det0 = detectSource(matrix);
+  if (force === 'turmas_formacao' && det0 && det0.source !== 'turmas_existentes') throw new Error('Este arquivo não parece um relatório de turmas. Exporte as turmas em formação do próximo período com os integrantes.');
+  const det = det0 && force ? { ...det0, source: force } : det0;
   if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" exportados em Excel tabulado.');
   const headers = (matrix[det.headerRow] ?? []).map(h => String(h ?? '').trim());
-  const key = det.source === 'turmas_existentes' ? 'Aluno' : 'Sacado';
+  const key = det.source === 'contas_receber' ? 'Sacado' : 'Aluno';
   const ki = headers.indexOf(key);
   const rows: Record<string, any>[] = [];
   let discarded = 0;
@@ -66,10 +68,10 @@ export function parseSponteMatrix(matrix: any[][]): ParsedSource {
   return { source: det.source, headers, rows, discarded };
 }
 
-export async function parseSponteFile(file: File): Promise<ParsedSource> {
+export async function parseSponteFile(file: File, force?: SourceKey): Promise<ParsedSource> {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', raw: false, cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const matrix = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: null });
-  return parseSponteMatrix(matrix);
+  return parseSponteMatrix(matrix, force);
 }

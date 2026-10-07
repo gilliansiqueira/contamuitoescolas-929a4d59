@@ -1,6 +1,6 @@
 import { renewalDb as db } from '@/hooks/useRenewal';
 import type { RenewalSheet } from '@/hooks/useRenewal';
-import { buildImported, mergeRows } from './mergeEngine';
+import { buildImported, mergeRows, applyRenewedFromNextPeriod } from './mergeEngine';
 import type { RenewalRow, RenewalSettings, Override, RenewalColumn, Issue } from './types';
 import type { ParsedSource } from './sponteParser';
 import { buildWorkbook } from './exportXlsx';
@@ -8,6 +8,7 @@ import type { TemplateStructure } from './types';
 
 const KEEP: Record<string, string[]> = {
   turmas_existentes: ['Nome', 'Curso', 'Estagio', 'Professor', 'Modalidade', 'IntegrantesAtuais', 'Aluno', 'NumeroMatricula', 'TerminoContrato', 'NumeroContrato', 'SituacaoAluno', 'SituacaoContrato'],
+  turmas_formacao: ['Nome', 'Curso', 'Estagio', 'Professor', 'Modalidade', 'Aluno', 'NumeroMatricula', 'DataMatricula', 'DataInicio', 'InicioContrato', 'DataContrato', 'NumeroContrato'],
   contas_receber: ['Sacado', 'NumeroMatricula', 'DataVencimento', 'DataPagamento', 'Categoria', 'FormaCobranca', 'Situacao', 'SituacaoParcela', 'Valor', 'NumeroContrato', 'Turma'],
 };
 
@@ -27,6 +28,8 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   const t = latest('turmas_existentes'); const c = latest('contas_receber');
   if (!t) return { stats: null, issues: 0 };
   const { rows: imported, issues } = buildImported(t.summary.rows, c?.summary.rows ?? null, { settings, minDue: sheet.params?.minDue });
+  const f = latest('turmas_formacao');
+  if (f) issues.push(...applyRenewedFromNextPeriod(imported, f.summary.rows));
   const auto = new Map(existing.filter(r => !r.manual).map(r => [r.row_key, r]));
   const manualRows = existing.filter(r => r.manual);
   const { rows, stats } = mergeRows([...auto.values()], imported, sheet.columns);
@@ -37,6 +40,14 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   });
   await db.from('renewal_issues').delete().eq('sheet_id', sheet.id).eq('resolved', false);
   const extra: Issue[] = stats.removed.map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` }));
+  // Formação diz "Rematriculado" mas a equipe marcou outra coisa: mantém a marcação e pede revisão.
+  for (const r of rows) {
+    if (!r.imported?.formacao_turma) continue;
+    for (const col of sheet.columns.filter(c => c.field === 'status_renovacao' || c.field === 'turma_destino')) {
+      const o = r.overrides?.[col.id]; const nv = r.imported[col.field!];
+      if (o && String(o.value ?? '') !== '' && String(o.value) !== String(nv)) extra.push({ kind: 'formacao_conflito', row_key: r.row_key, message: `${r.imported.aluno}: turmas em formação indicam ${col.title} = "${nv}", mas a equipe marcou "${o.value}" (mantido).` });
+    }
+  }
   const all2 = [...issues, ...extra];
   await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: i.detail ?? {} }))); if (e) throw e; });
   const patch: any = { updated_at: new Date().toISOString() };
