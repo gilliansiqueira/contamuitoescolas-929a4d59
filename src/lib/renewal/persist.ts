@@ -1,6 +1,6 @@
 import { renewalDb as db } from '@/hooks/useRenewal';
 import type { RenewalSheet } from '@/hooks/useRenewal';
-import { buildImported, mergeRows, applyRenewedFromNextPeriod } from './mergeEngine';
+import { buildImported, mergeRows, applyRenewedFromNextPeriod, reclassifyNewStudents } from './mergeEngine';
 import type { RenewalRow, RenewalSettings, Override, RenewalColumn, Issue } from './types';
 import type { ParsedSource } from './sponteParser';
 import { buildWorkbook } from './exportXlsx';
