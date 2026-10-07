@@ -63,7 +63,7 @@ interface Props {
 }
 
 type Situation = 'all' | 'finalizado' | 'bloqueado' | 'atrasado' | 'atencao' | 'em_dia' | 'sem_etapas';
-type ManagementView = 'portfolio' | 'closing' | 'pending' | 'responsible' | 'team_time';
+type ManagementView = 'portfolio' | 'closing' | 'pending' | 'responsible' | 'team_time' | 'my_time';
 type RowStatus = Exclude<Situation, 'all'>;
 
 const statusLabels: Record<RowStatus, string> = {
@@ -110,7 +110,7 @@ const rowAccent: Record<RowStatus, string> = {
 };
 
 const viewLabels: Record<ManagementView, string> = {
-  portfolio: 'Carteira de clientes', closing: 'Relatórios', pending: 'Pendências', responsible: 'Por responsável', team_time: 'Ponto da Equipe',
+  portfolio: 'Carteira de clientes', closing: 'Relatórios', pending: 'Pendências', responsible: 'Por responsável', team_time: 'Ponto da Equipe', my_time: 'Meu ponto',
 };
 
 type PeriodMode = 'hoje' | 'ontem' | 'mes';
@@ -158,7 +158,6 @@ function cardDefsFor(mode: PeriodMode, today: string, available: (row: Portfolio
      { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
      { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
      { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'done' },
-     { key: 'no_bank', label: 'Sem Fluxo Bancário', icon: Building2, tone: 'text-muted-foreground bg-muted', strip: 'border-t-muted-foreground bg-muted/40', num: 'text-muted-foreground', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'unavailable' },
   ];
   return [
      { key: 'no_statement', label: 'Extrato não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
@@ -166,7 +165,6 @@ function cardDefsFor(mode: PeriodMode, today: string, available: (row: Portfolio
      { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
      { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
     { key: 'backlog', label: 'Pendências acumuladas', icon: FileCheck2, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (_row, _daily, backlogCount) => backlogCount > 0 },
-     { key: 'no_bank', label: 'Sem Fluxo Bancário', icon: Building2, tone: 'text-muted-foreground bg-muted', strip: 'border-t-muted-foreground bg-muted/40', num: 'text-muted-foreground', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'unavailable' },
   ];
 }
 
@@ -645,7 +643,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     { key: 'portfolio' as const, label: 'Carteira de clientes', icon: Building2 },
     { key: 'closing' as const, label: 'Relatórios', icon: FileCheck2 },
     { key: 'pending' as const, label: 'Pendências', icon: AlertCircle },
-    { key: 'responsible' as const, label: 'Por responsável', icon: Users },
+    ...(isSuperAdmin ? [{ key: 'responsible' as const, label: 'Por responsável', icon: Users }] : [{ key: 'my_time' as const, label: 'Meu ponto', icon: Clock3 }]),
   ];
   const profileName = profile?.email ? nameFromEmail(profile.email) : 'Equipe Conta Muito';
   const profileInitials = initialsOf(profileName);
@@ -682,7 +680,9 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           {canViewTeamTime && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Ponto da Equipe</Button>}
         </nav>
 
-        {view === 'team_time' && canViewTeamTime ? (
+        {view === 'my_time' ? (
+          <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><MyTeamTimeCard showEmpty /></main>
+        ) : view === 'team_time' && canViewTeamTime ? (
           <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><TeamTimePanel /></main>
         ) : (
         <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6">
@@ -700,7 +700,6 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
 
           {showManager && <ManagerDayPanel today={today} team={managerTeam} stalled={managerStalled} allSchools={managerAllSchools} canViewTeamTime={canViewTeamTime} onOpenSchool={openSchool} onOpenTeamTime={() => { setCardFilter(null); setView('team_time'); }} />}
 
-          <MyTeamTimeCard />
 
           <MyDayPanel
             schools={myDaySchools}

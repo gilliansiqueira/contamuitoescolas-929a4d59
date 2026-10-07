@@ -150,26 +150,26 @@ export function MyDayPanel({ schools, today, pendingItems, personSelector, perso
     cash: data?.cashRisks.length ?? 0,
   }), [data, pendingItems]);
 
-  const cards: { key: CardKey; label: string; count: number; note: string; icon: typeof Wallet; tone: string; active: string }[] = [
-    { key: 'pay', label: 'Pagamentos de hoje', count: totals.pay, note: fmtBRL(totals.payValor), icon: CircleDollarSign, tone: 'text-destructive', active: 'border-destructive/40 bg-destructive/[0.06]' },
-    { key: 'schedule', label: 'Agendar hoje', count: totals.schedule, note: 'vencem amanhã ou em dia não útil', icon: CalendarClock, tone: 'text-warning', active: 'border-warning/40 bg-warning/[0.06]' },
-    { key: 'notpaid', label: 'Não saiu da conta', count: totals.notPaid, note: 'vencidas sem saída no extrato', icon: AlertTriangle, tone: 'text-destructive', active: 'border-destructive/40 bg-destructive/[0.06]' },
-    { key: 'pending', label: 'Pendências', count: totals.pending, note: 'conciliação, extrato, tarefas e relatório', icon: ListTodo, tone: 'text-warning', active: 'border-warning/40 bg-warning/[0.06]' },
-    { key: 'cash', label: 'Caixa em risco', count: totals.cash, note: 'saldo negativo nos próximos 15 dias', icon: Wallet, tone: 'text-destructive', active: 'border-destructive/40 bg-destructive/[0.06]' },
+  const cards: { key: CardKey; label: string; count: number; note: string; icon: typeof Wallet; tone: string; strip: string; num: string }[] = [
+    { key: 'pay', label: 'Pagamentos de hoje', count: totals.pay, note: fmtBRL(totals.payValor), icon: CircleDollarSign, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
+    { key: 'schedule', label: 'Agendar hoje', count: totals.schedule, note: 'vencem amanhã ou em dia não útil', icon: CalendarClock, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress' },
+    { key: 'notpaid', label: 'Não saiu da conta', count: totals.notPaid, note: 'vencidas sem saída no extrato', icon: AlertTriangle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
+    { key: 'pending', label: 'Pendências', count: totals.pending, note: 'conciliação, extrato, tarefas e relatório', icon: ListTodo, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary' },
+    { key: 'cash', label: 'Caixa em risco', count: totals.cash, note: 'saldo negativo nos próximos 15 dias', icon: Wallet, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive' },
   ];
 
   const toggle = (key: CardKey) => setOpen(current => (current === key ? null : key));
 
   return (
-    <section aria-label="Meu dia" className="mb-4 rounded-lg border border-border bg-card p-3.5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-medium">Meu dia — {personLabel}</h2>
+    <section aria-label="Meu dia" className="mb-5">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-base font-medium">Meu dia <span className="text-xs font-normal text-muted-foreground">— tarefas das empresas de {personLabel}</span></h2>
           <span className="text-[10px] text-muted-foreground">{fmtDate(today)}</span>
         </div>
         {personSelector && (
           <Select value={personSelector.value} onValueChange={personSelector.onChange}>
-            <SelectTrigger className="h-8 w-[200px] bg-background text-xs" aria-label="Ver painel de outra pessoa">
+            <SelectTrigger className="h-8 w-[200px] bg-card text-xs" aria-label="Ver painel de outra pessoa">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -188,17 +188,18 @@ export function MyDayPanel({ schools, today, pendingItems, personSelector, perso
               <button
                 key={card.key} type="button" onClick={() => toggle(card.key)}
                 aria-expanded={open === card.key}
-                className={`rounded-lg border border-border p-3 text-left shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${open === card.key ? card.active : 'bg-background'}`}
+                className={`relative min-w-0 rounded-lg border border-border border-t-4 p-3 text-left shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${card.strip} ${open === card.key ? 'ring-2 ring-primary ring-offset-2' : ''}`}
               >
-                <div className="flex items-start justify-between gap-1.5">
-                  <span className="text-[11px] font-medium leading-tight text-foreground/80">{card.label}</span>
-                  <card.icon className={`h-3.5 w-3.5 shrink-0 ${card.tone}`} />
+                <div className="flex min-h-8 items-start justify-between gap-1.5">
+                  <span className="text-xs font-medium leading-tight text-foreground/80">{card.label}</span>
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm ${card.tone}`}><card.icon className="h-3.5 w-3.5" /></span>
                 </div>
-                <p className={`mt-1 text-xl font-semibold leading-none ${card.tone}`}>{isLoading ? '—' : card.count}</p>
-                <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{card.note}</p>
+                <p className={`mt-1 text-2xl font-semibold leading-none ${card.num}`}>{isLoading ? '—' : card.count}</p>
+                <p className="mt-1 min-h-7 text-[10px] leading-snug text-muted-foreground">{card.note}</p>
               </button>
             ))}
           </div>
+
 
           {open && (
             <div className="mt-3 space-y-1.5 rounded-lg border border-border bg-muted/20 p-2.5">
