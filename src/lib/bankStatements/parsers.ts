@@ -1093,8 +1093,10 @@ export function refCollisionHash(accountId: string, t: ParsedBankTx): Promise<st
 }
 
 /** O lançamento gravado com o mesmo código é de fato o mesmo? (data, sentido e valor iguais) */
-export function sameRefTx(row: { data: string; tipo: string; valor: number | string }, t: ParsedBankTx): boolean {
-  return row.data === t.data && row.tipo === t.tipo && Math.abs(Number(row.valor) - t.valor) < 0.005;
+export function sameRefTx(row: { data: string; tipo: string; valor: number | string; descricao?: string | null }, t: ParsedBankTx): boolean {
+  if (row.data !== t.data || row.tipo !== t.tipo || Math.abs(Number(row.valor) - t.valor) >= 0.005) return false;
+  // Bradesco reaproveita o código em outro lançamento do mesmo dia e valor: a descrição desempata.
+  return row.descricao == null || normalizeDesc(row.descricao) === normalizeDesc(t.descricao);
 }
 
 export async function computeDedupHashes(accountId: string, txs: ParsedBankTx[]): Promise<string[]> {

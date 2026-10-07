@@ -13,3 +13,12 @@ describe('Itaú renumera o código do lançamento entre downloads', () => {
     expect(sameRefTx({ data: '2026-09-30', tipo: 'entrada', valor: '50.00' }, leonardo as any)).toBe(true);
   });
 });
+
+describe('Bradesco reaproveita o código antigo em outro lançamento', () => {
+  it('mesmo código, dia e valor mas outra pessoa = lançamento diferente', () => {
+    const taiane = { data: '2026-10-05', tipo: 'entrada', valor: 315, descricao: 'PIX RECEBIDO REM: TAIANE DE ASSIS TRIND 04/10' };
+    const raimundo = { data: '2026-10-05', tipo: 'entrada' as const, valor: 315, descricao: 'PIX RECEBIDO REM: RAIMUNDO MARQUES DOS  05/10', bankRef: 'N102BE' };
+    expect(sameRefTx(taiane, raimundo)).toBe(false);
+    expect(sameRefTx(taiane, { ...raimundo, descricao: taiane.descricao })).toBe(true);
+  });
+});
