@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useBankImports, useInvalidateBank, useAutoInvestPatterns, useOwnTransferNames, useSetMovementKind, autoPairTransfers } from '@/hooks/useBankPilot';
 import { Checkbox } from '@/components/ui/checkbox';
-import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, buildBankTemplateXlsx, toIsoDate, type BankParseResult } from '@/lib/bankStatements/parsers';
+import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, normalizeDesc, buildBankTemplateXlsx, toIsoDate, type BankParseResult } from '@/lib/bankStatements/parsers';
 import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 
@@ -112,21 +112,27 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       if (!result.transactions.length) result.avisos = [...result.avisos, `Sem movimentação no período (${result.periodoInicio?.split('-').reverse().join('/') ?? '?'} a ${result.periodoFim.split('-').reverse().join('/')}). O extrato fica registrado e a conta passa a valer até essa data.`];
       const hashes = await computeDedupHashes(accountId, result.transactions);
       const existing = new Set<string>();
-      const existingRow = new Map<string, { data: string; tipo: string; valor: number }>();
+      const existingRow = new Map<string, { id: string; data: string; tipo: string; valor: number; descricao: string }>();
       for (let i = 0; i < hashes.length; i += 200) {
-        const { data } = await db.from('bank_transactions').select('dedup_hash, data, tipo, valor').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
+        const { data } = await db.from('bank_transactions').select('id, dedup_hash, data, tipo, valor, descricao').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
         (data ?? []).forEach((r: any) => { existing.add(r.dedup_hash); existingRow.set(r.dedup_hash, r); });
       }
-      // Código do banco reaproveitado em outro lançamento (ex.: Itaú renumera a cada download):
-      // só é duplicado se data, sentido e valor também baterem; senão vira lançamento novo.
+      // Linhas já gravadas que correspondem de fato a um lançamento deste arquivo (não podem ser usadas de novo).
+      const claimed = new Set<string>();
+      // Lançamentos cujo código do banco pertence a outro lançamento já gravado (Itaú/Bradesco renumeram a cada download).
+      const collided = new Set<number>();
+      // Código do banco reaproveitado em outro lançamento: só é duplicado se data, sentido, valor e descrição baterem.
       for (let i = 0; i < hashes.length; i++) {
         const t = result.transactions[i];
         const row = existingRow.get(hashes[i]);
-        if (!t.bankRef || !row || sameRefTx(row, t)) continue;
+        if (!row) continue;
+        if (!t.bankRef || sameRefTx(row, t)) { claimed.add(row.id); continue; }
+        existing.delete(hashes[i]);
         const alt = await refCollisionHash(accountId, t);
         hashes[i] = alt;
         const { data: altRow } = await db.from('bank_transactions').select('id').eq('account_id', accountId).eq('dedup_hash', alt).maybeSingle();
-        if (altRow) existing.add(alt);
+        if (altRow) { existing.add(alt); claimed.add(altRow.id); }
+        else collided.add(i);
         t.bankRef = undefined; // não regravar o código antigo no lançamento novo
       }
       // PDF sem identificador do banco: não regravar o que já veio por outro arquivo (ex.: OFX)
@@ -171,20 +177,26 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           (semRef ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]); });
           cand.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef! }); } });
         }
-        // Bancos (ex.: Bradesco) renumeram o FITID a cada download: casa por data + valor + sentido + descrição
-        // com linhas cujo bank_ref não aparece neste arquivo, consumindo cada linha existente uma única vez.
-        const cand2 = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && x.t.bankRef && !existing.has(hashes[x.i]));
+        // Bancos (ex.: Bradesco) renumeram o FITID a cada download — e o código antigo pode ir para OUTRO lançamento.
+        // Casa por data + valor + sentido + descrição com linhas ainda não reconhecidas neste arquivo,
+        // consumindo cada linha existente uma única vez (repetições legítimas continuam entrando).
+        const cand2 = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && (x.t.bankRef || collided.has(x.i)) && !existing.has(hashes[x.i]));
         if (cand2.length) {
-          const refsArquivo = new Set(result.transactions.map(t => t.bankRef).filter(Boolean));
-          const norm = (s: string) => String(s ?? '').toUpperCase().replace(/\s+/g, ' ').trim();
           const datas = cand2.map(x => x.t.data).sort();
           const { data: comRefRows } = await db.from('bank_transactions').select('id, data, valor, tipo, descricao, bank_ref').eq('account_id', accountId)
             .eq('is_forecast', false).not('bank_ref', 'is', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
           const pool = new Map<string, string[]>();
-          (comRefRows ?? []).filter((r: any) => !refsArquivo.has(r.bank_ref)).forEach((r: any) => {
-            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}|${norm(r.descricao)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]);
+          (comRefRows ?? []).filter((r: any) => !claimed.has(r.id)).forEach((r: any) => {
+            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}|${normalizeDesc(r.descricao)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]);
           });
-          cand2.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${norm(t.descricao)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef!, replace: true }); } });
+          let renumerados = 0;
+          cand2.forEach(({ t, i }) => {
+            const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${normalizeDesc(t.descricao)}`; const ids = pool.get(k);
+            if (!ids?.length) return;
+            const id = ids.shift()!; claimed.add(id); existing.add(hashes[i]); renumerados++;
+            if (t.bankRef) linkRefs.push({ id, bankRef: t.bankRef, replace: true });
+          });
+          if (renumerados) result.avisos = [...(result.avisos ?? []), `${renumerados} lançamento(s) já existiam com código diferente do banco (o banco renumera a cada download) e não serão gravados de novo.`];
         }
       }
       const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
