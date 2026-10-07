@@ -319,6 +319,7 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
       </div>
       <div className="h-fit space-y-3 rounded-xl border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">Enviar relatório do Sponte</h3>
+        {imports.length === 0 && <p className="rounded-md bg-primary/10 p-2 text-xs font-medium">Comece pelo relatório de Turmas Existentes; depois envie o de Contas a Receber.</p>}
         <p className="text-xs text-muted-foreground">Excel (.xls/.xlsx) ou CSV. O sistema reconhece qual relatório é.</p>
         <Input type="file" accept=".xls,.xlsx,.csv" onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
         {parsed && (
