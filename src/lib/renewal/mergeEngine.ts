@@ -11,6 +11,12 @@ export function defaultMinDue(period: string): string {
   return s === 1 ? `${y - 1}-10-01` : `${y}-05-01`;
 }
 
+function lev(a: string, b: string): number {
+  const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) { let prev = d[0]; d[0] = i; for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = t; } }
+  return d[b.length];
+}
+
 const isMaterial = (c: string) => norm(c).startsWith('material');
 const isCancelled = (p: Record<string, any>) => /cancel|estorn/i.test(String(p.Situacao ?? '')) || /cancel/i.test(String(p.SituacaoParcela ?? ''));
 
@@ -77,7 +83,7 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
   const allNames = [...rows.entries()];
   for (const u of unmatched.values()) {
     const tok = norm(u.sacado).split(' ');
-    const similar = allNames.filter(([, r]) => { const t = norm(r.aluno).split(' '); return t[0] === tok[0] && t[t.length - 1] === tok[tok.length - 1]; }).map(([, r]) => r.aluno);
+    const similar = allNames.filter(([, r]) => { const t = norm(r.aluno).split(' '); return lev(t[0], tok[0]) <= 1 && lev(t[t.length - 1], tok[tok.length - 1]) <= 2; }).map(([, r]) => r.aluno);
     issues.push(similar.length
       ? { kind: 'nome_semelhante', message: `"${u.sacado}" (mat. ${u.mat || '—'}) não bate exatamente; nomes parecidos: ${[...new Set(similar)].join(', ')}.`, detail: u }
       : { kind: 'sem_correspondencia', message: `"${u.sacado}" (mat. ${u.mat || '—'}) tem ${u.count} parcela(s) do módulo mas não está nas turmas.`, detail: u });
