@@ -1,13 +1,8 @@
-# Hubla da Go Company ainda lendo 2 lançamentos
+# Publicar a correção da Hubla da Go Company
 
-Você não fez nada errado. A correção está na versão de testes, mas o endereço que a equipe usa (relatorioscontamuito.online) só recebe mudanças depois de publicar — e essa correção provavelmente ainda não foi publicada. Antes de publicar, quero confirmar que ela funciona com o PDF de verdade, e não só com o teste.
+Você não fez nada errado: a correção estava só na versão de testes. O endereço da equipe (relatorioscontamuito.online) só recebe mudanças depois de publicar.
 
 ## Passos
-1. Abrir a versão de testes, entrar como administradora, ir na Go Company → Fluxo Bancário → importar o PDF "Contas & Extratos" que você mandou, e conferir se a tela de conferência mostra 24 lançamentos (entradas e saídas de R$ 8.194,70, saldo final R$ 0,00).
-2. Se mostrar menos que 24: comparar como o navegador lê as linhas do PDF com as linhas usadas no teste, ajustar o reconhecimento desse formato do Nibo e repetir o passo 1 até fechar.
-3. Não gravar nada na Go Company durante o teste (só a tela de conferência).
-4. Pedir para você publicar; depois disso basta reenviar o PDF — as 2 linhas já importadas não se repetem.
-
-## Detalhes técnicos
-- `parseBankFile` já chama `isNiboContasPdf` → `parseNiboContasPdfLines`, mas depois de `isBradescoPdf`; checar se o PDF real não cai antes em outro parser ou se `readPdfLines` no navegador agrupa as linhas diferente da fixture `niboHublaGo.json`.
-- Validação via Playwright com upload do arquivo `Contas_Extratos_GO_COMPANY_LTDA.pdf`.
+1. Publicar o app agora, levando a leitura completa do extrato "Contas & Extratos" da Hubla (24 lançamentos em setembro, entradas e saídas de R$ 8.194,70, saldo final R$ 0,00), junto com as outras correções do dia.
+2. A equipe reenvia o mesmo PDF na Go Company. As 2 linhas que já foram importadas não entram de novo.
+3. Se a tela de conferência ainda mostrar menos de 24 lançamentos, vocês me avisam e eu comparo a leitura do PDF no navegador com o teste para ajustar.
