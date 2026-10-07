@@ -332,7 +332,7 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
           </div>
         )}
         <div className="space-y-1 border-t border-border pt-3"><Label className="text-xs">Parcelas a partir de (vencimento)</Label>
-          <div className="flex gap-2"><Input type="date" className="h-9" value={minDue} onChange={e => setMinDue(e.target.value)} /><Button size="sm" variant="outline" onClick={recalc} disabled={busy}><RefreshCw className="h-4 w-4" /></Button></div>
+          <div className="flex gap-2"><Input type="date" className="h-9" value={minDue} onChange={e => setMinDue(e.target.value)} /><Button size="sm" variant="outline" onClick={recalc} disabled={busy} className="whitespace-nowrap"><RefreshCw className="h-4 w-4 mr-1" />Recalcular planilha</Button></div>
           <p className="text-[11px] text-muted-foreground">Evita contratos antigos. Recalcular preserva tudo o que a equipe já editou.</p>
         </div>
       </div>
