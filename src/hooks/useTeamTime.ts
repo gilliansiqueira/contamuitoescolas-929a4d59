@@ -139,14 +139,13 @@ export function useMyTeamTime(month: string, userId: string | undefined) {
       const start = `${month}-01`;
       const [y, m] = month.split('-').map(Number);
       const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-      const [d, b, j] = await Promise.all([
+      const [d, j] = await Promise.all([
         db.from('team_time_daily').select('*').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
-        db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').eq('employee_external_id', emp.external_id).eq('competencia', month),
         db.from('team_time_justifications').select('id,employee_external_id,dia,motivo,status,created_at').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
       ]);
-      const err = [d, b, j].find(x => x.error)?.error;
+      const err = [d, j].find(x => x.error)?.error;
       if (err) throw err;
-      return { employee: emp as TeamEmployee, daily: (d.data ?? []) as TeamDaily[], hourBank: (b.data ?? []) as TeamHourBank[], justifications: (j.data ?? []) as TeamJustification[] };
+      return { employee: emp as TeamEmployee, daily: (d.data ?? []) as TeamDaily[], justifications: (j.data ?? []) as TeamJustification[] };
     },
   });
 }
