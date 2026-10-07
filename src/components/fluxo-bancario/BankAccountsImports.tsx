@@ -177,20 +177,26 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           (semRef ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]); });
           cand.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef! }); } });
         }
-        // Bancos (ex.: Bradesco) renumeram o FITID a cada download: casa por data + valor + sentido + descrição
-        // com linhas cujo bank_ref não aparece neste arquivo, consumindo cada linha existente uma única vez.
-        const cand2 = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && x.t.bankRef && !existing.has(hashes[x.i]));
+        // Bancos (ex.: Bradesco) renumeram o FITID a cada download — e o código antigo pode ir para OUTRO lançamento.
+        // Casa por data + valor + sentido + descrição com linhas ainda não reconhecidas neste arquivo,
+        // consumindo cada linha existente uma única vez (repetições legítimas continuam entrando).
+        const cand2 = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && (x.t.bankRef || collided.has(x.i)) && !existing.has(hashes[x.i]));
         if (cand2.length) {
-          const refsArquivo = new Set(result.transactions.map(t => t.bankRef).filter(Boolean));
-          const norm = (s: string) => String(s ?? '').toUpperCase().replace(/\s+/g, ' ').trim();
           const datas = cand2.map(x => x.t.data).sort();
           const { data: comRefRows } = await db.from('bank_transactions').select('id, data, valor, tipo, descricao, bank_ref').eq('account_id', accountId)
             .eq('is_forecast', false).not('bank_ref', 'is', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
           const pool = new Map<string, string[]>();
-          (comRefRows ?? []).filter((r: any) => !refsArquivo.has(r.bank_ref)).forEach((r: any) => {
-            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}|${norm(r.descricao)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]);
+          (comRefRows ?? []).filter((r: any) => !claimed.has(r.id)).forEach((r: any) => {
+            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}|${normalizeDesc(r.descricao)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]);
           });
-          cand2.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${norm(t.descricao)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef!, replace: true }); } });
+          let renumerados = 0;
+          cand2.forEach(({ t, i }) => {
+            const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${normalizeDesc(t.descricao)}`; const ids = pool.get(k);
+            if (!ids?.length) return;
+            const id = ids.shift()!; claimed.add(id); existing.add(hashes[i]); renumerados++;
+            if (t.bankRef) linkRefs.push({ id, bankRef: t.bankRef, replace: true });
+          });
+          if (renumerados) result.avisos = [...(result.avisos ?? []), `${renumerados} lançamento(s) já existiam com código diferente do banco (o banco renumera a cada download) e não serão gravados de novo.`];
         }
       }
       const { data: acc } = await db.from('bank_accounts').select('*').eq('id', accountId).maybeSingle();
