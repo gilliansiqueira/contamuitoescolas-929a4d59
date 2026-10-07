@@ -526,6 +526,13 @@
       "when": 1791334854243,
       "tag": "0074_product_sales_admin_bypass",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1791379869424,
+      "tag": "0075_contas_pagas_marca_com_atraso",
+      "breakpoints": true
     }
   ]
 }
