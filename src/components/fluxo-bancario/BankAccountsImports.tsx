@@ -112,21 +112,27 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       if (!result.transactions.length) result.avisos = [...result.avisos, `Sem movimentação no período (${result.periodoInicio?.split('-').reverse().join('/') ?? '?'} a ${result.periodoFim.split('-').reverse().join('/')}). O extrato fica registrado e a conta passa a valer até essa data.`];
       const hashes = await computeDedupHashes(accountId, result.transactions);
       const existing = new Set<string>();
-      const existingRow = new Map<string, { data: string; tipo: string; valor: number }>();
+      const existingRow = new Map<string, { id: string; data: string; tipo: string; valor: number; descricao: string }>();
       for (let i = 0; i < hashes.length; i += 200) {
-        const { data } = await db.from('bank_transactions').select('dedup_hash, data, tipo, valor').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
+        const { data } = await db.from('bank_transactions').select('id, dedup_hash, data, tipo, valor, descricao').eq('account_id', accountId).in('dedup_hash', hashes.slice(i, i + 200));
         (data ?? []).forEach((r: any) => { existing.add(r.dedup_hash); existingRow.set(r.dedup_hash, r); });
       }
-      // Código do banco reaproveitado em outro lançamento (ex.: Itaú renumera a cada download):
-      // só é duplicado se data, sentido e valor também baterem; senão vira lançamento novo.
+      // Linhas já gravadas que correspondem de fato a um lançamento deste arquivo (não podem ser usadas de novo).
+      const claimed = new Set<string>();
+      // Lançamentos cujo código do banco pertence a outro lançamento já gravado (Itaú/Bradesco renumeram a cada download).
+      const collided = new Set<number>();
+      // Código do banco reaproveitado em outro lançamento: só é duplicado se data, sentido, valor e descrição baterem.
       for (let i = 0; i < hashes.length; i++) {
         const t = result.transactions[i];
         const row = existingRow.get(hashes[i]);
-        if (!t.bankRef || !row || sameRefTx(row, t)) continue;
+        if (!row) continue;
+        if (!t.bankRef || sameRefTx(row, t)) { claimed.add(row.id); continue; }
+        existing.delete(hashes[i]);
         const alt = await refCollisionHash(accountId, t);
         hashes[i] = alt;
         const { data: altRow } = await db.from('bank_transactions').select('id').eq('account_id', accountId).eq('dedup_hash', alt).maybeSingle();
-        if (altRow) existing.add(alt);
+        if (altRow) { existing.add(alt); claimed.add(altRow.id); }
+        else collided.add(i);
         t.bankRef = undefined; // não regravar o código antigo no lançamento novo
       }
       // PDF sem identificador do banco: não regravar o que já veio por outro arquivo (ex.: OFX)
