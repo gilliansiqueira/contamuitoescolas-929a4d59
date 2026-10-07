@@ -29,6 +29,7 @@ const statusLabel = (k: string) => SHEET_STATUS.find(s => s.key === k)?.label ??
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 const KIND_LABEL: Record<string, string> = { imported: 'Importada', calculated: 'Calculada', manual: 'Manual' };
 const ISSUE_LABEL: Record<string, string> = {
+  formacao_nome_semelhante: 'Formação: nome parecido', formacao_aluno_novo: 'Formação: alunos novos', formacao_conflito: 'Formação: marcação diferente',
   sem_financeiro: 'Sem parcelas do módulo', nome_ambiguo: 'Nome ambíguo', nome_semelhante: 'Nome parecido', sem_correspondencia: 'Sem correspondência nas turmas',
   varios_contratos: 'Vários contratos', varias_turmas: 'Aluno em mais de uma turma', sem_matricula: 'Sem matrícula', fora_da_base: 'Saiu da base',
 };
@@ -272,7 +273,7 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
 
   const needed = new Set(sheet.columns.filter(c => !c.hidden && c.source).map(c => c.source!));
   needed.add('turmas_existentes');
-  const onFile = async (f?: File) => { if (!f) return; try { setParsed({ p: await parseSponteFile(f), name: f.name }); } catch (e: any) { toast.error(e.message); } };
+  const onFile = async (f?: File, force?: 'turmas_formacao') => { if (!f) return; try { setParsed({ p: await parseSponteFile(f, force), name: f.name }); } catch (e: any) { toast.error(e.message); } };
   const run = async (fn: () => Promise<void>) => { setBusy(true); try { await fn(); } catch (e: any) { toast.error(e.message ?? String(e)); } finally { setBusy(false); invalidate(sheet.school_id, sheet.id); } };
   const confirm = () => run(async () => {
     await saveImport(sheet, parsed!.p, parsed!.name, user?.id);
@@ -289,7 +290,7 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-3 lg:col-span-2">
-        {sources.filter(s => needed.has(s.key) || s.key === 'parcelamento_cartao').map(s => {
+        {sources.filter(s => needed.has(s.key) || s.key === 'parcelamento_cartao' || s.key === 'turmas_formacao').map(s => {
           const last = imports.find((i: any) => i.source_key === s.key);
           const fills = sheet.columns.filter(c => c.source === s.key && !c.hidden).map(c => c.title);
           const isNeeded = needed.has(s.key);
@@ -299,12 +300,13 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
                 <div><h3 className="text-sm font-semibold">{s.name}</h3><p className="text-xs text-muted-foreground">{s.purpose}</p></div>
                 {last ? <Badge className="bg-success text-success-foreground"><CheckCircle2 className="mr-1 h-3 w-3" />Recebido</Badge>
                   : isNeeded ? <Badge variant="outline" className="border-warning text-warning"><Clock className="mr-1 h-3 w-3" />Pendente</Badge>
-                  : <Badge variant="outline">Opcional · regra não validada</Badge>}
+                  : s.key === 'turmas_formacao' ? <Badge variant="outline">Opcional</Badge> : <Badge variant="outline">Opcional · regra não validada</Badge>}
               </div>
               <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-[110px_1fr]">
                 <dt className="text-muted-foreground">Onde exportar</dt><dd>{s.sponte_path ?? 'Caminho ainda não cadastrado'}</dd>
                 <dt className="text-muted-foreground">Filtros</dt><dd>{s.filters}{s.key === 'contas_receber' ? ` — neste período, a partir de ${minDue.split('-').reverse().join('/')}` : ''}</dd>
                 <dt className="text-muted-foreground">Preenche</dt><dd>{fills.length ? fills.join(', ') : s.key === 'turmas_existentes' ? 'Base de alunos (matrícula, turma…)' : s.key === 'parcelamento_cartao' ? 'Término do pagamento no cartão (hoje fica "A confirmar")' : '—'}</dd>
+                {s.key === 'turmas_formacao' && <><dt className="text-muted-foreground">Enviar</dt><dd><Input type="file" accept=".xls,.xlsx,.csv" className="h-8 text-xs" onChange={e => { onFile(e.target.files?.[0], 'turmas_formacao'); e.target.value = ''; }} /></dd></>}
                 {last && <><dt className="text-muted-foreground">Último envio</dt><dd>{last.file_name} · {last.row_count} linhas · {fmtDT(last.created_at)}</dd></>}
               </dl>
             </div>
@@ -324,8 +326,8 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
         <Input type="file" accept=".xls,.xlsx,.csv" onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
         {parsed && (
           <div className="space-y-2 rounded-lg border border-primary/40 p-3 text-xs">
-            <p><b>{parsed.p.source === 'turmas_existentes' ? 'Turmas Existentes' : 'Contas a Receber'}</b> · {parsed.p.rows.length} registros · {parsed.p.discarded} linhas de título/total descartadas</p>
-            <div className="max-h-40 overflow-auto"><table className="w-full">{parsed.p.rows.slice(0, 5).map((r, i) => <tr key={i} className="border-t border-border"><td className="py-0.5">{parsed.p.source === 'turmas_existentes' ? `${r.Aluno} · ${r.NumeroMatricula} · ${r.Nome}` : `${r.Sacado} · ${r.Categoria} · ${String(r.DataVencimento ?? '').slice(0, 10)}`}</td></tr>)}</table></div>
+            <p><b>{parsed.p.source === 'turmas_existentes' ? 'Turmas Existentes' : parsed.p.source === 'turmas_formacao' ? 'Turmas em Formação (próximo período)' : 'Contas a Receber'}</b> · {parsed.p.rows.length} registros · {parsed.p.discarded} linhas de título/total descartadas</p>
+            <div className="max-h-40 overflow-auto"><table className="w-full">{parsed.p.rows.slice(0, 5).map((r, i) => <tr key={i} className="border-t border-border"><td className="py-0.5">{parsed.p.source !== 'contas_receber' ? `${r.Aluno} · ${r.NumeroMatricula} · ${r.Nome}` : `${r.Sacado} · ${r.Categoria} · ${String(r.DataVencimento ?? '').slice(0, 10)}`}</td></tr>)}</table></div>
             <Button size="sm" onClick={confirm} disabled={busy || !settings}>Confirmar importação</Button>
           </div>
         )}

@@ -140,3 +140,46 @@ export function mergeRows(existing: RenewalRow[], imported: Map<string, Record<s
   }
   return { rows: out, stats: { conflicts, kept, added, removed } };
 }
+
+/** Turmas em formação do próximo período: aluno da base já matriculado vira "Rematriculado" com a turma de destino.
+ *  Só preenche o valor importado; correções da equipe (overrides) continuam valendo. Alunos novos não entram. */
+export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>>, formacao: Record<string, any>[]): Issue[] {
+  const issues: Issue[] = [];
+  const byMat = new Map<string, string[]>(); const byName = new Map<string, string[]>();
+  for (const [k, r] of rows) {
+    if (r.matricula) byMat.set(r.matricula, [...(byMat.get(r.matricula) ?? []), k]);
+    const n = norm(r.aluno); byName.set(n, [...(byName.get(n) ?? []), k]);
+  }
+  const novos: string[] = [];
+  const seen = new Set<string>();
+  for (const f of formacao) {
+    const mat = toId(f.NumeroMatricula); const nome = String(f.Aluno ?? '').trim();
+    let keys = mat ? byMat.get(mat) ?? [] : [];
+    if (!keys.length) {
+      const cands = byName.get(norm(nome)) ?? [];
+      const mats = new Set(cands.map(k => k.split('|')[0]));
+      if (mats.size === 1) keys = cands;
+      else if (mats.size > 1) { issues.push({ kind: 'formacao_nome_semelhante', message: `Turma em formação "${f.Nome}": "${nome}" corresponde a ${mats.size} alunos com o mesmo nome.`, detail: { aluno: nome, turma: f.Nome } }); continue; }
+      else {
+        const tok = norm(nome).split(' ');
+        const similar = [...rows.values()].filter(r => { const t = norm(r.aluno).split(' '); return lev(t[0], tok[0]) <= 1 && lev(t[t.length - 1], tok[tok.length - 1]) <= 2; }).map(r => r.aluno);
+        if (similar.length) issues.push({ kind: 'formacao_nome_semelhante', message: `Turma em formação "${f.Nome}": "${nome}" (mat. ${mat || '—'}) não bate exatamente; parecidos: ${[...new Set(similar)].join(', ')}.`, detail: { aluno: nome } });
+        else novos.push(nome);
+        continue;
+      }
+    }
+    const data = toIsoDate(f.DataMatricula ?? f.DataInicio ?? f.InicioContrato ?? f.DataContrato);
+    for (const k of keys) {
+      const r = rows.get(k)!;
+      const turma = String(f.Nome ?? '').trim();
+      r.status_renovacao = 'Rematriculado';
+      r.formacao_turma = true;
+      r.turma_destino = seen.has(k) && r.turma_destino && r.turma_destino !== turma ? `${r.turma_destino} / ${turma}` : turma;
+      if (data && !r.data_rematricula) r.data_rematricula = data;
+      seen.add(k);
+    }
+  }
+  const uniq = [...new Set(novos)];
+  if (uniq.length) issues.push({ kind: 'formacao_aluno_novo', message: `${uniq.length} aluno(s) das turmas em formação não estão na base atual (alunos novos, não entram na planilha).`, detail: { alunos: uniq } });
+  return issues;
+}

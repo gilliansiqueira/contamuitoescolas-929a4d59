@@ -74,3 +74,23 @@ describe('renovação escolar', () => {
     expect(defaultMinDue('2026/2')).toBe('2026-05-01');
   });
 });
+
+import { applyRenewedFromNextPeriod } from '@/lib/renewal/mergeEngine';
+describe('turmas em formação', () => {
+  it('marca renovado por matrícula, ignora novos e sinaliza nome ambíguo', () => {
+    const rows = new Map<string, Record<string, any>>([
+      ['10|a', { aluno: 'Ana Souza', matricula: '10' }],
+      ['20|b', { aluno: 'Joao Lima', matricula: '20' }],
+      ['30|c', { aluno: 'Joao Lima', matricula: '30' }],
+    ]);
+    const issues = applyRenewedFromNextPeriod(rows, [
+      { Nome: 'KIDS 2', Aluno: 'Ana Souza', NumeroMatricula: '10' },
+      { Nome: 'TEENS 1', Aluno: 'Joao Lima', NumeroMatricula: '' },
+      { Nome: 'TEENS 1', Aluno: 'Pedro Novo', NumeroMatricula: '99' },
+    ]);
+    expect(rows.get('10|a')!.status_renovacao).toBe('Rematriculado');
+    expect(rows.get('10|a')!.turma_destino).toBe('KIDS 2');
+    expect(rows.get('20|b')!.status_renovacao).toBeUndefined();
+    expect(issues.map(i => i.kind).sort()).toEqual(['formacao_aluno_novo', 'formacao_nome_semelhante']);
+  });
+});
