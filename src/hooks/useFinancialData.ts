@@ -214,6 +214,7 @@ export function useAddEntries() {
           tipo_original: e.tipoOriginal || null,
           tipo_registro: e.tipoRegistro || 'realizado',
           editado_manualmente: e.editadoManualmente || false,
+          afeta_saldo: e.afetaSaldo !== false,
           // Rastreabilidade (SSOT): toda gravação carrega origem explícita
           source_kind: isImport ? 'import' : (e.editadoManualmente ? 'manual_edit' : 'manual'),
           source_file: (e as any).sourceFile ?? null,
@@ -243,6 +244,7 @@ export function useUpdateEntry() {
       if (params.updates.categoria !== undefined) dbUpdates.categoria = params.updates.categoria;
       if (params.updates.editadoManualmente !== undefined) dbUpdates.editado_manualmente = params.updates.editadoManualmente;
       if (params.updates.tipoRegistro !== undefined) dbUpdates.tipo_registro = params.updates.tipoRegistro;
+      if (params.updates.afetaSaldo !== undefined) dbUpdates.afeta_saldo = params.updates.afetaSaldo;
       const { error } = await supabase.from('financial_entries').update(dbUpdates).eq('id', params.id);
       if (error) throw error;
     },
