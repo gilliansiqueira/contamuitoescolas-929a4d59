@@ -2308,6 +2308,7 @@ export type Database = {
           month: string
           produto: string
           quantidade: number
+          ranking: string
           school_id: string
           valor: number
         }
@@ -2317,6 +2318,7 @@ export type Database = {
           month: string
           produto: string
           quantidade?: number
+          ranking?: string
           school_id: string
           valor?: number
         }
@@ -2326,6 +2328,7 @@ export type Database = {
           month?: string
           produto?: string
           quantidade?: number
+          ranking?: string
           school_id?: string
           valor?: number
         }
