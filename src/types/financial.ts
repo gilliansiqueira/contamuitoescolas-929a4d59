@@ -15,6 +15,8 @@ export interface FinancialEntry {
   dataOriginal?: string;
   /** Verdadeiro quando o prazo de compensação já foi aplicado e gravado em `data`. */
   delayJaAplicado?: boolean;
+  /** false = soma no Resultado mas não altera saldo/caixa (lançamento manual sem conferência bancária). */
+  afetaSaldo?: boolean;
 
 }
 

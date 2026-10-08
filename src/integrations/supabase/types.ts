@@ -1281,6 +1281,7 @@ export type Database = {
       }
       financial_entries: {
         Row: {
+          afeta_saldo: boolean
           categoria: string
           created_at: string
           created_by: string | null
@@ -1303,6 +1304,7 @@ export type Database = {
           valor: number
         }
         Insert: {
+          afeta_saldo?: boolean
           categoria?: string
           created_at?: string
           created_by?: string | null
@@ -1325,6 +1327,7 @@ export type Database = {
           valor?: number
         }
         Update: {
+          afeta_saldo?: boolean
           categoria?: string
           created_at?: string
           created_by?: string | null

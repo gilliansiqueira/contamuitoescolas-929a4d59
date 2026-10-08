@@ -540,6 +540,13 @@
       "when": 1791392330984,
       "tag": "0076_renewal_module",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1791465752071,
+      "tag": "0077_financial_entries_afeta_saldo",
+      "breakpoints": true
     }
   ]
 }

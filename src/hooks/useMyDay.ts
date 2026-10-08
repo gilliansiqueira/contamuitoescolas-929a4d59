@@ -106,7 +106,7 @@ interface SchoolBundle {
   acks: Set<string>; // `${entry_id}|${due_date}`
 }
 
-const ENTRY_COLS = 'id, data, descricao, valor, tipo, categoria, origem, school_id, origem_upload_id, tipo_original, tipo_registro, editado_manualmente, data_original, delay_rule_applied';
+const ENTRY_COLS = 'id, data, descricao, valor, tipo, categoria, origem, school_id, origem_upload_id, tipo_original, tipo_registro, editado_manualmente, data_original, delay_rule_applied, afeta_saldo';
 
 function mapEntry(e: any): FinancialEntry {
   return {
@@ -124,6 +124,7 @@ function mapEntry(e: any): FinancialEntry {
     editadoManualmente: e.editado_manualmente ?? false,
     dataOriginal: e.data_original ?? undefined,
     delayJaAplicado: !!e.delay_rule_applied,
+    afetaSaldo: e.afeta_saldo !== false,
   };
 }
 

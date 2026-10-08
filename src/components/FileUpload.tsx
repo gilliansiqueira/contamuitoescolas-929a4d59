@@ -1,3 +1,5 @@
+import { useDataSource } from '@/hooks/useBankPilot';
+import { ManualEntriesPanel } from '@/components/ManualEntriesPanel';
 import { useState, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro, TypeClassification } from '@/types/financial';
@@ -334,6 +336,9 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState({ data: '', descricao: '', valor: '', categoria: '' });
   const [savingManual, setSavingManual] = useState(false);
+  const { data: dataSource } = useDataSource(schoolId);
+  const [naoAfetaSaldoSel, setNaoAfetaSaldo] = useState<boolean | null>(null);
+  const naoAfetaSaldo = naoAfetaSaldoSel ?? (dataSource?.status === 'ativo');
   const [weekendPolicy, setWeekendPolicy] = useState<WeekendPolicy>('anterior');
 
   const totals = useMemo(() => {
@@ -395,6 +400,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         school_id: schoolId,
         tipoRegistro: determineTipoRegistro(manual.data),
         editadoManualmente: true,
+        afetaSaldo: !naoAfetaSaldo,
       };
       await addEntriesMut.mutateAsync([entry]);
 
@@ -938,6 +944,10 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
                   <Input type="date" value={manual.data} onChange={e => setManual(m => ({ ...m, data: e.target.value }))} className="h-9" />
                   <Input placeholder="Descrição" value={manual.descricao} onChange={e => setManual(m => ({ ...m, descricao: e.target.value }))} className="h-9 lg:col-span-2" />
                   <Input placeholder="Valor (ex: 1.500,50)" value={manual.valor} onChange={e => setManual(m => ({ ...m, valor: e.target.value }))} className="h-9" />
+                  <label className="flex items-start gap-2 text-xs text-foreground lg:col-span-6 cursor-pointer">
+                    <input type="checkbox" className="mt-0.5 accent-primary" checked={naoAfetaSaldo} onChange={e => setNaoAfetaSaldo(e.target.checked)} />
+                    <span><strong>Não altera o saldo bancário</strong> — soma em Receita/Despesa e no Resultado, mas não muda Saldo, Caixa nem Fluxo Diário. Use para contas que não estão no Fluxo Bancário.</span>
+                  </label>
                   <Button size="sm" onClick={handleManualSave} disabled={savingManual} className="lg:col-span-6">
                     {savingManual ? 'Salvando...' : 'Salvar lançamento'}
                   </Button>
@@ -946,6 +956,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
               )}
             </div>
           )}
+          {isAdmin && <ManualEntriesPanel schoolId={schoolId} />}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {UPLOAD_TYPES.map((ut, i) => (
               <motion.button
