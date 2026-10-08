@@ -1,0 +1,1 @@
+ALTER TABLE public.financial_entries ADD COLUMN IF NOT EXISTS afeta_saldo boolean NOT NULL DEFAULT true;
