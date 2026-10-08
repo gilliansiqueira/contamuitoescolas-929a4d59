@@ -253,7 +253,19 @@ export function resolveNativeOperationRule(
   return undefined;
 }
 
+/**
+ * Regra contábil de um lançamento. `afetaSaldo === false` (lançamento manual
+ * de conta fora do Fluxo Bancário) mantém o Resultado mas nunca move o Caixa.
+ */
 export function resolveEntryLedgerRule(
+  entry: FinancialEntry,
+  classifications: TypeClassification[]
+): LedgerRule {
+  const rule = resolveEntryLedgerRuleBase(entry, classifications);
+  return entry.afetaSaldo === false ? { ...rule, impactaCaixa: false } : rule;
+}
+
+function resolveEntryLedgerRuleBase(
   entry: FinancialEntry,
   classifications: TypeClassification[]
 ): LedgerRule {
