@@ -21,3 +21,4 @@
 - Lançamentos manuais (origem 'manual') continuam no realizado mesmo com Fluxo Bancário ativo; só a planilha de fluxo é substituída pelo extrato — para registrar contas fora do Fluxo Bancário.
 - Renovação escolar (`renewal_*`, bucket privado `renewal-files`) é só da equipe (is_admin + can_see_school), isolada dos cálculos financeiros; colunas têm id estável e correções guardam o valor original em `overrides` para reimportações preservarem o trabalho manual.
 - Lançamento manual com `financial_entries.afeta_saldo=false` entra no Resultado mas nunca no Caixa: `resolveEntryLedgerRule` zera `impactaCaixa` — para registrar contas sem conferência bancária sem alterar o saldo do extrato.
+- Produtos mais vendidos guarda duas listas independentes por mês (`product_sales_monthly.ranking` = valor | quantidade); colar/apagar atua só na lista escolhida — porque os clientes usam fontes diferentes para cada ranking.
