@@ -547,6 +547,13 @@
       "when": 1791465752071,
       "tag": "0077_financial_entries_afeta_saldo",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1791487662756,
+      "tag": "0078_product_sales_ranking",
+      "breakpoints": true
     }
   ]
 }
