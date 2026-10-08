@@ -1,3 +1,4 @@
+import { ManualEntriesPanel } from '@/components/ManualEntriesPanel';
 import { BANK_SMALL_DIFF_TOLERANCE } from '@/lib/bankStatements/confirmedBalance';
 import { useMemo, useRef, useState, useCallback } from 'react';
 import { useQuery, useIsFetching } from '@tanstack/react-query';
@@ -1252,6 +1253,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
       {/* Cards manuais (admin) — informativos, não afetam saldo/resultado */}
       <ManualCardsSection schoolId={schoolId} selectedMonth={selectedMonth} />
+
+      {/* Lançamentos manuais (admin) — conferir/editar/excluir */}
+      <ManualEntriesPanel schoolId={schoolId} selectedMonth={selectedMonth} />
 
       {/* Investimentos */}
       <InvestimentoSection schoolId={schoolId} selectedMonth={selectedMonth} />
