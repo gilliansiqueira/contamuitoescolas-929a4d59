@@ -8,7 +8,10 @@ export interface ProductSaleRow {
   produto: string;
   valor: number;
   quantidade: number;
+  ranking: ProductRanking;
 }
+
+export type ProductRanking = 'valor' | 'quantidade';
 
 export interface ProductSaleInput {
   produto: string;
@@ -57,12 +60,13 @@ export function useProductSalesMonths(schoolId: string) {
 export function useReplaceProductSalesMonth(schoolId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ month, items }: { month: string; items: ProductSaleInput[] }) => {
+    mutationFn: async ({ month, items, ranking }: { month: string; items: ProductSaleInput[]; ranking: ProductRanking }) => {
       const { error: delError } = await supabase
         .from('product_sales_monthly')
         .delete()
         .eq('school_id', schoolId)
-        .eq('month', month);
+        .eq('month', month)
+        .eq('ranking', ranking);
       if (delError) throw delError;
       if (items.length > 0) {
         const rows = items.map(i => ({
@@ -71,10 +75,33 @@ export function useReplaceProductSalesMonth(schoolId: string) {
           produto: i.produto,
           valor: i.valor,
           quantidade: i.quantidade,
+          ranking,
         }));
         const { error: insError } = await supabase.from('product_sales_monthly').insert(rows);
         if (insError) throw insError;
       }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product_sales', schoolId] });
+      queryClient.invalidateQueries({ queryKey: ['product_sales_months', schoolId] });
+    },
+  });
+}
+
+/** Apaga as listas escolhidas de um mês e registra no histórico. */
+export function useDeleteProductSalesMonth(schoolId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ month, rankings }: { month: string; rankings: ProductRanking[] }) => {
+      const { error } = await supabase
+        .from('product_sales_monthly')
+        .delete()
+        .eq('school_id', schoolId)
+        .eq('month', month)
+        .in('ranking', rankings);
+      if (error) throw error;
+      const nomes = rankings.map(r => (r === 'valor' ? 'Por valor' : 'Por quantidade')).join(' e ');
+      await supabase.from('audit_log').insert({ school_id: schoolId, action: 'product_sales_delete', description: `Produtos mais vendidos apagados: ${month} (${nomes})` } as any);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product_sales', schoolId] });

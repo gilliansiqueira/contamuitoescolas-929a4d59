@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ClipboardPaste, LineChart as LineChartIcon, Trophy } from 'lucide-react';
+import { ClipboardPaste, LineChart as LineChartIcon, Trophy, Trash2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { useProductSales, useProductSalesMonths, useReplaceProductSalesMonth, ProductSaleInput } from '@/hooks/useProductSales';
+import { useProductSales, useProductSalesMonths, useReplaceProductSalesMonth, useDeleteProductSalesMonth, ProductSaleInput, ProductRanking } from '@/hooks/useProductSales';
 import { parseBRNumber } from '@/lib/bankStatements/parsers';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -47,7 +49,7 @@ function RankingTable({ title, rows, mode }: { title: string; rows: AggRow[]; mo
     <div className="rounded-2xl border bg-card p-4">
       <h4 className="text-sm font-semibold mb-3">{title}</h4>
       {sorted.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Sem dados neste mês.</p>
+        <p className="text-sm text-muted-foreground">Lista não enviada neste mês.</p>
       ) : (
         <Table>
           <TableHeader>
@@ -125,6 +127,12 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
   const [pasteMonth, setPasteMonth] = useState('');
   const [pasteText, setPasteText] = useState('');
   const [parsed, setParsed] = useState<ProductSaleInput[] | null>(null);
+  const [pasteRanking, setPasteRanking] = useState<ProductRanking>('valor');
+  const [showDelete, setShowDelete] = useState(false);
+  const [delMonth, setDelMonth] = useState('');
+  const [delWhich, setDelWhich] = useState<'valor' | 'quantidade' | 'ambas'>('ambas');
+  const [confirmDel, setConfirmDel] = useState(false);
+  const deleteMonth = useDeleteProductSalesMonth(schoolId);
 
   const effectiveFrom = monthFrom || (months?.[0] ?? '');
   const effectiveTo = monthTo || (months?.[months.length - 1] ?? '');
@@ -140,16 +148,19 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
   // Comparação: mês final do filtro vs mês anterior a ele
   const compareMonth = effectiveTo;
   const comparePrev = compareMonth ? prevMonth(compareMonth) : '';
-  const curRows = useMemo(() => aggregate(filtered.filter(r => r.month === compareMonth)), [filtered, compareMonth]);
-  const prevRows = useMemo(() => aggregate(filtered.filter(r => r.month === comparePrev)), [filtered, comparePrev]);
+  const pick = (m: string, rk: ProductRanking) => aggregate(filtered.filter(r => r.month === m && r.ranking === rk));
+  const curValor = useMemo(() => pick(compareMonth, 'valor'), [filtered, compareMonth]);
+  const prevValor = useMemo(() => pick(comparePrev, 'valor'), [filtered, comparePrev]);
+  const curQtd = useMemo(() => pick(compareMonth, 'quantidade'), [filtered, compareMonth]);
+  const prevQtd = useMemo(() => pick(comparePrev, 'quantidade'), [filtered, comparePrev]);
 
   // Gráfico de linha: evolução mês a mês (valor e quantidade)
   const chartData = useMemo(() => {
     const byMonth = new Map<string, { month: string; valor: number; quantidade: number }>();
     for (const r of filtered) {
       const cur = byMonth.get(r.month) ?? { month: r.month, valor: 0, quantidade: 0 };
-      cur.valor += Number(r.valor);
-      cur.quantidade += Number(r.quantidade);
+      if (r.ranking === 'valor') cur.valor += Number(r.valor);
+      else cur.quantidade += Number(r.quantidade);
       byMonth.set(r.month, cur);
     }
     return [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
@@ -167,8 +178,8 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
   const handleConfirm = async () => {
     if (!parsed || !pasteMonth) return;
     try {
-      await replaceMonth.mutateAsync({ month: pasteMonth, items: parsed });
-      toast({ title: 'Produtos salvos', description: `${parsed.length} produtos gravados em ${monthLabel(pasteMonth)}.` });
+      await replaceMonth.mutateAsync({ month: pasteMonth, items: parsed, ranking: pasteRanking });
+      toast({ title: 'Produtos salvos', description: `${parsed.length} produtos gravados em ${monthLabel(pasteMonth)} (${pasteRanking === 'valor' ? 'Por valor' : 'Por quantidade'}).` });
       setShowPaste(false);
       setPasteText('');
       setParsed(null);
@@ -188,9 +199,14 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
           <h3 className="text-lg font-display font-bold">Produtos mais vendidos</h3>
         </div>
         {isAdmin && (
-          <Button size="sm" onClick={() => setShowPaste(true)} className="rounded-xl">
-            <ClipboardPaste className="w-4 h-4 mr-1" /> Colar vendas do mês
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => { setDelMonth(effectiveTo); setShowDelete(true); }} className="rounded-xl" disabled={!(months ?? []).length}>
+              <Trash2 className="w-4 h-4 mr-1" /> Apagar mês
+            </Button>
+            <Button size="sm" onClick={() => setShowPaste(true)} className="rounded-xl">
+              <ClipboardPaste className="w-4 h-4 mr-1" /> Colar vendas do mês
+            </Button>
+          </div>
         )}
       </div>
 
@@ -241,10 +257,10 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
                 {monthLabel(compareMonth)} vs {monthLabel(comparePrev)}
               </h4>
               <div className="grid md:grid-cols-2 gap-4">
-                <RankingTable title={`Por valor — ${monthLabel(compareMonth)}`} rows={curRows} mode="valor" />
-                <RankingTable title={`Por valor — ${monthLabel(comparePrev)}`} rows={prevRows} mode="valor" />
-                <RankingTable title={`Por quantidade — ${monthLabel(compareMonth)}`} rows={curRows} mode="quantidade" />
-                <RankingTable title={`Por quantidade — ${monthLabel(comparePrev)}`} rows={prevRows} mode="quantidade" />
+                <RankingTable title={`Por valor — ${monthLabel(compareMonth)}`} rows={curValor} mode="valor" />
+                <RankingTable title={`Por valor — ${monthLabel(comparePrev)}`} rows={prevValor} mode="valor" />
+                <RankingTable title={`Por quantidade — ${monthLabel(compareMonth)}`} rows={curQtd} mode="quantidade" />
+                <RankingTable title={`Por quantidade — ${monthLabel(comparePrev)}`} rows={prevQtd} mode="quantidade" />
               </div>
             </div>
           )}
@@ -285,6 +301,15 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
             <DialogTitle>Colar vendas do mês</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <Tabs value={pasteRanking} onValueChange={v => { setPasteRanking(v as ProductRanking); setParsed(null); setPasteText(''); }}>
+              <TabsList>
+                <TabsTrigger value="valor">Por valor</TabsTrigger>
+                <TabsTrigger value="quantidade">Por quantidade</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <p className="text-xs text-muted-foreground">
+              Esta lista alimenta só o ranking <strong>{pasteRanking === 'valor' ? 'por valor' : 'por quantidade'}</strong>. A outra lista não é alterada.
+            </p>
             <div>
               <label className="text-xs text-muted-foreground">Mês de referência</label>
               <Input
@@ -316,7 +341,7 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
                   <p>Total em valor: <strong>{fmtBRL(parsedTotalValor)}</strong></p>
                   <p>Total em quantidade: <strong>{fmtQtd(parsedTotalQtd)}</strong></p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Ao confirmar, os dados de {monthLabel(pasteMonth)} são substituídos (nunca duplicados).
+                    Ao confirmar, a lista {pasteRanking === 'valor' ? 'Por valor' : 'Por quantidade'} de {monthLabel(pasteMonth)} é substituída (nunca duplicada).
                   </p>
                 </div>
                 <div className="max-h-48 overflow-auto rounded-xl border">
@@ -350,6 +375,66 @@ export function ProdutosMaisVendidos({ schoolId }: { schoolId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Apagar mês */}
+      <Dialog open={showDelete} onOpenChange={setShowDelete}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Apagar dados do mês</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Mês</label>
+              <Select value={delMonth} onValueChange={setDelMonth}>
+                <SelectTrigger className="w-44 rounded-xl"><SelectValue placeholder="Escolha" /></SelectTrigger>
+                <SelectContent>
+                  {(months ?? []).map(m => <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">O que apagar</label>
+              <Select value={delWhich} onValueChange={v => setDelWhich(v as any)}>
+                <SelectTrigger className="w-56 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ambas">As duas listas</SelectItem>
+                  <SelectItem value="valor">Só Por valor</SelectItem>
+                  <SelectItem value="quantidade">Só Por quantidade</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDelete(false)} className="rounded-xl">Cancelar</Button>
+              <Button variant="destructive" disabled={!delMonth} onClick={() => setConfirmDel(true)} className="rounded-xl">Apagar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {delMonth && `${delWhich === 'ambas' ? 'As duas listas' : delWhich === 'valor' ? 'A lista Por valor' : 'A lista Por quantidade'} de ${monthLabel(delMonth)} serão apagadas.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMonth.isPending}
+              onClick={async () => {
+                try {
+                  const rankings: ProductRanking[] = delWhich === 'ambas' ? ['valor', 'quantidade'] : [delWhich];
+                  await deleteMonth.mutateAsync({ month: delMonth, rankings });
+                  toast({ title: 'Dados apagados', description: `${monthLabel(delMonth)} atualizado.` });
+                  setShowDelete(false);
+                } catch (e: any) {
+                  toast({ title: 'Erro ao apagar', description: e.message, variant: 'destructive' });
+                }
+              }}
+            >Apagar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
