@@ -22,3 +22,18 @@ describe('Bradesco reaproveita o código antigo em outro lançamento', () => {
     expect(sameRefTx(taiane, { ...raimundo, descricao: taiane.descricao })).toBe(true);
   });
 });
+
+describe('Banco muda a descrição do mesmo lançamento', () => {
+  const base = { data: '2026-10-06', tipo: 'entrada' as const, valor: 2.1, bankRef: '20261006003' };
+  it('Itaú APR × MAIS = mesmo lançamento', () => {
+    expect(sameRefTx({ ...base, descricao: 'REND PAGO APLIC AUT APR' }, { ...base, descricao: 'RENDIMENTOS REND PAGO APLIC AUT MAIS' })).toBe(true);
+  });
+  it('BB Rende Fácil e CDL = mesmo lançamento', () => {
+    expect(sameRefTx({ ...base, descricao: 'BB RENDE FÁCIL' }, { ...base, descricao: 'BB RENDE FÁCIL - RENDE FACIL' })).toBe(true);
+    expect(sameRefTx({ ...base, descricao: 'BOLETO PAGO CDL - CAM.DI CDL - CAM.DIR.LOJISTAS FPOLIS 83.901.660/0001-70' }, { ...base, descricao: 'BOLETO PAGO CDL - CAM.DIR.LOJISTAS FPOLIS 83.901.660/0001-70' })).toBe(true);
+  });
+  it('Pix de pessoas diferentes continua diferente', () => {
+    expect(sameRefTx({ ...base, descricao: 'PIX RECEBIDO REM: IARA MARINHO NAZARE   03/10' }, { ...base, descricao: 'PIX RECEBIDO REM: ADRIA EMILY RIBEIRO D 05/10' })).toBe(false);
+    expect(sameRefTx({ ...base, descricao: 'PIX RECEBIDO REM: C RODRIGUES BRASIL    03/10' }, { ...base, descricao: 'PIX RECEBIDO REM: RAIMUNDO MARQUES DOS  05/10' })).toBe(false);
+  });
+});

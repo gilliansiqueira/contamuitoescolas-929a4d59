@@ -1092,11 +1092,23 @@ export function refCollisionHash(accountId: string, t: ParsedBankTx): Promise<st
   return sha256(`${accountId}|ref|${t.bankRef}|${t.data}|${t.tipo}|${t.valor.toFixed(2)}`);
 }
 
+const GENERIC_TOKENS = new Set(['pix', 'recebido', 'recebida', 'enviado', 'enviada', 'rem', 'des', 'pago', 'paga', 'pagamento', 'ted', 'doc', 'boleto', 'transf', 'transferencia', 'de', 'da', 'do', 'das', 'dos', 'e', 'deb', 'cred', 'credito', 'debito', 'ltda', 'me']);
+const keyTokens = (s: string) => new Set(normalizeDesc(s).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(w => w.length >= 2 && !/\d/.test(w) && !GENERIC_TOKENS.has(w)));
+
+/** Mesma contraparte/natureza apesar de mudança de texto (Itaú APR×MAIS, BB "RENDE FÁCIL - RENDE FACIL"). Nomes diferentes (TAIANE×RAIMUNDO) não casam. */
+export function sameCounterpartyTokens(a: string, b: string): boolean {
+  if (normalizeDesc(a) === normalizeDesc(b)) return true;
+  const A = keyTokens(a), B = keyTokens(b);
+  if (!A.size || !B.size) return false;
+  let common = 0; A.forEach(w => { if (B.has(w)) common++; });
+  return common === Math.min(A.size, B.size) || common >= 2;
+}
+
 /** O lançamento gravado com o mesmo código é de fato o mesmo? (data, sentido e valor iguais) */
 export function sameRefTx(row: { data: string; tipo: string; valor: number | string; descricao?: string | null }, t: ParsedBankTx): boolean {
   if (row.data !== t.data || row.tipo !== t.tipo || Math.abs(Number(row.valor) - t.valor) >= 0.005) return false;
-  // Bradesco reaproveita o código em outro lançamento do mesmo dia e valor: a descrição desempata.
-  return row.descricao == null || normalizeDesc(row.descricao) === normalizeDesc(t.descricao);
+  // Bradesco reaproveita o código em outro lançamento do mesmo dia e valor: as palavras-chave desempatam.
+  return row.descricao == null || sameCounterpartyTokens(row.descricao, t.descricao);
 }
 
 export async function computeDedupHashes(accountId: string, txs: ParsedBankTx[]): Promise<string[]> {
