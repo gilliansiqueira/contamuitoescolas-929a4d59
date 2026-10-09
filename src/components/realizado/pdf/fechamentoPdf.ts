@@ -23,6 +23,33 @@ const fmtVariation = (curr: number, prev: number) => {
   };
 };
 
+export interface CostCenterPdfItem {
+  descricao?: string | null;
+  tipo?: string | null;
+  valor?: number | string | null;
+}
+
+export interface GroupedCostCenterPdfItem {
+  descricao: string;
+  tipo: 'receita' | 'despesa';
+  quantidade: number;
+  valor: number;
+}
+
+export function groupCostCenterPdfItems(items: CostCenterPdfItem[]): GroupedCostCenterPdfItem[] {
+  const grouped = new Map<string, GroupedCostCenterPdfItem>();
+  for (const item of items) {
+    const descricao = String(item.descricao || 'Sem descrição').trim() || 'Sem descrição';
+    const tipo = item.tipo === 'receita' ? 'receita' : 'despesa';
+    const key = `${tipo}||${descricao.toLocaleLowerCase('pt-BR')}`;
+    const current = grouped.get(key) || { descricao, tipo, quantidade: 0, valor: 0 };
+    current.quantidade += 1;
+    current.valor += Number(item.valor || 0);
+    grouped.set(key, current);
+  }
+  return Array.from(grouped.values()).sort((a, b) => b.valor - a.valor || a.descricao.localeCompare(b.descricao, 'pt-BR'));
+}
+
 // Brand colors (RGB)
 const PRIMARY: [number, number, number] = [14, 165, 164]; // teal
 const ACCENT: [number, number, number] = [245, 158, 11]; // orange
@@ -100,6 +127,7 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
     (async () => { const { fetchAllRows } = await import('@/lib/fetchAll'); return fetchAllRows<any>('expense_detail_items', q => q.eq('school_id', schoolId).order('data')); })(),
   ]);
   const detailGroups = detailGroupsData || [];
+  const isCostCenterReport = Boolean(detailCfg?.expense_detail_enabled && detailGroups.length);
 
   const visibility = { relatorio: true, indicadores: true, conversao: true, vendas: true };
   tabs.forEach((t: any) => {
@@ -349,43 +377,44 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
   });
   y = (pdf as any).lastAutoTable.finalY + 8;
 
-  // ----- 5. Despesas Detalhadas -----
-  addSectionTitle('Despesas Detalhadas');
-  if (expensesDetail.length === 0) {
-    pdf.setFont('helvetica', 'italic');
-    pdf.setFontSize(10);
-    pdf.setTextColor(...MUTED);
-    pdf.text('Sem despesas registradas no período.', MARGIN_X, y);
-    y += 8;
-  } else {
-    autoTable(pdf, {
-      startY: y,
-      head: [['Categoria mãe', 'Categoria filha', 'Valor', '%']],
-      body: expensesDetail.map((d) => [
-        d.mae,
-        d.filha,
-        fmtBRL(d.valor),
-        totalExpenses > 0 ? `${((d.valor / totalExpenses) * 100).toFixed(1)}%` : '—',
-      ]),
-      foot: [[
-        { content: 'TOTAL', styles: { fontStyle: 'bold' } },
-        '',
-        { content: fmtBRL(totalExpenses), styles: { fontStyle: 'bold', halign: 'right' } },
-        { content: '100%', styles: { fontStyle: 'bold', halign: 'right' } },
-      ]],
-      theme: 'striped',
-      headStyles: { fillColor: PRIMARY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 },
-      footStyles: { fillColor: [240, 253, 250], textColor: TEXT },
-      bodyStyles: { fontSize: 9, textColor: TEXT },
-      columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' } },
-      margin: { left: MARGIN_X, right: MARGIN_X },
-      didDrawPage: () => { /* keep header on continuation pages handled below */ },
-    });
-    y = (pdf as any).lastAutoTable.finalY + 8;
+  // ----- 5. Despesas Detalhadas (relatório padrão) -----
+  if (!isCostCenterReport) {
+    addSectionTitle('Despesas Detalhadas');
+    if (expensesDetail.length === 0) {
+      pdf.setFont('helvetica', 'italic');
+      pdf.setFontSize(10);
+      pdf.setTextColor(...MUTED);
+      pdf.text('Sem despesas registradas no período.', MARGIN_X, y);
+      y += 8;
+    } else {
+      autoTable(pdf, {
+        startY: y,
+        head: [['Categoria mãe', 'Categoria filha', 'Valor', '%']],
+        body: expensesDetail.map((d) => [
+          d.mae,
+          d.filha,
+          fmtBRL(d.valor),
+          totalExpenses > 0 ? `${((d.valor / totalExpenses) * 100).toFixed(1)}%` : '—',
+        ]),
+        foot: [[
+          { content: 'TOTAL', styles: { fontStyle: 'bold' } },
+          '',
+          { content: fmtBRL(totalExpenses), styles: { fontStyle: 'bold', halign: 'right' } },
+          { content: '100%', styles: { fontStyle: 'bold', halign: 'right' } },
+        ]],
+        theme: 'striped',
+        headStyles: { fillColor: PRIMARY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 },
+        footStyles: { fillColor: [240, 253, 250], textColor: TEXT },
+        bodyStyles: { fontSize: 9, textColor: TEXT },
+        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' } },
+        margin: { left: MARGIN_X, right: MARGIN_X },
+      });
+      y = (pdf as any).lastAutoTable.finalY + 8;
+    }
   }
 
   // ----- 5b. Centros de custo (somente empresas com detalhamento ligado) -----
-  if (detailCfg?.expense_detail_enabled && detailGroups.length) {
+  if (isCostCenterReport) {
     const label = detailCfg.expense_detail_label || 'Centros de custo';
     const monthItems = detailItems.filter((i: any) => String(i.data || '').startsWith(monthStr));
     const resumo = detailGroups.map((g: any) => {
@@ -420,29 +449,65 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
         columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
         margin: { left: MARGIN_X, right: MARGIN_X },
       });
-      y = (pdf as any).lastAutoTable.finalY + 6;
+      y = (pdf as any).lastAutoTable.finalY + 8;
       for (const r of resumo) {
-        ensureSpace(20);
-        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10); pdf.setTextColor(...TEXT);
-        pdf.text(r.g.name, MARGIN_X, y);
-        y += 4;
-        autoTable(pdf, {
-          startY: y,
-          head: [['Descrição', 'Tipo', 'Valor']],
-          body: r.its.map((i: any) => [i.descricao || '—', i.tipo === 'receita' ? 'Receita' : 'Despesa', fmtBRL(Number(i.valor || 0))]),
-          theme: 'striped',
-          headStyles: { fillColor: PRIMARY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
-          bodyStyles: { fontSize: 9, textColor: TEXT },
-          columnStyles: { 2: { halign: 'right' } },
-          margin: { left: MARGIN_X, right: MARGIN_X },
-        });
-        y = (pdf as any).lastAutoTable.finalY + 6;
+        const grouped = groupCostCenterPdfItems(r.its);
+        const totalMovements = r.rec + r.desp;
+        ensureSpace(48);
+        pdf.setFillColor(240, 253, 250);
+        pdf.roundedRect(MARGIN_X, y - 4, PAGE_W - MARGIN_X * 2, 13, 1.5, 1.5, 'F');
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(...TEXT);
+        pdf.text(r.g.name, MARGIN_X + 3, y + 1);
+        pdf.setFontSize(8); pdf.setTextColor(...MUTED);
+        pdf.text(
+          `Receitas ${fmtBRL(r.rec)}  ·  Despesas ${fmtBRL(r.desp)}  ·  Resultado ${fmtBRL(r.rec - r.desp)}`,
+          PAGE_W - MARGIN_X - 3,
+          y + 1,
+          { align: 'right' },
+        );
+        y += 13;
+
+        const addMovementTable = (title: string, tipo: 'receita' | 'despesa') => {
+          const rows = grouped.filter((item) => item.tipo === tipo);
+          if (!rows.length) return;
+          ensureSpace(22);
+          pdf.setFont('helvetica', 'bold'); pdf.setFontSize(9); pdf.setTextColor(...TEXT);
+          pdf.text(title, MARGIN_X, y);
+          y += 3;
+          autoTable(pdf, {
+            startY: y,
+            head: [['Descrição', 'Qtd.', 'Valor total', '% do centro']],
+            body: rows.map((item) => [
+              item.descricao,
+              String(item.quantidade),
+              fmtBRL(item.valor),
+              totalMovements > 0 ? `${((item.valor / totalMovements) * 100).toFixed(1)}%` : '—',
+            ]),
+            foot: [[
+              { content: `Subtotal de ${title.toLocaleLowerCase('pt-BR')}`, styles: { fontStyle: 'bold' } },
+              { content: String(rows.reduce((sum, item) => sum + item.quantidade, 0)), styles: { fontStyle: 'bold', halign: 'center' } },
+              { content: fmtBRL(rows.reduce((sum, item) => sum + item.valor, 0)), styles: { fontStyle: 'bold', halign: 'right' } },
+              '',
+            ]],
+            theme: 'striped',
+            headStyles: { fillColor: tipo === 'receita' ? SUCCESS : ACCENT, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+            footStyles: { fillColor: [248, 250, 252], textColor: TEXT },
+            bodyStyles: { fontSize: 8.5, textColor: TEXT },
+            columnStyles: { 0: { cellWidth: 91 }, 1: { cellWidth: 18, halign: 'center' }, 2: { cellWidth: 38, halign: 'right' }, 3: { cellWidth: 33, halign: 'right' } },
+            margin: { left: MARGIN_X, right: MARGIN_X },
+          });
+          y = (pdf as any).lastAutoTable.finalY + 5;
+        };
+
+        addMovementTable('Receitas', 'receita');
+        addMovementTable('Despesas', 'despesa');
+        y += 3;
       }
     }
   }
 
   // ----- 6. Indicadores -----
-  if (visibility.indicadores) {
+  if (!isCostCenterReport && visibility.indicadores) {
     ensureSpace(30);
     addSectionTitle('Indicadores');
     const enabledKpis = kpiDefs.filter((d: any) => kpiValues.some((v: any) => v.kpi_definition_id === d.id));
@@ -497,7 +562,7 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
   }
 
   // ----- 7. Conversão -----
-  if (visibility.conversao) {
+  if (!isCostCenterReport && visibility.conversao) {
     ensureSpace(30);
     addSectionTitle('Conversão');
     const contatos = monthConv?.contatos ?? 0;
@@ -530,7 +595,7 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
   }
 
   // ----- 8. Vendas -----
-  if (visibility.vendas) {
+  if (!isCostCenterReport && visibility.vendas) {
     ensureSpace(40);
     addSectionTitle('Vendas');
     const varTotal = fmtVariation(totalSales, totalSalesPrev);
