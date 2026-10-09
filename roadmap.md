@@ -1,7 +1,10 @@
 # Roteiro
 
 ## Em andamento
-- (nenhuma)
+- [x] Fazenda: importar Asaas_6 e Bradesco 09/10 (feito via acesso da Rubia), saldo Bradesco total, PDF×OFX sem duplicar
+- [ ] Joinville Santander: aguardando o arquivo que não sobe
+- [ ] Fazenda Asaas: diferença de R$ 300,55 em setembro — aguardando OFX do Asaas de 01 a 30/09
+- [ ] Fazenda Bradesco: confirmar de onde vêm −R$ 3.002,30 / R$ 19.002,88 (banco mostra R$ 498,78 em conta e R$ 17.609,69 total)
 
 ## Em aberto (anteriores)
 - Verificar na tela (login super admin): Central, botão dos sócios em Portão, exportar Excel, importar planilha de dinheiro da OAP
