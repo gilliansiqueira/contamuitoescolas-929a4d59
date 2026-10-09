@@ -5,7 +5,7 @@
 - [x] Joinville Norte Santander importado (ContaMax como aplicação automática)
 - [ ] Joinville Centro Santander: aguardando o extrato
 - [x] Fazenda Asaas setembro: 2 lançamentos devolvidos, fecha em R$ 5.142,57
-- [ ] PDF do relatório: incluir centros de custo nas empresas que usam
+- [x] PDF do Fechamento (Relatório Realizado): seção de centros de custo
 - [ ] Fazenda Bradesco: confirmar de onde vêm −R$ 3.002,30 / R$ 19.002,88 (banco mostra R$ 498,78 em conta e R$ 17.609,69 total)
 
 ## Em aberto (anteriores)
