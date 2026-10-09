@@ -94,6 +94,12 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
   const kpiThresholds = kpiThresholdsRes.data || [];
   const convData = convDataRes.data || [];
   const accounts = accountsRes.data || [];
+  const [{ data: detailCfg }, { data: detailGroupsData }, detailItems] = await Promise.all([
+    supabase.from('schools').select('expense_detail_enabled, expense_detail_label').eq('id', schoolId).maybeSingle(),
+    supabase.from('expense_detail_groups').select('*').eq('school_id', schoolId).order('sort_order'),
+    (async () => { const { fetchAllRows } = await import('@/lib/fetchAll'); return fetchAllRows<any>('expense_detail_items', q => q.eq('school_id', schoolId).order('data')); })(),
+  ]);
+  const detailGroups = detailGroupsData || [];
 
   const visibility = { relatorio: true, indicadores: true, conversao: true, vendas: true };
   tabs.forEach((t: any) => {
@@ -376,6 +382,63 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
       didDrawPage: () => { /* keep header on continuation pages handled below */ },
     });
     y = (pdf as any).lastAutoTable.finalY + 8;
+  }
+
+  // ----- 5b. Centros de custo (somente empresas com detalhamento ligado) -----
+  if (detailCfg?.expense_detail_enabled && detailGroups.length) {
+    const label = detailCfg.expense_detail_label || 'Centros de custo';
+    const monthItems = detailItems.filter((i: any) => String(i.data || '').startsWith(monthStr));
+    const resumo = detailGroups.map((g: any) => {
+      const its = monthItems.filter((i: any) => i.group_id === g.id);
+      const rec = its.filter((i: any) => i.tipo === 'receita').reduce((a: number, i: any) => a + Number(i.valor || 0), 0);
+      const desp = its.filter((i: any) => i.tipo !== 'receita').reduce((a: number, i: any) => a + Number(i.valor || 0), 0);
+      return { g, its, rec, desp };
+    }).filter(r => r.its.length);
+    ensureSpace(30);
+    addSectionTitle(label);
+    if (!resumo.length) {
+      pdf.setFont('helvetica', 'italic'); pdf.setFontSize(10); pdf.setTextColor(...MUTED);
+      pdf.text('Sem lançamentos nos centros de custo neste mês.', MARGIN_X, y);
+      y += 8;
+    } else {
+      const tRec = resumo.reduce((a, r) => a + r.rec, 0);
+      const tDesp = resumo.reduce((a, r) => a + r.desp, 0);
+      autoTable(pdf, {
+        startY: y,
+        head: [['Centro de custo', 'Receitas', 'Despesas', 'Resultado']],
+        body: resumo.map(r => [r.g.name, fmtBRL(r.rec), fmtBRL(r.desp), fmtBRL(r.rec - r.desp)]),
+        foot: [[
+          { content: 'TOTAL', styles: { fontStyle: 'bold' } },
+          { content: fmtBRL(tRec), styles: { fontStyle: 'bold', halign: 'right' } },
+          { content: fmtBRL(tDesp), styles: { fontStyle: 'bold', halign: 'right' } },
+          { content: fmtBRL(tRec - tDesp), styles: { fontStyle: 'bold', halign: 'right' } },
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: PRIMARY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 },
+        footStyles: { fillColor: [240, 253, 250], textColor: TEXT },
+        bodyStyles: { fontSize: 9, textColor: TEXT },
+        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
+        margin: { left: MARGIN_X, right: MARGIN_X },
+      });
+      y = (pdf as any).lastAutoTable.finalY + 6;
+      for (const r of resumo) {
+        ensureSpace(20);
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10); pdf.setTextColor(...TEXT);
+        pdf.text(r.g.name, MARGIN_X, y);
+        y += 4;
+        autoTable(pdf, {
+          startY: y,
+          head: [['Descrição', 'Tipo', 'Valor']],
+          body: r.its.map((i: any) => [i.descricao || '—', i.tipo === 'receita' ? 'Receita' : 'Despesa', fmtBRL(Number(i.valor || 0))]),
+          theme: 'striped',
+          headStyles: { fillColor: PRIMARY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+          bodyStyles: { fontSize: 9, textColor: TEXT },
+          columnStyles: { 2: { halign: 'right' } },
+          margin: { left: MARGIN_X, right: MARGIN_X },
+        });
+        y = (pdf as any).lastAutoTable.finalY + 6;
+      }
+    }
   }
 
   // ----- 6. Indicadores -----
