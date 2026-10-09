@@ -185,17 +185,25 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           const datas = cand2.map(x => x.t.data).sort();
           const { data: comRefRows } = await db.from('bank_transactions').select('id, data, valor, tipo, descricao, bank_ref').eq('account_id', accountId)
             .eq('is_forecast', false).not('bank_ref', 'is', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
-          const pool = new Map<string, string[]>();
-          (comRefRows ?? []).filter((r: any) => !claimed.has(r.id)).forEach((r: any) => {
-            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}|${normalizeDesc(r.descricao)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]);
+          // Mesmo dia + sentido + valor; a descrição pode mudar entre PDF e OFX (hífen, "TRANSF.AUTORIZ.ENTRE C/C" × "TRANSF CC PARA CC",
+          // "RESG AUTOMATICO" × "RESG/VENCTO CDB"): casa pelas palavras-chave, nunca juntando pessoas diferentes.
+          const linked = new Set(linkRefs.map(l => l.id));
+          const pool = new Map<string, { id: string; descricao: string }[]>();
+          (comRefRows ?? []).filter((r: any) => !claimed.has(r.id) && !linked.has(r.id)).forEach((r: any) => {
+            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), { id: r.id, descricao: r.descricao ?? '' }]);
           });
           let renumerados = 0;
-          cand2.forEach(({ t, i }) => {
-            const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}|${normalizeDesc(t.descricao)}`; const ids = pool.get(k);
+          // Primeiro os textos idênticos, depois os parecidos — para não "roubar" a linha certa de outro lançamento igual.
+          const tryMatch = (strict: boolean) => cand2.forEach(({ t, i }) => {
+            if (existing.has(hashes[i])) return;
+            const ids = pool.get(`${t.data}|${t.tipo}|${t.valor.toFixed(2)}`);
             if (!ids?.length) return;
-            const id = ids.shift()!; claimed.add(id); existing.add(hashes[i]); renumerados++;
+            const pos = ids.findIndex(r => strict ? normalizeDesc(r.descricao) === normalizeDesc(t.descricao) : sameBankEntryText(r.descricao, t.descricao));
+            if (pos < 0) return;
+            const [{ id }] = ids.splice(pos, 1); claimed.add(id); existing.add(hashes[i]); renumerados++;
             if (t.bankRef) linkRefs.push({ id, bankRef: t.bankRef, replace: true });
           });
+          tryMatch(true); tryMatch(false);
           if (renumerados) result.avisos = [...(result.avisos ?? []), `${renumerados} lançamento(s) já existiam com código diferente do banco (o banco renumera a cada download) e não serão gravados de novo.`];
         }
       }

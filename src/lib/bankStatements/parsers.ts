@@ -1104,6 +1104,15 @@ export function sameCounterpartyTokens(a: string, b: string): boolean {
   return common === Math.min(A.size, B.size) || common >= 2;
 }
 
+/** Resgate de aplicação descrito de outro jeito (Bradesco PDF "RESG AUTOMATICO INVESTIM" × OFX "RESG/VENCTO CDB"). */
+const isResgateAplicacao = (s: string) => /\bresg(ate)?\b/.test(normalizeDesc(s).replace(/[^a-z0-9 ]/g, ' ')) && !/rendiment|juros/.test(normalizeDesc(s));
+
+/** Mesmo lançamento do banco apesar da mudança de texto entre arquivos (usado só com data, sentido e valor iguais). */
+export function sameBankEntryText(a: string, b: string): boolean {
+  if (sameCounterpartyTokens(a, b)) return true;
+  return isResgateAplicacao(a) && isResgateAplicacao(b);
+}
+
 /** O lançamento gravado com o mesmo código é de fato o mesmo? (data, sentido e valor iguais) */
 export function sameRefTx(row: { data: string; tipo: string; valor: number | string; descricao?: string | null }, t: ParsedBankTx): boolean {
   if (row.data !== t.data || row.tipo !== t.tipo || Math.abs(Number(row.valor) - t.valor) >= 0.005) return false;
