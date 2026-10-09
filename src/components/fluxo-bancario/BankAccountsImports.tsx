@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useBankImports, useInvalidateBank, useAutoInvestPatterns, useOwnTransferNames, useSetMovementKind, autoPairTransfers } from '@/hooks/useBankPilot';
 import { Checkbox } from '@/components/ui/checkbox';
-import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, normalizeDesc, buildBankTemplateXlsx, toIsoDate, type BankParseResult } from '@/lib/bankStatements/parsers';
+import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, sameBankEntryText, normalizeDesc, buildBankTemplateXlsx, toIsoDate, type BankParseResult } from '@/lib/bankStatements/parsers';
 import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 
