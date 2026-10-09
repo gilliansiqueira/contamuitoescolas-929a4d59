@@ -4,7 +4,8 @@
 - [x] Fazenda: importar Asaas_6 e Bradesco 09/10 (feito via acesso da Rubia), saldo Bradesco total, PDF×OFX sem duplicar
 - [x] Joinville Norte Santander importado (ContaMax como aplicação automática)
 - [ ] Joinville Centro Santander: aguardando o extrato
-- [ ] Fazenda Asaas: diferença de R$ 300,55 em setembro — aguardando OFX do Asaas de 01 a 30/09
+- [ ] Fazenda Asaas: 2 linhas repetidas legítimas não gravadas (Pix R$300 08/09, taxa R$0,55 25/09) — corrigir dedup e inserir
+- [ ] PDF do relatório: incluir centros de custo nas empresas que usam
 - [ ] Fazenda Bradesco: confirmar de onde vêm −R$ 3.002,30 / R$ 19.002,88 (banco mostra R$ 498,78 em conta e R$ 17.609,69 total)
 
 ## Em aberto (anteriores)
