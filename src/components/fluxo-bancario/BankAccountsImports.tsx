@@ -217,12 +217,15 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         saldoCalc = Math.round((Number(acc.saldo_inicial ?? 0) + movG + movN) * 100) / 100;
       }
       // Bradesco OFX com aplicação: o saldo do arquivo é o total (conta + aplicação). Em conta = calculado.
-      if (acc?.has_auto_invest && /bradesco/i.test(`${acc.banco} ${result.banco ?? ''}`) && saldoCalc !== undefined && result.saldoFinalInformado! - saldoCalc >= 0.01) {
+      // Reconhece pelo nome cadastrado na conta OU pelo código do banco no arquivo (BANKID 237) — contas sem o banco preenchido
+      // (ex.: Fazenda Rio Grande) tinham o total gravado como "em conta" e o aplicado somado por cima.
+      const isBradesco = /bradesco/i.test(String(acc?.banco ?? '')) || /^0*237$/.test(String(result.banco ?? '').trim()) || /bradesco/i.test(String(result.banco ?? ''));
+      if (acc?.has_auto_invest && isBradesco && saldoCalc !== undefined && result.saldoFinalInformado! - saldoCalc >= 0.01) {
         result.avisos = [...(result.avisos ?? []), `Saldo do arquivo (${fmtBRL(result.saldoFinalInformado!)}) tratado como total com aplicação: em conta ${fmtBRL(saldoCalc)}.`];
         result.saldoComAplicacaoInformado = result.saldoFinalInformado;
         result.saldoFinalInformado = saldoCalc;
       }
-      if (acc?.has_auto_invest && result.formato === 'ofx' && result.saldoComAplicacaoInformado === undefined && !/bradesco/i.test(`${acc.banco} ${result.banco ?? ''}`)) {
+      if (acc?.has_auto_invest && result.formato === 'ofx' && result.saldoComAplicacaoInformado === undefined && !isBradesco) {
         result.avisos = [...(result.avisos ?? []), 'Este arquivo não traz o valor aplicado: os lançamentos entram, mas o saldo oficial da conta só atualiza com o PDF do banco (que traz a aplicação). Envie também o PDF do mesmo período.'];
       }
       setPreview({ file, hash, result, hashes, existing, kinds, linkRefs, saldoAplicado: '', saldoCalc });
