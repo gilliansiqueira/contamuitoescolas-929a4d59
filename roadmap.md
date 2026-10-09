@@ -6,6 +6,7 @@
 - [ ] Joinville Centro Santander: aguardando o extrato
 - [x] Fazenda Asaas setembro: 2 lançamentos devolvidos, fecha em R$ 5.142,57
 - [x] PDF do Fechamento (Relatório Realizado): seção de centros de custo
+- [x] PDF de centros de custo: formato enxuto, sem blocos escolares e com lançamentos agrupados
 - [ ] Fazenda Bradesco: confirmar de onde vêm −R$ 3.002,30 / R$ 19.002,88 (banco mostra R$ 498,78 em conta e R$ 17.609,69 total)
 
 ## Em aberto (anteriores)

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseSpreadsheet } from '@/components/realizado/DetalhamentoDespesas';
+import { groupCostCenterPdfItems } from '@/components/realizado/pdf/fechamentoPdf';
 
 const txt = [
   'Data de pagamento\tNome\tCategoria\tCentro de Custo\tValor categoria/centro de custo\tBanco',
@@ -17,5 +18,20 @@ describe('Centro de Custos — relatório Contas pagas', () => {
   it('mantém o layout antigo', () => {
     const { rows } = parseSpreadsheet('Obra A\t05/09/2026\tCimento\tdespesa\t100,00', '2026-09');
     expect(rows[0]).toMatchObject({ grupo: 'Obra A', descricao: 'Cimento', valor: '100,00' });
+  });
+
+  it('agrupa descrições iguais por tipo sem alterar os totais', () => {
+    const grouped = groupCostCenterPdfItems([
+      { descricao: 'Receita com serviços', tipo: 'receita', valor: 22_980 },
+      { descricao: ' receita com serviços ', tipo: 'receita', valor: 3_820 },
+      { descricao: 'Pintura', tipo: 'despesa', valor: 1_200 },
+      { descricao: 'Pintura', tipo: 'despesa', valor: 2_400 },
+    ]);
+
+    expect(grouped).toEqual([
+      { descricao: 'Receita com serviços', tipo: 'receita', quantidade: 2, valor: 26_800 },
+      { descricao: 'Pintura', tipo: 'despesa', quantidade: 2, valor: 3_600 },
+    ]);
+    expect(grouped.reduce((total, item) => total + item.valor, 0)).toBe(30_400);
   });
 });
