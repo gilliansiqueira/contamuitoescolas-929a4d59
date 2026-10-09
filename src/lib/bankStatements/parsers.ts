@@ -1092,7 +1092,7 @@ export function refCollisionHash(accountId: string, t: ParsedBankTx): Promise<st
   return sha256(`${accountId}|ref|${t.bankRef}|${t.data}|${t.tipo}|${t.valor.toFixed(2)}`);
 }
 
-const GENERIC_TOKENS = new Set(['pix', 'recebido', 'recebida', 'enviado', 'enviada', 'rem', 'des', 'pago', 'paga', 'pagamento', 'ted', 'doc', 'boleto', 'transf', 'transferencia', 'de', 'da', 'do', 'das', 'dos', 'e', 'deb', 'cred', 'credito', 'debito', 'ltda', 'me']);
+const GENERIC_TOKENS = new Set(['pix', 'recebido', 'recebida', 'enviado', 'enviada', 'rem', 'des', 'pago', 'paga', 'pagamento', 'ted', 'doc', 'boleto', 'transf', 'transferencia', 'de', 'da', 'do', 'das', 'dos', 'e', 'deb', 'cred', 'credito', 'debito', 'ltda', 'me', 'cc', 'para', 'entre', 'autoriz', 'pagto', 'pag']);
 const keyTokens = (s: string) => new Set(normalizeDesc(s).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(w => w.length >= 2 && !/\d/.test(w) && !GENERIC_TOKENS.has(w)));
 
 /** Mesma contraparte/natureza apesar de mudança de texto (Itaú APR×MAIS, BB "RENDE FÁCIL - RENDE FACIL"). Nomes diferentes (TAIANE×RAIMUNDO) não casam. */
