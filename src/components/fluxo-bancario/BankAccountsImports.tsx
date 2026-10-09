@@ -104,6 +104,12 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
     if (!accountId) return toast.error('Escolha a conta do extrato antes');
     setBusy(true);
     try {
+      // Sem modelo financeiro o banco recusa gravar (não há Receita/Despesa padrão): avisa antes da prévia.
+      const { data: sch } = await db.from('schools').select('financial_model_template_id').eq('id', schoolId).maybeSingle();
+      if (!sch?.financial_model_template_id) {
+        toast.error('Esta empresa está sem modelo financeiro. Escolha o modelo em Configurações → Modelo da empresa e envie o extrato de novo.', { duration: 10000 });
+        return;
+      }
       const hash = await fileHash(file);
       const { data: dup } = await db.from('bank_statement_imports').select('id, created_at').eq('account_id', accountId).eq('file_hash', hash).maybeSingle();
       if (dup) { toast.error(`Este arquivo já foi importado nesta conta em ${fmtDateTime(dup.created_at)}.`); return; }
