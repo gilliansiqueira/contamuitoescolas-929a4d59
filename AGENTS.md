@@ -21,4 +21,4 @@
 - Lançamento manual com `financial_entries.afeta_saldo=false` entra no Resultado mas nunca no Caixa: `resolveEntryLedgerRule` zera `impactaCaixa` — para registrar contas sem conferência bancária sem alterar o saldo do extrato.
 - Produtos mais vendidos guarda duas listas independentes por mês (`product_sales_monthly.ranking` = valor | quantidade) — clientes usam fontes diferentes em cada ranking.
 - Importação bancária reaproveita linha gravada só com mesmo dia/sentido/valor e texto equivalente (`sameBankEntryText`); OFX Bradesco (BANKID 237) com aplicação grava o saldo como total — para PDF×OFX não duplicarem nem inflarem saldo.
-- Acessos: só super_admin altera profiles/user_roles/carteira da equipe; equipe só gerencia clientes da própria carteira (`admin_manages_school`) — delegar sem risco.
+- Acessos: só super_admin altera profiles/user_roles/carteira da equipe; equipe só gerencia clientes da própria carteira (`admin_manages_school`); `team_supervision` soma carteiras das supervisionadas em `user_has_school_access` — delegar sem risco.
