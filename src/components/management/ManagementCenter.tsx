@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { School } from '@/types/financial';
@@ -28,6 +28,7 @@ import { previousBusinessDay } from '@/hooks/useMyDay';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
+const UsersConfigLazy = lazy(() => import('@/components/UsersConfig').then(m => ({ default: m.UsersConfig })));
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -356,6 +357,22 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     responsibleCandidates.forEach(candidate => grouped.set(candidate.school_id, [...(grouped.get(candidate.school_id) ?? []), candidate]));
     return grouped;
   }, [responsibleCandidates]);
+  // Toda a equipe (não só quem já tem a empresa): escolher alguém já liga a empresa na carteira dela.
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['management-team-members'],
+    enabled: isSuperAdmin,
+    queryFn: async () => {
+      const [{ data: roles }, { data: profs }] = await Promise.all([
+        supabase.from('user_roles').select('user_id, role'),
+        supabase.from('profiles').select('user_id, email'),
+      ]);
+      const supers = new Set((roles ?? []).filter(r => r.role === 'super_admin').map(r => r.user_id));
+      const admins = new Set((roles ?? []).filter(r => r.role === 'admin').map(r => r.user_id));
+      return (profs ?? []).filter(p => admins.has(p.user_id) && !supers.has(p.user_id)).map(p => ({ user_id: p.user_id, email: p.email }))
+        .sort((a, b) => a.email.localeCompare(b.email));
+    },
+  });
+  const [accessOpen, setAccessOpen] = useState(false);
   const displayNameByUser = useMemo(() => new Map(displayNames.map(item => [item.user_id, item.display_name])), [displayNames]);
   const dailyBySchool = useMemo(() => new Map(dailyRows.map(d => [d.school_id, d])), [dailyRows]);
   const bankAvailable = (row: PortfolioRow, daily?: DailyStatusRow) => {
@@ -692,6 +709,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               <div role="tablist" aria-label="Visão da conciliação" className="flex rounded-md border border-border bg-card p-0.5">{(Object.keys(periodModeLabels) as PeriodMode[]).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setCardFilter(null); }} className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{periodModeLabels[m]}</button>)}</div>
               {dueInfo && <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${dueInfo.tone}`} title="5º dia útil do mês seguinte (sem domingos e feriados)">Relatório {month.slice(5, 7)}/{month.slice(0, 4)} · {dueInfo.text}</span>}
               {mode === 'mes' && <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Período" type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-[168px] bg-card pl-9 text-xs" /></label>}
+              <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setAccessOpen(true)}><Users className="h-3.5 w-3.5" />{isSuperAdmin ? 'Equipe e acessos' : 'Logins dos clientes'}</Button>
               {isSuperAdmin && <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setTemplatesOpen(true)}><ListChecks className="h-3.5 w-3.5" />Etapas padrão</Button>}
               {isSuperAdmin && <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" />Nova empresa</Button>}
               <div className="hidden items-center gap-1 lg:flex"><ThemeToggle /><Button variant="ghost" size="icon" onClick={onSignOut} aria-label="Sair"><LogOut className="h-4 w-4" /></Button></div>
@@ -764,7 +782,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
                       const status = statusOf(row, month, dueDate); const daily = dailyBySchool.get(row.school_id); const recon = dailyReconState(daily, bankAvailable(row, daily)); const progress = row.closing_percent; const dayProgress = recon === 'unavailable' || recon === 'no_statement' ? null : daily?.recon_required === 0 ? 100 : dayPercent(daily); const tone = progress != null ? progressTone(progress) : null; const candidates = candidatesBySchool.get(row.school_id) ?? [];
                      return <div key={row.school_id} role="button" tabIndex={0} title="Abrir empresa" onClick={() => openSchool(row.school_id)} onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openSchool(row.school_id); } }} className={`cursor-pointer grid gap-2 border-l-4 px-3 py-3 text-xs transition-colors hover:bg-muted/30 lg:grid-cols-[minmax(100px,1.1fr)_minmax(100px,1fr)_minmax(90px,.7fr)_minmax(150px,1.5fr)_minmax(170px,1.7fr)_28px] lg:items-center ${rowAccent[status]}`}>
                         <div className="flex min-w-0 items-center gap-2"><ReconStatusDot state={reconDotOf(row)} schoolName={row.school_name} /><span className="truncate font-medium" title={row.school_name}>{row.school_name}</span></div>
-                      <div className="min-w-0" onClick={e => e.stopPropagation()}>{isSuperAdmin && candidates.length > 1 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{candidates.map(candidate => <SelectItem key={candidate.user_id} value={candidate.user_id}>{candidate.email}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
+                      <div className="min-w-0" onClick={e => e.stopPropagation()}>{isSuperAdmin && teamMembers.length > 0 ? <Select value={row.responsible_user_id ?? '__none'} onValueChange={value => changeResponsible(row.school_id, value)} disabled={setResponsible.isPending}><SelectTrigger className="h-7 bg-background text-[11px]"><SelectValue placeholder="Definir responsável" /></SelectTrigger><SelectContent><SelectItem value="__none">Definir responsável</SelectItem>{teamMembers.map(member => <SelectItem key={member.user_id} value={member.user_id}>{displayNameByUser.get(member.user_id) ?? nameFromEmail(member.email)}{candidates.some(c => c.user_id === member.user_id) ? '' : ' (incluir na carteira)'}</SelectItem>)}</SelectContent></Select> : <div className="flex items-center gap-1.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">{row.responsible_email ? initialsOf(displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : '?'}</span><span className="truncate">{row.responsible_email ? (displayNameByUser.get(row.responsible_user_id ?? '') ?? nameFromEmail(row.responsible_email)) : 'Definir responsável'}</span></div>}</div>
                       <span className="text-muted-foreground" title={lastActivityTitle(row.last_activity_at)}><span className="mr-1 lg:hidden">Última alteração:</span>{lastActivityLabel(row.last_activity_at)}</span>
                        <div onClick={e => e.stopPropagation()}><Button type="button" variant="ghost" onClick={() => setStepsSchool({ id: row.school_id, name: row.school_name })} className="h-auto w-full flex-col items-stretch gap-1 px-0 py-1 text-left hover:bg-transparent" aria-label={`Etapas do relatório de ${row.school_name}`}><div className="flex w-full items-center gap-2"><Progress value={progress ?? 0} className={`h-2.5 flex-1 bg-muted ${tone?.bar ?? ''}`} /><span className={`w-11 text-right text-xs font-bold ${tone?.text ?? 'text-muted-foreground'}`}>{progress == null ? '—' : `${progress}%`}</span></div><span className="text-[10px] font-normal text-muted-foreground">{row.report_delivered ? 'Relatório entregue' : 'Ver etapas e criar análise'}</span></Button></div>
 
@@ -785,6 +803,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       <Dialog open={!!toggleSchool} onOpenChange={open => { if (!open) setToggleSchool(null); }}><DialogContent><DialogHeader><DialogTitle>{toggleSchool?.ativo ? 'Reativar' : 'Inativar'} {toggleSchool?.name}?</DialogTitle><DialogDescription>{toggleSchool?.ativo ? 'A empresa volta para a carteira da responsável e o cliente volta a ter acesso.' : 'Nada será apagado. A empresa sai da carteira e das porcentagens, e o cliente deixa de ter acesso. Você pode reativar quando quiser.'}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setToggleSchool(null)}>Cancelar</Button><Button onClick={() => void confirmToggle()} disabled={toggling}>{toggling ? 'Salvando…' : toggleSchool?.ativo ? 'Reativar' : 'Inativar'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Nova empresa</DialogTitle><DialogDescription>Informe o nome da empresa para criar o cadastro.</DialogDescription></DialogHeader><Input value={newSchoolName} onChange={event => setNewSchoolName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void createSchool(); }} placeholder="Nome da empresa" autoFocus /><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={newSchoolRestricted} onChange={e => setNewSchoolRestricted(e.target.checked)} /><span><strong className="font-medium">Empresa restrita</strong><span className="block text-xs text-muted-foreground">Só a proprietária vê (ex.: financeiro da Conta Muito). Fica oculta para toda a equipe.</span></span></label><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button onClick={() => void createSchool()} disabled={addSchool.isPending}>{addSchool.isPending ? 'Criando…' : 'Criar empresa'}</Button></DialogFooter></DialogContent></Dialog>
       <ClosingStepTemplatesDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
+      <Dialog open={accessOpen} onOpenChange={setAccessOpen}><DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>{isSuperAdmin ? 'Equipe e acessos' : 'Logins dos clientes'}</DialogTitle></DialogHeader><Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}><UsersConfigLazy /></Suspense></DialogContent></Dialog>
       <SchoolStepsDialog open={stepsSchool !== null} onOpenChange={open => { if (!open) setStepsSchool(null); }} schoolId={stepsSchool?.id ?? null} schoolName={stepsSchool?.name ?? ''} month={month} canEditTemplates={isSuperAdmin} onOpenTemplates={() => { setStepsSchool(null); setTemplatesOpen(true); }} />
     </div>
   );

@@ -436,7 +436,7 @@ function IndexBody({
 
                   {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                   {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}
-                  {activeTab === 'users' && <UsersConfig />}
+                  {activeTab === 'users' && <UsersConfig schoolFilterId={school?.id} />}
                   {activeTab === 'historico_financeiro' && <HistoricoFinanceiroConfig schoolId={school.id} onChanged={refresh} />}
                   {activeTab === 'modelos_financeiros' && <ModelosFinanceirosManager />}
                   {activeTab === 'empresa_modelo' && <EmpresaModeloConfig schoolId={school.id} onChanged={refresh} />}

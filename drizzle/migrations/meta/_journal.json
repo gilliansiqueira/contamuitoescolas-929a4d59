@@ -554,6 +554,13 @@
       "when": 1791487662756,
       "tag": "0078_product_sales_ranking",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1791999618587,
+      "tag": "0079_team_access_permissions",
+      "breakpoints": true
     }
   ]
 }
