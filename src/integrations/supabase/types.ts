@@ -3945,6 +3945,24 @@ export type Database = {
           },
         ]
       }
+      team_supervision: {
+        Row: {
+          created_at: string
+          member_id: string
+          supervisor_id: string
+        }
+        Insert: {
+          created_at?: string
+          member_id: string
+          supervisor_id: string
+        }
+        Update: {
+          created_at?: string
+          member_id?: string
+          supervisor_id?: string
+        }
+        Relationships: []
+      }
       team_time_daily: {
         Row: {
           dia: string
