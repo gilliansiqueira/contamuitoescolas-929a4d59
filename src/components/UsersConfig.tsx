@@ -75,6 +75,24 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
     .filter(u => !schoolFilterId || userSchoolIds(u).includes(schoolFilterId) || u.user_id === user?.id)
     .sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === 'admin' ? -1 : 1));
   const teamUsers = users.filter(u => u.role === 'admin');
+  const { data: supervision = [] } = useQuery({
+    queryKey: ['team_supervision'],
+    enabled: isSuperAdmin,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from('team_supervision').select('supervisor_id, member_id');
+      if (error) throw error;
+      return (data ?? []) as { supervisor_id: string; member_id: string }[];
+    },
+  });
+  const toggleSupervision = useMutation({
+    mutationFn: async ({ sup, member, on }: { sup: string; member: string; on: boolean }) => {
+      const t = (supabase as any).from('team_supervision');
+      const { error } = on ? await t.insert({ supervisor_id: sup, member_id: member }) : await t.delete().eq('supervisor_id', sup).eq('member_id', member);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['team_supervision'] }); toast.success('Supervisão atualizada'); },
+    onError: (e: any) => toast.error(e.message ?? 'Erro ao atualizar supervisão'),
+  });
 
   const transferPortfolio = useMutation({
     mutationFn: async ({ from, to, ids }: { from: string; to: string; ids: string[] }) => {
@@ -384,6 +402,17 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
                         </div>
                       </div>
 
+                      {isSuperAdmin && u.role === 'admin' && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Supervisiona (vê e trabalha nas carteiras)</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {teamUsers.filter(t => t.user_id !== u.user_id).map(t => {
+                              const on = supervision.some(x => x.supervisor_id === u.user_id && x.member_id === t.user_id);
+                              return <Badge key={t.user_id} variant={on ? 'default' : 'outline'} className="cursor-pointer" onClick={() => toggleSupervision.mutate({ sup: u.user_id, member: t.user_id, on: !on })}>{t.email.split('@')[0]}</Badge>;
+                            })}
+                          </div>
+                        </div>
+                      )}
                       {isSuperAdmin && u.role === 'admin' && u.extra_school_ids.length > 0 && (
                         <div className="space-y-1.5">
                           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Passar carteira inteira para</Label>

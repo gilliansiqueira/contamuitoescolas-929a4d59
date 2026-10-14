@@ -561,6 +561,13 @@
       "when": 1791999618587,
       "tag": "0079_team_access_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1792011985631,
+      "tag": "0080_team_supervision",
+      "breakpoints": true
     }
   ]
 }
