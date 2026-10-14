@@ -25,8 +25,9 @@ interface UserRow {
   extra_school_ids: string[];
 }
 
-export function UsersConfig() {
-  const { isAdmin } = useAuth();
+export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}) {
+  const { isAdmin, isSuperAdmin, isAdminAll, accessibleSchoolIds, user } = useAuth();
+  const [transferTo, setTransferTo] = useState<Record<string, string>>({});
   const qc = useQueryClient();
   const { data: schools = [] } = useSchools();
 
@@ -64,6 +65,26 @@ export function UsersConfig() {
     enabled: isAdmin,
   });
 
+  // Proprietária gerencia tudo; a equipe só clientes das empresas da própria carteira.
+  const manageableIds = new Set<string>(isSuperAdmin || isAdminAll ? schools.map(s => s.id) : accessibleSchoolIds);
+  const manageableSchools = schools.filter(s => manageableIds.has(s.id));
+  const userSchoolIds = (u: UserRow) => [u.school_id, ...u.extra_school_ids].filter(Boolean) as string[];
+  const canManageClient = (u: UserRow) => u.role === 'cliente' && userSchoolIds(u).some(id => manageableIds.has(id));
+  const visibleUsers = users
+    .filter(u => isSuperAdmin || u.user_id === user?.id || canManageClient(u))
+    .filter(u => !schoolFilterId || userSchoolIds(u).includes(schoolFilterId) || u.user_id === user?.id)
+    .sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === 'admin' ? -1 : 1));
+  const teamUsers = users.filter(u => u.role === 'admin');
+
+  const transferPortfolio = useMutation({
+    mutationFn: async ({ from, to, ids }: { from: string; to: string; ids: string[] }) => {
+      const { error } = await (supabase as any).rpc('transfer_portfolio', { _from: from, _to: to, _school_ids: ids });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success('Carteira transferida'); qc.invalidateQueries({ queryKey: ['app_users'] }); qc.invalidateQueries({ queryKey: ['management-portfolio'] }); },
+    onError: (e: any) => toast.error(e.message ?? 'Erro ao transferir carteira'),
+  });
+
   const createUser = useMutation({
     mutationFn: async () => {
       const cleanEmail = email.trim().toLowerCase();
@@ -72,13 +93,13 @@ export function UsersConfig() {
         throw new Error('Email inválido. Use formato com domínio (ex: usuario@empresa.com)');
       }
       if (password.length < 6) throw new Error('Senha deve ter no mínimo 6 caracteres');
-      if (role === 'cliente' && !schoolId) throw new Error('Selecione uma empresa principal para o cliente');
+      if ((role === 'cliente' || !isSuperAdmin) && !schoolId) throw new Error('Selecione uma empresa principal para o cliente');
 
       const { data, error } = await supabase.functions.invoke('create-admin-user', {
         body: {
           email: cleanEmail,
           password,
-          role,
+          role: isSuperAdmin ? role : 'cliente',
           school_id: role === 'cliente' ? schoolId : (schoolId || null),
           admin_scope: role === 'admin' ? adminScope : 'all',
         },
@@ -180,7 +201,7 @@ export function UsersConfig() {
     <div className="space-y-6">
       <div className="glass-card rounded-2xl p-6 space-y-4">
         <h2 className="text-lg font-display font-bold flex items-center gap-2">
-          <UserPlus className="w-5 h-5 text-primary" /> Criar novo usuário
+          <UserPlus className="w-5 h-5 text-primary" /> {isSuperAdmin ? 'Criar novo usuário' : 'Criar login de cliente'}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -191,7 +212,7 @@ export function UsersConfig() {
             <Label>Senha (mín. 6 caracteres)</Label>
             <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
           </div>
-          <div className="space-y-1.5">
+          {isSuperAdmin && <div className="space-y-1.5">
             <Label>Papel</Label>
             <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'cliente')}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -200,8 +221,8 @@ export function UsersConfig() {
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          {role === 'admin' && (
+          </div>}
+          {isSuperAdmin && role === 'admin' && (
             <div className="space-y-1.5">
               <Label>Escopo do admin</Label>
               <Select value={adminScope} onValueChange={(v) => setAdminScope(v as 'all' | 'list')}>
@@ -215,12 +236,12 @@ export function UsersConfig() {
           )}
           <div className="space-y-1.5">
             <Label>
-              {role === 'admin' ? <>Primeira empresa da carteira <span className="text-xs text-muted-foreground">(opcional)</span></> : 'Empresa principal'}
+              {isSuperAdmin && role === 'admin' ? <>Primeira empresa da carteira <span className="text-xs text-muted-foreground">(opcional)</span></> : 'Empresa principal'}
             </Label>
             <Select value={schoolId} onValueChange={setSchoolId}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
               <SelectContent>
-                {schools.map(s => (
+                {manageableSchools.map(s => (
                   <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
                 ))}
               </SelectContent>
@@ -243,13 +264,16 @@ export function UsersConfig() {
         <h2 className="text-lg font-display font-bold mb-4">Usuários cadastrados</h2>
         {isLoading ? (
           <p className="text-muted-foreground text-sm">Carregando...</p>
-        ) : users.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <p className="text-muted-foreground text-sm">Nenhum usuário cadastrado.</p>
         ) : (
           <div className="space-y-2">
-            {users.map(u => {
+            {visibleUsers.map(u => {
               const expanded = expandedUserId === u.user_id;
-              const availableExtras = schools.filter(
+              const isSelf = u.user_id === user?.id;
+              const canEditSchools = isSuperAdmin || (!isSelf && u.role === 'cliente');
+              const canPassword = isSuperAdmin || isSelf || u.role === 'cliente';
+              const availableExtras = manageableSchools.filter(
                 s => s.id !== u.school_id && !u.extra_school_ids.includes(s.id)
               );
               return (
@@ -294,20 +318,20 @@ export function UsersConfig() {
                       >
                         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </Button>
-                      <Button
+                      {isSuperAdmin && !isSelf && <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => setDeleteId(u.user_id)}
                         className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </Button>
+                      </Button>}
                     </div>
                   </div>
 
                   {expanded && (
                     <div className="border-t border-border p-3 space-y-3 bg-background/50">
-                      {u.role === 'admin' && (
+                      {isSuperAdmin && u.role === 'admin' && (
                         <div className="space-y-1.5">
                           <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                             Escopo do administrador
@@ -345,13 +369,13 @@ export function UsersConfig() {
                             <Badge key={sid} variant="secondary" className="gap-1 pr-1">
                               <Building2 className="w-3 h-3" />
                               {schoolNameById(sid)}
-                              <button
+                              {canEditSchools && (isSuperAdmin || manageableIds.has(sid)) && <button
                                 onClick={() => removeExtraSchool.mutate({ userId: u.user_id, schoolIdToRemove: sid })}
                                 className="ml-1 hover:bg-destructive/20 rounded-sm p-0.5"
                                 title="Remover acesso"
                               >
                                 <X className="w-3 h-3" />
-                              </button>
+                              </button>}
                             </Badge>
                           ))}
                           {!u.school_id && u.extra_school_ids.length === 0 && (
@@ -360,7 +384,24 @@ export function UsersConfig() {
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
+                      {isSuperAdmin && u.role === 'admin' && u.extra_school_ids.length > 0 && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Passar carteira inteira para</Label>
+                          <div className="flex gap-2">
+                            <Select value={transferTo[u.user_id] ?? ''} onValueChange={v => setTransferTo(prev => ({ ...prev, [u.user_id]: v }))}>
+                              <SelectTrigger className="flex-1"><SelectValue placeholder="Escolha a pessoa..." /></SelectTrigger>
+                              <SelectContent>
+                                {teamUsers.filter(t => t.user_id !== u.user_id).map(t => <SelectItem key={t.user_id} value={t.user_id}>{t.email}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Button size="sm" variant="secondary" disabled={!transferTo[u.user_id] || transferPortfolio.isPending}
+                              onClick={() => { if (confirm(`Passar ${u.extra_school_ids.length} empresa(s) para a pessoa escolhida?`)) transferPortfolio.mutate({ from: u.user_id, to: transferTo[u.user_id], ids: u.extra_school_ids }); }}>
+                              Passar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {canEditSchools && <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                           Adicionar empresa
                         </Label>
@@ -391,8 +432,9 @@ export function UsersConfig() {
                             <Plus className="w-4 h-4 mr-1" /> Vincular
                           </Button>
                       </div>
+                      </div>}
 
-                      <div className="space-y-1.5 pt-3 border-t border-border">
+                      {canPassword && <div className="space-y-1.5 pt-3 border-t border-border">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                           <KeyRound className="w-3 h-3" /> Alterar senha
                         </Label>
@@ -416,8 +458,7 @@ export function UsersConfig() {
                             <KeyRound className="w-4 h-4 mr-1" /> Salvar
                           </Button>
                         </div>
-                      </div>
-                    </div>
+                      </div>}
                     </div>
                   )}
                 </div>
