@@ -64,10 +64,26 @@ Deno.serve(async (req) => {
       }
       const { data: callerRoles } = await adminClient
         .from("user_roles").select("role").eq("user_id", caller.id);
-      if (!callerRoles?.some(r => r.role === "admin")) {
-        return new Response(JSON.stringify({ error: "apenas admins podem criar usuários" }), {
+      const isSuper = !!callerRoles?.some(r => r.role === "super_admin");
+      const isTeam = isSuper || !!callerRoles?.some(r => r.role === "admin");
+      if (!isTeam) {
+        return new Response(JSON.stringify({ error: "apenas a equipe pode criar usuários" }), {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+      if (!isSuper) {
+        // Equipe: só cria login de cliente em empresa da própria carteira.
+        if (role !== "cliente") {
+          return new Response(JSON.stringify({ error: "somente a proprietária cria logins da equipe" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const { data: manages } = await userClient.rpc("admin_manages_school", { _school_id: school_id });
+        if (!manages) {
+          return new Response(JSON.stringify({ error: "esta empresa não está na sua carteira" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 

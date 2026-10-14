@@ -46,8 +46,27 @@ Deno.serve(async (req) => {
     }
     const { data: callerRoles } = await adminClient
       .from("user_roles").select("role").eq("user_id", caller.id);
-    if (!callerRoles?.some((r) => r.role === "admin")) {
-      return new Response(JSON.stringify({ error: "apenas admins podem alterar senhas" }), {
+    const isSuper = !!callerRoles?.some((r) => r.role === "super_admin");
+    const isTeam = isSuper || !!callerRoles?.some((r) => r.role === "admin");
+    let allowed = isSuper || caller.id === user_id;
+    if (!allowed && isTeam) {
+      // Equipe: só clientes com alguma empresa da carteira dela.
+      const { data: targetRoles } = await adminClient.from("user_roles").select("role").eq("user_id", user_id);
+      const targetIsClient = !targetRoles?.some((r) => r.role === "admin" || r.role === "super_admin");
+      if (targetIsClient) {
+        const [{ data: prof }, { data: extras }] = await Promise.all([
+          adminClient.from("profiles").select("school_id").eq("user_id", user_id).maybeSingle(),
+          adminClient.from("user_schools").select("school_id").eq("user_id", user_id),
+        ]);
+        const ids = [prof?.school_id, ...(extras ?? []).map((e) => e.school_id)].filter(Boolean);
+        for (const sid of ids) {
+          const { data: ok } = await userClient.rpc("admin_manages_school", { _school_id: sid });
+          if (ok) { allowed = true; break; }
+        }
+      }
+    }
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: "você só pode alterar a sua senha ou a de clientes da sua carteira" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
