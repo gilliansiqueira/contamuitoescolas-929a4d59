@@ -4297,6 +4297,33 @@ export type Database = {
           },
         ]
       }
+      user_access_changes: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          id: string
+          school_id: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          school_id?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          school_id?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
       user_permissions: {
         Row: {
           granted_at: string
@@ -4374,6 +4401,7 @@ export type Database = {
         Args: { _month: string; _school_id: string }
         Returns: number
       }
+      admin_manages_school: { Args: { _school_id: string }; Returns: boolean }
       can_see_school: { Args: { _school_id: string }; Returns: boolean }
       can_view_team_time: { Args: never; Returns: boolean }
       close_recon_day: {
@@ -4511,6 +4539,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_client_user: { Args: { _uid: string }; Returns: boolean }
       is_date_in_closed_month: {
         Args: { _date: string; _school_id: string }
         Returns: boolean
@@ -4560,6 +4589,10 @@ export type Database = {
       sync_school_management_responsible: {
         Args: { _school_id: string }
         Returns: undefined
+      }
+      transfer_portfolio: {
+        Args: { _from: string; _school_ids: string[]; _to: string }
+        Returns: number
       }
       user_has_school_access: {
         Args: { _school_id: string; _user_id: string }
