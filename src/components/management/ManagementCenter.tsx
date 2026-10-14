@@ -356,6 +356,22 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     responsibleCandidates.forEach(candidate => grouped.set(candidate.school_id, [...(grouped.get(candidate.school_id) ?? []), candidate]));
     return grouped;
   }, [responsibleCandidates]);
+  // Toda a equipe (não só quem já tem a empresa): escolher alguém já liga a empresa na carteira dela.
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['management-team-members'],
+    enabled: isSuperAdmin,
+    queryFn: async () => {
+      const [{ data: roles }, { data: profs }] = await Promise.all([
+        supabase.from('user_roles').select('user_id, role'),
+        supabase.from('profiles').select('user_id, email'),
+      ]);
+      const supers = new Set((roles ?? []).filter(r => r.role === 'super_admin').map(r => r.user_id));
+      const admins = new Set((roles ?? []).filter(r => r.role === 'admin').map(r => r.user_id));
+      return (profs ?? []).filter(p => admins.has(p.user_id) && !supers.has(p.user_id)).map(p => ({ user_id: p.user_id, email: p.email }))
+        .sort((a, b) => a.email.localeCompare(b.email));
+    },
+  });
+  const [accessOpen, setAccessOpen] = useState(false);
   const displayNameByUser = useMemo(() => new Map(displayNames.map(item => [item.user_id, item.display_name])), [displayNames]);
   const dailyBySchool = useMemo(() => new Map(dailyRows.map(d => [d.school_id, d])), [dailyRows]);
   const bankAvailable = (row: PortfolioRow, daily?: DailyStatusRow) => {
