@@ -19,6 +19,6 @@
 - Lançamentos manuais (origem 'manual') continuam no realizado mesmo com Fluxo Bancário ativo; só a planilha de fluxo é substituída pelo extrato — para registrar contas fora do Fluxo Bancário.
 - Renovação escolar (`renewal_*`, bucket privado `renewal-files`) é só da equipe (is_admin + can_see_school), isolada dos cálculos financeiros; colunas têm id estável e correções guardam o valor original em `overrides` para reimportações preservarem o trabalho manual.
 - Lançamento manual com `financial_entries.afeta_saldo=false` entra no Resultado mas nunca no Caixa: `resolveEntryLedgerRule` zera `impactaCaixa` — sem alterar o saldo do extrato.
-- Produtos mais vendidos guarda duas listas independentes por mês (`product_sales_monthly.ranking` = valor | quantidade) — clientes usam fontes diferentes em cada ranking.
+- Produtos mais vendidos guarda duas listas independentes por mês (`product_sales_monthly.ranking` = valor | quantidade) — fontes diferentes.
 - Importação bancária reaproveita linha gravada só com mesmo dia/sentido/valor e texto equivalente (`sameBankEntryText`); OFX Bradesco (BANKID 237) com aplicação grava o saldo como total — para PDF×OFX não duplicarem nem inflarem saldo.
 - Acessos: só super_admin altera profiles/user_roles/carteira da equipe; equipe só gerencia clientes da própria carteira (`admin_manages_school`); `team_supervision` soma carteiras das supervisionadas em `user_has_school_access` — delegar sem risco.
