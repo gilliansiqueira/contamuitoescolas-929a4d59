@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { School } from '@/types/financial';
@@ -27,9 +27,7 @@ import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } fr
 import { previousBusinessDay } from '@/hooks/useMyDay';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Users } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { lazy, Suspense } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 const UsersConfigLazy = lazy(() => import('@/components/UsersConfig').then(m => ({ default: m.UsersConfig })));
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
