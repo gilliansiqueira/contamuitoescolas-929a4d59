@@ -41,17 +41,23 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 async function loadProfile(userId: string): Promise<UserProfile | null> {
-  const [{ data: profile }, { data: roles }, { data: extras }, { data: perms }] = await Promise.all([
+  const [{ data: profile }, { data: roles }, { data: extras }, { data: perms }, { data: sup }] = await Promise.all([
     supabase.from('profiles').select('user_id, email, school_id, admin_scope').eq('user_id', userId).maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', userId),
     supabase.from('user_schools').select('school_id').eq('user_id', userId),
     (supabase as any).from('user_permissions').select('permission').eq('user_id', userId),
+    (supabase as any).from('team_supervision').select('member_id').eq('supervisor_id', userId),
   ]);
+  // Supervisora: soma as carteiras das colegas supervisionadas.
+  const memberIds = ((sup ?? []) as any[]).map(r => r.member_id);
+  const { data: supSchools } = memberIds.length
+    ? await supabase.from('user_schools').select('school_id').in('user_id', memberIds)
+    : { data: [] as any[] };
   if (!profile) return null;
   const role: UserRole = roles?.some(r => r.role === 'super_admin')
     ? 'super_admin'
     : roles?.some(r => r.role === 'admin') ? 'admin' : 'cliente';
-  const extra_school_ids = (extras ?? []).map((r: any) => r.school_id).filter(Boolean);
+  const extra_school_ids = Array.from(new Set([...(extras ?? []), ...(supSchools ?? [])].map((r: any) => r.school_id).filter(Boolean)));
   const admin_scope: AdminScope = ((profile as any).admin_scope === 'list' ? 'list' : 'all');
   const permissions = ((perms ?? []) as any[]).map(r => r.permission as string);
   return { ...profile, role, admin_scope, extra_school_ids, permissions };
