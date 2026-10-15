@@ -20,6 +20,7 @@ import { parseTemplate } from '@/lib/renewal/templateParser';
 import { parseSponteFile, type ParsedSource } from '@/lib/renewal/sponteParser';
 import { defaultMinDue } from '@/lib/renewal/mergeEngine';
 import { defaultColumns } from '@/lib/renewal/fields';
+import { applyTemplateToSheet } from '@/lib/renewal/persist';
 import { buildWorkbook, computeSummary } from '@/lib/renewal/exportXlsx';
 import { SHEET_STATUS, type RenewalColumn, type RenewalRow, type TemplateStructure } from '@/lib/renewal/types';
 import { saveImport, INFO_KINDS, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
@@ -453,6 +454,13 @@ function SheetPanel({ sheet, templates }: { sheet: RenewalSheet; templates: Rene
     setPendingCols(null); invalidate(sheet.school_id, sheet.id);
   };
 
+  const approvedTpl = templates.find(t => t.approved);
+  const applyTemplate = async () => {
+    if (!approvedTpl) return;
+    if (!confirm(`Colocar esta planilha no formato do modelo v${approvedTpl.version}? Dados importados e correções da equipe são mantidos.`)) return;
+    try { await applyTemplateToSheet(sheet, approvedTpl.id, approvedTpl.structure.columns, rows); toast.success('Planilha no formato do modelo aprovado.'); invalidate(sheet.school_id, sheet.id); }
+    catch (e: any) { toast.error(e.message); }
+  };
   const exportNow = async () => downloadBuffer(await buildWorkbook(rows, columns, structure), `Renovacao_${sheet.period.replace('/', '-')}_rascunho.xlsx`);
 
   return (
@@ -471,7 +479,7 @@ function SheetPanel({ sheet, templates }: { sheet: RenewalSheet; templates: Rene
             <tbody>{summary.map(s => <tr key={s.professor}><td className="pr-4 font-medium">{s.professor}</td><td className="pr-4">{s.turmas}</td><td className="pr-4">{s.alunos}</td><td className="pr-4">{s.renovados}</td><td>{s.alunos ? ((s.renovados / s.alunos) * 100).toFixed(1) : '0'}%</td></tr>)}</tbody></table>
         </div>
       )}
-      <div className="flex justify-end"><Button size="sm" variant="outline" onClick={exportNow}><Download className="mr-1 h-4 w-4" />Baixar Excel (rascunho)</Button></div>
+      <div className="flex justify-end gap-2">{approvedTpl && approvedTpl.id !== sheet.template_id && <Button size="sm" variant="outline" onClick={applyTemplate}>Aplicar modelo aprovado (v{approvedTpl.version})</Button>}<Button size="sm" variant="outline" onClick={exportNow}><Download className="mr-1 h-4 w-4" />Baixar Excel (rascunho)</Button></div>
       {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : rows.length === 0 ? <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Envie os relatórios na etapa 2 para montar a planilha.</p> : (
         <RenewalGrid rows={rows} columns={columns} onEdits={onEdits} onColumnsChange={setPendingCols} onAddRow={onAddRow} onResolveConflict={onResolve} />
       )}

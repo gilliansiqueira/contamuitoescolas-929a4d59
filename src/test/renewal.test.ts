@@ -94,3 +94,18 @@ describe('turmas em formação', () => {
     expect(issues.map(i => i.kind).sort()).toEqual(['formacao_aluno_novo', 'formacao_nome_semelhante']);
   });
 });
+
+import { remapToTemplate } from '@/lib/renewal/persist';
+import { isRenewed } from '@/lib/renewal/types';
+describe('modelo e renovados', () => {
+  it('conta Renovado e Rematriculado', () => {
+    expect(['Renovado', 'RENOVADOS 100%', 'Rematriculado', 'Não Rematriculará', 'Pendente'].map(isRenewed)).toEqual([true, true, true, false, false]);
+  });
+  it('aplicar modelo preserva correções', () => {
+    const old = [columnFromField('status_renovacao'), { id: 'o1', title: 'Observações', kind: 'manual' as const, type: 'text' as const }];
+    const nw = [columnFromField('status_renovacao', 'Status Renovação'), { id: 'n1', title: 'Observacoes', kind: 'manual' as const, type: 'text' as const }];
+    const { rows } = remapToTemplate(old, nw, [{ row_key: 'a', imported: {}, overrides: { [old[0].id]: { value: 'Renovado', original: null, at: '' }, o1: { value: 'x', original: null, at: '' } }, conflicts: {}, sort_order: 0, manual: false }]);
+    expect(rows[0].overrides[nw[0].id].value).toBe('Renovado');
+    expect(rows[0].overrides.n1.value).toBe('x');
+  });
+});
