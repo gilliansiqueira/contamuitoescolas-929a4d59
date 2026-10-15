@@ -23,6 +23,15 @@ export async function saveImport(sheet: RenewalSheet, parsed: ParsedSource, file
 /** Avisos só informativos: entram como conferidos e não contam como pendência. */
 export const INFO_KINDS = new Set(['formacao_aluno_novo', 'formacao_aluno_novo_parcelas']);
 
+/** Campos que a equipe pode preencher na Conferência quando faltam parcelas. */
+export const PAYMENT_FIELDS = ['forma_pagamento_atual', 'venc_ultima_parcela', 'termino_pagamento'];
+
+/** Aviso "sem parcelas" já está resolvido se a equipe preencheu algum dado de pagamento da linha. */
+export function teamFilledPayment(row: RenewalRow | undefined, columns: RenewalColumn[]): boolean {
+  if (!row) return false;
+  return columns.some(c => c.field && PAYMENT_FIELDS.includes(c.field) && String(row.overrides?.[c.id]?.value ?? '').trim() !== '');
+}
+
 /** Recalcula a planilha a partir das últimas importações, preservando o que a equipe editou. */
 export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSettings, existing: RenewalRow[]) {
   const { data: imps, error } = await db.from('renewal_imports').select('*').eq('sheet_id', sheet.id).order('created_at', { ascending: false });
@@ -55,7 +64,9 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
     }
   }
   const all2 = [...issues, ...extra];
-  await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: i.detail ?? {}, resolved: INFO_KINDS.has(i.kind) }))); if (e) throw e; });
+  const rowByKey = new Map(all.map(r => [r.row_key, r]));
+  const autoResolved = (i: Issue) => INFO_KINDS.has(i.kind) || (i.kind === 'sem_financeiro' && teamFilledPayment(rowByKey.get(i.row_key ?? ''), sheet.columns));
+  await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: autoResolved(i) && !INFO_KINDS.has(i.kind) ? { ...(i.detail ?? {}), resolucao: { motivo: 'Preenchido pela equipe' } } : i.detail ?? {}, resolved: autoResolved(i) }))); if (e) throw e; });
   const patch: any = { updated_at: new Date().toISOString() };
   if (c && sheet.status === 'aguardando_relatorios') patch.status = 'em_preparacao';
   if (sheet.sent_version) patch.dirty = true;

@@ -341,11 +341,66 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
   );
 }
 
+const MOTIVOS = ['Parcelas canceladas – aluno ativo', 'Pagou à vista', 'Bolsista/permuta', 'Outro'];
+
+function FillIssueDialog({ sheet, issue, row, onClose }: { sheet: RenewalSheet; issue: any; row: RenewalRow; onClose: () => void }) {
+  const { user } = useAuth();
+  const invalidate = useInvalidateRenewal();
+  const colOf = (f: string) => sheet.columns.find(c => c.field === f);
+  const cur = (f: string) => { const c = colOf(f); if (!c) return ''; const v = row.overrides?.[c.id]?.value ?? row.imported?.[c.field!]; return v === 'Sem informação' ? '' : String(v ?? ''); };
+  const [forma, setForma] = useState(cur('forma_pagamento_atual'));
+  const [venc, setVenc] = useState(/^\d{4}-\d{2}-\d{2}$/.test(cur('venc_ultima_parcela')) ? cur('venc_ultima_parcela') : '');
+  const [termino, setTermino] = useState(cur('termino_pagamento'));
+  const [motivo, setMotivo] = useState(MOTIVOS[0]);
+  const [obs, setObs] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      let r = row;
+      const set = (f: string, v: string) => { const c = colOf(f); if (c && v.trim() !== '') r = applyEdit(r, c, v.trim(), user?.email ?? undefined); };
+      set('forma_pagamento_atual', forma); set('venc_ultima_parcela', venc); set('termino_pagamento', termino);
+      const obsCol = colOf('observacoes');
+      const nota = [motivo, obs.trim()].filter(Boolean).join(' — ');
+      if (obsCol) { const prev = String(r.overrides?.[obsCol.id]?.value ?? r.imported?.observacoes ?? '').trim(); r = applyEdit(r, obsCol, prev ? `${prev} | ${nota}` : nota, user?.email ?? undefined); }
+      await saveRows(sheet, [r]);
+      const resolucao = { motivo, observacao: obs.trim() || null, forma, venc, termino, por: user?.email ?? null, em: new Date().toISOString() };
+      const { error } = await db.from('renewal_issues').update({ resolved: true, detail: { ...(issue.detail ?? {}), ignored: false, resolucao } }).eq('id', issue.id);
+      if (error) throw error;
+      invalidate(sheet.school_id, sheet.id);
+      toast.success('Dados salvos e item conferido.');
+      onClose();
+    } catch (e: any) { toast.error(e.message ?? 'Erro ao salvar'); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{row.imported?.aluno ?? 'Aluno'}</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">{issue.message}</p>
+        <div className="space-y-3">
+          <div><Label>Motivo</Label>
+            <Select value={motivo} onValueChange={setMotivo}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{MOTIVOS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
+          </div>
+          <div><Label>Forma de pagamento atual</Label><Input value={forma} onChange={e => setForma(e.target.value)} placeholder="Ex.: Boleto, Cartão de crédito" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Venc. última parcela</Label><Input type="date" value={venc} onChange={e => setVenc(e.target.value)} /></div>
+            <div><Label>Término do pagamento</Label><Input value={termino} onChange={e => setTermino(e.target.value)} placeholder="AAAA-MM-DD ou A confirmar" /></div>
+          </div>
+          <div><Label>Observação</Label><Textarea value={obs} onChange={e => setObs(e.target.value)} rows={2} /></div>
+          <p className="text-xs text-muted-foreground">Os dados entram na planilha como correção da equipe e continuam valendo ao recalcular.</p>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Cancelar</Button><Button onClick={save} disabled={busy}>Salvar e dar OK</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
   const { data: issues = [] } = useSheetChildren<any>('renewal_issues', sheet.id);
   const { data: rows = [] } = useRenewalRows(sheet.id);
   const invalidate = useInvalidateRenewal();
   const [kind, setKind] = useState('');
+  const [filling, setFilling] = useState<any>(null);
   const info = issues.filter(i => INFO_KINDS.has(i.kind));
   const main = issues.filter(i => !INFO_KINDS.has(i.kind));
   const open = main.filter(i => !i.resolved);
@@ -378,10 +433,12 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
         {list.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Nada para conferir.</p> : list.map(i => (
           <label key={i.id} className={`flex items-start gap-2 border-b border-border px-3 py-2 text-sm last:border-0 ${i.resolved ? 'opacity-50' : ''}`}>
             <input type="checkbox" className="mt-1" checked={i.resolved} onChange={e => toggle(i.id, e.target.checked)} />
-            <span className="flex-1"><Badge variant="outline" className="mr-2 text-[10px]">{ISSUE_LABEL[i.kind] ?? i.kind}</Badge>{(i.detail as any)?.ignored && i.resolved && <Badge variant="secondary" className="mr-2 text-[10px]">Desconsiderado</Badge>}{i.message}</span>
+            <span className="flex-1"><Badge variant="outline" className="mr-2 text-[10px]">{ISSUE_LABEL[i.kind] ?? i.kind}</Badge>{(i.detail as any)?.ignored && i.resolved && <Badge variant="secondary" className="mr-2 text-[10px]">Desconsiderado</Badge>}{i.resolved && (i.detail as any)?.resolucao?.motivo && <Badge variant="secondary" className="mr-2 text-[10px]">{(i.detail as any).resolucao.motivo}</Badge>}{i.message}</span>
+            {!i.resolved && i.row_key && rows.some(r => r.row_key === i.row_key) && <button type="button" className="shrink-0 text-xs font-medium text-primary underline" onClick={e => { e.preventDefault(); setFilling(i); }}>Preencher e dar OK</button>}
             {!i.resolved && <button type="button" className="shrink-0 text-xs text-muted-foreground underline" onClick={e => { e.preventDefault(); setMany([i], true, true); }}>Desconsiderar</button>}
           </label>
         ))}
+        {filling && <FillIssueDialog sheet={sheet} issue={filling} row={rows.find(r => r.row_key === filling.row_key)!} onClose={() => setFilling(null)} />}
       </div>
       {info.length > 0 && (
         <details className="rounded-xl border border-border bg-card">
