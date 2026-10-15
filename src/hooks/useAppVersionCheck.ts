@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 declare const __BUILD_VERSION__: string | undefined;
 
-const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutos
+const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
 
 /**
  * Compara a versão embutida no build atual com a versão publicada no servidor

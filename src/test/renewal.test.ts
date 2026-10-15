@@ -131,3 +131,16 @@ describe('parcela do módulo', () => {
     expect(isModuleInstallment({ Categoria: 'Personal', Situacao: 'Cancelada' }, s)).toBe(false);
   });
 });
+
+describe('vínculo só com nome idêntico', () => {
+  const s = { include_material: false, module_categories: [], separate_modalities: [] };
+  it('nome parecido vira sem correspondência; formação parecida vira aluno novo', () => {
+    const t = [{ Nome: 'T1', Aluno: 'Alice Delgado de Amorim', NumeroMatricula: '1' }];
+    const c = [{ Sacado: 'Alice Martinez Amorim', NumeroMatricula: '99', Categoria: 'Parcela', DataVencimento: '10/06/2026' }];
+    const { rows, issues } = buildImported(t, c, { settings: s, minDue: null });
+    expect(issues.some(i => i.kind === 'nome_semelhante')).toBe(false);
+    expect(issues.some(i => i.kind === 'sem_correspondencia')).toBe(true);
+    const f = applyRenewedFromNextPeriod(rows, [{ Nome: 'F1', Aluno: 'Alice Delgada de Amorim', NumeroMatricula: '77' }]);
+    expect(f.map(i => i.kind)).toEqual(['formacao_aluno_novo']);
+  });
+});
