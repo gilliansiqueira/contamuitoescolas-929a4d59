@@ -20,11 +20,17 @@ function lev(a: string, b: string): number {
 const isMaterial = (c: string) => norm(c).startsWith('material');
 const isCancelled = (p: Record<string, any>) => /cancel|estorn/i.test(String(p.Situacao ?? '')) || /cancel/i.test(String(p.SituacaoParcela ?? ''));
 
-/** Toda parcela não cancelada conta como módulo (Personal, VIP etc.); só material segue a regra da escola. */
+/** Cobranças avulsas que nunca são parcela do curso. */
+const NOT_MODULE = /^(taxa|reposicao|venda|multa|juros)|rescis/;
+const isPaid = (p: Record<string, any>) => /quitad|pag[oa]|baixad|recebid/i.test(String(p.Situacao ?? ''));
+
+/** Toda parcela não cancelada conta como módulo (Regular, Personal, VIP...). Ficam fora: material (regra da escola) e cobranças avulsas (taxa, reposição, venda, rescisão), salvo se a escola listar a categoria. */
 export function isModuleInstallment(p: Record<string, any>, s: RenewalSettings): boolean {
   if (isCancelled(p)) return false;
-  if (isMaterial(norm(p.Categoria))) return s.include_material;
-  return true;
+  const cat = norm(p.Categoria);
+  if (isMaterial(cat)) return s.include_material;
+  if (s.module_categories.some(m => norm(m) === cat)) return true;
+  return !NOT_MODULE.test(cat);
 }
 
 export function studentKey(t: Record<string, any>) {
@@ -65,7 +71,7 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
 
   const minDue = p.minDue ?? null;
   const parcelasByMat = new Map<string, Record<string, any>[]>();
-  const unmatched = new Map<string, { sacado: string; mat: string; count: number }>();
+  const unmatched = new Map<string, { sacado: string; mat: string; count: number; pending: number }>();
   for (const c of contas) {
     if (!isModuleInstallment(c, p.settings)) continue;
     const due = toIsoDate(c.DataVencimento);
@@ -76,13 +82,14 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       const mats = [...new Set(cands.map(k => k.split('|')[0]))];
       if (mats.length === 1 && !mats[0].startsWith('nome:')) mat = mats[0];
       else if (mats.length > 1) { issues.push({ kind: 'nome_ambiguo', message: `"${c.Sacado}" corresponde a ${mats.length} alunos com o mesmo nome.`, detail: { sacado: c.Sacado } }); continue; }
-      else { const k = `${mat}|${norm(c.Sacado)}`; const u = unmatched.get(k) ?? { sacado: String(c.Sacado), mat, count: 0 }; u.count++; unmatched.set(k, u); continue; }
+      else { const k = `${mat}|${norm(c.Sacado)}`; const u = unmatched.get(k) ?? { sacado: String(c.Sacado), mat, count: 0, pending: 0 }; u.count++; if (!isPaid(c)) u.pending++; unmatched.set(k, u); continue; }
     }
     parcelasByMat.set(mat, [...(parcelasByMat.get(mat) ?? []), { ...c, _due: due }]);
   }
-  // Vínculo só por matrícula ou nome idêntico: sem sugestão de nomes parecidos.
+  // Vínculo só por matrícula ou nome idêntico. Quem está fora das turmas e já quitou tudo é ex-aluno: não vira pendência.
   for (const u of unmatched.values()) {
-    issues.push({ kind: 'sem_correspondencia', message: `"${u.sacado}" (mat. ${u.mat || '—'}) tem ${u.count} parcela(s) do módulo mas não está nas turmas.`, detail: u });
+    if (!u.pending) continue;
+    issues.push({ kind: 'sem_correspondencia', message: `"${u.sacado}" (mat. ${u.mat || '—'}) tem ${u.pending} parcela(s) do módulo em aberto mas não está nas turmas.`, detail: u });
   }
 
   for (const [key, r] of rows) {
