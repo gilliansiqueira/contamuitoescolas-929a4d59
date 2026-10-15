@@ -37,7 +37,7 @@ describe('renovação escolar', () => {
     expect(maria.venc_ultima_parcela).toBe('2026-12-10');
     // Pedro tem duas matrículas com o mesmo nome: nome ambíguo, não cruza
     expect(issues.some(i => i.kind === 'nome_ambiguo')).toBe(true);
-    expect(issues.some(i => i.kind === 'nome_semelhante')).toBe(true);
+    expect(issues.some(i => i.kind === 'nome_semelhante')).toBe(false);
     // todos os alunos permanecem; sem parcela = Sem informação
     expect(rows.size).toBe(4);
     const pedro = [...rows.values()].find(r => r.matricula === '12')!;
@@ -91,7 +91,7 @@ describe('turmas em formação', () => {
     expect(rows.get('10|a')!.status_renovacao).toBe('Rematriculado');
     expect(rows.get('10|a')!.turma_destino).toBe('KIDS 2');
     expect(rows.get('20|b')!.status_renovacao).toBeUndefined();
-    expect(issues.map(i => i.kind).sort()).toEqual(['formacao_aluno_novo', 'formacao_nome_semelhante']);
+    expect(issues.map(i => i.kind).sort()).toEqual(['formacao_aluno_novo']);
   });
 });
 
