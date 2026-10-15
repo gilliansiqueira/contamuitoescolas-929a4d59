@@ -109,3 +109,14 @@ describe('modelo e renovados', () => {
     expect(rows[0].overrides.n1.value).toBe('x');
   });
 });
+
+import { teamFilledPayment } from '@/lib/renewal/persist';
+describe('conferência: preenchido pela equipe', () => {
+  it('resolve sem parcelas quando a equipe preencheu pagamento', () => {
+    const col = columnFromField('forma_pagamento_atual');
+    const row: any = { row_key: 'k', imported: {}, overrides: {}, conflicts: {}, sort_order: 0, manual: false };
+    expect(teamFilledPayment(row, [col])).toBe(false);
+    row.overrides[col.id] = { value: 'Boleto', original: null, at: '' };
+    expect(teamFilledPayment(row, [col])).toBe(true);
+  });
+});
