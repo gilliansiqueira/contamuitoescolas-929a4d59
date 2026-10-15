@@ -91,7 +91,7 @@ describe('turmas em formação', () => {
     expect(rows.get('10|a')!.status_renovacao).toBe('Rematriculado');
     expect(rows.get('10|a')!.turma_destino).toBe('KIDS 2');
     expect(rows.get('20|b')!.status_renovacao).toBeUndefined();
-    expect(issues.map(i => i.kind).sort()).toEqual(['formacao_aluno_novo']);
+    expect(issues.map(i => i.kind).sort()).toEqual(['formacao_aluno_novo', 'formacao_nome_semelhante']);
   });
 });
 
