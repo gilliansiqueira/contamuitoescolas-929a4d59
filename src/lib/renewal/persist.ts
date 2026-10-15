@@ -101,3 +101,23 @@ export function downloadBuffer(buf: ArrayBuffer, name: string) {
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
+/** Coloca a planilha no formato do modelo aprovado sem perder dados nem correções (liga colunas pela regra, ou pelo título). */
+export function remapToTemplate(oldCols: RenewalColumn[], newCols: RenewalColumn[], rows: RenewalRow[]) {
+  const n = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const map = new Map<string, string>();
+  for (const o of oldCols) {
+    const t = (o.field && newCols.find(c => c.field === o.field)) || newCols.find(c => !c.field && n(c.title) === n(o.title));
+    if (t) map.set(o.id, t.id);
+  }
+  const extra = oldCols.filter(o => !map.has(o.id) && rows.some(r => r.overrides?.[o.id])).map(o => ({ ...o, hidden: false }));
+  const remap = (rec: Record<string, any> = {}) => Object.fromEntries(Object.entries(rec).map(([k, v]) => [map.get(k) ?? k, v]));
+  return { columns: [...newCols, ...extra], rows: rows.map(r => ({ ...r, overrides: remap(r.overrides), conflicts: remap(r.conflicts) })) };
+}
+
+export async function applyTemplateToSheet(sheet: RenewalSheet, templateId: string, templateCols: RenewalColumn[], rows: RenewalRow[]) {
+  const { columns, rows: next } = remapToTemplate(sheet.columns, templateCols, rows);
+  await chunked(next, 400, part => saveRows(sheet, part));
+  const { error } = await db.from('renewal_sheets').update({ template_id: templateId, columns, updated_at: new Date().toISOString(), ...(sheet.sent_version ? { dirty: true } : {}) }).eq('id', sheet.id);
+  if (error) throw error;
+}

@@ -56,9 +56,13 @@ export async function parseTemplate(buf: ArrayBuffer): Promise<TemplateStructure
   const used = new Set<string>();
   const columns: RenewalColumn[] = [];
   let headerColor: string | undefined;
+  let prev = 0; let stop = false;
   ws.getRow(row).eachCell({ includeEmpty: false }, (cell, c) => {
     const title = text(cell.value).trim();
-    if (!title) return;
+    if (!title || stop) return;
+    // Quadro de resumo ao lado da tabela (separado por coluna vazia) não vira coluna.
+    if (prev && c > prev + 1) { stop = true; return; }
+    prev = c;
     const fill: any = cell.fill;
     if (!headerColor && fill?.fgColor?.argb) headerColor = fill.fgColor.argb;
     const width = ws.getColumn(c).width;
@@ -80,7 +84,8 @@ export async function parseTemplate(buf: ArrayBuffer): Promise<TemplateStructure
 
   const formulas: string[] = [];
   const above: string[] = [];
-  for (let r = 1; r < row; r++) ws.getRow(r).eachCell(cell => {
+  for (let r = 1; r < Math.min(row + 40, ws.rowCount + 1); r++) ws.getRow(r).eachCell((cell, c) => {
+    if (r >= row && c <= prev) return;
     const v: any = cell.value;
     if (v && typeof v === 'object' && 'formula' in v) { if (formulas.length < 12) formulas.push(`${cell.address}: =${v.formula}`); }
     else above.push(norm(text(v)));
@@ -91,8 +96,8 @@ export async function parseTemplate(buf: ArrayBuffer): Promise<TemplateStructure
   return {
     sheets, mainSheet: ws.name, columns, headerColor,
     summary: {
-      byProfessor: above.includes('professores'),
-      byStatus: above.includes('status renovacao'),
+      byProfessor: above.includes('professores') || above.includes('qntd alunos'),
+      byStatus: above.includes('status renovacao') || above.includes('renovaveis'),
       bySituacao: above.includes('situacao do contrato'),
       formulas,
     },

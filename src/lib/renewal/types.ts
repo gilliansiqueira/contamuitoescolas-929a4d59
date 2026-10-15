@@ -72,3 +72,9 @@ export function cellValue(row: RenewalRow, col: RenewalColumn): any {
   if (o) return o.value;
   return col.field ? row.imported?.[col.field] : undefined;
 }
+
+/** Status que contam como renovado no resumo (aceita o nome que cada escola usa: Renovado, Rematriculado, Renovados 100%...). */
+export function isRenewed(v: any): boolean {
+  const n = String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return n.startsWith('renovad') || n.startsWith('rematricul');
+}

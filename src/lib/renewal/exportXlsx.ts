@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { RenewalColumn, RenewalRow, TemplateStructure } from './types';
-import { cellValue } from './types';
+import { cellValue, isRenewed } from './types';
 
 const letter = (n: number) => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 
@@ -18,7 +18,7 @@ export function computeSummary(rows: RenewalRow[], columns: RenewalColumn[]): Su
     const e = map.get(p) ?? { turmas: new Set(), alunos: 0, renovados: 0 };
     if (tc) e.turmas.add(String(cellValue(r, tc) ?? ''));
     e.alunos++;
-    if (sc && cellValue(r, sc) === 'Rematriculado') e.renovados++;
+    if (sc && isRenewed(cellValue(r, sc))) e.renovados++;
     map.set(p, e);
   }
   return [...map.entries()].map(([professor, e]) => ({ professor, turmas: e.turmas.size, alunos: e.alunos, renovados: e.renovados })).sort((a, b) => a.professor.localeCompare(b.professor));
@@ -56,7 +56,7 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
       ws.getCell(r, 2).value = p;
       ws.getCell(r, 3).value = tIdx ? { formula: `SUMPRODUCT((${rng(pIdx)}=B${r})/COUNTIFS(${rng(tIdx)},${rng(tIdx)}&"",${rng(pIdx)},${rng(pIdx)}&""))` } as any : null;
       ws.getCell(r, 4).value = { formula: `COUNTIF(${rng(pIdx)},B${r})` } as any;
-      ws.getCell(r, 5).value = sIdx ? { formula: `COUNTIFS(${rng(pIdx)},B${r},${rng(sIdx)},"Rematriculado")` } as any : null;
+      ws.getCell(r, 5).value = sIdx ? { formula: `COUNTIFS(${rng(pIdx)},B${r},${rng(sIdx)},"Renovad*")+COUNTIFS(${rng(pIdx)},B${r},${rng(sIdx)},"Rematricul*")` } as any : null;
       ws.getCell(r, 6).value = { formula: `IF(D${r}=0,0,E${r}/D${r})` } as any;
       ws.getCell(r, 6).numFmt = '0.0%';
     });
