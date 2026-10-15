@@ -20,11 +20,11 @@ function lev(a: string, b: string): number {
 const isMaterial = (c: string) => norm(c).startsWith('material');
 const isCancelled = (p: Record<string, any>) => /cancel|estorn/i.test(String(p.Situacao ?? '')) || /cancel/i.test(String(p.SituacaoParcela ?? ''));
 
+/** Toda parcela não cancelada conta como módulo (Personal, VIP etc.); só material segue a regra da escola. */
 export function isModuleInstallment(p: Record<string, any>, s: RenewalSettings): boolean {
   if (isCancelled(p)) return false;
-  const cat = norm(p.Categoria);
-  if (isMaterial(cat)) return s.include_material;
-  return s.module_categories.some(m => norm(m) === cat || cat.startsWith(norm(m)));
+  if (isMaterial(norm(p.Categoria))) return s.include_material;
+  return true;
 }
 
 export function studentKey(t: Record<string, any>) {

@@ -234,7 +234,7 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
         {settings && <>
           <label className="flex items-center justify-between gap-2 text-sm">Considerar material didático na última parcela
             <Switch checked={settings.include_material} onCheckedChange={v => save.mutate({ ...settings, include_material: v })} /></label>
-          <div className="space-y-1"><Label className="text-xs">Categorias que são parcela do módulo (separe por ;)</Label>
+          <div className="space-y-1"><Label className="text-xs">Categorias do módulo — só referência (toda parcela que não for material já conta como módulo)</Label>
             <Input defaultValue={settings.module_categories.join('; ')} onBlur={e => save.mutate({ ...settings, module_categories: e.target.value.split(';').map(s => s.trim()).filter(Boolean) })} /></div>
           <div className="space-y-1"><Label className="text-xs">Modalidades em aba separada (separe por ;)</Label>
             <Input defaultValue={settings.separate_modalities.join('; ')} onBlur={e => save.mutate({ ...settings, separate_modalities: e.target.value.split(';').map(s => s.trim()).filter(Boolean) })} /></div>

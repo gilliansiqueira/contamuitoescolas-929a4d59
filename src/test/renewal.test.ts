@@ -120,3 +120,14 @@ describe('conferência: preenchido pela equipe', () => {
     expect(teamFilledPayment(row, [col])).toBe(true);
   });
 });
+
+import { isModuleInstallment } from '@/lib/renewal/mergeEngine';
+describe('parcela do módulo', () => {
+  const s = { include_material: false, module_categories: ['Parcela Regular'], separate_modalities: [] };
+  it('qualquer categoria não material conta', () => {
+    expect(isModuleInstallment({ Categoria: 'Personal' }, s)).toBe(true);
+    expect(isModuleInstallment({ Categoria: 'MÓDULO Inglês VIP' }, s)).toBe(true);
+    expect(isModuleInstallment({ Categoria: 'Material Didático' }, s)).toBe(false);
+    expect(isModuleInstallment({ Categoria: 'Personal', Situacao: 'Cancelada' }, s)).toBe(false);
+  });
+});
