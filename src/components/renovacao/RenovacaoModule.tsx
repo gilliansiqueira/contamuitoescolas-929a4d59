@@ -244,7 +244,7 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
           <h3 className="mb-1 text-sm font-semibold">Enviar a última planilha aprovada pelo cliente</h3>
           <p className="mb-3 text-xs text-muted-foreground">O sistema lê abas, colunas, listas, fórmulas e quadro de resumo. Os alunos do arquivo não são copiados para a nova renovação.</p>
           <Input type="file" accept=".xlsx" disabled={reading} onChange={e => onFile(e.target.files?.[0])} />
-          {reading && <p className="mt-2 text-xs text-muted-foreground">Lendo modelo… arquivos grandes podem levar até 1 minuto.</p>}
+          {reading && <p className="mt-2 text-xs text-muted-foreground">{readingMsg || "Lendo modelo…"}</p>}
         </div>
         {preview && (
           <div className="space-y-3 rounded-xl border border-primary/40 bg-card p-4">
