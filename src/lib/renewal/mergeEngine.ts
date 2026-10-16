@@ -149,13 +149,19 @@ export function mergeRows(existing: RenewalRow[], imported: Map<string, Record<s
  *  Só preenche o valor importado; correções da equipe (overrides) continuam valendo. Alunos novos não entram. */
 /** Alunos com parcelas mas fora das turmas atuais que aparecem nas turmas em formação são alunos novos (informativo). */
 export function reclassifyNewStudents(issues: Issue[], formacao: Record<string, any>[]) {
-  const mats = new Set(formacao.map(r => toId(r.NumeroMatricula)).filter(Boolean));
-  const names = new Set(formacao.map(r => norm(r.Aluno)));
+  const byMat = new Map<string, string>(); const byName = new Map<string, string>();
+  for (const r of formacao) {
+    const m = toId(r.NumeroMatricula); const t = String(r.Nome ?? '').trim();
+    if (m && !byMat.has(m)) byMat.set(m, t);
+    const n = norm(r.Aluno); if (n && !byName.has(n)) byName.set(n, t);
+  }
   for (const i of issues) {
     if (i.kind !== 'sem_correspondencia') continue;
     const d: any = i.detail ?? {};
-    if ((d.mat && mats.has(d.mat)) || names.has(norm(d.sacado))) {
+    const turma = (d.mat && byMat.get(d.mat)) || byName.get(norm(d.sacado));
+    if (turma !== undefined) {
       i.kind = 'formacao_aluno_novo_parcelas' as any;
+      i.detail = { ...d, turma: turma || null };
       i.message = `"${d.sacado}" (mat. ${d.mat || '—'}) é aluno novo do próximo período (está nas turmas em formação) e já tem ${d.count} parcela(s).`;
     }
   }
