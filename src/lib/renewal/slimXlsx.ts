@@ -20,6 +20,20 @@ function clampRefs(xml: string, maxRow: number) {
 class SheetTrimmer {
   private out: string[] = []; private buf = ''; private state: 'head' | 'skip' | 'tail' = 'head';
   constructor(private maxRow: number) {}
+  private dec = new TextDecoder(); private carry = new Uint8Array(0);
+  private static END = new TextEncoder().encode('</sheetData>');
+  pushBytes(chunk: Uint8Array, final: boolean) {
+    if (this.state !== 'skip') return this.push(this.dec.decode(chunk, { stream: !final }));
+    // Linhas descartadas: procura o fim do bloco direto nos bytes, sem montar texto (economiza memória).
+    const m = SheetTrimmer.END; const c = new Uint8Array(this.carry.length + chunk.length);
+    c.set(this.carry); c.set(chunk, this.carry.length);
+    for (let i = 0; i <= c.length - m.length; i++) {
+      if (c[i] !== 60) continue; let ok = true;
+      for (let j = 1; j < m.length; j++) if (c[i + j] !== m[j]) { ok = false; break; }
+      if (ok) { this.state = 'tail'; this.buf = ''; this.dec = new TextDecoder(); return this.push(this.dec.decode(c.subarray(i), { stream: !final })); }
+    }
+    this.carry = c.slice(Math.max(0, c.length - m.length));
+  }
   push(s: string) {
     this.buf += s;
     if (this.state === 'head') {
@@ -31,7 +45,7 @@ class SheetTrimmer {
     }
     if (this.state === 'skip') {
       const i = this.buf.indexOf('</sheetData>');
-      if (i < 0) { this.buf = this.buf.slice(-20); return; }
+      if (i < 0) { this.carry = new TextEncoder().encode(this.buf.slice(-20)); this.buf = ''; return; }
       this.buf = this.buf.slice(i); this.state = 'tail';
     }
     if (this.state === 'tail' && this.buf.length > 4_000_000) { this.out.push(this.buf); this.buf = ''; }
@@ -49,10 +63,10 @@ export async function slimXlsx(buf: ArrayBuffer, maxRow = SLIM_MAX_ROW): Promise
   uz.onfile = f => {
     pending.push(new Promise((res, rej) => {
       const isSheet = /^xl\/worksheets\/sheet\d+\.xml$/.test(f.name);
-      const dec = new TextDecoder(); const tr = new SheetTrimmer(maxRow); const parts: Uint8Array[] = [];
+      const tr = new SheetTrimmer(maxRow); const parts: Uint8Array[] = [];
       f.ondata = (err, chunk, final) => {
         if (err) return rej(err);
-        if (isSheet) tr.push(dec.decode(chunk, { stream: !final })); else parts.push(chunk);
+        if (isSheet) tr.pushBytes(chunk, final); else parts.push(chunk);
         if (final) {
           if (isSheet) files[f.name] = strToU8(tr.done());
           else { const n = parts.reduce((a, p) => a + p.length, 0); const u = new Uint8Array(n); let o = 0; for (const p of parts) { u.set(p, o); o += p.length; } files[f.name] = u; }
@@ -63,7 +77,10 @@ export async function slimXlsx(buf: ArrayBuffer, maxRow = SLIM_MAX_ROW): Promise
     }));
   };
   const u8 = new Uint8Array(buf); const step = 1 << 20;
-  for (let i = 0; i < u8.length; i += step) uz.push(u8.subarray(i, Math.min(i + step, u8.length)), i + step >= u8.length);
+  for (let i = 0; i < u8.length; i += step) {
+    uz.push(u8.subarray(i, Math.min(i + step, u8.length)), i + step >= u8.length);
+    if ((i / step) % 8 === 7) await new Promise(r => setTimeout(r, 0)); // deixa a tela respirar
+  }
   await Promise.all(pending);
   const z = zipSync(files);
   return z.buffer.slice(z.byteOffset, z.byteOffset + z.byteLength) as ArrayBuffer;
