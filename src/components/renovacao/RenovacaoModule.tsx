@@ -10,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { GraduationCap, Upload, FileSpreadsheet, Send, Download, AlertTriangle, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -18,7 +17,7 @@ import {
   useSheetChildren, useInvalidateRenewal, renewalDb as db, type RenewalSheet, type RenewalTemplate,
 } from '@/hooks/useRenewal';
 import { parseTemplate } from '@/lib/renewal/templateParser';
-import { needsSlim, slimXlsx } from '@/lib/renewal/slimXlsx';
+import { needsSlim, slimXlsx, slimXlsxInWorker } from '@/lib/renewal/slimXlsx';
 import { fetchAllRows } from '@/lib/fetchAll';
 import { parseSponteFile, type ParsedSource } from '@/lib/renewal/sponteParser';
 import { defaultMinDue } from '@/lib/renewal/mergeEngine';
@@ -191,17 +190,9 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
     try {
       let slim: ArrayBuffer;
       if (f.size > 5_000_000) {
-        // Arquivo grande: o servidor lê, para não travar notebooks com pouca memória.
-        setReadingMsg('Enviando arquivo…');
-        const origPath = `${schoolId}/modelos/original-${Date.now()}.xlsx`;
-        const up = await (db.storage as any).from('renewal-files').upload(origPath, f);
-        if (up.error) throw new Error(`Não consegui enviar o arquivo: ${up.error.message}`);
-        setReadingMsg('Lendo modelo no servidor… pode levar até 1 minuto.');
-        const { data, error } = await supabase.functions.invoke('renewal-slim-template', { body: { school_id: schoolId, path: origPath } });
-        if (error || !data?.slim_path) throw new Error(data?.error ?? error?.message ?? 'O servidor não conseguiu ler o modelo.');
-        const dl = await (db.storage as any).from('renewal-files').download(data.slim_path);
-        if (dl.error) throw new Error('Não consegui baixar a versão enxuta do modelo.');
-        slim = await dl.data.arrayBuffer();
+        // Arquivo grande: lido aos poucos num processo separado, para não travar notebooks com pouca memória.
+        setReadingMsg('Lendo modelo grande aos poucos… pode levar até 1 minuto.');
+        slim = await slimXlsxInWorker(f);
       } else {
         setReadingMsg('Lendo modelo…');
         const raw = await f.arrayBuffer();
