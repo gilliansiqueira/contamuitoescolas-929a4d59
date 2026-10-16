@@ -403,7 +403,6 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
   const invalidate = useInvalidateRenewal();
   const [kind, setKind] = useState('');
   const [filling, setFilling] = useState<any>(null);
-  const info = issues.filter(i => INFO_KINDS.has(i.kind));
   const main = issues.filter(i => !INFO_KINDS.has(i.kind));
   const open = main.filter(i => !i.resolved);
   const kinds = [...new Set(open.map(i => i.kind))];
