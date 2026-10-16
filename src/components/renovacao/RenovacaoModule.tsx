@@ -442,16 +442,6 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
         ))}
         {filling && <FillIssueDialog sheet={sheet} issue={filling} row={rows.find(r => r.row_key === filling.row_key)!} onClose={() => setFilling(null)} />}
       </div>
-      {info.length > 0 && (
-        <details className="rounded-xl border border-border bg-card">
-          <summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground">Informativo (não precisa conferir) — {info.length}</summary>
-          {info.map(i => (
-            <div key={i.id} className="border-t border-border px-3 py-2 text-sm text-muted-foreground">
-              <Badge variant="outline" className="mr-2 text-[10px]">{ISSUE_LABEL[i.kind] ?? i.kind}</Badge>{i.message}
-            </div>
-          ))}
-        </details>
-      )}
       <p className="text-xs text-muted-foreground">Marque como conferido depois de ajustar na planilha. Alunos sem parcelas continuam na planilha como "Sem informação" — não significa quitado.</p>
     </div>
   );
