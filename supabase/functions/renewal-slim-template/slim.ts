@@ -17,7 +17,7 @@ function clampRefs(xml: string, maxRow: number) {
   });
 }
 
-class SheetTrimmer {
+export class SheetTrimmer {
   private out: string[] = []; private buf = ''; private state: 'head' | 'skip' | 'tail' = 'head';
   constructor(private maxRow: number) {}
   private dec = new TextDecoder(); private carry = new Uint8Array(0);
