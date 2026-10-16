@@ -179,10 +179,19 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
   const [busy, setBusy] = useState(false);
   const { data: settings, save } = useRenewalSettings(schoolId);
 
+  const [reading, setReading] = useState(false);
   const onFile = async (f: File | undefined) => {
     if (!f) return;
-    try { setPreview({ structure: await parseTemplate(await f.arrayBuffer()), file: f }); }
+    setReading(true);
+    try {
+      const raw = await f.arrayBuffer();
+      // Modelos com formatação até o fim do Excel: guarda só a versão enxuta.
+      const slim = needsSlim(raw) ? await slimXlsx(raw) : raw;
+      const file = slim === raw ? f : new File([slim], f.name, { type: f.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      setPreview({ structure: await parseTemplate(slim), file });
+    }
     catch (e: any) { toast.error(e.message ?? 'Não consegui ler o arquivo.'); }
+    finally { setReading(false); }
   };
   const useAsTemplate = async () => {
     if (!preview) return;
@@ -190,11 +199,18 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
     try {
       const version = (templates[0]?.version ?? 0) + 1;
       const path = `${schoolId}/modelos/v${version}-${Date.now()}.xlsx`;
-      await (db.storage as any).from('renewal-files').upload(path, preview.file);
+      const up = await (db.storage as any).from('renewal-files').upload(path, preview.file);
+      if (up.error) throw new Error(`Não consegui enviar o arquivo do modelo: ${up.error.message}`);
       await db.from('renewal_templates').update({ approved: false }).eq('school_id', schoolId);
-      const { error } = await db.from('renewal_templates').insert({ school_id: schoolId, version, name: preview.file.name, approved: true, structure: preview.structure, source_file: path, created_by: user?.id });
-      if (error) throw error;
-      toast.success(`Modelo v${version} salvo e aprovado para uso.`); setPreview(null); invalidate(schoolId);
+      const { data: tpl, error } = await db.from('renewal_templates').insert({ school_id: schoolId, version, name: preview.file.name, approved: true, structure: preview.structure, source_file: path, created_by: user?.id }).select().single();
+      if (error) throw new Error(`Não consegui gravar o modelo: ${error.message}`);
+      // Planilhas já criadas da escola passam para o formato do modelo (correções da equipe preservadas).
+      const { data: sheets } = await db.from('renewal_sheets').select('*').eq('school_id', schoolId);
+      for (const sh of sheets ?? []) {
+        const rows = await fetchAllRows<any>('renewal_rows' as any, q => q.eq('sheet_id', sh.id).order('sort_order'));
+        await applyTemplateToSheet(sh, tpl.id, preview.structure.columns, rows);
+      }
+      toast.success(`Modelo v${version} salvo e aprovado${sheets?.length ? ' e aplicado na planilha' : ''}.`); setPreview(null); invalidate(schoolId);
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
   const approve = async (t: RenewalTemplate) => {
