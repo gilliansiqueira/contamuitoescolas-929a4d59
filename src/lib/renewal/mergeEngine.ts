@@ -197,7 +197,7 @@ export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>
       seen.add(k);
     }
   }
-  const uniq = [...new Set(novos)];
+  const uniq = [...new Map(novos.map(n => [`${n.matricula ?? ''}|${norm(n.nome)}`, n])).values()];
   if (uniq.length) issues.push({ kind: 'formacao_aluno_novo', message: `${uniq.length} aluno(s) das turmas em formação não estão na base atual (alunos novos, não entram na planilha).`, detail: { alunos: uniq } });
   return issues;
 }
