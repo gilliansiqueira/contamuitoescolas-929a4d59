@@ -93,6 +93,27 @@ describe('turmas em formação', () => {
     expect(rows.get('20|b')!.status_renovacao).toBeUndefined();
     expect(issues.map(i => i.kind).sort()).toEqual(['formacao_aluno_novo', 'formacao_nome_semelhante']);
   });
+  it('grava dados estruturados dos alunos novos (nome, matrícula, turma)', () => {
+    const rows = new Map<string, Record<string, any>>();
+    const issues = applyRenewedFromNextPeriod(rows, [
+      { Nome: 'KIDS 1', Aluno: 'Pedro Novo', NumeroMatricula: '99' },
+      { Nome: 'TEENS 2', Aluno: 'Pedro Novo', NumeroMatricula: '99' },
+      { Nome: 'KIDS 1', Aluno: 'Maria Nova', NumeroMatricula: '' },
+    ]);
+    expect(issues).toHaveLength(1);
+    const alunos = (issues[0].detail as any).alunos;
+    expect(alunos).toEqual([
+      { nome: 'Pedro Novo', matricula: '99', turma: 'KIDS 1' },
+      { nome: 'Maria Nova', matricula: null, turma: 'KIDS 1' },
+    ]);
+  });
+  it('reclassifyNewStudents anexa a turma em formação ao item', () => {
+    const issues: any[] = [{ kind: 'sem_correspondencia', message: 'x', detail: { sacado: 'Pedro Novo', mat: '99', count: 3, pending: 3 } }];
+    reclassifyNewStudents(issues, [{ Nome: 'KIDS 1', Aluno: 'Pedro Novo', NumeroMatricula: '99' }]);
+    expect(issues[0].kind).toBe('formacao_aluno_novo_parcelas');
+    expect(issues[0].detail.turma).toBe('KIDS 1');
+    expect(issues[0].detail.count).toBe(3);
+  });
 });
 
 import { remapToTemplate } from '@/lib/renewal/persist';
