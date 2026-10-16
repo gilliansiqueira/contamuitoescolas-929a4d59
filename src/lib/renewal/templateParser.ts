@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { RenewalColumn, TemplateStructure } from './types';
+import { needsSlim, slimXlsx } from './slimXlsx';
 import { FIELDS, matchField, columnFromField, newColId, norm } from './fields';
 
 function text(v: any): string {
@@ -11,6 +12,13 @@ function text(v: any): string {
     if (v instanceof Date) return v.toISOString();
   }
   return String(v);
+}
+
+function styleOf(cell: ExcelJS.Cell) {
+  const f: any = cell.fill; const fo: any = cell.font;
+  const fill = f?.type === 'pattern' && f.pattern === 'solid' ? f.fgColor?.argb : undefined;
+  const st = { fill, color: fo?.color?.argb, bold: fo?.bold || undefined };
+  return st.fill || st.color || st.bold ? st : undefined;
 }
 
 function colIndex(letters: string) { return letters.toUpperCase().split('').reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0); }
@@ -31,7 +39,11 @@ function resolveList(ws: ExcelJS.Worksheet, formula: string): string[] {
 /** Lê o modelo aprovado pelo cliente e devolve a estrutura (colunas, regras, listas, resumo). */
 export async function parseTemplate(buf: ArrayBuffer): Promise<TemplateStructure> {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf);
+  try {
+    await wb.xlsx.load(needsSlim(buf) ? await slimXlsx(buf) : buf);
+  } catch (e: any) {
+    throw new Error(`Não consegui ler o modelo (${e?.message ?? 'arquivo inválido'}). Salve-o de novo como .xlsx e tente outra vez.`);
+  }
   const sheets = wb.worksheets.map(w => w.name);
   let best: { ws: ExcelJS.Worksheet; row: number } | null = null;
   for (const ws of wb.worksheets) {
@@ -76,6 +88,8 @@ export async function parseTemplate(buf: ArrayBuffer): Promise<TemplateStructure
     const list = listsByCol.get(c);
     if (list?.length) { col.type = 'list'; col.options = list; }
     if (width) col.width = Math.round(width * 7);
+    const hs = styleOf(cell); if (hs) col.headerStyle = hs;
+    const cs = styleOf(ws.getCell(row + 1, c)); if (cs) col.cellStyle = cs;
     columns.push(col);
   });
 
