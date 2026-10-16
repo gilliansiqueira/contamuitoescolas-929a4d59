@@ -149,13 +149,19 @@ export function mergeRows(existing: RenewalRow[], imported: Map<string, Record<s
  *  Só preenche o valor importado; correções da equipe (overrides) continuam valendo. Alunos novos não entram. */
 /** Alunos com parcelas mas fora das turmas atuais que aparecem nas turmas em formação são alunos novos (informativo). */
 export function reclassifyNewStudents(issues: Issue[], formacao: Record<string, any>[]) {
-  const mats = new Set(formacao.map(r => toId(r.NumeroMatricula)).filter(Boolean));
-  const names = new Set(formacao.map(r => norm(r.Aluno)));
+  const byMat = new Map<string, string>(); const byName = new Map<string, string>();
+  for (const r of formacao) {
+    const m = toId(r.NumeroMatricula); const t = String(r.Nome ?? '').trim();
+    if (m && !byMat.has(m)) byMat.set(m, t);
+    const n = norm(r.Aluno); if (n && !byName.has(n)) byName.set(n, t);
+  }
   for (const i of issues) {
     if (i.kind !== 'sem_correspondencia') continue;
     const d: any = i.detail ?? {};
-    if ((d.mat && mats.has(d.mat)) || names.has(norm(d.sacado))) {
+    const turma = (d.mat && byMat.get(d.mat)) || byName.get(norm(d.sacado));
+    if (turma !== undefined) {
       i.kind = 'formacao_aluno_novo_parcelas' as any;
+      i.detail = { ...d, turma: turma || null };
       i.message = `"${d.sacado}" (mat. ${d.mat || '—'}) é aluno novo do próximo período (está nas turmas em formação) e já tem ${d.count} parcela(s).`;
     }
   }
@@ -168,7 +174,7 @@ export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>
     if (r.matricula) byMat.set(r.matricula, [...(byMat.get(r.matricula) ?? []), k]);
     const n = norm(r.aluno); byName.set(n, [...(byName.get(n) ?? []), k]);
   }
-  const novos: string[] = [];
+  const novos: { nome: string; matricula: string | null; turma: string | null }[] = [];
   const seen = new Set<string>();
   for (const f of formacao) {
     const mat = toId(f.NumeroMatricula); const nome = String(f.Aluno ?? '').trim();
@@ -178,7 +184,7 @@ export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>
       const mats = new Set(cands.map(k => k.split('|')[0]));
       if (mats.size === 1) keys = cands;
       else if (mats.size > 1) { issues.push({ kind: 'formacao_nome_semelhante', message: `Turma em formação "${f.Nome}": "${nome}" corresponde a ${mats.size} alunos com o mesmo nome.`, detail: { aluno: nome, turma: f.Nome } }); continue; }
-      else { novos.push(nome); continue; }
+      else { novos.push({ nome, matricula: mat || null, turma: String(f.Nome ?? '').trim() || null }); continue; }
     }
     const data = toIsoDate(f.DataMatricula ?? f.DataInicio ?? f.InicioContrato ?? f.DataContrato);
     for (const k of keys) {
@@ -191,7 +197,9 @@ export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>
       seen.add(k);
     }
   }
-  const uniq = [...new Set(novos)];
+  const uniqMap = new Map<string, (typeof novos)[number]>();
+  for (const n of novos) { const k = `${n.matricula ?? ''}|${norm(n.nome)}`; if (!uniqMap.has(k)) uniqMap.set(k, n); }
+  const uniq = [...uniqMap.values()];
   if (uniq.length) issues.push({ kind: 'formacao_aluno_novo', message: `${uniq.length} aluno(s) das turmas em formação não estão na base atual (alunos novos, não entram na planilha).`, detail: { alunos: uniq } });
   return issues;
 }

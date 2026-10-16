@@ -114,6 +114,7 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
           <TabsTrigger value="modelo">1. Modelo</TabsTrigger>
           <TabsTrigger value="relatorios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>2. Relatórios</TabsTrigger>
           <TabsTrigger value="conferencia" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>3. Conferência</TabsTrigger>
+          <TabsTrigger value="alunos2027" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>Alunos de 2027</TabsTrigger>
           <TabsTrigger value="planilha" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>4. Planilha</TabsTrigger>
           <TabsTrigger value="envios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>5. Envios</TabsTrigger>
         </TabsList>
@@ -122,6 +123,7 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
         {sheet && <>
           <TabsContent value="relatorios"><ReportsPanel sheet={sheet} /></TabsContent>
           <TabsContent value="conferencia"><IssuesPanel sheet={sheet} /></TabsContent>
+          <TabsContent value="alunos2027"><Alunos2027Panel sheet={sheet} /></TabsContent>
           <TabsContent value="planilha"><SheetPanel sheet={sheet} templates={templates} /></TabsContent>
           <TabsContent value="envios"><DeliveriesPanel sheet={sheet} templates={templates} /></TabsContent>
         </>}
@@ -401,7 +403,6 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
   const invalidate = useInvalidateRenewal();
   const [kind, setKind] = useState('');
   const [filling, setFilling] = useState<any>(null);
-  const info = issues.filter(i => INFO_KINDS.has(i.kind));
   const main = issues.filter(i => !INFO_KINDS.has(i.kind));
   const open = main.filter(i => !i.resolved);
   const kinds = [...new Set(open.map(i => i.kind))];
@@ -440,17 +441,65 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
         ))}
         {filling && <FillIssueDialog sheet={sheet} issue={filling} row={rows.find(r => r.row_key === filling.row_key)!} onClose={() => setFilling(null)} />}
       </div>
-      {info.length > 0 && (
-        <details className="rounded-xl border border-border bg-card">
-          <summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground">Informativo (não precisa conferir) — {info.length}</summary>
-          {info.map(i => (
-            <div key={i.id} className="border-t border-border px-3 py-2 text-sm text-muted-foreground">
-              <Badge variant="outline" className="mr-2 text-[10px]">{ISSUE_LABEL[i.kind] ?? i.kind}</Badge>{i.message}
-            </div>
-          ))}
-        </details>
-      )}
       <p className="text-xs text-muted-foreground">Marque como conferido depois de ajustar na planilha. Alunos sem parcelas continuam na planilha como "Sem informação" — não significa quitado.</p>
+    </div>
+  );
+}
+
+/** Alunos de matrícula nova identificados como do próximo período (turmas em formação e/ou parcelas fora das turmas abertas). Não entram na planilha nem na Conferência. */
+function Alunos2027Panel({ sheet }: { sheet: RenewalSheet }) {
+  const { data: issues = [] } = useSheetChildren<any>('renewal_issues', sheet.id);
+  const alunos = useMemo(() => {
+    const map = new Map<string, { nome: string; matricula: string | null; turma: string | null; parcelas: number | null }>();
+    for (const i of issues) {
+      if (i.kind === 'formacao_aluno_novo') {
+        for (const a of (i.detail as any)?.alunos ?? []) {
+          const o = typeof a === 'string' ? { nome: a, matricula: null, turma: null } : a;
+          const k = `${o.matricula ?? ''}|${String(o.nome).toLowerCase()}`;
+          if (!map.has(k)) map.set(k, { nome: o.nome, matricula: o.matricula ?? null, turma: o.turma ?? null, parcelas: null });
+        }
+      } else if (i.kind === 'formacao_aluno_novo_parcelas') {
+        const d: any = i.detail ?? {};
+        const k = `${d.mat ?? ''}|${String(d.sacado ?? '').toLowerCase()}`;
+        const prev = map.get(k);
+        map.set(k, { nome: d.sacado, matricula: d.mat || null, turma: d.turma ?? prev?.turma ?? null, parcelas: d.count ?? prev?.parcelas ?? null });
+      }
+    }
+    return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  }, [issues]);
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Alunos com matrícula nova identificados como de 2027/1 — estão nas turmas em formação ou já têm parcelas, mas não estão nas turmas abertas. Eles não entram na planilha de renovação nem na Conferência.
+      </p>
+      <div className="rounded-xl border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <span className="text-sm font-medium">Alunos de 2027</span>
+          <Badge variant="secondary">{alunos.length}</Badge>
+        </div>
+        {alunos.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground">Nenhum aluno de 2027 identificado. Envie as turmas em formação e as parcelas na etapa Relatórios e recalcule a planilha.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-border text-left text-xs text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Aluno</th>
+              <th className="px-3 py-2 font-medium">Matrícula</th>
+              <th className="px-3 py-2 font-medium">Turma em formação</th>
+              <th className="px-3 py-2 font-medium text-right">Parcelas</th>
+            </tr></thead>
+            <tbody>
+              {alunos.map((a, idx) => (
+                <tr key={idx} className="border-b border-border last:border-0">
+                  <td className="px-3 py-2">{a.nome}</td>
+                  <td className="px-3 py-2">{a.matricula ?? '—'}</td>
+                  <td className="px-3 py-2">{a.turma ?? '—'}</td>
+                  <td className="px-3 py-2 text-right">{a.parcelas ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
