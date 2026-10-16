@@ -75,6 +75,9 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
 
   cols.forEach((col, i) => {
     const c = ws.getCell(headerRow, i + 1); c.value = col.title; style(c);
+    const hs = col.headerStyle;
+    if (hs?.fill) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hs.fill } };
+    if (hs?.color || hs?.bold != null) c.font = { bold: hs.bold ?? true, color: { argb: hs.color ?? 'FFFFFFFF' } };
     ws.getColumn(i + 1).width = Math.max(10, Math.round((col.width ?? 140) / 7));
   });
   rows.forEach((r, ri) => {
@@ -82,6 +85,9 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
       const c = ws.getCell(headerRow + 1 + ri, ci + 1);
       c.value = ci === pIdx - 1 ? profOf(r) : toCell(cellValue(r, col), col);
       if (col.type === 'date' && c.value instanceof Date) c.numFmt = 'dd/mm/yyyy';
+      const cs = col.cellStyle;
+      if (cs?.fill) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cs.fill } };
+      if (cs?.color || cs?.bold) c.font = { bold: !!cs.bold, color: cs.color ? { argb: cs.color } : undefined };
       c.border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
     });
   });

@@ -2,6 +2,8 @@ export type ColKind = 'imported' | 'calculated' | 'manual';
 export type ColType = 'text' | 'date' | 'number' | 'list';
 
 /** Coluna da planilha. `id` é estável: renomear/mover não muda a regra (field/source). */
+export interface CellStyle { fill?: string; color?: string; bold?: boolean }
+
 export interface RenewalColumn {
   id: string;
   title: string;
@@ -13,6 +15,9 @@ export interface RenewalColumn {
   options?: string[];
   width?: number;
   hidden?: boolean;
+  /** Aparência copiada do modelo (cores ARGB). */
+  headerStyle?: CellStyle;
+  cellStyle?: CellStyle;
   /** Sem regra validada: aparece como dúvida. */
   doubt?: string;
 }
