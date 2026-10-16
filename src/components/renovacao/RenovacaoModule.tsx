@@ -17,6 +17,8 @@ import {
   useSheetChildren, useInvalidateRenewal, renewalDb as db, type RenewalSheet, type RenewalTemplate,
 } from '@/hooks/useRenewal';
 import { parseTemplate } from '@/lib/renewal/templateParser';
+import { needsSlim, slimXlsx } from '@/lib/renewal/slimXlsx';
+import { fetchAllRows } from '@/lib/fetchAll';
 import { parseSponteFile, type ParsedSource } from '@/lib/renewal/sponteParser';
 import { defaultMinDue } from '@/lib/renewal/mergeEngine';
 import { defaultColumns } from '@/lib/renewal/fields';
@@ -224,7 +226,8 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="mb-1 text-sm font-semibold">Enviar a última planilha aprovada pelo cliente</h3>
           <p className="mb-3 text-xs text-muted-foreground">O sistema lê abas, colunas, listas, fórmulas e quadro de resumo. Os alunos do arquivo não são copiados para a nova renovação.</p>
-          <Input type="file" accept=".xlsx" onChange={e => onFile(e.target.files?.[0])} />
+          <Input type="file" accept=".xlsx" disabled={reading} onChange={e => onFile(e.target.files?.[0])} />
+          {reading && <p className="mt-2 text-xs text-muted-foreground">Lendo modelo… arquivos grandes podem levar até 1 minuto.</p>}
         </div>
         {preview && (
           <div className="space-y-3 rounded-xl border border-primary/40 bg-card p-4">
