@@ -173,3 +173,15 @@ describe('vínculo só com nome idêntico', () => {
     expect(f.map(i => i.kind)).toEqual(['formacao_aluno_novo']);
   });
 });
+
+import { abaFor } from '@/lib/renewal/mergeEngine';
+describe('aba por nome da turma', () => {
+  const sep = ['Personal', 'VIP', 'Semi', 'ON'];
+  it('Personal pelo nome mesmo com modalidade InCompany', () => {
+    expect(abaFor('InCompany', 'Personal - Ketlin Paes', sep)).toBe('Personal');
+    expect(abaFor('Regular', 'PERS Guilherme ter&qui', sep)).toBe('Personal');
+    expect(abaFor('Hybrid', 'VIP Maggie', sep)).toBe('VIP');
+    expect(abaFor('Regular', 'Book 2 Online', sep)).toBeNull();
+    expect(abaFor('Regular', 'Ondas 1', sep)).toBeNull();
+  });
+});
