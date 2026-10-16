@@ -294,6 +294,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     return { text, tone };
   }, [dueDate]);
   const [search, setSearch] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState<string>('mine');
   const [situation, setSituation] = useState<Situation>('all');
   const [view, setView] = useState<ManagementView>('portfolio');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -435,7 +436,18 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
+  const myUserId = auth?.user?.id ?? null;
+  const ownerOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    rows.forEach(r => { if (r.responsible_user_id && r.responsible_user_id !== myUserId) m.set(r.responsible_user_id, displayNameByUser.get(r.responsible_user_id) ?? nameFromEmail(r.responsible_email ?? '')); });
+    return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [rows, myUserId, displayNameByUser]);
+  const showOwnerFilter = !isSuperAdmin && !!myUserId && ownerOptions.length > 0 && rows.some(r => r.responsible_user_id === myUserId);
   const baseFiltered = useMemo(() => rows.filter(row => {
+    if (showOwnerFilter && ownerFilter !== 'all') {
+      const target = ownerFilter === 'mine' ? myUserId : ownerFilter;
+      if (row.responsible_user_id !== target) return false;
+    }
     const term = search.toLocaleLowerCase('pt-BR');
     const matchesSearch = row.school_name.toLocaleLowerCase('pt-BR').includes(term)
       || (row.responsible_email ?? '').toLocaleLowerCase('pt-BR').includes(term)
@@ -446,7 +458,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       || (view === 'pending' && (row.reconciliation_pending > 0 || row.checklist_pending > 0 || row.waiting_for_client))
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (mode !== 'mes' || situation === 'all' || status === situation);
-  }), [displayNameByUser, month, dueDate, mode, rows, search, situation, view]);
+  }), [displayNameByUser, month, dueDate, mode, rows, search, situation, view, showOwnerFilter, ownerFilter, myUserId]);
 
   const filtered = useMemo(() => {
     if (!activeCard) return baseFiltered;
@@ -756,6 +768,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
 
           <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5 sm:flex-row">
             <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar empresa ou responsável..." className="h-9 bg-muted/30 pl-9 text-xs" /></div>
+            {showOwnerFilter && <Select value={ownerFilter} onValueChange={setOwnerFilter}><SelectTrigger className="h-9 w-full bg-card text-xs sm:w-[190px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="mine">Minha carteira</SelectItem><SelectItem value="all">Todas as carteiras</SelectItem>{ownerOptions.map(o => <SelectItem key={o.id} value={o.id}>Carteira de {o.name}</SelectItem>)}</SelectContent></Select>}
             {view !== 'pending' && mode === 'mes' && <Select value={situation} onValueChange={value => setSituation(value as Situation)}><SelectTrigger className="h-9 w-full bg-card text-xs sm:w-[190px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as situações</SelectItem><SelectItem value="finalizado">Finalizadas</SelectItem><SelectItem value="bloqueado">Aguardando cliente</SelectItem><SelectItem value="atrasado">Atrasadas</SelectItem><SelectItem value="atencao">Em andamento</SelectItem><SelectItem value="em_dia">Em dia</SelectItem><SelectItem value="sem_etapas">Sem etapas cadastradas</SelectItem></SelectContent></Select>}
           </div>
 
