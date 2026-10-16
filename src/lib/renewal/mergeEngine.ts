@@ -174,7 +174,7 @@ export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>
     if (r.matricula) byMat.set(r.matricula, [...(byMat.get(r.matricula) ?? []), k]);
     const n = norm(r.aluno); byName.set(n, [...(byName.get(n) ?? []), k]);
   }
-  const novos: string[] = [];
+  const novos: { nome: string; matricula: string | null; turma: string | null }[] = [];
   const seen = new Set<string>();
   for (const f of formacao) {
     const mat = toId(f.NumeroMatricula); const nome = String(f.Aluno ?? '').trim();
@@ -184,7 +184,7 @@ export function applyRenewedFromNextPeriod(rows: Map<string, Record<string, any>
       const mats = new Set(cands.map(k => k.split('|')[0]));
       if (mats.size === 1) keys = cands;
       else if (mats.size > 1) { issues.push({ kind: 'formacao_nome_semelhante', message: `Turma em formação "${f.Nome}": "${nome}" corresponde a ${mats.size} alunos com o mesmo nome.`, detail: { aluno: nome, turma: f.Nome } }); continue; }
-      else { novos.push(nome); continue; }
+      else { novos.push({ nome, matricula: mat || null, turma: String(f.Nome ?? '').trim() || null }); continue; }
     }
     const data = toIsoDate(f.DataMatricula ?? f.DataInicio ?? f.InicioContrato ?? f.DataContrato);
     for (const k of keys) {
