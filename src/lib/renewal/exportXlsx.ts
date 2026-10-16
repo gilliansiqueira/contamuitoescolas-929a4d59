@@ -6,6 +6,10 @@ const letter = (n: number) => { let s = ''; while (n > 0) { const m = (n - 1) % 
 
 export interface SummaryLine { professor: string; turmas: number; alunos: number; renovados: number }
 
+export const SEM_PROFESSOR = 'Sem professor';
+const byName = (a: string, b: string) => (a === SEM_PROFESSOR ? 1 : b === SEM_PROFESSOR ? -1 : a.localeCompare(b));
+const byProfessor = (a: SummaryLine, b: SummaryLine) => byName(a.professor, b.professor);
+
 /** Resumo por professor: turmas distintas (sem precisar apagar repetidas), alunos e renovados. */
 export function computeSummary(rows: RenewalRow[], columns: RenewalColumn[]): SummaryLine[] {
   const pc = columns.find(c => c.field === 'professor');
@@ -14,14 +18,14 @@ export function computeSummary(rows: RenewalRow[], columns: RenewalColumn[]): Su
   if (!pc) return [];
   const map = new Map<string, { turmas: Set<string>; alunos: number; renovados: number }>();
   for (const r of rows) {
-    const p = String(cellValue(r, pc) ?? '').trim() || '(sem professor)';
+    const p = String(cellValue(r, pc) ?? '').trim() || SEM_PROFESSOR;
     const e = map.get(p) ?? { turmas: new Set(), alunos: 0, renovados: 0 };
     if (tc) e.turmas.add(String(cellValue(r, tc) ?? ''));
     e.alunos++;
     if (sc && isRenewed(cellValue(r, sc))) e.renovados++;
     map.set(p, e);
   }
-  return [...map.entries()].map(([professor, e]) => ({ professor, turmas: e.turmas.size, alunos: e.alunos, renovados: e.renovados })).sort((a, b) => a.professor.localeCompare(b.professor));
+  return [...map.entries()].map(([professor, e]) => ({ professor, turmas: e.turmas.size, alunos: e.alunos, renovados: e.renovados })).sort(byProfessor);
 }
 
 function toCell(v: any, col: RenewalColumn) {
@@ -40,7 +44,8 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
   const sIdx = sCol ? cols.indexOf(sCol) + 1 : 0;
   const siCol = cols.find(c => c.field === 'situacao_contrato');
   const siIdx = siCol ? cols.indexOf(siCol) + 1 : 0;
-  const professors = [...new Set(rows.map(r => String(cellValue(r, cols[pIdx - 1]) ?? '').trim()).filter(Boolean))].sort();
+  const profOf = (r: RenewalRow) => String(cellValue(r, cols[pIdx - 1]) ?? '').trim() || SEM_PROFESSOR;
+  const professors = pIdx > 0 ? [...new Set(rows.map(profOf))].sort(byName) : [];
   const withSummary = pIdx > 0 && (structure?.summary.byProfessor ?? true);
   const summaryRows = withSummary ? Math.max(professors.length, sCol?.options?.length ?? 0, siCol?.options?.length ?? 0) + 1 : 0;
   const headerRow = withSummary ? summaryRows + 3 : 1;
@@ -75,7 +80,7 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
   rows.forEach((r, ri) => {
     cols.forEach((col, ci) => {
       const c = ws.getCell(headerRow + 1 + ri, ci + 1);
-      c.value = toCell(cellValue(r, col), col);
+      c.value = ci === pIdx - 1 ? profOf(r) : toCell(cellValue(r, col), col);
       if (col.type === 'date' && c.value instanceof Date) c.numFmt = 'dd/mm/yyyy';
       c.border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
     });
