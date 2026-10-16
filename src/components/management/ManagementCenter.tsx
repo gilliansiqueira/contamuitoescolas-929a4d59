@@ -436,7 +436,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const activeCard = cardDefs.find(card => card.key === cardFilter) ?? null;
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
-  const myUserId = auth?.user?.id ?? null;
+  const myUserId = profile?.user_id ?? null;
   const ownerOptions = useMemo(() => {
     const m = new Map<string, string>();
     rows.forEach(r => { if (r.responsible_user_id && r.responsible_user_id !== myUserId) m.set(r.responsible_user_id, displayNameByUser.get(r.responsible_user_id) ?? nameFromEmail(r.responsible_email ?? '')); });
