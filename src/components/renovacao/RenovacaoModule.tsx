@@ -114,6 +114,7 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
           <TabsTrigger value="modelo">1. Modelo</TabsTrigger>
           <TabsTrigger value="relatorios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>2. Relatórios</TabsTrigger>
           <TabsTrigger value="conferencia" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>3. Conferência</TabsTrigger>
+          <TabsTrigger value="alunos2027" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>Alunos de 2027</TabsTrigger>
           <TabsTrigger value="planilha" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>4. Planilha</TabsTrigger>
           <TabsTrigger value="envios" disabled={!sheet} title={!sheet ? 'Crie a planilha do período para liberar esta etapa.' : undefined}>5. Envios</TabsTrigger>
         </TabsList>
@@ -122,6 +123,7 @@ function SchoolRenewal({ schoolId }: { schoolId: string }) {
         {sheet && <>
           <TabsContent value="relatorios"><ReportsPanel sheet={sheet} /></TabsContent>
           <TabsContent value="conferencia"><IssuesPanel sheet={sheet} /></TabsContent>
+          <TabsContent value="alunos2027"><Alunos2027Panel sheet={sheet} /></TabsContent>
           <TabsContent value="planilha"><SheetPanel sheet={sheet} templates={templates} /></TabsContent>
           <TabsContent value="envios"><DeliveriesPanel sheet={sheet} templates={templates} /></TabsContent>
         </>}
