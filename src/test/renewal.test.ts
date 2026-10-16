@@ -73,6 +73,14 @@ describe('renovação escolar', () => {
     expect(ana.alunos).toBe(2);
     expect(defaultMinDue('2026/2')).toBe('2026-05-01');
   });
+
+  it('aluno sem professor entra como "Sem professor", por último', () => {
+    const cols = [columnFromField('professor'), columnFromField('turma')];
+    const mk = (p: string | null, t: string, i: number) => ({ row_key: `k${i}`, imported: { professor: p, turma: t }, overrides: {}, conflicts: {}, sort_order: i, manual: false });
+    const s = computeSummary([mk(null, 'VIP', 0), mk('Zé', 'A', 1), mk('', 'PERS', 2)], cols);
+    expect(s.map(x => x.professor)).toEqual(['Zé', 'Sem professor']);
+    expect(s[1].alunos).toBe(2);
+  });
 });
 
 import { applyRenewedFromNextPeriod, reclassifyNewStudents } from '@/lib/renewal/mergeEngine';
