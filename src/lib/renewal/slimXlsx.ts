@@ -56,6 +56,17 @@ class SheetTrimmer {
 export function needsSlim(buf: ArrayBuffer) { return buf.byteLength > 2_000_000; }
 
 export async function slimXlsx(buf: ArrayBuffer, maxRow = SLIM_MAX_ROW): Promise<ArrayBuffer> {
+  const u8 = new Uint8Array(buf); const step = 1 << 20;
+  return slimXlsxChunks(async function* () {
+    for (let i = 0; i < u8.length; i += step) {
+      yield u8.subarray(i, Math.min(i + step, u8.length));
+      if ((i / step) % 8 === 7) await new Promise(r => setTimeout(r, 0)); // deixa a tela respirar
+    }
+  }(), maxRow);
+}
+
+/** Mesma leitura, recebendo o arquivo em pedaços (ex.: File.stream()), sem carregar tudo na memória. */
+export async function slimXlsxChunks(chunks: AsyncIterable<Uint8Array>, maxRow = SLIM_MAX_ROW): Promise<ArrayBuffer> {
   const files: Record<string, Uint8Array> = {};
   const pending: Promise<void>[] = [];
   const uz = new Unzip();
@@ -76,12 +87,20 @@ export async function slimXlsx(buf: ArrayBuffer, maxRow = SLIM_MAX_ROW): Promise
       f.start();
     }));
   };
-  const u8 = new Uint8Array(buf); const step = 1 << 20;
-  for (let i = 0; i < u8.length; i += step) {
-    uz.push(u8.subarray(i, Math.min(i + step, u8.length)), i + step >= u8.length);
-    if ((i / step) % 8 === 7) await new Promise(r => setTimeout(r, 0)); // deixa a tela respirar
-  }
+  let prev: Uint8Array | null = null;
+  for await (const c of chunks) { if (prev) uz.push(prev, false); prev = c; }
+  uz.push(prev ?? new Uint8Array(0), true);
   await Promise.all(pending);
   const z = zipSync(files);
   return z.buffer.slice(z.byteOffset, z.byteOffset + z.byteLength) as ArrayBuffer;
+}
+
+/** Roda a leitura num processo separado do navegador (Web Worker). */
+export function slimXlsxInWorker(file: File): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const w = new Worker(new URL('./slimWorker.ts', import.meta.url), { type: 'module' });
+    w.onmessage = (e) => { w.terminate(); e.data.ok ? resolve(e.data.buf) : reject(new Error(e.data.error)); };
+    w.onerror = (e) => { w.terminate(); reject(new Error(e.message || 'Faltou memória para ler o modelo.')); };
+    w.postMessage(file);
+  });
 }
