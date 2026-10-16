@@ -75,7 +75,7 @@ describe('renovação escolar', () => {
   });
 });
 
-import { applyRenewedFromNextPeriod } from '@/lib/renewal/mergeEngine';
+import { applyRenewedFromNextPeriod, reclassifyNewStudents } from '@/lib/renewal/mergeEngine';
 describe('turmas em formação', () => {
   it('marca renovado por matrícula, ignora novos e sinaliza nome ambíguo', () => {
     const rows = new Map<string, Record<string, any>>([
