@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { GraduationCap, Upload, FileSpreadsheet, Send, Download, AlertTriangle, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -182,18 +183,35 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
   const { data: settings, save } = useRenewalSettings(schoolId);
 
   const [reading, setReading] = useState(false);
+  const [readingMsg, setReadingMsg] = useState('');
+  const CLEAN_TIP = 'Dica: no Excel, selecione as linhas vazias abaixo dos alunos, exclua, salve e envie de novo.';
   const onFile = async (f: File | undefined) => {
     if (!f) return;
     setReading(true);
     try {
-      const raw = await f.arrayBuffer();
-      // Modelos com formatação até o fim do Excel: guarda só a versão enxuta.
-      const slim = needsSlim(raw) ? await slimXlsx(raw) : raw;
-      const file = slim === raw ? f : new File([slim], f.name, { type: f.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      let slim: ArrayBuffer;
+      if (f.size > 5_000_000) {
+        // Arquivo grande: o servidor lê, para não travar notebooks com pouca memória.
+        setReadingMsg('Enviando arquivo…');
+        const origPath = `${schoolId}/modelos/original-${Date.now()}.xlsx`;
+        const up = await (db.storage as any).from('renewal-files').upload(origPath, f);
+        if (up.error) throw new Error(`Não consegui enviar o arquivo: ${up.error.message}`);
+        setReadingMsg('Lendo modelo no servidor… pode levar até 1 minuto.');
+        const { data, error } = await supabase.functions.invoke('renewal-slim-template', { body: { school_id: schoolId, path: origPath } });
+        if (error || !data?.slim_path) throw new Error(data?.error ?? error?.message ?? 'O servidor não conseguiu ler o modelo.');
+        const dl = await (db.storage as any).from('renewal-files').download(data.slim_path);
+        if (dl.error) throw new Error('Não consegui baixar a versão enxuta do modelo.');
+        slim = await dl.data.arrayBuffer();
+      } else {
+        setReadingMsg('Lendo modelo…');
+        const raw = await f.arrayBuffer();
+        slim = needsSlim(raw) ? await slimXlsx(raw) : raw;
+      }
+      const file = new File([slim], f.name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       setPreview({ structure: await parseTemplate(slim), file });
     }
-    catch (e: any) { toast.error(e.message ?? 'Não consegui ler o arquivo.'); }
-    finally { setReading(false); }
+    catch (e: any) { toast.error(`${e.message ?? 'Não consegui ler o arquivo.'} ${CLEAN_TIP}`, { duration: 15000 }); }
+    finally { setReading(false); setReadingMsg(''); }
   };
   const useAsTemplate = async () => {
     if (!preview) return;
@@ -227,7 +245,7 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
           <h3 className="mb-1 text-sm font-semibold">Enviar a última planilha aprovada pelo cliente</h3>
           <p className="mb-3 text-xs text-muted-foreground">O sistema lê abas, colunas, listas, fórmulas e quadro de resumo. Os alunos do arquivo não são copiados para a nova renovação.</p>
           <Input type="file" accept=".xlsx" disabled={reading} onChange={e => onFile(e.target.files?.[0])} />
-          {reading && <p className="mt-2 text-xs text-muted-foreground">Lendo modelo… arquivos grandes podem levar até 1 minuto.</p>}
+          {reading && <p className="mt-2 text-xs text-muted-foreground">{readingMsg || "Lendo modelo…"}</p>}
         </div>
         {preview && (
           <div className="space-y-3 rounded-xl border border-primary/40 bg-card p-4">
