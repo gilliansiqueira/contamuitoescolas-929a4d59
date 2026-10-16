@@ -38,6 +38,14 @@ export function studentKey(t: Record<string, any>) {
   return `${m || 'nome:' + norm(t.Aluno)}|${norm(t.Nome)}`;
 }
 
+/** Aba separada: pela modalidade; se o Sponte trouxer outra (InCompany, Hybrid...), pelo início do nome da turma ("Personal - X", "PERS X", "VIP X"). */
+export function abaFor(modalidade: string, turma: string, separate: string[]): string | null {
+  const m = separate.find(s => norm(s) === norm(modalidade));
+  if (m) return modalidade;
+  const t = norm(turma).replace(/^pers(?=[\s\-_]|$)/, 'personal');
+  return separate.find(s => { const n = norm(s); return n && t.startsWith(n) && /^([\s\-_]|$)/.test(t.slice(n.length)); }) ?? null;
+}
+
 /** Cruza Turmas Existentes com Contas a Receber. Todos os alunos da base ficam; ausência de parcelas ≠ quitação. */
 export function buildImported(turmas: Record<string, any>[], contas: Record<string, any>[] | null, p: BuildParams) {
   const issues: Issue[] = [];
@@ -55,7 +63,7 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       aluno: String(t.Aluno ?? '').trim(), matricula: mat || null, curso: t.Curso ?? null, estagio: t.Estagio ?? null,
       modalidade: modalidade || null, numero_contrato: toId(t.NumeroContrato) || null,
       termino_contrato: toIsoDate(t.TerminoContrato), situacao_aluno: t.SituacaoAluno ?? null,
-      aba: p.settings.separate_modalities.some(m => norm(m) === norm(modalidade)) ? modalidade : null,
+      aba: abaFor(modalidade, String(t.Nome ?? ''), p.settings.separate_modalities),
     });
     if (mat) byMat.set(mat, [...(byMat.get(mat) ?? []), key]);
     const n = norm(t.Aluno);
