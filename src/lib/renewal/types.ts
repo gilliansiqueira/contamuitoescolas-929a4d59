@@ -18,6 +18,10 @@ export interface RenewalColumn {
   /** Aparência copiada do modelo (cores ARGB). */
   headerStyle?: CellStyle;
   cellStyle?: CellStyle;
+  /** Cor (ARGB) de cada opção da lista. */
+  optionColors?: Record<string, string>;
+  /** Opções que contam como renovado (Status Renovação). */
+  renewedOptions?: string[];
   /** Sem regra validada: aparece como dúvida. */
   doubt?: string;
 }
@@ -82,4 +86,10 @@ export function cellValue(row: RenewalRow, col: RenewalColumn): any {
 export function isRenewed(v: any): boolean {
   const n = String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
   return n.startsWith('renovad') || n.startsWith('rematricul');
+}
+
+/** Renovado conforme o modelo: usa as opções marcadas na coluna; sem marcação, usa o nome padrão. */
+export function isRenewedFor(col: RenewalColumn | undefined, v: any): boolean {
+  if (col?.renewedOptions?.length) { const n = String(v ?? '').trim().toLowerCase(); return col.renewedOptions.some(o => o.trim().toLowerCase() === n); }
+  return isRenewed(v);
 }

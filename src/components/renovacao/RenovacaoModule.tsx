@@ -27,6 +27,7 @@ import { buildWorkbook, computeSummary } from '@/lib/renewal/exportXlsx';
 import { SHEET_STATUS, type RenewalColumn, type RenewalRow, type TemplateStructure } from '@/lib/renewal/types';
 import { saveImport, INFO_KINDS, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
 import { RenewalGrid, type CellEdit } from './RenewalGrid';
+import { TemplateBuilder } from './TemplateBuilder';
 
 const statusLabel = (k: string) => SHEET_STATUS.find(s => s.key === k)?.label ?? k;
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
@@ -204,26 +205,29 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
     catch (e: any) { toast.error(`${e.message ?? 'Não consegui ler o arquivo.'} ${CLEAN_TIP}`, { duration: 15000 }); }
     finally { setReading(false); setReadingMsg(''); }
   };
-  const useAsTemplate = async () => {
-    if (!preview) return;
+  const saveTemplate = async (structure: TemplateStructure, name: string, file?: File) => {
     setBusy(true);
     try {
       const version = (templates[0]?.version ?? 0) + 1;
-      const path = `${schoolId}/modelos/v${version}-${Date.now()}.xlsx`;
-      const up = await (db.storage as any).from('renewal-files').upload(path, preview.file);
-      if (up.error) throw new Error(`Não consegui enviar o arquivo do modelo: ${up.error.message}`);
+      let path: string | null = null;
+      if (file) {
+        path = `${schoolId}/modelos/v${version}-${Date.now()}.xlsx`;
+        const up = await (db.storage as any).from('renewal-files').upload(path, file);
+        if (up.error) throw new Error(`Não consegui enviar o arquivo do modelo: ${up.error.message}`);
+      }
       await db.from('renewal_templates').update({ approved: false }).eq('school_id', schoolId);
-      const { data: tpl, error } = await db.from('renewal_templates').insert({ school_id: schoolId, version, name: preview.file.name, approved: true, structure: preview.structure, source_file: path, created_by: user?.id }).select().single();
+      const { data: tpl, error } = await db.from('renewal_templates').insert({ school_id: schoolId, version, name, approved: true, structure, source_file: path, created_by: user?.id }).select().single();
       if (error) throw new Error(`Não consegui gravar o modelo: ${error.message}`);
       // Planilhas já criadas da escola passam para o formato do modelo (correções da equipe preservadas).
       const { data: sheets } = await db.from('renewal_sheets').select('*').eq('school_id', schoolId);
       for (const sh of sheets ?? []) {
         const rows = await fetchAllRows<any>('renewal_rows' as any, q => q.eq('sheet_id', sh.id).order('sort_order'));
-        await applyTemplateToSheet(sh, tpl.id, preview.structure.columns, rows);
+        await applyTemplateToSheet(sh, tpl.id, structure.columns, rows);
       }
-      toast.success(`Modelo v${version} salvo e aprovado${sheets?.length ? ' e aplicado na planilha' : ''}.`); setPreview(null); invalidate(schoolId);
+      toast.success(`Modelo v${version} salvo${sheets?.length ? ' e aplicado na planilha' : ''}.`); setPreview(null); invalidate(schoolId);
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
+  const useAsTemplate = async () => { if (preview) await saveTemplate(preview.structure, preview.file.name, preview.file); };
   const approve = async (t: RenewalTemplate) => {
     await db.from('renewal_templates').update({ approved: false }).eq('school_id', schoolId);
     await db.from('renewal_templates').update({ approved: true }).eq('id', t.id); invalidate(schoolId);
@@ -232,12 +236,13 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="mb-1 text-sm font-semibold">Enviar a última planilha aprovada pelo cliente</h3>
-          <p className="mb-3 text-xs text-muted-foreground">O sistema lê abas, colunas, listas, fórmulas e quadro de resumo. Os alunos do arquivo não são copiados para a nova renovação.</p>
+        <TemplateBuilder schoolId={schoolId} current={templates.find(t => t.approved)} busy={busy} onSave={(st, n) => saveTemplate(st, n)} />
+        <details className="rounded-xl border border-border bg-card p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Opcional: importar colunas de um Excel</summary>
+          <p className="my-2 text-xs text-muted-foreground">Lê as colunas e listas de uma planilha antiga para preencher o modelo acima. Não é obrigatório.</p>
           <Input type="file" accept=".xlsx" disabled={reading} onChange={e => onFile(e.target.files?.[0])} />
           {reading && <p className="mt-2 text-xs text-muted-foreground">{readingMsg || "Lendo modelo…"}</p>}
-        </div>
+        </details>
         {preview && (
           <div className="space-y-3 rounded-xl border border-primary/40 bg-card p-4">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Prévia: {preview.file.name}</h3><Button onClick={useAsTemplate} disabled={busy}>Usar este arquivo como modelo</Button></div>
@@ -607,12 +612,21 @@ function SheetPanel({ sheet, templates }: { sheet: RenewalSheet; templates: Rene
           <Button size="sm" variant="ghost" onClick={() => setPendingCols(null)}>Descartar</Button>
         </div>
       )}
-      {summary.length > 0 && (
-        <div className="overflow-auto rounded-xl border border-border bg-card p-3">
-          <table className="text-xs"><thead><tr className="text-left text-muted-foreground"><th className="pr-4">Professor</th><th className="pr-4">Turmas</th><th className="pr-4">Alunos</th><th className="pr-4">Renovados</th><th>%</th></tr></thead>
-            <tbody>{summary.map(s => <tr key={s.professor}><td className="pr-4 font-medium">{s.professor}</td><td className="pr-4">{s.turmas}</td><td className="pr-4">{s.alunos}</td><td className="pr-4">{s.renovados}</td><td>{s.alunos ? ((s.renovados / s.alunos) * 100).toFixed(1) : '0'}%</td></tr>)}</tbody></table>
-        </div>
-      )}
+      {summary.length > 0 && (() => {
+        const tA = summary.reduce((a, s) => a + s.alunos, 0), tR = summary.reduce((a, s) => a + s.renovados, 0), tT = summary.reduce((a, s) => a + s.turmas, 0);
+        const pct = (r: number, a: number) => (a ? ((r / a) * 100).toFixed(1) : '0') + '%';
+        return (
+        <div className="space-y-3 overflow-auto rounded-xl border border-border bg-card p-3">
+          <div className="flex flex-wrap gap-6">
+            <div><p className="text-xs text-muted-foreground">Renováveis</p><p className="text-2xl font-semibold">{tA}</p></div>
+            <div><p className="text-xs text-muted-foreground">Renovados</p><p className="text-2xl font-semibold">{tR}</p></div>
+            <div><p className="text-xs text-muted-foreground">% renovação</p><p className="text-2xl font-semibold text-primary">{pct(tR, tA)}</p></div>
+          </div>
+          <table className="text-xs"><thead><tr className="text-left text-muted-foreground"><th className="pr-4">Professor</th><th className="pr-4">Turmas</th><th className="pr-4">Renováveis</th><th className="pr-4">Renovados</th><th>%</th></tr></thead>
+            <tbody>{summary.map(s => <tr key={s.professor}><td className="pr-4 font-medium">{s.professor}</td><td className="pr-4">{s.turmas}</td><td className="pr-4">{s.alunos}</td><td className="pr-4">{s.renovados}</td><td>{pct(s.renovados, s.alunos)}</td></tr>)}
+              <tr className="border-t border-border font-semibold"><td className="pr-4">Total</td><td className="pr-4">{tT}</td><td className="pr-4">{tA}</td><td className="pr-4">{tR}</td><td>{pct(tR, tA)}</td></tr></tbody></table>
+        </div>);
+      })()}
       <div className="flex justify-end gap-2">{approvedTpl && approvedTpl.id !== sheet.template_id && <Button size="sm" variant="outline" onClick={applyTemplate}>Aplicar modelo aprovado (v{approvedTpl.version})</Button>}<Button size="sm" variant="outline" onClick={exportNow}><Download className="mr-1 h-4 w-4" />Baixar Excel (rascunho)</Button></div>
       {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : rows.length === 0 ? <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Envie os relatórios na etapa 2 para montar a planilha.</p> : (
         <RenewalGrid rows={rows} columns={columns} onEdits={onEdits} onColumnsChange={setPendingCols} onAddRow={onAddRow} onResolveConflict={onResolve} />

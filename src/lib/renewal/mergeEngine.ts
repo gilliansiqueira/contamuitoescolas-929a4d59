@@ -63,6 +63,8 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       aluno: String(t.Aluno ?? '').trim(), matricula: mat || null, curso: t.Curso ?? null, estagio: t.Estagio ?? null,
       modalidade: modalidade || null, numero_contrato: toId(t.NumeroContrato) || null,
       termino_contrato: toIsoDate(t.TerminoContrato), situacao_aluno: t.SituacaoAluno ?? null,
+      sala: t.Sala ?? null, data_inicio: toIsoDate(t.DataInicio), data_termino: toIsoDate(t.DataTermino),
+      fone_residencial: t.FoneResidencial ?? null, fone_celular: t.FoneCelular ?? null, bolsa: t.Bolsa ?? null, email: t.Email ?? null,
       aba: abaFor(modalidade, String(t.Nome ?? ''), p.settings.separate_modalities),
     });
     if (mat) byMat.set(mat, [...(byMat.get(mat) ?? []), key]);

@@ -185,3 +185,20 @@ describe('aba por nome da turma', () => {
     expect(abaFor('Regular', 'Ondas 1', sep)).toBeNull();
   });
 });
+
+import { isRenewedFor } from '@/lib/renewal/types';
+import { defaultColumns as defCols } from '@/lib/renewal/fields';
+describe('modelo montado na tela', () => {
+  it('conta renovado só pelas opções marcadas', () => {
+    const col: any = { id: 's', title: 'S', kind: 'manual', type: 'list', renewedOptions: ['Contrato Pronto', 'Renovado'] };
+    expect(['Contrato Pronto', 'renovado', 'Rematriculado', 'Pendente'].map(v => isRenewedFor(col, v))).toEqual([true, true, false, false]);
+  });
+  it('resumo por professor usa as opções do modelo', () => {
+    const cols = defCols().map(c => c.field === 'status_renovacao' ? { ...c, renewedOptions: ['Autorizado'] } : c);
+    const pc = cols.find(c => c.field === 'professor')!, sc = cols.find(c => c.field === 'status_renovacao')!;
+    const mk = (p: string, s: string, i: number): any => ({ row_key: String(i), imported: { professor: p, turma: 'T' }, overrides: { [sc.id]: { value: s } }, conflicts: {}, sort_order: i, manual: false });
+    const s = computeSummary([mk('Ana', 'Autorizado', 0), mk('Ana', 'Renovado', 1), mk('Ana', 'Pendente', 2)], cols);
+    expect(s[0]).toMatchObject({ professor: 'Ana', alunos: 3, renovados: 1 });
+    expect(pc).toBeTruthy();
+  });
+});
