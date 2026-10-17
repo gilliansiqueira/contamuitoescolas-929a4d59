@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { RenewalColumn, RenewalRow, TemplateStructure } from './types';
-import { cellValue, isRenewed } from './types';
+import { cellValue, isRenewedFor } from './types';
 
 const letter = (n: number) => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 
@@ -22,10 +22,17 @@ export function computeSummary(rows: RenewalRow[], columns: RenewalColumn[]): Su
     const e = map.get(p) ?? { turmas: new Set(), alunos: 0, renovados: 0 };
     if (tc) e.turmas.add(String(cellValue(r, tc) ?? ''));
     e.alunos++;
-    if (sc && isRenewed(cellValue(r, sc))) e.renovados++;
+    if (sc && isRenewedFor(sc, cellValue(r, sc))) e.renovados++;
     map.set(p, e);
   }
   return [...map.entries()].map(([professor, e]) => ({ professor, turmas: e.turmas.size, alunos: e.alunos, renovados: e.renovados })).sort(byProfessor);
+}
+
+function paint(c: ExcelJS.Cell, argb?: string) {
+  if (!argb) return;
+  c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+  const n = parseInt(argb.slice(2), 16); const lum = ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114;
+  c.font = { ...(c.font ?? {}), color: { argb: lum < 140 ? 'FFFFFFFF' : 'FF000000' } };
 }
 
 function toCell(v: any, col: RenewalColumn) {
@@ -47,7 +54,7 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
   const profOf = (r: RenewalRow) => String(cellValue(r, cols[pIdx - 1]) ?? '').trim() || SEM_PROFESSOR;
   const professors = pIdx > 0 ? [...new Set(rows.map(profOf))].sort(byName) : [];
   const withSummary = pIdx > 0 && (structure?.summary.byProfessor ?? true);
-  const summaryRows = withSummary ? Math.max(professors.length, sCol?.options?.length ?? 0, siCol?.options?.length ?? 0) + 1 : 0;
+  const summaryRows = withSummary ? Math.max(professors.length + 1, sCol?.options?.length ?? 0, siCol?.options?.length ?? 0) + 1 : 0;
   const headerRow = withSummary ? summaryRows + 3 : 1;
   const a = headerRow + 1, b = headerRow + Math.max(rows.length, 1);
   const rng = (i: number) => `$${letter(i)}$${a}:$${letter(i)}$${b}`;
@@ -61,15 +68,25 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
       ws.getCell(r, 2).value = p;
       ws.getCell(r, 3).value = tIdx ? { formula: `SUMPRODUCT((${rng(pIdx)}=B${r})/COUNTIFS(${rng(tIdx)},${rng(tIdx)}&"",${rng(pIdx)},${rng(pIdx)}&""))` } as any : null;
       ws.getCell(r, 4).value = { formula: `COUNTIF(${rng(pIdx)},B${r})` } as any;
-      ws.getCell(r, 5).value = sIdx ? { formula: `COUNTIFS(${rng(pIdx)},B${r},${rng(sIdx)},"Renovad*")+COUNTIFS(${rng(pIdx)},B${r},${rng(sIdx)},"Rematricul*")` } as any : null;
+      const pats = sCol?.renewedOptions?.length ? sCol.renewedOptions : ['Renovad*', 'Rematricul*'];
+      ws.getCell(r, 5).value = sIdx ? { formula: pats.map(o => `COUNTIFS(${rng(pIdx)},B${r},${rng(sIdx)},"${o.replace(/"/g, '')}")`).join('+') } as any : null;
       ws.getCell(r, 6).value = { formula: `IF(D${r}=0,0,E${r}/D${r})` } as any;
       ws.getCell(r, 6).numFmt = '0.0%';
     });
+    if (professors.length) {
+      const r = top + 1 + professors.length, f = top + 1, l = r - 1;
+      ws.getCell(r, 2).value = 'Total';
+      ws.getCell(r, 3).value = { formula: `SUM(C${f}:C${l})` } as any;
+      ws.getCell(r, 4).value = { formula: `SUM(D${f}:D${l})` } as any;
+      ws.getCell(r, 5).value = { formula: `SUM(E${f}:E${l})` } as any;
+      ws.getCell(r, 6).value = { formula: `IF(D${r}=0,0,E${r}/D${r})` } as any; ws.getCell(r, 6).numFmt = '0.0%';
+      for (let c = 2; c <= 6; c++) { ws.getCell(r, c).font = { bold: true }; ws.getCell(r, c).border = { top: { style: 'thin' } }; }
+    }
     const blocks: [RenewalColumn | undefined, number, number][] = [[sCol, sIdx, 8], [siCol, siIdx, 10]];
     for (const [col, idx, at] of blocks) {
       if (!col || !idx || !col.options?.length) continue;
       [col.title, 'Qtd. de Alunos'].forEach((h, i) => { const c = ws.getCell(top, at + i); c.value = h; style(c); });
-      col.options.forEach((o, i) => { ws.getCell(top + 1 + i, at).value = o; ws.getCell(top + 1 + i, at + 1).value = { formula: `COUNTIF(${rng(idx)},${letter(at)}${top + 1 + i})` } as any; });
+      col.options.forEach((o, i) => { ws.getCell(top + 1 + i, at).value = o; paint(ws.getCell(top + 1 + i, at), col.optionColors?.[o]); ws.getCell(top + 1 + i, at + 1).value = { formula: `COUNTIF(${rng(idx)},${letter(at)}${top + 1 + i})` } as any; });
     }
   }
 
@@ -88,6 +105,7 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
       const cs = col.cellStyle;
       if (cs?.fill) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cs.fill } };
       if (cs?.color || cs?.bold) c.font = { bold: !!cs.bold, color: cs.color ? { argb: cs.color } : undefined };
+      if (col.type === 'list' && typeof c.value === 'string') paint(c, col.optionColors?.[c.value]);
       c.border = { bottom: { style: 'hair', color: { argb: 'FFBFBFBF' } } };
     });
   });
