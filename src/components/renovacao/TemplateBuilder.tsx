@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,8 +75,8 @@ export function TemplateBuilder({ schoolId, current, onSave, busy }: {
           <thead><tr className="text-left text-muted-foreground"><th className="w-12 py-1">Usar</th><th className="w-10">#</th><th>Nome na planilha</th><th>Tipo</th><th>Preenchimento</th><th className="w-28" /></tr></thead>
           <tbody>
             {cols.map((c, i) => (
-              <>
-                <tr key={c.id} className={`border-t border-border ${c.hidden ? 'opacity-50' : ''}`}>
+              <Fragment key={c.id}>
+                <tr className={`border-t border-border ${c.hidden ? 'opacity-50' : ''}`}>
                   <td className="py-1"><Checkbox checked={!c.hidden} onCheckedChange={v => upd(c.id, { hidden: !v })} /></td>
                   <td>{c.hidden ? '—' : cols.slice(0, i + 1).filter(x => !x.hidden).length}</td>
                   <td><Input className="h-7 text-xs" value={c.title} onChange={e => upd(c.id, { title: e.target.value })} /></td>
@@ -94,8 +94,8 @@ export function TemplateBuilder({ schoolId, current, onSave, busy }: {
                     {!c.field && <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setCols(cs => cs.filter(x => x.id !== c.id))}><Trash2 className="h-4 w-4" /></Button>}
                   </td>
                 </tr>
-                {openList === c.id && <tr key={c.id + '-opts'}><td colSpan={6} className="pb-3"><OptionsEditor col={c} onChange={p => upd(c.id, p)} /></td></tr>}
-              </>
+                {openList === c.id && <tr><td colSpan={6} className="pb-3"><OptionsEditor col={c} onChange={p => upd(c.id, p)} /></td></tr>}
+              </Fragment>
             ))}
           </tbody>
         </table>

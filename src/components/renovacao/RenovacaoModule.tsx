@@ -27,6 +27,7 @@ import { buildWorkbook, computeSummary } from '@/lib/renewal/exportXlsx';
 import { SHEET_STATUS, type RenewalColumn, type RenewalRow, type TemplateStructure } from '@/lib/renewal/types';
 import { saveImport, INFO_KINDS, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
 import { RenewalGrid, type CellEdit } from './RenewalGrid';
+import { TemplateBuilder } from './TemplateBuilder';
 
 const statusLabel = (k: string) => SHEET_STATUS.find(s => s.key === k)?.label ?? k;
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
@@ -204,26 +205,29 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
     catch (e: any) { toast.error(`${e.message ?? 'Não consegui ler o arquivo.'} ${CLEAN_TIP}`, { duration: 15000 }); }
     finally { setReading(false); setReadingMsg(''); }
   };
-  const useAsTemplate = async () => {
-    if (!preview) return;
+  const saveTemplate = async (structure: TemplateStructure, name: string, file?: File) => {
     setBusy(true);
     try {
       const version = (templates[0]?.version ?? 0) + 1;
-      const path = `${schoolId}/modelos/v${version}-${Date.now()}.xlsx`;
-      const up = await (db.storage as any).from('renewal-files').upload(path, preview.file);
-      if (up.error) throw new Error(`Não consegui enviar o arquivo do modelo: ${up.error.message}`);
+      let path: string | null = null;
+      if (file) {
+        path = `${schoolId}/modelos/v${version}-${Date.now()}.xlsx`;
+        const up = await (db.storage as any).from('renewal-files').upload(path, file);
+        if (up.error) throw new Error(`Não consegui enviar o arquivo do modelo: ${up.error.message}`);
+      }
       await db.from('renewal_templates').update({ approved: false }).eq('school_id', schoolId);
-      const { data: tpl, error } = await db.from('renewal_templates').insert({ school_id: schoolId, version, name: preview.file.name, approved: true, structure: preview.structure, source_file: path, created_by: user?.id }).select().single();
+      const { data: tpl, error } = await db.from('renewal_templates').insert({ school_id: schoolId, version, name, approved: true, structure, source_file: path, created_by: user?.id }).select().single();
       if (error) throw new Error(`Não consegui gravar o modelo: ${error.message}`);
       // Planilhas já criadas da escola passam para o formato do modelo (correções da equipe preservadas).
       const { data: sheets } = await db.from('renewal_sheets').select('*').eq('school_id', schoolId);
       for (const sh of sheets ?? []) {
         const rows = await fetchAllRows<any>('renewal_rows' as any, q => q.eq('sheet_id', sh.id).order('sort_order'));
-        await applyTemplateToSheet(sh, tpl.id, preview.structure.columns, rows);
+        await applyTemplateToSheet(sh, tpl.id, structure.columns, rows);
       }
-      toast.success(`Modelo v${version} salvo e aprovado${sheets?.length ? ' e aplicado na planilha' : ''}.`); setPreview(null); invalidate(schoolId);
+      toast.success(`Modelo v${version} salvo${sheets?.length ? ' e aplicado na planilha' : ''}.`); setPreview(null); invalidate(schoolId);
     } catch (e: any) { toast.error(e.message); } finally { setBusy(false); }
   };
+  const useAsTemplate = async () => { if (preview) await saveTemplate(preview.structure, preview.file.name, preview.file); };
   const approve = async (t: RenewalTemplate) => {
     await db.from('renewal_templates').update({ approved: false }).eq('school_id', schoolId);
     await db.from('renewal_templates').update({ approved: true }).eq('id', t.id); invalidate(schoolId);
@@ -232,12 +236,13 @@ function TemplatePanel({ schoolId, templates }: { schoolId: string; templates: R
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="mb-1 text-sm font-semibold">Enviar a última planilha aprovada pelo cliente</h3>
-          <p className="mb-3 text-xs text-muted-foreground">O sistema lê abas, colunas, listas, fórmulas e quadro de resumo. Os alunos do arquivo não são copiados para a nova renovação.</p>
+        <TemplateBuilder schoolId={schoolId} current={templates.find(t => t.approved)} busy={busy} onSave={(st, n) => saveTemplate(st, n)} />
+        <details className="rounded-xl border border-border bg-card p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Opcional: importar colunas de um Excel</summary>
+          <p className="my-2 text-xs text-muted-foreground">Lê as colunas e listas de uma planilha antiga para preencher o modelo acima. Não é obrigatório.</p>
           <Input type="file" accept=".xlsx" disabled={reading} onChange={e => onFile(e.target.files?.[0])} />
           {reading && <p className="mt-2 text-xs text-muted-foreground">{readingMsg || "Lendo modelo…"}</p>}
-        </div>
+        </details>
         {preview && (
           <div className="space-y-3 rounded-xl border border-primary/40 bg-card p-4">
             <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Prévia: {preview.file.name}</h3><Button onClick={useAsTemplate} disabled={busy}>Usar este arquivo como modelo</Button></div>
