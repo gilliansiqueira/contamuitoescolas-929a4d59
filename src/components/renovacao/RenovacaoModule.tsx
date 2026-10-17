@@ -607,12 +607,21 @@ function SheetPanel({ sheet, templates }: { sheet: RenewalSheet; templates: Rene
           <Button size="sm" variant="ghost" onClick={() => setPendingCols(null)}>Descartar</Button>
         </div>
       )}
-      {summary.length > 0 && (
-        <div className="overflow-auto rounded-xl border border-border bg-card p-3">
-          <table className="text-xs"><thead><tr className="text-left text-muted-foreground"><th className="pr-4">Professor</th><th className="pr-4">Turmas</th><th className="pr-4">Alunos</th><th className="pr-4">Renovados</th><th>%</th></tr></thead>
-            <tbody>{summary.map(s => <tr key={s.professor}><td className="pr-4 font-medium">{s.professor}</td><td className="pr-4">{s.turmas}</td><td className="pr-4">{s.alunos}</td><td className="pr-4">{s.renovados}</td><td>{s.alunos ? ((s.renovados / s.alunos) * 100).toFixed(1) : '0'}%</td></tr>)}</tbody></table>
-        </div>
-      )}
+      {summary.length > 0 && (() => {
+        const tA = summary.reduce((a, s) => a + s.alunos, 0), tR = summary.reduce((a, s) => a + s.renovados, 0), tT = summary.reduce((a, s) => a + s.turmas, 0);
+        const pct = (r: number, a: number) => (a ? ((r / a) * 100).toFixed(1) : '0') + '%';
+        return (
+        <div className="space-y-3 overflow-auto rounded-xl border border-border bg-card p-3">
+          <div className="flex flex-wrap gap-6">
+            <div><p className="text-xs text-muted-foreground">Renováveis</p><p className="text-2xl font-semibold">{tA}</p></div>
+            <div><p className="text-xs text-muted-foreground">Renovados</p><p className="text-2xl font-semibold">{tR}</p></div>
+            <div><p className="text-xs text-muted-foreground">% renovação</p><p className="text-2xl font-semibold text-primary">{pct(tR, tA)}</p></div>
+          </div>
+          <table className="text-xs"><thead><tr className="text-left text-muted-foreground"><th className="pr-4">Professor</th><th className="pr-4">Turmas</th><th className="pr-4">Renováveis</th><th className="pr-4">Renovados</th><th>%</th></tr></thead>
+            <tbody>{summary.map(s => <tr key={s.professor}><td className="pr-4 font-medium">{s.professor}</td><td className="pr-4">{s.turmas}</td><td className="pr-4">{s.alunos}</td><td className="pr-4">{s.renovados}</td><td>{pct(s.renovados, s.alunos)}</td></tr>)}
+              <tr className="border-t border-border font-semibold"><td className="pr-4">Total</td><td className="pr-4">{tT}</td><td className="pr-4">{tA}</td><td className="pr-4">{tR}</td><td>{pct(tR, tA)}</td></tr></tbody></table>
+        </div>);
+      })()}
       <div className="flex justify-end gap-2">{approvedTpl && approvedTpl.id !== sheet.template_id && <Button size="sm" variant="outline" onClick={applyTemplate}>Aplicar modelo aprovado (v{approvedTpl.version})</Button>}<Button size="sm" variant="outline" onClick={exportNow}><Download className="mr-1 h-4 w-4" />Baixar Excel (rascunho)</Button></div>
       {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : rows.length === 0 ? <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Envie os relatórios na etapa 2 para montar a planilha.</p> : (
         <RenewalGrid rows={rows} columns={columns} onEdits={onEdits} onColumnsChange={setPendingCols} onAddRow={onAddRow} onResolveConflict={onResolve} />
