@@ -9,13 +9,13 @@ Um PDF com os mesmos 19 slides do modelo do Canva, no mesmo visual (fundo grafit
 3. Saídas x Faturamento (% e legenda com os limites: Fixas 15%, Gerais 10%, Pessoal 35%, Impostos 10%, Publicidade 5%, Franqueadora 25%)
 4. Despesas Fixas (itens + total)
 5. Despesas Gerais
-6. Comparação Fixas/Gerais: 1º sem 2025, 2º sem 2025, 1º sem 2026
+6. Comparação Fixas/Gerais: 2º sem 2024, 1º sem 2025, 2º sem 2025 e 1º sem 2026
 7. Pessoal
 8. Impostos
-9. Comparação Pessoal/Impostos (3 semestres)
+9. Comparação Pessoal/Impostos (os mesmos 4 semestres)
 10. Franqueadora
 11. Publicidade (com %)
-12. Comparação Franqueadora/Publicidade (3 semestres)
+12. Comparação Franqueadora/Publicidade (os mesmos 4 semestres)
 13. KPIs: ticket médio semestral/mensal, ponto de equilíbrio, lucratividade
 14. Histórico de KPIs: 1º sem 2024 até 1º sem 2026
 15. KPIs: desconto, inadimplência, alunos por turma, evasão (atual x 1º sem 2025)
