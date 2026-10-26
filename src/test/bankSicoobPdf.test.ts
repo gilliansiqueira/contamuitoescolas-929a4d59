@@ -33,3 +33,11 @@ itPira('Sicoob Piraquara: junta valor/marcador quebrados e fecha no saldo do ext
   expectPira(efet.find(t => t.valor === 1297.6)?.tipo).toBe('saida');
   expectPira(r.avisos?.some(a => a.includes('não fecha'))).toBeFalsy();
 });
+
+import goLines from './fixtures/sicoobGo2610.json';
+itPira('Sicoob Go Company: lê saldo em conta e RDC automático como aplicado', () => {
+  const r = parsePira(goLines as string[]);
+  expectPira(r.saldoFinalInformado).toBe(628.5);
+  expectPira(r.saldoComAplicacaoInformado).toBe(27985.26);
+  expectPira(r.periodoFim).toBe('2026-10-26');
+});
