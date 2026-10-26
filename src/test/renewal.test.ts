@@ -202,3 +202,13 @@ describe('modelo montado na tela', () => {
     expect(pc).toBeTruthy();
   });
 });
+
+import { pick as pickSponte } from '@/lib/renewal/mergeEngine';
+describe('leitura tolerante do Sponte', () => {
+  it('aceita "Data Início" e "Fone Celular" com acento e espaço', () => {
+    const t = { 'Data Início': '01/02/2026', 'Fone Celular': '41 9999', Sala: '' };
+    expect(pickSponte(t, 'datainicio')).toBe('01/02/2026');
+    expect(pickSponte(t, 'fonecelular')).toBe('41 9999');
+    expect(pickSponte(t, 'sala')).toBeNull();
+  });
+});

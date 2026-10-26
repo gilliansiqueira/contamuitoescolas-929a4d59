@@ -273,7 +273,7 @@ export function RenewalGrid({ rows, columns, onEdits, onColumnsChange, onAddRow,
                           ))}
                         </div>
                       ) : c.type === 'list' ? (
-                        <select className="h-6 w-full truncate bg-transparent outline-none" value={v ?? ''} onChange={e => commit([{ rowKey: row.row_key, colId: c.id, value: e.target.value || null }])}>
+                        <select className="h-6 w-full truncate rounded bg-transparent px-1 outline-none" style={v && c.optionColors?.[v] ? { backgroundColor: `#${c.optionColors[v].slice(2)}` } : undefined} value={v ?? ''} onChange={e => commit([{ rowKey: row.row_key, colId: c.id, value: e.target.value || null }])}>
                           <option value="">—</option>
                           {(c.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
