@@ -353,7 +353,7 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
                         return (
                           <tr key={d.dia} className="bg-muted/20 text-[11px]">
                             <td className="whitespace-nowrap px-3 py-1.5 pl-7"><strong>{fmtDate(d.dia)}</strong></td>
-                            <td className="px-3 py-1.5"><BatidasCelula previsto={d.horario_previsto ?? r.e.horario_previsto} marcacoes={d.marcacoes} /></td>
+                            <td className="px-3 py-1.5"><BatidasCelula previsto={d.horario_previsto ?? r.e.horario_previsto} marcacoes={d.marcacoes} emAndamento={c.emAndamento} /></td>
                             <td className="px-3 py-1.5 text-right">{c.emAndamento ? '—' : d.horas_trabalhadas || '—'}</td>
                             <td className="px-3 py-1.5 text-right text-info">{c.extraMin ? `+${minToHhmm(c.extraMin)}` : '—'}</td>
                             <td className="px-3 py-1.5 text-right text-progress">{c.faltaMin ? minToHhmm(c.faltaMin) : '—'}</td>
