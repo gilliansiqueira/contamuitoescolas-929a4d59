@@ -46,6 +46,15 @@ export function abaFor(modalidade: string, turma: string, separate: string[]): s
   return separate.find(s => { const n = norm(s); return n && t.startsWith(n) && /^([\s\-_]|$)/.test(t.slice(n.length)); }) ?? null;
 }
 
+/** Lê uma coluna do Sponte aceitando acento, espaço e maiúsculas ("Data Início" = "DataInicio"). */
+export function pick(t: Record<string, any>, ...names: string[]): any {
+  const want = names.map(n => norm(n).replace(/ /g, ''));
+  for (const k of Object.keys(t)) {
+    if (want.includes(norm(k).replace(/ /g, ''))) { const v = t[k]; return v === '' || v == null ? null : v; }
+  }
+  return null;
+}
+
 /** Cruza Turmas Existentes com Contas a Receber. Todos os alunos da base ficam; ausência de parcelas ≠ quitação. */
 export function buildImported(turmas: Record<string, any>[], contas: Record<string, any>[] | null, p: BuildParams) {
   const issues: Issue[] = [];
@@ -63,8 +72,9 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       aluno: String(t.Aluno ?? '').trim(), matricula: mat || null, curso: t.Curso ?? null, estagio: t.Estagio ?? null,
       modalidade: modalidade || null, numero_contrato: toId(t.NumeroContrato) || null,
       termino_contrato: toIsoDate(t.TerminoContrato), situacao_aluno: t.SituacaoAluno ?? null,
-      sala: t.Sala ?? null, data_inicio: toIsoDate(t.DataInicio), data_termino: toIsoDate(t.DataTermino),
-      fone_residencial: t.FoneResidencial ?? null, fone_celular: t.FoneCelular ?? null, bolsa: t.Bolsa ?? null, email: t.Email ?? null,
+      sala: pick(t, 'sala'), data_inicio: toIsoDate(pick(t, 'datainicio', 'data de inicio', 'inicio')), data_termino: toIsoDate(pick(t, 'datatermino', 'data de termino', 'termino')),
+      fone_residencial: pick(t, 'foneresidencial', 'telefone residencial', 'telefone'), fone_celular: pick(t, 'fonecelular', 'celular', 'telefone celular'),
+      bolsa: pick(t, 'bolsa', 'percentual bolsa'), email: pick(t, 'email', 'e mail'),
       aba: abaFor(modalidade, String(t.Nome ?? ''), p.settings.separate_modalities),
     });
     if (mat) byMat.set(mat, [...(byMat.get(mat) ?? []), key]);
