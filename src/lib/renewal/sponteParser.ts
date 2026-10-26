@@ -50,11 +50,55 @@ export function detectSource(matrix: any[][]): { source: SourceKey; headerRow: n
   return null;
 }
 
+/** Cabeçalho do "Alunos por turma" do Omni. */
+export function detectOmni(matrix: any[][]): number {
+  for (let r = 0; r < Math.min(30, matrix.length); r++) {
+    const vals = (matrix[r] ?? []).map(norm);
+    if (['turma', 'aluno', 'matricula', 'instrutor'].every(h => vals.includes(h))) return r;
+  }
+  return -1;
+}
+
+/** Converte linhas do Omni para as chaves do Sponte. Matrícula "6409/2" = matrícula 6409, contrato 2. */
+export function fromOmni(rows: Record<string, any>[]): Record<string, any>[] {
+  const g = (o: Record<string, any>, n: string) => { const k = Object.keys(o).find(x => norm(x) === n); return k ? o[k] : null; };
+  const count = new Map<string, number>();
+  for (const o of rows) { const t = String(g(o, 'turma') ?? '').trim(); count.set(t, (count.get(t) ?? 0) + 1); }
+  return rows.map(o => {
+    const [mat, contrato] = String(g(o, 'matricula') ?? '').trim().split('/');
+    const turma = String(g(o, 'turma') ?? '').trim();
+    const mod = String(g(o, 'modalidade') ?? '').trim();
+    const tipo = String(g(o, 'tipo') ?? '').trim();
+    return {
+      Nome: turma, Aluno: g(o, 'aluno'), NumeroMatricula: mat?.trim() || null, NumeroContrato: contrato?.trim() || null,
+      Professor: g(o, 'instrutor'), Curso: g(o, 'curso'), Estagio: g(o, 'livro'),
+      Modalidade: !mod || norm(mod) === 'turmas' ? tipo || mod : mod,
+      DataInicio: g(o, 'inicio'), DataTermino: g(o, 'fim'), FoneCelular: g(o, 'telefone'), Email: g(o, 'e mail'),
+      SituacaoAluno: g(o, 'status aluno'), SituacaoTurma: g(o, 'status turma'), IntegrantesAtuais: count.get(turma) ?? null,
+      Dias: g(o, 'dias'), Horario: g(o, 'horario'), Semestre: g(o, 'semestre'),
+    };
+  });
+}
+
 export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSource {
+  const omniRow = detectOmni(matrix);
+  if (omniRow >= 0 && force !== 'contas_receber') {
+    const headers = (matrix[omniRow] ?? []).map(h => String(h ?? '').trim());
+    const ai = headers.findIndex(h => norm(h) === 'aluno');
+    const raw: Record<string, any>[] = []; let discarded = 0;
+    for (let r = omniRow + 1; r < matrix.length; r++) {
+      const line = matrix[r] ?? [];
+      if (!String(line[ai] ?? '').trim()) { if (line.some(v => v != null && v !== '')) discarded++; continue; }
+      const o: Record<string, any> = {}; headers.forEach((h, i) => { if (h) o[h] = line[i]; }); raw.push(o);
+    }
+    const rows = fromOmni(raw);
+    const source: SourceKey = force === 'turmas_formacao' || looksLikeFormacao(rows) ? 'turmas_formacao' : 'turmas_existentes';
+    return { source, headers: Object.keys(rows[0] ?? {}), rows, discarded };
+  }
   const det0 = detectSource(matrix);
   if (force === 'turmas_formacao' && det0 && det0.source !== 'turmas_existentes') throw new Error('Este arquivo não parece um relatório de turmas. Exporte as turmas em formação do próximo período com os integrantes.');
   const det = det0 && force ? { ...det0, source: force } : det0;
-  if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" exportados em Excel tabulado.');
+  if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" do Sponte, ou "Alunos por turma" do Omni, em Excel.');
   const headers = (matrix[det.headerRow] ?? []).map(h => String(h ?? '').trim());
   const key = det.source === 'contas_receber' ? 'Sacado' : 'Aluno';
   const ki = headers.indexOf(key);
