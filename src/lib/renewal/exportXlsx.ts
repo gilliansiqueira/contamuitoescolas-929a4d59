@@ -113,6 +113,13 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
     if (col.type !== 'list' || !col.options?.length) return;
     const ref = `${letter(ci + 1)}${a}:${letter(ci + 1)}${b + 200}`;
     (ws as any).dataValidations.add(ref, { type: 'list', allowBlank: true, formulae: [`"${col.options.join(',').replace(/"/g, '')}"`] });
+    const L = letter(ci + 1);
+    const rules = col.options.filter(o => col.optionColors?.[o]).map((o, k) => ({
+      type: 'expression', priority: k + 1,
+      formulae: [`$${L}${a}="${o.replace(/"/g, '""')}"`],
+      style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: col.optionColors![o] } } },
+    }));
+    if (rules.length) ws.addConditionalFormatting({ ref, rules: rules as any });
   });
   ws.views = [{ state: 'frozen', ySplit: headerRow }];
   ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: cols.length } };
