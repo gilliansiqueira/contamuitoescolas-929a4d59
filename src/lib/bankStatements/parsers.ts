@@ -552,6 +552,8 @@ export function parsePdfLines(lines: string[]): BankParseResult {
       if (/^saldo\s+de\s+investimentos/i.test(plain)) { investido = lastVal(line); continue; }
     }
     if (/^invest\.?\s*resgate\s*autom/i.test(plain)) { investido = lastVal(line); continue; }
+    // Sicoob (resumo): "(+) SALDO EM RDC AUTOMÁTICO: 27.356,76C" = saldo aplicado.
+    if (/^\(\+\)\s*saldo\s+em\s+rdc/i.test(plain)) { investido = lastVal(line); continue; }
     if (/^saldo\s+aprovisionado/i.test(plain)) continue;
     if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined) continue;
     if (!isBB && /^[DC]\*?$/i.test(line)) {
