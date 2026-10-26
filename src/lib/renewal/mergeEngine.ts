@@ -75,6 +75,7 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       sala: pick(t, 'sala'), data_inicio: toIsoDate(pick(t, 'datainicio', 'data de inicio', 'inicio')), data_termino: toIsoDate(pick(t, 'datatermino', 'data de termino', 'termino')),
       fone_residencial: pick(t, 'foneresidencial', 'telefone residencial', 'telefone'), fone_celular: pick(t, 'fonecelular', 'celular', 'telefone celular'),
       bolsa: pick(t, 'bolsa', 'percentual bolsa'), email: pick(t, 'email', 'e mail'),
+      dias: pick(t, 'dias'), horario: pick(t, 'horario'), semestre: pick(t, 'semestre'),
       aba: abaFor(modalidade, String(t.Nome ?? ''), p.settings.separate_modalities),
     });
     if (mat) byMat.set(mat, [...(byMat.get(mat) ?? []), key]);

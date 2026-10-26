@@ -212,3 +212,15 @@ describe('leitura tolerante do Sponte', () => {
     expect(pickSponte(t, 'sala')).toBeNull();
   });
 });
+
+import { parseSponteMatrix as parseAny } from '@/lib/renewal/sponteParser';
+describe('turmas do Omni', () => {
+  const H = ['Turma','Dias','Horário','Início','Fim','Idioma','Curso','Livro','Tipo','Modalidade','Formato','Semestre','Status turma','Aluno','Matrícula','Telefone','E-mail','Status aluno','Status matrícula','Instrutor'];
+  const L = (t: string, a: string, m: string) => [t,'Seg','08:00','05/08/2026','02/12/2026','Inglês','Regular (EN)','Book 3','Regular','Turmas','Presencial','2026/2','Aberta',a,m,'4199','x@y.com','Ativo','Ativa','Maria Fernanda'];
+  it('reconhece o arquivo e converte matrícula, professor e integrantes', () => {
+    const p = parseAny([H, L('T1','Heloisa','6409/2'), L('T1','Jamilly','6452/1'), L('T2','Kelly','5452/3')]);
+    expect(p.source).toBe('turmas_existentes');
+    expect(p.rows[0]).toMatchObject({ Nome: 'T1', NumeroMatricula: '6409', NumeroContrato: '2', Professor: 'Maria Fernanda', IntegrantesAtuais: 2, Modalidade: 'Regular' });
+    expect(p.rows[2].IntegrantesAtuais).toBe(1);
+  });
+});
