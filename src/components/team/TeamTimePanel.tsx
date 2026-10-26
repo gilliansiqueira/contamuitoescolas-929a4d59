@@ -38,9 +38,23 @@ const chipOk = 'rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium';
 const chipFalta = (t: string, key: string) => <span key={key} title={`Batida faltando (previsto ${t})`} className="rounded border border-dashed border-destructive/60 bg-destructive/5 px-1.5 py-0.5 text-[10px] text-destructive">{t}</span>;
 
 /** Mostra todas as batidas do dia; quando falta alguma, o slot previsto fica tracejado em vermelho. */
-function BatidasCelula({ previsto, marcacoes }: { previsto?: string | null; marcacoes?: string[] | null }) {
+function SaldoCell({ min }: { min: number }) {
+  if (!min) return <span className="text-muted-foreground">00:00</span>;
+  return min > 0
+    ? <span className="whitespace-nowrap font-semibold text-success" title="A empresa deve horas">+{minToHhmm(min)} <span className="text-[10px] font-normal">empresa deve</span></span>
+    : <span className="whitespace-nowrap font-semibold text-destructive" title="Deve pagar horas">−{minToHhmm(-min)} <span className="text-[10px] font-normal">deve pagar</span></span>;
+}
+
+function BatidasCelula({ previsto, marcacoes, emAndamento }: { previsto?: string | null; marcacoes?: string[] | null; emAndamento?: boolean }) {
   const slots = (previsto ?? '').trim().split(/\s+/).filter(t => TIME_RE.test(t));
   const marc = (marcacoes ?? []).filter(t => TIME_RE.test(t));
+  if (emAndamento && slots.length > marc.length) {
+    // Dia em andamento: batidas preenchem os horários em ordem; os próximos ainda não foram batidos.
+    return <span className="inline-flex flex-wrap gap-1">
+      {marc.map((t, i) => <span key={i} className={chipOk}>{t}</span>)}
+      {slots.slice(marc.length).map((t, i) => <span key={`p${i}`} title={`Ainda não batido (previsto ${t})`} className="rounded border border-dashed border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">{t}</span>)}
+    </span>;
+  }
   if (!marc.length) {
     if (!slots.length) return <span className="text-muted-foreground">—</span>;
     return <span className="inline-flex flex-wrap gap-1">{slots.map((t, i) => chipFalta(t, String(i)))}</span>;
@@ -308,7 +322,7 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
                     return (
                       <tr key={r.e.external_id} className="border-t border-border">
                         <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1">{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={() => setHidden(r.e.external_id, r.e.nome, true)} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
-                        <td className="px-3 py-2"><BatidasCelula previsto={x ? (x.d.horario_previsto ?? r.e.horario_previsto) : null} marcacoes={x?.d.marcacoes} /></td>
+                        <td className="px-3 py-2"><BatidasCelula previsto={x ? (x.d.horario_previsto ?? r.e.horario_previsto) : null} marcacoes={x?.d.marcacoes} emAndamento={!!x?.c.emAndamento} /></td>
                         <td className="px-3 py-2 font-medium text-info">{x?.c.extraMin ? `+${minToHhmm(x.c.extraMin)}` : '—'}</td>
                         <td className="px-3 py-2 font-medium text-progress">{x?.c.faltaMin ? minToHhmm(x.c.faltaMin) : '—'}</td>
                         <td className="px-3 py-2"><span className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.s}`}>{s.t}</span></td>
@@ -321,15 +335,16 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Extras no período', 'Devidas no período', 'Faltas (dias)', 'Dias com problema'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+                <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr>{['Nome', 'Extras no período', 'Devidas no período', 'Saldo (extras − devidas)', 'Faltas (dias)', 'Dias com problema'].map(h => <th key={h} className="whitespace-nowrap px-3 py-2 font-medium">{h}</th>)}</tr></thead>
                 <tbody>
-                  {filtered.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
+                  {filtered.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Nenhuma colaboradora neste filtro.</td></tr>}
                   {filtered.map(r => (
                     <Fragment key={r.e.external_id}>
                       <tr className={`cursor-pointer border-t border-border ${open === r.e.external_id ? 'bg-muted/30' : 'hover:bg-muted/30'}`} onClick={() => setOpen(open === r.e.external_id ? null : r.e.external_id)}>
                         <td className="whitespace-nowrap px-3 py-2 font-medium"><span className="inline-flex items-center gap-1.5">{open === r.e.external_id ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}{r.e.nome}{canEdit && <Button size="sm" variant="ghost" className="h-6 px-1 text-muted-foreground" disabled={hide.isPending} onClick={ev => { ev.stopPropagation(); setHidden(r.e.external_id, r.e.nome, true); }} title="Ocultar do Ponto" aria-label={`Ocultar ${r.e.nome}`}><Trash2 className="h-3 w-3" /></Button>}</span></td>
                         <td className="px-3 py-2 font-medium text-info">{r.extrasMin ? `+${minToHhmm(r.extrasMin)}` : '—'}</td>
                         <td className="px-3 py-2 font-medium text-progress">{r.devidasMin ? minToHhmm(r.devidasMin) : '—'}</td>
+                        <td className="px-3 py-2"><SaldoCell min={r.extrasMin - r.devidasMin} /></td>
                         <td className="px-3 py-2 font-medium text-destructive">{r.faltas || '—'}</td>
                         <td className="px-3 py-2">{r.problemas.length || '—'}</td>
                       </tr>
@@ -348,6 +363,19 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
                       })}
                     </Fragment>
                   ))}
+                  {filtered.length > 0 && (() => {
+                    const te = filtered.reduce((s, r) => s + r.extrasMin, 0), td = filtered.reduce((s, r) => s + r.devidasMin, 0);
+                    return (
+                      <tr className="border-t-2 border-border bg-muted/40 font-semibold">
+                        <td className="px-3 py-2">Total</td>
+                        <td className="px-3 py-2 text-info">{te ? `+${minToHhmm(te)}` : '—'}</td>
+                        <td className="px-3 py-2 text-progress">{td ? minToHhmm(td) : '—'}</td>
+                        <td className="px-3 py-2"><SaldoCell min={te - td} /></td>
+                        <td className="px-3 py-2 text-destructive">{filtered.reduce((s, r) => s + r.faltas, 0) || '—'}</td>
+                        <td className="px-3 py-2" />
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
