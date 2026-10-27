@@ -73,7 +73,7 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       modalidade: modalidade || null, numero_contrato: toId(t.NumeroContrato) || null,
       termino_contrato: toIsoDate(t.TerminoContrato), situacao_aluno: t.SituacaoAluno ?? null,
       sala: pick(t, 'sala'), data_inicio: toIsoDate(pick(t, 'datainicio', 'data de inicio', 'inicio')), data_termino: toIsoDate(pick(t, 'datatermino', 'data de termino', 'termino')),
-      fone_residencial: pick(t, 'foneresidencial', 'telefone residencial', 'telefone'), fone_celular: pick(t, 'fonecelular', 'celular', 'telefone celular'),
+      fone_residencial: pick(t, 'foneresidencial', 'telefone residencial', 'telefone'), fone_celular: pick(t, 'fonecelular', 'celular', 'telefone celular', 'telefone'),
       bolsa: pick(t, 'bolsa', 'percentual bolsa'), email: pick(t, 'email', 'e mail'),
       dias: pick(t, 'dias'), horario: pick(t, 'horario'), semestre: pick(t, 'semestre'),
       aba: abaFor(modalidade, String(t.Nome ?? ''), p.settings.separate_modalities),

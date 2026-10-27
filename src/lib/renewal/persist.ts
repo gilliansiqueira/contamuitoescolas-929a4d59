@@ -15,7 +15,9 @@ const KEEP: Record<string, string[]> = {
 async function chunked<T>(items: T[], size: number, fn: (c: T[]) => Promise<void>) { for (let i = 0; i < items.length; i += size) await fn(items.slice(i, i + size)); }
 
 export async function saveImport(sheet: RenewalSheet, parsed: ParsedSource, fileName: string, userId?: string) {
-  const rows = parsed.rows.map(r => Object.fromEntries(KEEP[parsed.source].filter(k => k in r).map(k => [k, r[k] instanceof Date ? r[k].toISOString().slice(0, 10) : r[k]])));
+  // Relatórios de turmas guardam todas as colunas (telefone, e-mail, datas…) para o Modelo poder usar qualquer uma.
+  const keys = (r: Record<string, any>) => parsed.source === 'contas_receber' ? KEEP.contas_receber.filter(k => k in r) : Object.keys(r).filter(k => k && !k.startsWith('__EMPTY'));
+  const rows = parsed.rows.map(r => Object.fromEntries(keys(r).map(k => [k, r[k] instanceof Date ? r[k].toISOString().slice(0, 10) : r[k]])));
   const { error } = await db.from('renewal_imports').insert({ sheet_id: sheet.id, school_id: sheet.school_id, source_key: parsed.source, file_name: fileName, row_count: rows.length, summary: { rows, discarded: parsed.discarded }, imported_by: userId });
   if (error) throw error;
 }
