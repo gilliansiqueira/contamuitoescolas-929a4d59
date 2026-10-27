@@ -19,14 +19,14 @@ interface UserRow {
   user_id: string;
   email: string;
   school_id: string | null;
-  role: 'admin' | 'cliente';
+  role: 'super_admin' | 'admin' | 'cliente';
   admin_scope: 'all' | 'list';
   school_nome?: string;
   extra_school_ids: string[];
 }
 
 export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}) {
-  const { isAdmin, isSuperAdmin, isAdminAll, accessibleSchoolIds, user } = useAuth();
+  const { isAdmin, isSuperAdmin, canManageCollaborators, isAdminAll, accessibleSchoolIds, user, refreshProfile } = useAuth();
   const [transferTo, setTransferTo] = useState<Record<string, string>>({});
   const qc = useQueryClient();
   const { data: schools = [] } = useSchools();
@@ -54,7 +54,7 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
         user_id: p.user_id,
         email: p.email,
         school_id: p.school_id,
-        role: (roles?.find(r => r.user_id === p.user_id)?.role as 'admin' | 'cliente') ?? 'cliente',
+        role: roles?.some(r => r.user_id === p.user_id && r.role === 'super_admin') ? 'super_admin' : roles?.some(r => r.user_id === p.user_id && r.role === 'admin') ? 'admin' : 'cliente',
         admin_scope: (p.admin_scope === 'list' ? 'list' : 'all'),
         school_nome: p.school_id ? schoolMap.get(p.school_id) : undefined,
         extra_school_ids: (extras ?? [])
@@ -66,18 +66,18 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
   });
 
   // Proprietária gerencia tudo; a equipe só clientes das empresas da própria carteira.
-  const manageableIds = new Set<string>(isSuperAdmin || isAdminAll ? schools.map(s => s.id) : accessibleSchoolIds);
+  const manageableIds = new Set<string>(canManageCollaborators || isAdminAll ? schools.map(s => s.id) : accessibleSchoolIds);
   const manageableSchools = schools.filter(s => manageableIds.has(s.id));
   const userSchoolIds = (u: UserRow) => [u.school_id, ...u.extra_school_ids].filter(Boolean) as string[];
   const canManageClient = (u: UserRow) => u.role === 'cliente' && userSchoolIds(u).some(id => manageableIds.has(id));
   const visibleUsers = users
-    .filter(u => isSuperAdmin || u.user_id === user?.id || canManageClient(u))
+    .filter(u => isSuperAdmin || (canManageCollaborators && u.role === 'admin') || u.user_id === user?.id || canManageClient(u))
     .filter(u => !schoolFilterId || userSchoolIds(u).includes(schoolFilterId) || u.user_id === user?.id)
     .sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === 'admin' ? -1 : 1));
   const teamUsers = users.filter(u => u.role === 'admin');
   const { data: supervision = [] } = useQuery({
     queryKey: ['team_supervision'],
-    enabled: isSuperAdmin,
+    enabled: canManageCollaborators,
     queryFn: async () => {
       const { data, error } = await (supabase as any).from('team_supervision').select('supervisor_id, member_id');
       if (error) throw error;
@@ -111,15 +111,15 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
         throw new Error('Email inválido. Use formato com domínio (ex: usuario@empresa.com)');
       }
       if (password.length < 6) throw new Error('Senha deve ter no mínimo 6 caracteres');
-      if ((role === 'cliente' || !isSuperAdmin) && !schoolId) throw new Error('Selecione uma empresa principal para o cliente');
+      if (role === 'cliente' && !schoolId) throw new Error('Selecione uma empresa principal para o cliente');
 
       const { data, error } = await supabase.functions.invoke('create-admin-user', {
         body: {
           email: cleanEmail,
           password,
-          role: isSuperAdmin ? role : 'cliente',
+          role: canManageCollaborators ? role : 'cliente',
           school_id: role === 'cliente' ? schoolId : (schoolId || null),
-          admin_scope: role === 'admin' ? adminScope : 'all',
+          admin_scope: role === 'admin' ? (isSuperAdmin ? adminScope : 'list') : 'all',
         },
       });
       if (error) throw new Error(error.message ?? 'Erro ao criar usuário');
@@ -177,14 +177,13 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
 
   const updateAdminScope = useMutation({
     mutationFn: async ({ userId, scope }: { userId: string; scope: 'all' | 'list' }) => {
-      const { error } = await (supabase.from('profiles') as any)
-        .update({ admin_scope: scope })
-        .eq('user_id', userId);
+      const { error } = await (supabase as any).rpc('set_collaborator_scope', { _user_id: userId, _scope: scope });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success('Escopo do administrador atualizado');
       qc.invalidateQueries({ queryKey: ['app_users'] });
+      void refreshProfile();
     },
     onError: (e: any) => toast.error(e.message ?? 'Erro ao atualizar escopo'),
   });
@@ -219,7 +218,7 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
     <div className="space-y-6">
       <div className="glass-card rounded-2xl p-6 space-y-4">
         <h2 className="text-lg font-display font-bold flex items-center gap-2">
-          <UserPlus className="w-5 h-5 text-primary" /> {isSuperAdmin ? 'Criar novo usuário' : 'Criar login de cliente'}
+          <UserPlus className="w-5 h-5 text-primary" /> {canManageCollaborators ? 'Criar novo usuário' : 'Criar login de cliente'}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -230,13 +229,13 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
             <Label>Senha (mín. 6 caracteres)</Label>
             <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
           </div>
-          {isSuperAdmin && <div className="space-y-1.5">
+          {canManageCollaborators && <div className="space-y-1.5">
             <Label>Papel</Label>
             <Select value={role} onValueChange={(v) => setRole(v as 'admin' | 'cliente')}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cliente">Cliente</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="admin">Colaborador</SelectItem>
               </SelectContent>
             </Select>
           </div>}
@@ -254,7 +253,7 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
           )}
           <div className="space-y-1.5">
             <Label>
-              {isSuperAdmin && role === 'admin' ? <>Primeira empresa da carteira <span className="text-xs text-muted-foreground">(opcional)</span></> : 'Empresa principal'}
+              {canManageCollaborators && role === 'admin' ? <>Primeira empresa da carteira <span className="text-xs text-muted-foreground">(opcional)</span></> : 'Empresa principal'}
             </Label>
             <Select value={schoolId} onValueChange={setSchoolId}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
@@ -289,8 +288,9 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
             {visibleUsers.map(u => {
               const expanded = expandedUserId === u.user_id;
               const isSelf = u.user_id === user?.id;
-              const canEditSchools = isSuperAdmin || (!isSelf && u.role === 'cliente');
-              const canPassword = isSuperAdmin || isSelf || u.role === 'cliente';
+              const canEditTeam = canManageCollaborators && u.role === 'admin';
+              const canEditSchools = isSuperAdmin || canEditTeam || (!isSelf && canManageClient(u));
+              const canPassword = isSuperAdmin || canEditTeam || isSelf || canManageClient(u);
               const availableExtras = manageableSchools.filter(
                 s => s.id !== u.school_id && !u.extra_school_ids.includes(s.id)
               );
@@ -349,7 +349,7 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
 
                   {expanded && (
                     <div className="border-t border-border p-3 space-y-3 bg-background/50">
-                      {isSuperAdmin && u.role === 'admin' && (
+                      {canEditTeam && (
                         <div className="space-y-1.5">
                           <Label className="text-xs uppercase tracking-wider text-muted-foreground">
                             Escopo do administrador
@@ -402,7 +402,7 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
                         </div>
                       </div>
 
-                      {isSuperAdmin && u.role === 'admin' && (
+                      {canEditTeam && (
                         <div className="space-y-1.5">
                           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Supervisiona (vê e trabalha nas carteiras)</Label>
                           <div className="flex flex-wrap gap-2">
@@ -413,7 +413,7 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
                           </div>
                         </div>
                       )}
-                      {isSuperAdmin && u.role === 'admin' && u.extra_school_ids.length > 0 && (
+                      {canEditTeam && u.extra_school_ids.length > 0 && (
                         <div className="space-y-1.5">
                           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Passar carteira inteira para</Label>
                           <div className="flex gap-2">
