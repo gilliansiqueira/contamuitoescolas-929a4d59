@@ -4420,6 +4420,8 @@ export type Database = {
         Returns: number
       }
       admin_manages_school: { Args: { _school_id: string }; Returns: boolean }
+      can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }
+      can_manage_collaborators: { Args: never; Returns: boolean }
       can_see_school: { Args: { _school_id: string }; Returns: boolean }
       can_view_team_time: { Args: never; Returns: boolean }
       close_recon_day: {
@@ -4589,6 +4591,10 @@ export type Database = {
       }
       set_bank_tx_splits: {
         Args: { _parts: Json; _tx_id: string }
+        Returns: undefined
+      }
+      set_collaborator_scope: {
+        Args: { _scope: string; _user_id: string }
         Returns: undefined
       }
       set_management_responsible: {

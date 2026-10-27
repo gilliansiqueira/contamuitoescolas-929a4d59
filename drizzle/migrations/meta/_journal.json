@@ -568,6 +568,13 @@
       "when": 1792011985631,
       "tag": "0080_team_supervision",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1793126305875,
+      "tag": "0081_delegate_collaborator_management",
+      "breakpoints": true
     }
   ]
 }
