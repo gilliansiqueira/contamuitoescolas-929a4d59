@@ -1,6 +1,7 @@
 # Roteiro
 
 ## Em andamento
+- [ ] Liberar Isabelly para criar e alterar colaboradores, incluindo o próprio acesso, sem privilégios de proprietária.
 - [x] Fazenda: importar Asaas_6 e Bradesco 09/10 (feito via acesso da Rubia), saldo Bradesco total, PDF×OFX sem duplicar
 - [x] Joinville Norte Santander importado (ContaMax como aplicação automática)
 - [ ] Joinville Centro Santander: aguardando o extrato
