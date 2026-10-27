@@ -220,7 +220,14 @@ describe('turmas do Omni', () => {
   it('reconhece o arquivo e converte matrícula, professor e integrantes', () => {
     const p = parseAny([H, L('T1','Heloisa','6409/2'), L('T1','Jamilly','6452/1'), L('T2','Kelly','5452/3')]);
     expect(p.source).toBe('turmas_existentes');
-    expect(p.rows[0]).toMatchObject({ Nome: 'T1', NumeroMatricula: '6409', NumeroContrato: '2', Professor: 'Maria Fernanda', IntegrantesAtuais: 2, Modalidade: 'Regular' });
+    expect(p.rows[0]).toMatchObject({ Nome: 'T1', NumeroMatricula: '6409', NumeroContrato: '6409/2', Professor: 'Maria Fernanda', IntegrantesAtuais: 2, Modalidade: 'Regular' });
     expect(p.rows[2].IntegrantesAtuais).toBe(1);
+  });
+});
+
+describe('telefone nas turmas', () => {
+  it('coluna Telefone (Omni) preenche o celular', () => {
+    const { rows } = buildImported([{ Nome: 'T1', Aluno: 'Ana', NumeroMatricula: '1', Telefone: '(41) 99567-5929' }], null, { settings });
+    expect([...rows.values()][0].fone_celular).toBe('(41) 99567-5929');
   });
 });

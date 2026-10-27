@@ -345,6 +345,10 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
                 {s.key === 'turmas_formacao' && <><dt className="text-muted-foreground">Enviar</dt><dd><Input type="file" accept=".xls,.xlsx,.csv" className="h-8 text-xs" onChange={e => { onFile(e.target.files?.[0], 'turmas_formacao'); e.target.value = ''; }} /></dd></>}
                 {last && <><dt className="text-muted-foreground">Último envio</dt><dd>{last.file_name} · {last.row_count} linhas · {fmtDT(last.created_at)}</dd></>}
               </dl>
+              {last && s.key === 'turmas_existentes' && rows.length > 0 && (() => {
+                const vazias = sheet.columns.filter(c => c.source === s.key && !c.hidden && c.field && !['aluno', 'turma', 'matricula'].includes(c.field) && !rows.some(r => String(r.imported?.[c.field!] ?? '').trim() !== ''));
+                return vazias.length > 0 && <p className="mt-2 rounded-md border border-warning/50 bg-warning/5 p-2 text-xs"><b className="text-warning">Essas colunas não vieram no relatório:</b> {vazias.map(c => c.title).join(', ')}. Envie o relatório de novo e aperte "Recalcular planilha". Se continuarem vazias, o relatório exportado não tem essa informação.</p>;
+              })()}
             </div>
           );
         })}

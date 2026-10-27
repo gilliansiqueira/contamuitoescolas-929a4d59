@@ -70,7 +70,7 @@ export function fromOmni(rows: Record<string, any>[]): Record<string, any>[] {
     const mod = String(g(o, 'modalidade') ?? '').trim();
     const tipo = String(g(o, 'tipo') ?? '').trim();
     return {
-      Nome: turma, Aluno: g(o, 'aluno'), NumeroMatricula: mat?.trim() || null, NumeroContrato: contrato?.trim() || null,
+      Nome: turma, Aluno: g(o, 'aluno'), NumeroMatricula: mat?.trim() || null, NumeroContrato: contrato?.trim() ? `${mat.trim()}/${contrato.trim()}` : null,
       Professor: g(o, 'instrutor'), Curso: g(o, 'curso'), Estagio: g(o, 'livro'),
       Modalidade: !mod || norm(mod) === 'turmas' ? tipo || mod : mod,
       DataInicio: g(o, 'inicio'), DataTermino: g(o, 'fim'), FoneCelular: g(o, 'telefone'), Email: g(o, 'e mail'),
