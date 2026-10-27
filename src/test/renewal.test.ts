@@ -227,7 +227,7 @@ describe('turmas do Omni', () => {
 
 describe('telefone nas turmas', () => {
   it('coluna Telefone (Omni) preenche o celular', () => {
-    const { rows } = buildImported([{ Nome: 'T1', Aluno: 'Ana', NumeroMatricula: '1', Telefone: '(41) 99567-5929' }], null, { settings: { separate_modalities: [] } as any });
-    expect(rows[0].fone_celular).toBe('(41) 99567-5929');
+    const { rows } = buildImported([{ Nome: 'T1', Aluno: 'Ana', NumeroMatricula: '1', Telefone: '(41) 99567-5929' }], null, { settings });
+    expect([...rows.values()][0].fone_celular).toBe('(41) 99567-5929');
   });
 });
