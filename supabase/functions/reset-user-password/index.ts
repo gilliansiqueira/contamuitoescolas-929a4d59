@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { canManageCollaborator } from "../_shared/collaboratorAccess.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +53,8 @@ Deno.serve(async (req) => {
     if (!allowed && isTeam) {
       // Equipe: só clientes com alguma empresa da carteira dela.
       const { data: targetRoles } = await adminClient.from("user_roles").select("role").eq("user_id", user_id);
+      const { data: permissions } = await adminClient.from("user_permissions").select("permission").eq("user_id", caller.id);
+      allowed = canManageCollaborator((callerRoles ?? []).map(r => r.role), (permissions ?? []).map(p => p.permission), (targetRoles ?? []).map(r => r.role));
       const targetIsClient = !targetRoles?.some((r) => r.role === "admin" || r.role === "super_admin");
       if (targetIsClient) {
         const [{ data: prof }, { data: extras }] = await Promise.all([
@@ -85,6 +88,7 @@ Deno.serve(async (req) => {
       });
     }
 
+    await adminClient.from("user_access_changes").insert({ actor_id: caller.id, target_user_id: user_id, action: "alterou_senha" });
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -30,6 +30,8 @@ interface AuthContextValue {
   isAdminAll: boolean;
   /** Pode ver o Ponto da Equipe (super admin ou permissão ponto_view). */
   canViewTeamTime: boolean;
+  /** Gestão delegada da equipe, sem privilégios de proprietária. */
+  canManageCollaborators: boolean;
   /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin scope='all' = todas. */
   accessibleSchoolIds: string[];
   loading: boolean;
@@ -132,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isSuperAdmin: profile?.role === 'super_admin',
         isAdminAll: (profile?.role === 'admin' || profile?.role === 'super_admin') && profile?.admin_scope !== 'list',
         canViewTeamTime: profile?.role === 'super_admin' || !!profile?.permissions?.includes('ponto_view'),
+        canManageCollaborators: profile?.role === 'super_admin' || (profile?.role === 'admin' && !!profile.permissions.includes('collaborators_manage')),
         accessibleSchoolIds,
         loading,
         signIn,

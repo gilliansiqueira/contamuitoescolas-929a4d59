@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { canCreateCollaborator } from "../_shared/collaboratorAccess.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,19 +33,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Valida que o chamador é admin (exceto se ainda não houver nenhum admin no sistema — bootstrap)
+    // Toda criação exige sessão e autorização no servidor.
     const authHeader = req.headers.get("Authorization");
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { count: adminCount } = await adminClient
-      .from("user_roles")
-      .select("*", { count: "exact", head: true })
-      .eq("role", "admin");
-
-    if ((adminCount ?? 0) > 0) {
+    let actorId: string | null = null;
+    let delegated = false;
+    {
       // Já existe admin — exige autenticação de admin
       if (!authHeader) {
         return new Response(JSON.stringify({ error: "não autorizado" }), {
@@ -64,7 +62,10 @@ Deno.serve(async (req) => {
       }
       const { data: callerRoles } = await adminClient
         .from("user_roles").select("role").eq("user_id", caller.id);
+      actorId = caller.id;
+      const { data: permissions } = await adminClient.from("user_permissions").select("permission").eq("user_id", caller.id);
       const isSuper = !!callerRoles?.some(r => r.role === "super_admin");
+      delegated = !isSuper && canCreateCollaborator((callerRoles ?? []).map(r => r.role), (permissions ?? []).map(p => p.permission));
       const isTeam = isSuper || !!callerRoles?.some(r => r.role === "admin");
       if (!isTeam) {
         return new Response(JSON.stringify({ error: "apenas a equipe pode criar usuários" }), {
@@ -73,17 +74,23 @@ Deno.serve(async (req) => {
       }
       if (!isSuper) {
         // Equipe: só cria login de cliente em empresa da própria carteira.
-        if (role !== "cliente") {
+        if (role !== "cliente" && !delegated) {
           return new Response(JSON.stringify({ error: "somente a proprietária cria logins da equipe" }), {
             status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        const { data: manages } = await userClient.rpc("admin_manages_school", { _school_id: school_id });
+        const { data: manages } = role === "admin" && delegated
+          ? { data: true }
+          : await userClient.rpc("admin_manages_school", { _school_id: school_id });
         if (!manages) {
           return new Response(JSON.stringify({ error: "esta empresa não está na sua carteira" }), {
             status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+      }
+      if (school_id) {
+        const { data: visible } = await userClient.rpc("can_see_school", { _school_id: school_id });
+        if (!visible) return new Response(JSON.stringify({ error: "empresa indisponível" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
@@ -93,18 +100,20 @@ Deno.serve(async (req) => {
       user_metadata: { school_id: role === "cliente" ? school_id : null },
     });
     if (cErr) throw cErr;
-    const userId = created.user!.id;
+    if (!created.user) throw new Error("Não foi possível criar o usuário");
+    const userId = created.user.id;
 
     // 2. Garante profile (trigger handle_new_user pode já ter criado)
-    await adminClient.from("profiles").upsert(
+    const { error: profileError } = await adminClient.from("profiles").upsert(
       {
         user_id: userId,
         email,
         school_id: role === "cliente" ? school_id : null,
-        admin_scope: role === "admin" ? scope : "all",
+        admin_scope: role === "admin" ? (delegated ? "list" : scope) : "all",
       },
       { onConflict: "user_id" },
     );
+    if (profileError) throw profileError;
 
     // 3. Insere role
     const { error: rErr } = await adminClient.from("user_roles").insert({ user_id: userId, role });
@@ -112,8 +121,10 @@ Deno.serve(async (req) => {
 
     // Equipe não tem "empresa principal": a empresa escolhida entra na carteira (user_schools).
     if (role === "admin" && school_id) {
-      await adminClient.from("user_schools").insert({ user_id: userId, school_id });
+      const { error: linkError } = await adminClient.from("user_schools").insert({ user_id: userId, school_id });
+      if (linkError) throw linkError;
     }
+    await adminClient.from("user_access_changes").insert({ actor_id: actorId, target_user_id: userId, action: "criou_usuario" });
 
     return new Response(JSON.stringify({ success: true, user_id: userId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
