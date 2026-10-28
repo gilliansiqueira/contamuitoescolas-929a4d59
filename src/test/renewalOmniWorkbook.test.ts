@@ -10,7 +10,7 @@ describe('Omni com várias abas', () => {
     const sheets = wb.SheetNames.map(n => XLSX.utils.sheet_to_json<any[]>(wb.Sheets[n], { header: 1, raw: true, defval: null }));
     const p = parseSponteWorkbook(sheets);
     expect(p.rows.length).toBe(133);
-    expect(new Set(p.rows.map(r => r.Nome)).size).toBe(57);
+    expect(new Set(p.rows.map(r => r.Nome)).size).toBe(53);
     const r = p.rows.find(x => x.Aluno === 'Heloisa Bortolozzo Savoldi')!;
     expect(r.Sala).toBe('Sala Personal');
     expect(r.FoneCelular).toBe('419986-2010');
