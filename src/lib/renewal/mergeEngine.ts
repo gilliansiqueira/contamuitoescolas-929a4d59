@@ -143,8 +143,17 @@ export function mergeRows(existing: RenewalRow[], imported: Map<string, Record<s
   const out: RenewalRow[] = [];
   let conflicts = 0, kept = 0, added = 0;
   let order = 0;
+  // Turma renomeada (ex.: migração Sponte → Omni): o mesmo aluno em uma única linha antiga e uma única nova leva as edições junto.
+  const sid = (k: string) => k.split('|')[0];
+  const count = (keys: Iterable<string>) => { const m = new Map<string, number>(); for (const k of keys) m.set(sid(k), (m.get(sid(k)) ?? 0) + 1); return m; };
+  const oldOrphans = [...byKey.keys()].filter(k => !imported.has(k));
+  const newOrphans = [...imported.keys()].filter(k => !byKey.has(k));
+  const oc = count(oldOrphans), nc = count(newOrphans);
+  const moved = new Map<string, RenewalRow>();
+  for (const k of oldOrphans) { const r = byKey.get(k)!; if (!r.manual && oc.get(sid(k)) === 1 && nc.get(sid(k)) === 1) moved.set(sid(k), r); }
   for (const [key, imp] of imported) {
-    const old = byKey.get(key);
+    let old = byKey.get(key);
+    if (!old && moved.has(sid(key))) { const m = moved.get(sid(key))!; byKey.delete(m.row_key); byKey.set(key, m); old = { ...m, row_key: key }; }
     if (!old) { out.push({ row_key: key, imported: imp, overrides: {}, conflicts: {}, sort_order: order++, manual: false }); added++; continue; }
     const conf: RenewalRow['conflicts'] = {};
     for (const [colId, o] of Object.entries(old.overrides ?? {})) {
