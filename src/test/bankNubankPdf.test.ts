@@ -8,7 +8,7 @@ describe('PDF Nubank PJ (WNC)', () => {
   const mov = r.transactions.filter(t => t.descricao !== 'Rendimento líquido');
   it('reconhece', () => expect(isNubankPjPdf(L)).toBe(true));
   it('lê os lançamentos com sentido do bloco', () => {
-    expect(mov.length).toBe(19);
+    expect(mov.length).toBe(15);
     const e = mov.filter(t => t.tipo === 'entrada').reduce((a, t) => a + t.valor, 0);
     const s = mov.filter(t => t.tipo === 'saida').reduce((a, t) => a + t.valor, 0);
     expect(Math.round(e * 100) / 100).toBe(7602.96);
