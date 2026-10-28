@@ -43,7 +43,7 @@ function toCell(v: any, col: RenewalColumn) {
 }
 
 function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalColumn[], structure: TemplateStructure | null) {
-  const cols = columns.filter(c => !c.hidden);
+  const cols = columns.filter(c => !c.hidden).map(withFieldDefaults);
   const headerColor = structure?.headerColor ?? 'FF002060';
   const pIdx = cols.findIndex(c => c.field === 'professor') + 1;
   const tIdx = cols.findIndex(c => c.field === 'turma') + 1;

@@ -4,8 +4,17 @@ interface FieldDef { field: string; title: string; kind: ColKind; type: ColType;
 
 export const STATUS_OPTIONS = ['Renovado', 'Pendente', 'Aguardando Retorno', 'Não Rematriculará'];
 export const SITUACAO_OPTIONS = ['Follow Lançado', 'Planejamento Enviado', 'Lançamento Autorizado', 'Cont. Ass. c/ Pendência Finan.', 'Contrato Lançado no Sistema'];
-export const STATUS_COLORS: Record<string, string> = { 'Renovado': 'FF00B0F0', 'Pendente': 'FFF8CBAD', 'Aguardando Retorno': 'FFD9D9D9', 'Não Rematriculará': 'FFFF0000' };
-export const SITUACAO_COLORS: Record<string, string> = { 'Follow Lançado': 'FFFFFFFF', 'Planejamento Enviado': 'FFFFC000', 'Lançamento Autorizado': 'FFFFFFFF', 'Cont. Ass. c/ Pendência Finan.': 'FFFFFF00', 'Contrato Lançado no Sistema': 'FF92D050' };
+export const STATUS_COLORS: Record<string, string> = { 'Renovado': 'FF00B0F0', 'Rematriculado': 'FF00B0F0', 'Pendente': 'FFFBD5B5', 'Aguardando Retorno': 'FFD9D9D9', 'Não Rematriculará': 'FFFF0000' };
+export const SITUACAO_COLORS: Record<string, string> = { 'Follow Lançado': 'FFDBEEF4', 'Planejamento Enviado': 'FFE6B9B8', 'Lançamento Autorizado': 'FFB3A2C7', 'Cont. Ass. c/ Pendência Finan.': 'FFB97034', 'Contrato Lançado no Sistema': 'FF00B050', 'Rematriculado sem pendências': 'FF92D050' };
+
+/** Coluna de lista sem cores configuradas usa as cores padrão do catálogo (tela e Excel nunca saem sem cor). */
+export function withFieldDefaults(col: RenewalColumn): RenewalColumn {
+  const def = FIELDS.find(f => f.field === col.field);
+  if (!def?.optionColors || col.type !== 'list') return col;
+  const options = col.options?.length ? col.options : def.options;
+  const optionColors = { ...Object.fromEntries((options ?? []).filter(o => def.optionColors![o]).map(o => [o, def.optionColors![o]])), ...(col.optionColors ?? {}) };
+  return { ...col, options, optionColors };
+}
 
 const T = 'turmas_existentes';
 /** Catálogo de campos conhecidos e regras de preenchimento validadas (ordem = ordem padrão do Sponte). */

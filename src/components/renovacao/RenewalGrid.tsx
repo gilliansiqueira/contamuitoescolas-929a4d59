@@ -57,7 +57,7 @@ export function RenewalGrid({ rows, columns, onEdits, onColumnsChange, onAddRow,
   const wrapRef = useRef<HTMLDivElement>(null);
   const resizing = useRef<{ id: string; x: number; w: number } | null>(null);
 
-  const cols = useMemo(() => columns.filter(c => !c.hidden), [columns]);
+  const cols = useMemo(() => columns.filter(c => !c.hidden).map(withFieldDefaults), [columns]);
   const hiddenCols = columns.filter(c => c.hidden);
 
   const view = useMemo(() => {
