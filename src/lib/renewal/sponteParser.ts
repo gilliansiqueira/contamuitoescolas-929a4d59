@@ -117,10 +117,49 @@ export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSou
   return { source, headers, rows, discarded };
 }
 
+/** Aba "Turmas" do Omni: Turma + Instrutor + Sala + Alunos (sem coluna Aluno). */
+function omniTurmasInfo(matrix: any[][]): Map<string, { sala: any; alunos: any }> | null {
+  for (let r = 0; r < Math.min(30, matrix.length); r++) {
+    const vals = (matrix[r] ?? []).map(norm);
+    if (['turma', 'instrutor', 'sala', 'alunos'].every(h => vals.includes(h)) && !vals.includes('aluno')) {
+      const ti = vals.indexOf('turma'), si = vals.indexOf('sala'), ai = vals.indexOf('alunos');
+      const m = new Map<string, { sala: any; alunos: any }>();
+      for (let i = r + 1; i < matrix.length; i++) {
+        const t = String(matrix[i]?.[ti] ?? '').trim();
+        if (t) m.set(t, { sala: matrix[i][si], alunos: matrix[i][ai] });
+      }
+      return m;
+    }
+  }
+  return null;
+}
+
+/** Lê todas as abas e usa a primeira que tiver um relatório reconhecido (a ordem das abas não importa). */
+export function parseSponteWorkbook(sheets: any[][][], force?: SourceKey): ParsedSource {
+  let parsed: ParsedSource | null = null; let firstErr: unknown = null;
+  let info: Map<string, { sala: any; alunos: any }> | null = null;
+  for (const m of sheets) {
+    info = info ?? omniTurmasInfo(m);
+    if (parsed) continue;
+    if (detectOmni(m) < 0 && !detectSource(m)) continue;
+    try { parsed = parseSponteMatrix(m, force); } catch (e) { firstErr = firstErr ?? e; }
+  }
+  if (!parsed) { if (firstErr) throw firstErr; return parseSponteMatrix(sheets[0] ?? [], force); }
+  if (info) {
+    for (const row of parsed.rows) {
+      const i = info.get(String(row.Nome ?? '').trim());
+      if (!i) continue;
+      if (row.Sala == null || row.Sala === '') row.Sala = i.sala;
+      const n = Number(i.alunos); if (Number.isFinite(n) && n > 0) row.IntegrantesAtuais = n;
+    }
+    if (!parsed.headers.includes('Sala')) parsed.headers = [...parsed.headers, 'Sala'];
+  }
+  return parsed;
+}
+
 export async function parseSponteFile(file: File, force?: SourceKey): Promise<ParsedSource> {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', raw: false, cellDates: true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const matrix = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: null });
-  return parseSponteMatrix(matrix, force);
+  const sheets = wb.SheetNames.map(n => XLSX.utils.sheet_to_json<any[]>(wb.Sheets[n], { header: 1, raw: true, defval: null }));
+  return parseSponteWorkbook(sheets, force);
 }
