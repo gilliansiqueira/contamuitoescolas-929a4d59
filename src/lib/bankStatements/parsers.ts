@@ -1132,6 +1132,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
     }
     if (isBradescoPdf(lines)) return parseBradescoPdfLines(lines);
     if (isNiboContasPdf(lines)) return parseNiboContasPdfLines(lines);
+    if (isBBContaCorrentePdf(lines)) return parseBBContaCorrentePdfLines(lines);
     if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
     return parsePdfLines(lines);
   }
