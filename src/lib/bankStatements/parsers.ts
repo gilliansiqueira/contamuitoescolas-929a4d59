@@ -1049,6 +1049,71 @@ export function decodeBankText(buf: ArrayBuffer): string {
   catch { return new TextDecoder('windows-1252').decode(buf); }
 }
 
+/** BB "Extrato de Conta Corrente" (Dia/Lote/Documento/Histórico/Valor) com sentido "(+)"/"(-)" após o valor. */
+export function isBBContaCorrentePdf(lines: string[]): boolean {
+  const all = stripAccents(lines.join('\n'));
+  return /extrato de conta corrente/i.test(all) && /dia\s+lote\s+documento\s+historico/i.test(all) && /\d,\d{2}\s*\((\+|-)\)/.test(all);
+}
+
+/**
+ * O histórico vem na linha ACIMA do lançamento e o complemento (quem pagou/recebeu) na linha ABAIXO.
+ * O sentido vem do "(+)"/"(-)". Cada "Saldo do dia" é conferido; se não fechar, nada é importado.
+ */
+export function parseBBContaCorrentePdfLines(lines: string[]): BankParseResult {
+  const txs: ParsedBankTx[] = [];
+  const DT = /^(\d{2}\/\d{2}\/\d{4})\s+(.*?)\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s*\((\+|-)\)\s*$/;
+  const HEADER = /^(extrato de conta corrente|cliente:|periodo:|lancamentos$|dia\s+lote)/i;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const limpaComp = (s: string) => s.replace(/^\d{2}\/\d{2}\s+\d{2}:\d{2}\s+/, '').replace(/^\d{11,14}\s+/, '').trim();
+  let buf: string[] = [];
+  let ultimo: ParsedBankTx | null = null; let ultimoTemComp = false;
+  let saldoAnterior: number | undefined; let corrente: number | undefined;
+  let saldoFinal: number | undefined; let saldoData: string | undefined; let investido: number | undefined;
+  const erros: string[] = [];
+  const anexa = (t: ParsedBankTx | null, partes: string[]) => {
+    for (const p of partes) {
+      const c = limpaComp(p); if (!c || !t) continue;
+      t.descricao = ultimoTemComp ? `${t.descricao} ${c}` : `${t.descricao} - ${c}`; ultimoTemComp = true;
+    }
+  };
+  for (const raw of lines) {
+    const line = raw.replace(/\s+/g, ' ').trim();
+    const plain = stripAccents(line);
+    if (!line || HEADER.test(plain)) continue;
+    if (/^informacoes adicionais/i.test(plain)) break;
+    const m = line.match(DT);
+    if (!m) { buf.push(line); continue; }
+    const data = toIsoDate(m[1]); if (!data) continue;
+    const v = parseBRNumber(m[3]) * (m[4] === '-' ? -1 : 1);
+    const body = stripAccents(m[2]);
+    if (/saldo anterior/i.test(body)) { saldoAnterior = v; corrente = v; anexa(ultimo, buf); buf = []; continue; }
+    if (/saldo do dia|s a l d o/i.test(body)) {
+      anexa(ultimo, buf); buf = []; ultimo = null;
+      if (corrente !== undefined && Math.abs(r2(corrente) - v) >= 0.01) erros.push(`${m[1]}: lançamentos somam ${r2(corrente).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, extrato mostra ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+      corrente = v; saldoFinal = v; saldoData = data; continue;
+    }
+    anexa(ultimo, buf.slice(0, -1));
+    const hist = buf.length ? buf[buf.length - 1] : '';
+    buf = [];
+    const inline = limpaComp(m[2].replace(/^\d{3,5}\s+/, '').replace(/^\d{6,}\s*/, ''));
+    const descricao = [hist, inline].filter(Boolean).join(' - ') || 'Lançamento BB';
+    const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' };
+    txs.push(tx); ultimo = tx; ultimoTemComp = !!inline;
+    if (corrente !== undefined) corrente += v;
+  }
+  const ia = lines.map(l => stripAccents(l.replace(/\s+/g, ' ').trim())).find(l => /^invest\.?\s*resgate\s*autom/i.test(l));
+  const im = ia?.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*\((\+|-)\)/);
+  if (im) investido = parseBRNumber(im[1]) * (im[2] === '-' ? -1 : 1);
+  if (saldoAnterior === undefined || saldoFinal === undefined || !saldoData) throw new Error('Não foi possível ler o saldo anterior e o saldo final deste PDF do Banco do Brasil. Nada foi importado.');
+  if (erros.length) throw new Error(`A leitura do PDF do Banco do Brasil não fecha com o "Saldo do dia" impresso (${erros.join('; ')}). Nada foi importado.`);
+  const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const total = investido !== undefined ? r2(saldoFinal + investido) : undefined;
+  const r = finish('pdf', txs, { banco: 'Banco do Brasil', avisos: [
+    `Saldos do PDF em ${saldoData.split('-').reverse().join('/')}: em conta ${fmt(saldoFinal)}${total !== undefined ? ` · total com aplicação ${fmt(total)}` : ''}. Todos os "Saldo do dia" conferem com os lançamentos.`,
+  ] });
+  return { ...r, saldoFinalInformado: saldoFinal, periodoFim: saldoData, ...(total !== undefined ? { saldoComAplicacaoInformado: total } : {}) };
+}
+
 export async function parseBankFile(file: File): Promise<BankParseResult> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.ofx')) return parseOFX(decodeBankText(await file.arrayBuffer()));
@@ -1067,6 +1132,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
     }
     if (isBradescoPdf(lines)) return parseBradescoPdfLines(lines);
     if (isNiboContasPdf(lines)) return parseNiboContasPdfLines(lines);
+    if (isBBContaCorrentePdf(lines)) return parseBBContaCorrentePdfLines(lines);
     if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
     return parsePdfLines(lines);
   }

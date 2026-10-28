@@ -575,6 +575,13 @@
       "when": 1793126305875,
       "tag": "0081_delegate_collaborator_management",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793203429782,
+      "tag": "0082_fix_bb_brasilia_sinal_outubro",
+      "breakpoints": true
     }
   ]
 }
