@@ -34,6 +34,13 @@ export function teamFilledPayment(row: RenewalRow | undefined, columns: RenewalC
   return columns.some(c => c.field && PAYMENT_FIELDS.includes(c.field) && String(row.overrides?.[c.id]?.value ?? '').trim() !== '');
 }
 
+const issueSig = (i: { kind: string; row_key?: string | null; message: string }) => `${i.kind}|${i.row_key ?? ''}|${i.message}`;
+/** Remove avisos repetidos e os que a equipe já resolveu com a mesma mensagem. */
+export function dedupeAgainstResolved<T extends { kind: string; row_key?: string | null; message: string }>(issues: T[], resolved: { kind: string; row_key?: string | null; message: string }[]): T[] {
+  const seen = new Set(resolved.map(issueSig));
+  return issues.filter(i => { const s = issueSig(i); if (seen.has(s)) return false; seen.add(s); return true; });
+}
+
 /** Recalcula a planilha a partir das últimas importações, preservando o que a equipe editou. */
 export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSettings, existing: RenewalRow[]) {
   const { data: imps, error } = await db.from('renewal_imports').select('*').eq('sheet_id', sheet.id).order('created_at', { ascending: false });
@@ -65,7 +72,9 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
       if (o && String(o.value ?? '') !== '' && String(o.value) !== String(nv)) extra.push({ kind: 'formacao_conflito', row_key: r.row_key, message: `${r.imported.aluno}: turmas em formação indicam ${col.title} = "${nv}", mas a equipe marcou "${o.value}" (mantido).` });
     }
   }
-  const all2 = [...issues, ...extra];
+  // Avisos já conferidos/desconsiderados pela equipe não voltam; só reabrem se a mensagem mudar (ex.: nº de parcelas).
+  const { data: done } = await db.from('renewal_issues').select('kind,row_key,message').eq('sheet_id', sheet.id).eq('resolved', true);
+  const all2 = dedupeAgainstResolved([...issues, ...extra], done ?? []);
   const rowByKey = new Map(all.map(r => [r.row_key, r]));
   const autoResolved = (i: Issue) => INFO_KINDS.has(i.kind) || (i.kind === 'sem_financeiro' && teamFilledPayment(rowByKey.get(i.row_key ?? ''), sheet.columns));
   await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: autoResolved(i) && !INFO_KINDS.has(i.kind) ? { ...(i.detail ?? {}), resolucao: { motivo: 'Preenchido pela equipe' } } : i.detail ?? {}, resolved: autoResolved(i) }))); if (e) throw e; });
