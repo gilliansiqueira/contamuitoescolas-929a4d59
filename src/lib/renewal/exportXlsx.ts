@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import type { RenewalColumn, RenewalRow, TemplateStructure } from './types';
 import { cellValue, isRenewedFor } from './types';
+import { withFieldDefaults } from './fields';
 
 const letter = (n: number) => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 

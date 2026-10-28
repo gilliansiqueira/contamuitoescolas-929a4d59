@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Undo2, Search, Columns3, AlertTriangle } from 'lucide-react';
 import type { RenewalColumn, RenewalRow, ColType } from '@/lib/renewal/types';
 import { cellValue, A_CONFIRMAR, SEM_INFO } from '@/lib/renewal/types';
-import { newColId } from '@/lib/renewal/fields';
+import { newColId, withFieldDefaults } from '@/lib/renewal/fields';
 
 export interface CellEdit { rowKey: string; colId: string; value: any }
 
