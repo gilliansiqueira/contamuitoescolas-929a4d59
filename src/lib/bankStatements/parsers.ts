@@ -1114,6 +1114,78 @@ export function parseBBContaCorrentePdfLines(lines: string[]): BankParseResult {
   return { ...r, saldoFinalInformado: saldoFinal, periodoFim: saldoData, ...(total !== undefined ? { saldoComAplicacaoInformado: total } : {}) };
 }
 
+/** Nubank PJ: "Movimentações" com dias "29 SET 2026", blocos "Total de entradas/saídas" e "Saldo do dia". */
+export function isNubankPjPdf(lines: string[]): boolean {
+  const all = stripAccents(lines.join('\n'));
+  return /nubank|nu pagamentos/i.test(all) && /movimentacoes/i.test(all) && /saldo do dia/i.test(all) && /\d{2} [A-Z]{3} \d{4}\s+total de (entradas|saidas)/i.test(all);
+}
+
+/**
+ * O sentido vem do bloco ("Total de entradas" / "Total de saídas"), nunca do sinal.
+ * O rendimento diário não aparece como linha: a diferença positiva até o "Saldo do dia" vira "Rendimento líquido".
+ * O total de rendimentos e o saldo final têm que bater com o resumo; senão nada é importado.
+ */
+export function parseNubankPjPdfLines(lines: string[]): BankParseResult {
+  const MESES: Record<string, string> = { JAN: '01', FEV: '02', MAR: '03', ABR: '04', MAI: '05', JUN: '06', JUL: '07', AGO: '08', SET: '09', OUT: '10', NOV: '11', DEZ: '12' };
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const VAL = '(\\d{1,3}(?:\\.\\d{3})*,\\d{2})';
+  const num = (s: string) => parseBRNumber(s.replace(/\s/g, ''));
+  const txs: ParsedBankTx[] = [];
+  let saldoInicial: number | undefined, saldoFinal: number | undefined, rendResumo: number | undefined;
+  let fimPeriodo: string | undefined;
+  let data: string | undefined, sentido: 'entrada' | 'saida' | undefined, corrente: number | undefined, movimentos = false;
+  let rendTotal = 0; const erros: string[] = [];
+  for (const raw of lines) {
+    const line = raw.replace(/\s+/g, ' ').trim(); const plain = stripAccents(line);
+    const per = plain.match(/a (\d{1,2}) DE ([A-Z]+) DE (\d{4})\s+VALORES/i);
+    if (per && !fimPeriodo) { const m = MESES[per[2].slice(0, 3).toUpperCase()]; if (m) fimPeriodo = `${per[3]}-${m}-${per[1].padStart(2, '0')}`; }
+    if (!movimentos) {
+      let m;
+      if ((m = plain.match(new RegExp(`^saldo inicial\\s+-?${VAL}$`, 'i')))) saldoInicial = num(m[1]);
+      else if ((m = plain.match(new RegExp(`^rendimento liquido\\s+([+-])\\s*${VAL}$`, 'i')))) rendResumo = num(m[2]) * (m[1] === '-' ? -1 : 1);
+      else if ((m = plain.match(new RegExp(`^saldo final do periodo\\s+-?${VAL}$`, 'i')))) saldoFinal = num(m[1]);
+      else if (/^movimentacoes$/i.test(plain)) { movimentos = true; corrente = saldoInicial; }
+      continue;
+    }
+    const dia = plain.match(/^(\d{2}) ([A-Z]{3}) (\d{4})\s+total de (entradas|saidas)/i);
+    if (dia) { data = `${dia[3]}-${MESES[dia[2].toUpperCase()]}-${dia[1]}`; sentido = /entradas/i.test(dia[4]) ? 'entrada' : 'saida'; continue; }
+    if (/^total de entradas/i.test(plain)) { sentido = 'entrada'; continue; }
+    if (/^total de saidas/i.test(plain)) { sentido = 'saida'; continue; }
+    const sd = plain.match(new RegExp(`^saldo do dia\\s+(-?)\\s*${VAL}$`, 'i'));
+    if (sd) {
+      const v = num(sd[2]) * (sd[1] ? -1 : 1);
+      if (corrente !== undefined && data) {
+        const diff = r2(v - corrente);
+        if (diff > 0 && diff <= Math.abs(v) * 0.001) { txs.push({ data, descricao: 'Rendimento líquido', valor: diff, tipo: 'entrada' }); rendTotal += diff; }
+        else if (Math.abs(diff) >= 0.01) erros.push(`${data.split('-').reverse().join('/')}: lançamentos somam ${fmt(corrente)}, extrato mostra ${fmt(v)}`);
+      }
+      corrente = v; sentido = undefined; continue;
+    }
+    if (!data || !sentido) continue;
+    const tx = line.match(new RegExp(`^(.+?)\\s+${VAL}$`));
+    if (!tx || !/(pix|boleto|transfer|pagamento|reembolso|deposito|tarifa|compra|resgate|aplicacao|debito|credito|estorno|ted|doc)/i.test(stripAccents(tx[1]))) continue;
+    const parts = tx[1].split(/\s{2,}|\s(?=[A-ZÀ-Ú0-9][^a-z]*$)/);
+    const [tipo, ...resto] = tx[1].split(/\s+(?=(?:[A-Z0-9ÀÁÂÃÉÊÍÓÔÕÚÇ]{2,}|[A-ZÀ-Ú][a-zà-ú]+ [A-ZÀ-Ú]))/);
+    void parts;
+    const nome = resto.join(' ').split(' - ')[0].trim();
+    const valor = num(tx[2]);
+    txs.push({ data, descricao: nome ? `${tipo.trim()} - ${nome}` : tipo.trim(), valor, tipo: sentido });
+    if (corrente !== undefined) corrente = r2(corrente + (sentido === 'entrada' ? valor : -valor));
+  }
+  if (saldoInicial === undefined || saldoFinal === undefined) throw new Error('Não foi possível ler o saldo inicial e o saldo final deste PDF do Nubank. Nada foi importado.');
+  if (corrente !== undefined && saldoFinal !== undefined) {
+    const diff = r2(saldoFinal - corrente);
+    if (diff > 0 && diff <= saldoFinal * 0.001) { txs.push({ data: fimPeriodo ?? data!, descricao: 'Rendimento líquido', valor: diff, tipo: 'entrada' }); rendTotal += diff; }
+    else if (Math.abs(diff) >= 0.01) erros.push(`saldo final: lançamentos somam ${fmt(corrente)}, extrato mostra ${fmt(saldoFinal)}`);
+  }
+  if (erros.length) throw new Error(`A leitura do PDF do Nubank não fecha com os saldos impressos (${erros.join('; ')}). Nada foi importado.`);
+  if (rendResumo !== undefined && Math.abs(r2(rendTotal) - rendResumo) >= 0.01) throw new Error(`Os rendimentos calculados (${fmt(rendTotal)}) não batem com o "Rendimento líquido" do extrato (${fmt(rendResumo)}). Nada foi importado.`);
+  const fim = fimPeriodo ?? data!;
+  const r = finish('pdf', txs, { banco: 'Nubank', avisos: [`Saldo do PDF em ${fim.split('-').reverse().join('/')}: ${fmt(saldoFinal)}. Rendimentos do período (${fmt(r2(rendTotal))}) entraram como "Rendimento líquido" para classificar. Todos os "Saldo do dia" conferem.`] });
+  return { ...r, saldoFinalInformado: saldoFinal, periodoFim: fim };
+}
+
 export async function parseBankFile(file: File): Promise<BankParseResult> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.ofx')) return parseOFX(decodeBankText(await file.arrayBuffer()));
