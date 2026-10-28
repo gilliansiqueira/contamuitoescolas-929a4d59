@@ -62,6 +62,8 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
     const { error: e } = await db.from('renewal_rows').upsert(part.map(r => ({ sheet_id: sheet.id, school_id: sheet.school_id, row_key: r.row_key, imported: r.imported, overrides: r.overrides ?? {}, conflicts: r.conflicts ?? {}, sort_order: r.sort_order, manual: r.manual, updated_at: new Date().toISOString() })), { onConflict: 'sheet_id,row_key' });
     if (e) throw e;
   });
+  // Linhas antigas que mudaram de turma já foram regravadas com a chave nova.
+  if (stats.renamed.length) { const { error: e } = await db.from('renewal_rows').delete().eq('sheet_id', sheet.id).in('row_key', stats.renamed); if (e) throw e; }
   await db.from('renewal_issues').delete().eq('sheet_id', sheet.id).eq('resolved', false);
   const extra: Issue[] = stats.removed.map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` }));
   // Formação diz "Rematriculado" mas a equipe marcou outra coisa: mantém a marcação e pede revisão.
