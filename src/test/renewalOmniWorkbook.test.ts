@@ -15,6 +15,7 @@ describe('Omni com várias abas', () => {
     expect(r.Sala).toBe('Sala Personal');
     expect(r.FoneCelular).toBe('419986-2010');
     expect(r.NumeroContrato).toBe('6409/2');
+    expect(p.rows.filter(x => x.Professor == null).length).toBe(12);
   });
 });
 
