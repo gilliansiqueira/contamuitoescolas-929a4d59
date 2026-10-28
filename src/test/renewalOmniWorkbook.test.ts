@@ -17,3 +17,17 @@ describe('Omni com várias abas', () => {
     expect(r.NumeroContrato).toBe('6409/2');
   });
 });
+
+import { mergeRows } from '@/lib/renewal/mergeEngine';
+describe('turma renomeada', () => {
+  it('leva as edições da equipe para a nova turma do mesmo aluno', () => {
+    const cols: any[] = [{ id: 'c1', field: null, kind: 'manual', title: 'Obs' }];
+    const old: any[] = [{ row_key: '5145|seg qua book 4', imported: {}, overrides: { c1: { value: 'Bolsista/permuta' } }, conflicts: {}, sort_order: 0, manual: false }];
+    const imp = new Map([['5145|seg qua 10 00 book 4 teens', { aluno: 'Bruna' }]]);
+    const { rows, stats } = mergeRows(old, imp, cols);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].row_key).toBe('5145|seg qua 10 00 book 4 teens');
+    expect(rows[0].overrides.c1.value).toBe('Bolsista/permuta');
+    expect(stats.renamed).toEqual(['5145|seg qua book 4']);
+  });
+});

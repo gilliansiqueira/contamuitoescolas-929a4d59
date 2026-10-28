@@ -149,11 +149,11 @@ export function mergeRows(existing: RenewalRow[], imported: Map<string, Record<s
   const oldOrphans = [...byKey.keys()].filter(k => !imported.has(k));
   const newOrphans = [...imported.keys()].filter(k => !byKey.has(k));
   const oc = count(oldOrphans), nc = count(newOrphans);
-  const moved = new Map<string, RenewalRow>();
+  const moved = new Map<string, RenewalRow>(); const renamed: string[] = [];
   for (const k of oldOrphans) { const r = byKey.get(k)!; if (!r.manual && oc.get(sid(k)) === 1 && nc.get(sid(k)) === 1) moved.set(sid(k), r); }
   for (const [key, imp] of imported) {
     let old = byKey.get(key);
-    if (!old && moved.has(sid(key))) { const m = moved.get(sid(key))!; byKey.delete(m.row_key); byKey.set(key, m); old = { ...m, row_key: key }; }
+    if (!old && moved.has(sid(key))) { const m = moved.get(sid(key))!; byKey.delete(m.row_key); renamed.push(m.row_key); byKey.set(key, m); old = { ...m, row_key: key }; }
     if (!old) { out.push({ row_key: key, imported: imp, overrides: {}, conflicts: {}, sort_order: order++, manual: false }); added++; continue; }
     const conf: RenewalRow['conflicts'] = {};
     for (const [colId, o] of Object.entries(old.overrides ?? {})) {
@@ -172,7 +172,7 @@ export function mergeRows(existing: RenewalRow[], imported: Map<string, Record<s
     out.push({ ...r, imported: r.manual ? r.imported : { ...r.imported, fora_da_base: true }, sort_order: order++ });
     if (!r.manual) removed.push(r.row_key);
   }
-  return { rows: out, stats: { conflicts, kept, added, removed } };
+  return { rows: out, stats: { conflicts, kept, added, removed, renamed } };
 }
 
 /** Turmas em formação do próximo período: aluno da base já matriculado vira "Rematriculado" com a turma de destino.
