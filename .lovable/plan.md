@@ -1,22 +1,21 @@
-# Rondonópolis – conferir saldo do BB
+# Renovação Champagnat (Omni) + correção para as próximas
 
 ## O que encontrei
-- Os lançamentos de outubro no sistema batem linha a linha com o extrato (OFX de 28/10). Nada duplicado nem faltando.
-- O próprio extrato mostra **−R$ 85.985,32 em conta** em 28/10: a "Aplicação CDB" de R$ 100.000,00 saiu antes do resgate automático, que o banco faz no fim do dia.
-- O saldo verdadeiro do banco é **R$ 398.526,81** (linha "Saldo" do extrato) = R$ 484.512,13 de "Invest. Resgate Autom." − R$ 85.985,32 em conta.
-- O sistema só mostra o negativo porque a conta BB de Rondonópolis **não está marcada como "tem aplicação automática"** e nunca recebeu o saldo aplicado. Por isso o total aparece −R$ 84.883,95 e a conferência acusa diferença.
-- O CDB de R$ 100.000,00 aparece no extrato como "BB CDB DI BLOQUEADO", fora do valor de resgate automático.
+- O novo arquivo do Omni ("alunos-por-turma-2026-10-28") tem **3 abas**: Resumo, Alunos e Turmas. A primeira aba agora é o **Resumo**.
+- O sistema só lê a **primeira aba** do arquivo. Por isso ele encontra o Resumo, não acha alunos e recusa o arquivo. O arquivo de 16/10 só tinha a aba de alunos e funcionava.
+- A Champagnat já tem no sistema um relatório de turmas antigo do Sponte (141 alunos) e o Contas a Receber (1.857 linhas).
 
 ## O que vou fazer
-1. Marcar a conta BB de Rondonópolis como "tem aplicação automática" (BB Rende Fácil + CDB DI).
-2. Gravar o saldo do extrato de 28/10: em conta −R$ 85.985,32 e aplicado R$ 484.512,13, total R$ 398.526,81. Registrar no histórico da empresa.
-3. Conferir de onde vem a diferença de −R$ 229.761,11 mostrada na conferência e confirmar que ela some com o passo 2. Se sobrar alguma diferença, localizar as linhas exatas que a causam (por exemplo o saldo inicial de 31/08, de R$ 81.041,80).
-4. Abrir a tela do Fluxo Bancário de Rondonópolis e confirmar o total.
+1. **Correção para as próximas:** o sistema vai procurar a aba certa em todo o arquivo (Alunos do Omni, ou Turmas Existentes / Contas a Receber do Sponte), sem depender da ordem das abas. A aba Turmas do Omni também vai completar a **Sala** de cada turma, que não vem na aba Alunos.
+2. **Teste automático** com este arquivo: deve ler 133 alunos e 57 turmas, com telefone, e-mail, professor e sala.
+3. **Planilha da Champagnat:** gravar o arquivo do Omni na Champagnat no lugar do relatório antigo do Sponte, recalcular a planilha usando o Contas a Receber que já está lá (vencimento da última parcela) e preservar o que a equipe já editou.
+4. Exportar o Excel no modelo da escola e salvar em Arquivos para você mandar ao cliente, com o quadro de renováveis e % por professor e no total. Vou conferir o arquivo antes de entregar.
 
-## Ponto para você decidir
-- O CDB bloqueado de R$ 100.000,00 entra no "Aplicado"? Por padrão vou deixar **fora**, igual ao "Saldo" do banco (R$ 398.526,81). Se quiser incluir, o aplicado fica R$ 584.512,13.
+## Pontos de atenção
+- Os alunos que estavam só no relatório antigo do Sponte e não aparecem no Omni vão para a Conferência, para vocês decidirem.
+- Se o Contas a Receber estiver desatualizado, a coluna "Venc. última parcela" pode sair incompleta. Nesse caso, mande o Contas a Receber atual.
 
 ## Detalhes técnicos
-- Conta `61e0106e-…` (`bank_accounts.has_auto_invest=false`, sem linhas em `bank_account_balances`). Atualizar `has_auto_invest` e inserir âncora em `bank_account_balances` (28/10, saldo_conta −85985,32, saldo_aplicado 484512,13, origem manual).
-- Lançamentos de "BB Rende Fácil"/"Aplicação CDB" já estão como `auto_aplicacao` (só Caixa), sem mudança de classificação.
-- Sem alteração de código.
+- `src/lib/renewal/sponteParser.ts`: na leitura do workbook, percorrer `wb.SheetNames` e usar a primeira aba onde `detectOmni` ou `detectSource` encontra cabeçalho; se houver aba "Turmas" do Omni (Turma/Instrutor/Sala/Alunos), mesclar `Sala` e `IntegrantesAtuais` por nome da turma.
+- Teste em `src/test/renewal.test.ts` com o arquivo enviado.
+- Gravação na Champagnat (`992d3914-…`) pelo mesmo caminho de `persist.ts` (substitui `turmas_existentes` da planilha 2617ed5e), depois recálculo e exportação via `exportXlsx.ts` para `/mnt/documents/Renovacao_Champagnat.xlsx`.
