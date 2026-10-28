@@ -1165,10 +1165,8 @@ export function parseNubankPjPdfLines(lines: string[]): BankParseResult {
     if (!data || !sentido) continue;
     const tx = line.match(new RegExp(`^(.+?)\\s+${VAL}$`));
     if (!tx || !/(pix|boleto|transfer|pagamento|reembolso|deposito|tarifa|compra|resgate|aplicacao|debito|credito|estorno|ted|doc)/i.test(stripAccents(tx[1]))) continue;
-    const parts = tx[1].split(/\s{2,}|\s(?=[A-ZÀ-Ú0-9][^a-z]*$)/);
-    const [tipo, ...resto] = tx[1].split(/\s+(?=(?:[A-Z0-9ÀÁÂÃÉÊÍÓÔÕÚÇ]{2,}|[A-ZÀ-Ú][a-zà-ú]+ [A-ZÀ-Ú]))/);
-    void parts;
-    const nome = resto.join(' ').split(' - ')[0].trim();
+    const cols = raw.trim().replace(new RegExp(`\\s*${VAL}\\s*$`), '').split(/\s{3,}/);
+    const tipo = cols[0].trim(); const nome = cols.slice(1).join(' ').split(' - ')[0].trim();
     const valor = num(tx[2]);
     txs.push({ data, descricao: nome ? `${tipo.trim()} - ${nome}` : tipo.trim(), valor, tipo: sentido });
     if (corrente !== undefined) corrente = r2(corrente + (sentido === 'entrada' ? valor : -valor));
@@ -1205,6 +1203,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
     if (isBradescoPdf(lines)) return parseBradescoPdfLines(lines);
     if (isNiboContasPdf(lines)) return parseNiboContasPdfLines(lines);
     if (isBBContaCorrentePdf(lines)) return parseBBContaCorrentePdfLines(lines);
+    if (isNubankPjPdf(lines)) return parseNubankPjPdfLines(lines);
     if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
     return parsePdfLines(lines);
   }
