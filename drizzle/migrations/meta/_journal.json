@@ -582,6 +582,13 @@
       "when": 1793203429782,
       "tag": "0082_fix_bb_brasilia_sinal_outubro",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1793285787710,
+      "tag": "0083_fix_uberlandia_centro_renewal_rows",
+      "breakpoints": true
     }
   ]
 }
