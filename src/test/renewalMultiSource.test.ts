@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeContasImports, complementTurmas } from '@/lib/renewal/persist';
+import { mergeContasImports, complementTurmas } from '@/lib/renewal/multiSource';
 
 describe('vários Contas a Receber (Sponte + Omni)', () => {
   const sponte = [{ Sacado: 'Ana Lúcia', DataVencimento: '25/10/2026 00:00:00', Valor: '594,0000', Categoria: 'Mensalidade Regular' }];
