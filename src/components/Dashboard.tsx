@@ -597,6 +597,14 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
 
   const exportRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const { data: bankSourceCfg } = useQuery({
+    queryKey: ['school_data_sources', 'status', schoolId],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from('school_data_sources').select('status').eq('school_id', schoolId).maybeSingle();
+      return (data ?? null) as { status: string } | null;
+    },
+    enabled: !!schoolId,
+  });
   const monthlyPresets = useChartPresets(monthlyChart.length);
   const annualPresets = useChartPresets(annualLineChart.data.length);
   const dailyPresets = useChartPresets(projectionData.length);
