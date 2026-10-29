@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
 import { School } from '@/types/financial';
+import { TeamDeadlineNotice } from '@/components/TeamDeadlineNotice';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
 import { useSchoolFeature, BANK_PILOT_FEATURE } from '@/hooks/useBankPilot';
