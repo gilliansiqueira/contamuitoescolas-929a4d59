@@ -38,3 +38,10 @@ export function complementTurmas(base: Record<string, any>[], other: Record<stri
   });
 }
 
+
+/** Diz se uma linha (aluno/matrícula) aparece num relatório de turmas de outro sistema — aluno real, não pendência. */
+export function inOtherTurmas(other: Record<string, any>[] | null | undefined) {
+  const mats = new Set<string>(); const names = new Set<string>();
+  for (const o of other ?? []) { const m = String(o.NumeroMatricula ?? '').trim(); if (m) mats.add(m); if (o.Aluno) names.add(nk(o.Aluno)); }
+  return (row: { matricula?: any; aluno?: any } | undefined) => !!row && ((row.matricula && mats.has(String(row.matricula).trim())) || names.has(nk(row.aluno)));
+}

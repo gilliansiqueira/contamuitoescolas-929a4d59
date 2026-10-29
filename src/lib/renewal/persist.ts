@@ -4,7 +4,7 @@ import { buildImported, mergeRows, applyRenewedFromNextPeriod, reclassifyNewStud
 import type { RenewalRow, RenewalSettings, Override, RenewalColumn, Issue } from './types';
 import type { ParsedSource } from './sponteParser';
 import { buildWorkbook } from './exportXlsx';
-import { mergeContasImports, complementTurmas, isOmniTurmas } from './multiSource';
+import { mergeContasImports, complementTurmas, isOmniTurmas, inOtherTurmas } from './multiSource';
 export { mergeContasImports, complementTurmas } from './multiSource';
 import type { TemplateStructure } from './types';
 
@@ -72,7 +72,8 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   // Linhas antigas que mudaram de turma já foram regravadas com a chave nova.
   if (stats.renamed.length) { const { error: e } = await db.from('renewal_rows').delete().eq('sheet_id', sheet.id).in('row_key', stats.renamed); if (e) throw e; }
   await db.from('renewal_issues').delete().eq('sheet_id', sheet.id).eq('resolved', false);
-  const extra: Issue[] = stats.removed.map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` }));
+  const fromOther = inOtherTurmas(t2?.summary.rows);
+  const extra: Issue[] = stats.removed.filter(k => !fromOther(auto.get(k)?.imported)).map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` }));
   // Formação diz "Rematriculado" mas a equipe marcou outra coisa: mantém a marcação e pede revisão.
   for (const r of rows) {
     if (!r.imported?.formacao_turma) continue;
