@@ -84,7 +84,7 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   }
   // Avisos já conferidos/desconsiderados pela equipe não voltam; só reabrem se a mensagem mudar (ex.: nº de parcelas).
   const { data: done } = await db.from('renewal_issues').select('kind,row_key,message').eq('sheet_id', sheet.id).eq('resolved', true);
-  const all2 = dedupeAgainstResolved([...issues, ...extra], done ?? []);
+  const all2 = dedupeAgainstResolved([...issues.filter(i => !(i.kind === 'sem_correspondencia' && fromOther({ aluno: i.detail?.sacado, matricula: i.detail?.mat }))), ...extra], done ?? []);
   const rowByKey = new Map(all.map(r => [r.row_key, r]));
   const autoResolved = (i: Issue) => INFO_KINDS.has(i.kind) || (i.kind === 'sem_financeiro' && teamFilledPayment(rowByKey.get(i.row_key ?? ''), sheet.columns));
   await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: autoResolved(i) && !INFO_KINDS.has(i.kind) ? { ...(i.detail ?? {}), resolucao: { motivo: 'Preenchido pela equipe' } } : i.detail ?? {}, resolved: autoResolved(i) }))); if (e) throw e; });
