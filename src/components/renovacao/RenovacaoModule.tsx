@@ -21,6 +21,7 @@ import { needsSlim, slimXlsx, slimXlsxInWorker } from '@/lib/renewal/slimXlsx';
 import { fetchAllRows } from '@/lib/fetchAll';
 import { parseSponteFile, type ParsedSource } from '@/lib/renewal/sponteParser';
 import { defaultMinDue } from '@/lib/renewal/mergeEngine';
+import { checkSchoolMismatch } from '@/lib/renewal/schoolGuard';
 import { defaultColumns } from '@/lib/renewal/fields';
 import { applyTemplateToSheet } from '@/lib/renewal/persist';
 import { buildWorkbook, computeSummary } from '@/lib/renewal/exportXlsx';
