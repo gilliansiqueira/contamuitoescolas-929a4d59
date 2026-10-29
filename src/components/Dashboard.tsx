@@ -1072,6 +1072,12 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       {showInsights && <InsightsBar insights={insights} title="Insights & Alertas" emptyHint="Sem alertas relevantes para este período." />}
 
 
+      {bankSourceCfg?.status === 'em_conferencia' && (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground flex items-center gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-warning" />
+          Painel ainda usa a planilha — Fluxo Bancário em conferência. As classificações feitas no banco só aparecem aqui depois da ativação.
+        </div>
+      )}
 
       {/* KPIs Fixos: Saldo Inicial + Resultado + Saldo Final */}
       <div>
