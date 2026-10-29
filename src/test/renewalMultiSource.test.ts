@@ -19,3 +19,15 @@ describe('turmas de outro sistema só completam vazios', () => {
   it('não troca telefone existente', () => expect(r[0].FoneCelular).toBe('11'));
   it('não adiciona alunos', () => expect(r).toHaveLength(1));
 });
+
+import { inOtherTurmas } from '@/lib/renewal/multiSource';
+describe('aluno nas turmas do outro sistema', () => {
+  const f = inOtherTurmas([{ Aluno: 'Alice Guerrini Ramos', NumeroMatricula: 'MAT-000800' }]);
+  it('não é pendência quando está no Omni (nome ou matrícula)', () => {
+    expect(f({ aluno: 'alice guerrini ramos', matricula: null })).toBe(true);
+    expect(f({ aluno: 'Outro', matricula: 'MAT-000800' })).toBe(true);
+  });
+  it('continua pendência quando não está em nenhum', () => {
+    expect(f({ aluno: 'Fulano', matricula: '123' })).toBe(false);
+  });
+});

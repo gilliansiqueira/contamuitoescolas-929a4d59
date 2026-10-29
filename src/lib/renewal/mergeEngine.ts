@@ -93,8 +93,16 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
   const minDue = p.minDue ?? null;
   const parcelasByMat = new Map<string, Record<string, any>[]>();
   const unmatched = new Map<string, { sacado: string; mat: string; count: number; pending: number }>();
+  const materialMats = new Set<string>();
   for (const c of contas) {
-    if (!isModuleInstallment(c, p.settings)) continue;
+    if (!isModuleInstallment(c, p.settings)) {
+      if (/material/i.test(String(c.Categoria ?? ''))) {
+        const m = toId(c.NumeroMatricula);
+        if (m && byMat.has(m)) materialMats.add(m);
+        else { const ms = [...new Set((byName.get(norm(c.Sacado)) ?? []).map(k => k.split('|')[0]))]; if (ms.length === 1) materialMats.add(ms[0]); }
+      }
+      continue;
+    }
     const due = toIsoDate(c.DataVencimento);
     if (!due || (minDue && due < minDue)) continue;
     let mat = toId(c.NumeroMatricula);
@@ -124,6 +132,7 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
     if (!ps.length) {
       Object.assign(r, { venc_ultima_parcela: SEM_INFO, forma_pagamento_atual: SEM_INFO, termino_pagamento: SEM_INFO });
       const corte = minDue ? ` com vencimento a partir de ${minDue.split('-').reverse().join('/')}` : '';
+      if (materialMats.has(mat)) { issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: curso provavelmente quitado antes${corte ? ` de ${minDue!.split('-').reverse().join('/')}` : ''} — só material didático em aberto. Confirme com o relatório de recebidas.` }); continue; }
       issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: nenhuma parcela do módulo${corte} (não significa quitado — confira se pagou à vista, é bolsista ou se a data de corte está tarde).` });
       continue;
     }
