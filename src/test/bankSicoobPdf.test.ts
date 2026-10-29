@@ -41,3 +41,12 @@ itPira('Sicoob Go Company: lê saldo em conta e RDC automático como aplicado', 
   expectPira(r.saldoComAplicacaoInformado).toBe(27985.26);
   expectPira(r.periodoFim).toBe('2026-10-26');
 });
+
+import goNeg from './fixtures/sicoobGo2910.json';
+itPira('Sicoob Go Company 29/10: saldo com D na linha de baixo é negativo', () => {
+  const r = parsePira(goNeg as string[]);
+  expectPira(r.saldoFinalInformado).toBe(-2412);
+  expectPira(r.saldoComAplicacaoInformado).toBe(23573.26);
+  expectPira(r.transactions.filter(t => !t.futuro)).toHaveLength(5);
+  expectPira(r.avisos?.some(a => a.includes('não fecha'))).toBeFalsy();
+});
