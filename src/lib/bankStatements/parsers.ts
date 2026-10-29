@@ -465,6 +465,8 @@ export function parseLooseCashSheet(rows: unknown[][]): BankParseResult | null {
   }
   if (iValor < 0) return null;
   let saldoAnterior: number | undefined;
+  // Sicoob: o C/D do saldo pode vir sozinho na linha de baixo ("2.412,00" / "SALDO DO DIA" / "D").
+  let saldoPend: 'anterior' | 'conta' | null = null;
   let saldo: number | undefined;
   let quebra: string | undefined;
   const txs: ParsedBankTx[] = [];
@@ -557,23 +559,37 @@ export function parsePdfLines(lines: string[]): BankParseResult {
     if (/^saldo\s+aprovisionado/i.test(plain)) continue;
     if (/^saldo\s+-?\s*\d/i.test(plain) && investido !== undefined) continue;
     if (!isBB && /^[DC]\*?$/i.test(line)) {
+      if (saldoPend) {
+        if (/^d/i.test(line)) {
+          if (saldoPend === 'anterior' && saldoAnterior !== undefined) saldoAnterior = -Math.abs(saldoAnterior);
+          if (saldoPend === 'conta' && saldoConta !== undefined) saldoConta = -Math.abs(saldoConta);
+        }
+        saldoPend = null; semMarcador = null; continue;
+      }
       if (semMarcador) semMarcador.tipo = /^d/i.test(line) ? 'saida' : 'entrada';
       semMarcador = null; continue;
     }
     if (!isBB && /^-?\d{1,3}(?:\.\d{3})*,\d{2}\s?[DC*]?$/i.test(line)) { pendVal = line; continue; }
     const dm = line.match(/^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.*)$/);
     if (!dm) continue;
-    const pv = pendVal; pendVal = undefined; semMarcador = null;
+    const pv = pendVal; pendVal = undefined; semMarcador = null; saldoPend = null;
+    const pvSemMarca = !!pv && !/[DC*]$/i.test(pv.trim());
     const data = toIsoDate(dm[1].length === 5 ? `${dm[1]}/${anoRef}` : dm[1]);
     if (!data) continue;
     if (/\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && /anterior/i.test(dm[2]) && !/bloq/i.test(dm[2])) {
-      const v = lastVal(dm[2]) ?? (pv ? parseBRNumber(pv) : undefined); if (v !== undefined) saldoAnterior = v;
+      const lv = lastVal(dm[2]);
+      const v = lv ?? (pv ? parseBRNumber(pv) : undefined); if (v !== undefined) saldoAnterior = v;
+      if (lv === undefined && pvSemMarca && !isBB) saldoPend = 'anterior';
       continue;
     }
     if (!inFuturos && /\bs\s*a\s*l\s*d\s*o\b/i.test(dm[2]) && !/anterior/i.test(dm[2])) {
-      const v = lastVal(dm[2]) ?? (!isBB && pv ? parseBRNumber(pv) : undefined);
+      const lv = lastVal(dm[2]);
+      const v = lv ?? (!isBB && pv ? parseBRNumber(pv) : undefined);
       // Alguns PDFs (BB "Extrato de Conta Corrente") listam do dia mais novo para o mais antigo: vale o saldo mais recente.
-      if (v !== undefined && (!saldoContaData || data >= saldoContaData)) { saldoConta = v; saldoContaData = data; }
+      if (v !== undefined && (!saldoContaData || data >= saldoContaData)) {
+        saldoConta = v; saldoContaData = data;
+        if (lv === undefined && pvSemMarca && !isBB) saldoPend = 'conta';
+      }
       continue;
     }
     let vals = [...dm[2].matchAll(VAL)].map(m => m[1]);
