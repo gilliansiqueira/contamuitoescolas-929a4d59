@@ -39,10 +39,35 @@ export function toId(v: any): string {
   return String(v).trim().replace(/\.0+$/, '').replace(/^0+(?=\d)/, '');
 }
 
+/** Cabeçalho sem espaços/acentos: "Data Vencimento" = "DataVencimento". */
+const squash = (h: any) => norm(h).replace(/ /g, '');
+
+/** Variações de nome de coluna (ex.: Omni "Emissão de notas") → chave do Sponte. */
+const CANON: Record<string, string> = {
+  sacado: 'Sacado', datavencimento: 'DataVencimento', datapgto: 'DataPagamento', datapagamento: 'DataPagamento',
+  valorpago: 'ValorPago', formadecobranca: 'FormaCobranca', formacobranca: 'FormaCobranca', categoria: 'Categoria',
+  nmatricula: 'NumeroMatricula', numatricula: 'NumeroMatricula', numeromatricula: 'NumeroMatricula',
+  nparcela: 'NumeroParcela', situacao: 'Situacao', valor: 'Valor',
+};
+
+/** Ajusta parcelas sem "Situação" e com matrícula "8028/4" (matrícula 8028, contrato 4). */
+export function normalizeContasRows(rows: Record<string, any>[], hoje = new Date().toISOString().slice(0, 10)): Record<string, any>[] {
+  return rows.map(o => {
+    const r = { ...o };
+    const m = String(r.NumeroMatricula ?? '').trim().match(/^(\d+)\s*\/\s*(\d+)$/);
+    if (m) { r.NumeroMatricula = m[1]; r.NumeroContrato = r.NumeroContrato || `${m[1]}/${m[2]}`; }
+    if (r.Situacao == null || r.Situacao === '') {
+      const venc = toIsoDate(r.DataVencimento);
+      r.Situacao = toIsoDate(r.DataPagamento) ? 'Pago' : venc && venc < hoje ? 'Vencido' : 'A vencer';
+    }
+    return r;
+  });
+}
+
 /** Reconhece qual relatório é pelo cabeçalho. */
 export function detectSource(matrix: any[][]): { source: SourceKey; headerRow: number } | null {
   for (let r = 0; r < Math.min(30, matrix.length); r++) {
-    const vals = (matrix[r] ?? []).map(norm);
+    const vals = (matrix[r] ?? []).map(squash);
     for (const [k, req] of Object.entries(REQUIRED) as [SourceKey, string[]][]) {
       if (req.every(h => vals.includes(h))) return { source: k, headerRow: r };
     }
@@ -142,7 +167,7 @@ export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSou
   if (force === 'turmas_formacao' && det0 && det0.source !== 'turmas_existentes') throw new Error('Este arquivo não parece um relatório de turmas. Exporte as turmas em formação do próximo período com os integrantes.');
   const det = det0 && force ? { ...det0, source: force } : det0;
   if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" do Sponte, ou "Alunos por turma" / "Parcelas por aluno" do Omni, em Excel.');
-  const headers = (matrix[det.headerRow] ?? []).map(h => String(h ?? '').trim());
+  const headers = (matrix[det.headerRow] ?? []).map(h => { const t = String(h ?? '').trim(); return det.source === 'contas_receber' ? CANON[squash(t)] ?? t : t; });
   const key = det.source === 'contas_receber' ? 'Sacado' : 'Aluno';
   const ki = headers.indexOf(key);
   const rows: Record<string, any>[] = [];
@@ -157,6 +182,11 @@ export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSou
     rows.push(o);
   }
   const source = det.source === 'turmas_existentes' && looksLikeFormacao(rows) ? 'turmas_formacao' : det.source;
+  if (source === 'contas_receber') {
+    const fixed = normalizeContasRows(rows);
+    const hs = [...new Set([...headers, 'Situacao', 'NumeroContrato'])];
+    return { source, headers: hs, rows: fixed, discarded };
+  }
   return { source, headers, rows, discarded };
 }
 
