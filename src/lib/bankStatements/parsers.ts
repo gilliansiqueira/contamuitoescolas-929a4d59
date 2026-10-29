@@ -1035,7 +1035,7 @@ async function readPdfImageText(buf: ArrayBuffer): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist');
   const { createWorker, PSM } = await import('tesseract.js');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-  const pdf = await openPdfDocument(pdfjsLib, buf, undefined, true);
+  const pdf = await openPdfDocument(pdfjsLib, buf);
   const worker = await createWorker('por');
   // O extrato é uma única tabela; este modo preserva data, descrição e valor na mesma linha.
   await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
