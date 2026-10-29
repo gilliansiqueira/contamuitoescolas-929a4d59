@@ -25,6 +25,7 @@ import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/mana
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } from '@/components/management/ManagerDayPanel';
 import { previousBusinessDay } from '@/hooks/useMyDay';
+import { defaultReportMonth, prevMonthOf } from '@/lib/reportMonth';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
@@ -273,8 +274,36 @@ function ProgressRing({ value, label, tone }: { value: number | null; label: str
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { isSuperAdmin, profile, canViewTeamTime } = useAuth();
-  // Padrão: mês do relatório em produção (mês anterior).
-  const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toLocaleDateString('sv-SE').slice(0, 7); });
+  // Padrão: mês anterior até o dia 20 (ou até todos entregues); depois, o mês atual.
+  const todaySpStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const [month, setMonthState] = useState(() => defaultReportMonth(todaySpStr, false));
+  const monthTouched = useRef(false);
+  const setMonth = (m: string) => { monthTouched.current = true; setMonthState(m); };
+  const basePrevMonth = prevMonthOf(todaySpStr.slice(0, 7));
+  const { data: basePrevRows } = useManagementPortfolio(basePrevMonth, true);
+  useEffect(() => {
+    if (monthTouched.current || !basePrevRows) return;
+    const allDelivered = basePrevRows.length > 0 && basePrevRows.every(r => r.report_delivered);
+    setMonthState(defaultReportMonth(todaySpStr, allDelivered));
+  }, [basePrevRows, todaySpStr]);
+  const [showLatePrev, setShowLatePrev] = useState(false);
+  const selectedPrevMonth = /^\d{4}-\d{2}$/.test(month) ? prevMonthOf(month) : basePrevMonth;
+  const { data: selectedPrevRows = [] } = useManagementPortfolio(selectedPrevMonth, showLatePrev);
+  const latePrevRows = useMemo(() => selectedPrevRows.filter(r => !r.report_delivered), [selectedPrevRows]);
+  const { data: prevDueDate = null } = useQuery({
+    queryKey: ['report-due-date', selectedPrevMonth],
+    enabled: showLatePrev,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('report_due_date', { _month: selectedPrevMonth });
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+  });
+  const prevLateText = useMemo(() => {
+    if (!prevDueDate) return '';
+    const days = Math.round((Date.parse(todaySpStr) - Date.parse(prevDueDate)) / 86400000);
+    return `prazo ${prevDueDate.slice(8, 10)}/${prevDueDate.slice(5, 7)}${days > 0 ? ` · atrasado ${days} dia(s)` : ''}`;
+  }, [prevDueDate, todaySpStr]);
   const { data: dueDate = null } = useQuery({
     queryKey: ['report-due-date', month],
     enabled: /^\d{4}-\d{2}$/.test(month),
@@ -721,6 +750,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
               <div role="tablist" aria-label="Visão da conciliação" className="flex rounded-md border border-border bg-card p-0.5">{(Object.keys(periodModeLabels) as PeriodMode[]).map(m => <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setCardFilter(null); }} className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>{periodModeLabels[m]}</button>)}</div>
               {dueInfo && <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${dueInfo.tone}`} title="5º dia útil do mês seguinte (sem domingos e feriados)">Relatório {month.slice(5, 7)}/{month.slice(0, 4)} · {dueInfo.text}</span>}
               {mode === 'mes' && <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Período" type="month" value={month} onChange={event => setMonth(event.target.value)} className="h-9 w-[168px] bg-card pl-9 text-xs" /></label>}
+              {mode === 'mes' && <Button size="sm" variant={showLatePrev ? 'default' : 'outline'} className="h-9 text-xs" onClick={() => setShowLatePrev(v => !v)}>Atrasados de {selectedPrevMonth.slice(5, 7)}/{selectedPrevMonth.slice(0, 4)}{showLatePrev ? ` (${latePrevRows.length})` : ''}</Button>}
+              {mode === 'mes' && showLatePrev && <div className="basis-full rounded-md border border-destructive/30 bg-destructive/[0.04] p-2.5">{latePrevRows.length === 0 ? <p className="text-[11px] text-muted-foreground">Nenhum relatório pendente de {selectedPrevMonth.slice(5, 7)}/{selectedPrevMonth.slice(0, 4)}.</p> : <div className="flex flex-wrap gap-1.5">{latePrevRows.map(r => <button key={r.school_id} type="button" onClick={() => openSchool(r.school_id)} className="rounded-full bg-destructive px-2.5 py-1 text-[11px] font-medium text-destructive-foreground hover:opacity-90">{r.school_name} · Relatório {selectedPrevMonth.slice(5, 7)}/{selectedPrevMonth.slice(0, 4)}{prevLateText ? ` · ${prevLateText}` : ''}</button>)}</div>}</div>}
               <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setAccessOpen(true)}><Users className="h-3.5 w-3.5" />{isSuperAdmin || profile?.permissions.includes('collaborators_manage') ? 'Equipe e acessos' : 'Logins dos clientes'}</Button>
               {isSuperAdmin && <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setTemplatesOpen(true)}><ListChecks className="h-3.5 w-3.5" />Etapas padrão</Button>}
               {isSuperAdmin && <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" />Nova empresa</Button>}
