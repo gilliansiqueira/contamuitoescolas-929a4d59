@@ -603,6 +603,13 @@
       "when": 1793303389403,
       "tag": "0085_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1793312578715,
+      "tag": "0086_team_alerts_requests_profile",
+      "breakpoints": true
     }
   ]
 }
