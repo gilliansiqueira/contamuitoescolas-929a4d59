@@ -312,6 +312,25 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
   const onFile = async (f?: File, force?: 'turmas_formacao') => { if (!f) return; try { setParsed({ p: await parseSponteFile(f, force), name: f.name }); } catch (e: any) { toast.error(e.message); } };
   const run = async (fn: () => Promise<void>) => { setBusy(true); try { await fn(); } catch (e: any) { toast.error(e.message ?? String(e)); } finally { setBusy(false); invalidate(sheet.school_id, sheet.id); } };
   const confirm = () => run(async () => {
+    if (parsed!.p.source === 'turmas_existentes') {
+      const fileMats = parsed!.p.rows.map(r => String(r.NumeroMatricula ?? ''));
+      const curMats = rows.map(r => String(r.imported?.matricula ?? ''));
+      const { data: oth } = await db.from('renewal_rows').select('school_id, imported->>matricula').neq('sheet_id', sheet.id).in('imported->>matricula', fileMats.filter(Boolean).slice(0, 300));
+      const bySchool = new Map<string, string[]>();
+      (oth ?? []).forEach((o: any) => { if (o.school_id !== sheet.school_id) bySchool.set(o.school_id, [...(bySchool.get(o.school_id) ?? []), o.matricula]); });
+      let others: { name: string; mats: string[] }[] = [];
+      if (bySchool.size) {
+        const { data: sc } = await db.from('schools').select('id, nome').in('id', [...bySchool.keys()]);
+        others = [...bySchool].map(([id, mats]) => ({ name: (sc ?? []).find((s: any) => s.id === id)?.nome ?? 'outra escola', mats }));
+      }
+      const g = checkSchoolMismatch(fileMats, curMats, others);
+      if (g.suspicious) {
+        const msg = g.otherSchool
+          ? `Este arquivo parece ser de outra escola: ${Math.round(g.otherSchool.share * 100)}% dos alunos já estão na planilha de ${g.otherSchool.name}.`
+          : `Este arquivo parece ser de outra escola: só ${Math.round(g.overlap * 100)}% dos alunos estão na planilha atual.`;
+        if (!window.confirm(`${msg}\n\nDeseja importar mesmo assim?`)) return;
+      }
+    }
     await saveImport(sheet, parsed!.p, parsed!.name, user?.id);
     const r = await rebuildSheet(sheet, settings!, rows);
     setParsed(null);
