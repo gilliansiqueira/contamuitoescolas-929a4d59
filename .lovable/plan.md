@@ -1,6 +1,6 @@
 # Cristo Rei — alunos "sem parcelas de módulo"
 
-Sim, dá para conferir e atualizar. Preciso que você mande o **Contas a Receber do Sponte** com vencimentos **anteriores a 01/10/2026**, incluindo as parcelas já pagas.
+Sim, dá para conferir e atualizar. Você pode mandar **duas listas**: o **Contas a Receber do Sponte** com vencimentos **anteriores a 01/10/2026**, com as parcelas já pagas, e a lista do **Omni**. Cada aluno vai ser procurado nas duas.
 
 ## O que vou fazer quando o arquivo chegar
 1. Ler o arquivo e cruzar com os 62 alunos que hoje aparecem sem parcela de módulo, pela matrícula e, se não houver, pelo nome igual.
