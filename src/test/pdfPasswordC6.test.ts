@@ -1,6 +1,5 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'fs';
-import { execSync } from 'child_process';
 import { isC6Pdf, parseC6PdfLines } from '@/lib/bankStatements/parsers';
 
 const lines = [
