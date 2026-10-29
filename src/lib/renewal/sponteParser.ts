@@ -141,7 +141,7 @@ export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSou
   const det0 = detectSource(matrix);
   if (force === 'turmas_formacao' && det0 && det0.source !== 'turmas_existentes') throw new Error('Este arquivo não parece um relatório de turmas. Exporte as turmas em formação do próximo período com os integrantes.');
   const det = det0 && force ? { ...det0, source: force } : det0;
-  if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" do Sponte, ou "Alunos por turma" do Omni, em Excel.');
+  if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" do Sponte, ou "Alunos por turma" / "Parcelas por aluno" do Omni, em Excel.');
   const headers = (matrix[det.headerRow] ?? []).map(h => String(h ?? '').trim());
   const key = det.source === 'contas_receber' ? 'Sacado' : 'Aluno';
   const ki = headers.indexOf(key);
@@ -184,7 +184,7 @@ export function parseSponteWorkbook(sheets: any[][][], force?: SourceKey): Parse
   for (const m of sheets) {
     info = info ?? omniTurmasInfo(m);
     if (parsed) continue;
-    if (detectOmni(m) < 0 && !detectSource(m)) continue;
+    if (detectOmni(m) < 0 && detectOmniParcelas(m) < 0 && !detectSource(m)) continue;
     try { parsed = parseSponteMatrix(m, force); } catch (e) { firstErr = firstErr ?? e; }
   }
   if (!parsed) { if (firstErr) throw firstErr; return parseSponteMatrix(sheets[0] ?? [], force); }
