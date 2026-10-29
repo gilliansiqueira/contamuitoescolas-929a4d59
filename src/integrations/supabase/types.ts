@@ -764,6 +764,56 @@ export type Database = {
           },
         ]
       }
+      client_requests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          observacoes: string | null
+          prazo: string | null
+          resolved_at: string | null
+          responsavel_id: string | null
+          school_id: string
+          status: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          observacoes?: string | null
+          prazo?: string | null
+          resolved_at?: string | null
+          responsavel_id?: string | null
+          school_id: string
+          status?: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          observacoes?: string | null
+          prazo?: string | null
+          resolved_at?: string | null
+          responsavel_id?: string | null
+          school_id?: string
+          status?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_requests_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       closing_step_templates: {
         Row: {
           active: boolean
@@ -3720,6 +3770,44 @@ export type Database = {
           },
         ]
       }
+      school_profile: {
+        Row: {
+          bancos: string | null
+          contatos: Json
+          dia_extrato: string | null
+          observacoes: string | null
+          school_id: string
+          sistemas: string | null
+          updated_at: string
+        }
+        Insert: {
+          bancos?: string | null
+          contatos?: Json
+          dia_extrato?: string | null
+          observacoes?: string | null
+          school_id: string
+          sistemas?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bancos?: string | null
+          contatos?: Json
+          dia_extrato?: string | null
+          observacoes?: string | null
+          school_id?: string
+          sistemas?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_profile_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: true
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schools: {
         Row: {
           allow_weekend_entries: boolean
@@ -3944,6 +4032,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_alert_dismissals: {
+        Row: {
+          dia: string
+          user_id: string
+        }
+        Insert: {
+          dia: string
+          user_id: string
+        }
+        Update: {
+          dia?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       team_announcement_deadlines: {
         Row: {
