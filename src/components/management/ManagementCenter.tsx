@@ -273,8 +273,36 @@ function ProgressRing({ value, label, tone }: { value: number | null; label: str
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { isSuperAdmin, profile, canViewTeamTime } = useAuth();
-  // Padrão: mês do relatório em produção (mês anterior).
-  const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toLocaleDateString('sv-SE').slice(0, 7); });
+  // Padrão: mês anterior até o dia 20 (ou até todos entregues); depois, o mês atual.
+  const todaySpStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const [month, setMonthState] = useState(() => defaultReportMonth(todaySpStr, false));
+  const monthTouched = useRef(false);
+  const setMonth = (m: string) => { monthTouched.current = true; setMonthState(m); };
+  const basePrevMonth = prevMonthOf(todaySpStr.slice(0, 7));
+  const { data: basePrevRows } = useManagementPortfolio(basePrevMonth, true);
+  useEffect(() => {
+    if (monthTouched.current || !basePrevRows) return;
+    const allDelivered = basePrevRows.length > 0 && basePrevRows.every(r => r.report_delivered);
+    setMonthState(defaultReportMonth(todaySpStr, allDelivered));
+  }, [basePrevRows, todaySpStr]);
+  const [showLatePrev, setShowLatePrev] = useState(false);
+  const selectedPrevMonth = /^\d{4}-\d{2}$/.test(month) ? prevMonthOf(month) : basePrevMonth;
+  const { data: selectedPrevRows = [] } = useManagementPortfolio(selectedPrevMonth, showLatePrev);
+  const latePrevRows = useMemo(() => selectedPrevRows.filter(r => !r.report_delivered), [selectedPrevRows]);
+  const { data: prevDueDate = null } = useQuery({
+    queryKey: ['report-due-date', selectedPrevMonth],
+    enabled: showLatePrev,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('report_due_date', { _month: selectedPrevMonth });
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+  });
+  const prevLateText = useMemo(() => {
+    if (!prevDueDate) return '';
+    const days = Math.round((Date.parse(todaySpStr) - Date.parse(prevDueDate)) / 86400000);
+    return `prazo ${prevDueDate.slice(8, 10)}/${prevDueDate.slice(5, 7)}${days > 0 ? ` · atrasado ${days} dia(s)` : ''}`;
+  }, [prevDueDate, todaySpStr]);
   const { data: dueDate = null } = useQuery({
     queryKey: ['report-due-date', month],
     enabled: /^\d{4}-\d{2}$/.test(month),
