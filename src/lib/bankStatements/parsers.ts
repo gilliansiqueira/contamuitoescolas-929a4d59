@@ -1,3 +1,4 @@
+import { openPdfDocument } from '@/lib/pdfPassword';
 /**
  * Leitores de extratos bancários originais (OFX, CSV, Excel, PDF).
  * Lógica adaptada do projeto de referência "Fluxo de Caixa CM".
@@ -1013,7 +1014,7 @@ export function parseNiboContasPdfLines(lines: string[]): BankParseResult {
 async function readPdfLines(buf: ArrayBuffer): Promise<string[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await openPdfDocument(pdfjsLib, buf);
   const out: string[] = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -1034,7 +1035,7 @@ async function readPdfImageText(buf: ArrayBuffer): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist');
   const { createWorker, PSM } = await import('tesseract.js');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-  const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+  const pdf = await openPdfDocument(pdfjsLib, buf);
   const worker = await createWorker('por');
   // O extrato é uma única tabela; este modo preserva data, descrição e valor na mesma linha.
   await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
@@ -1200,6 +1201,61 @@ export function parseNubankPjPdfLines(lines: string[]): BankParseResult {
   return { ...r, saldoFinalInformado: saldoFinal, periodoFim: fim };
 }
 
+export const isC6Pdf = (lines: string[]) => {
+  const all = stripAccents(lines.join('\n'));
+  return /c6 bank/i.test(all) && /saldo contabil do dia/i.test(all) && /periodo da exportacao/i.test(all);
+};
+
+/**
+ * Extrato C6 Bank: "dd/mm dd/mm Tipo Descrição -R$ 6,90" e "Saldo contábil do dia dd/mm/aa R$ 67,42".
+ * O saldo inicial é deduzido do primeiro saldo impresso; todos os saldos seguintes e os totais
+ * de entradas/saídas do mês precisam fechar, senão nada é importado.
+ */
+export function parseC6PdfLines(lines: string[]): BankParseResult {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const VAL = '(-?)\\s*R\\$\\s*(\\d{1,3}(?:\\.\\d{3})*,\\d{2})';
+  const all = stripAccents(lines.join(' '));
+  const per = all.match(/(\d{2})\/(\d{2})\/(\d{4})\s+a\s+(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!per) throw new Error('Não foi possível ler o período deste PDF do C6. Nada foi importado.');
+  const anoIni = +per[3], mesIni = +per[2];
+  const isoOf = (d: string, m: string) => `${+m < mesIni ? anoIni + 1 : anoIni}-${m}-${d}`;
+  type Bloco = { txs: ParsedBankTx[]; saldo?: number; data?: string };
+  const blocos: Bloco[] = []; let cur: Bloco = { txs: [] };
+  let totE = 0, totS = 0; const totais: { e: number; s: number }[] = [];
+  for (const raw of lines) {
+    const line = raw.replace(/\s+/g, ' ').trim(); const plain = stripAccents(line);
+    let m;
+    if ((m = plain.match(new RegExp(`entradas:\\s*${VAL}.*saidas:\\s*${VAL}`, 'i')))) { totais.push({ e: parseBRNumber(m[2]), s: parseBRNumber(m[4]) }); continue; }
+    if ((m = plain.match(new RegExp(`^saldo contabil do dia (\\d{2})\\/(\\d{2})\\/\\d{2}\\s+${VAL}$`, 'i')))) {
+      cur.saldo = parseBRNumber(m[4]) * (m[3] ? -1 : 1); cur.data = isoOf(m[1], m[2]); blocos.push(cur); cur = { txs: [] }; continue;
+    }
+    if ((m = line.match(new RegExp(`^(\\d{2})\\/(\\d{2})\\s+\\d{2}\\/\\d{2}\\s+(.+?)\\s+${VAL}$`)))) {
+      const valor = parseBRNumber(m[5]); const tipo = m[4] ? 'saida' : 'entrada';
+      if (tipo === 'saida') totS += valor; else totE += valor;
+      cur.txs.push({ data: isoOf(m[1], m[2]), descricao: m[3].trim(), valor, tipo });
+    }
+  }
+  if (cur.txs.length) throw new Error('O PDF do C6 tem lançamentos sem "Saldo contábil do dia" logo abaixo. Nada foi importado.');
+  if (!blocos.length) throw new Error('Nenhum lançamento encontrado neste PDF do C6. Nada foi importado.');
+  const mov = (b: Bloco) => b.txs.reduce((s, t) => s + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
+  const saldoInicial = r2(blocos[0].saldo! - mov(blocos[0]));
+  let corrente = saldoInicial; const erros: string[] = [];
+  for (const b of blocos) {
+    corrente = r2(corrente + mov(b));
+    if (Math.abs(corrente - b.saldo!) >= 0.01) erros.push(`${b.data!.split('-').reverse().join('/')}: lançamentos somam ${fmt(corrente)}, extrato mostra ${fmt(b.saldo!)}`);
+    corrente = b.saldo!;
+  }
+  const sumE = r2(totais.reduce((s, t) => s + t.e, 0)), sumS = r2(totais.reduce((s, t) => s + t.s, 0));
+  if (totais.length && (Math.abs(sumE - r2(totE)) >= 0.01 || Math.abs(sumS - r2(totS)) >= 0.01))
+    erros.push(`totais do mês: lidas entradas ${fmt(totE)} / saídas ${fmt(totS)}, extrato mostra ${fmt(sumE)} / ${fmt(sumS)}`);
+  if (erros.length) throw new Error(`A leitura do PDF do C6 não fecha com os saldos impressos (${erros.join('; ')}). Nada foi importado.`);
+  const txs = blocos.flatMap(b => b.txs);
+  const fim = `${per[6]}-${per[5]}-${per[4]}`;
+  const r = finish('pdf', txs, { banco: 'C6 Bank', avisos: [`Extrato C6: ${txs.length} lançamento(s); saldo inicial calculado ${fmt(saldoInicial)}; todos os "Saldo contábil do dia" conferem. Saldo em ${fim.split('-').reverse().join('/')}: ${fmt(corrente)}.`] });
+  return { ...r, saldoFinalInformado: corrente, periodoInicio: `${per[3]}-${per[2]}-${per[1]}`, periodoFim: fim };
+}
+
 export async function parseBankFile(file: File): Promise<BankParseResult> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.ofx')) return parseOFX(decodeBankText(await file.arrayBuffer()));
@@ -1216,6 +1272,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
       if (plain.includes('caixa') && plain.includes('saldo dia')) return parseCaixaImageText(recognized);
       return parseItauImageText(recognized);
     }
+    if (isC6Pdf(lines)) return parseC6PdfLines(lines);
     if (isBradescoPdf(lines)) return parseBradescoPdfLines(lines);
     if (isNiboContasPdf(lines)) return parseNiboContasPdfLines(lines);
     if (isBBContaCorrentePdf(lines)) return parseBBContaCorrentePdfLines(lines);

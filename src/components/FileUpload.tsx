@@ -288,7 +288,7 @@ async function extractPDFText(file: File): Promise<string[][]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
   const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await (await import('@/lib/pdfPassword')).openPdfDocument(pdfjsLib, buf);
   const rows: string[][] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);

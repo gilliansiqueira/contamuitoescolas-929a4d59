@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PresentationProvider } from "@/components/presentation-provider";
 import { UpdateBanner } from "@/components/UpdateBanner";
+import { PdfPasswordDialog } from "@/components/PdfPasswordDialog";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -43,6 +44,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <UpdateBanner />
+              <PdfPasswordDialog />
               <Suspense fallback={<RouteLoading />}>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />
