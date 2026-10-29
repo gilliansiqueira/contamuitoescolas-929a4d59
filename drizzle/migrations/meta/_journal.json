@@ -589,6 +589,13 @@
       "when": 1793285787710,
       "tag": "0083_fix_uberlandia_centro_renewal_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1793303262469,
+      "tag": "0084_migration",
+      "breakpoints": true
     }
   ]
 }

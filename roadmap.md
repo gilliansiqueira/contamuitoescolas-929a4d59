@@ -21,3 +21,5 @@
 
 - [x] Central Press: selo "Falta no Nibo" + filtro
 - [ ] Bairro Alto BB: saldo não zerou após correção; pensar forma de não atrapalhar a equipe com extratos esporádicos
+- [ ] Aviso de prazos para a equipe (faixa + janela)
+- [ ] Renovação Portão: colunas data início/término, fone residencial/celular não puxaram
