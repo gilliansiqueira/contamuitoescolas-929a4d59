@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
 import { School } from '@/types/financial';
 import { TeamDeadlineNotice } from '@/components/TeamDeadlineNotice';
+import { TeamAlerts } from '@/components/team/TeamAlerts';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
 import { useSchoolFeature, BANK_PILOT_FEATURE } from '@/hooks/useBankPilot';
@@ -118,7 +119,7 @@ const Index = () => {
     }
   }, [isDemo, school, isAdminAll, accessibleSchoolIds, allSchools]);
 
-  const notice = isAdmin && !isPresentationMode ? <TeamDeadlineNotice /> : null;
+  const notice = isAdmin && !isPresentationMode ? <><TeamDeadlineNotice /><TeamAlerts schools={allSchools} onOpenSchool={setSchool} onOpenCenter={() => setSchool(null)} /></> : null;
 
   if (!school) {
     return (
