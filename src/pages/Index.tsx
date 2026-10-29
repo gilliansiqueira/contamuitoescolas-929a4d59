@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
 import { School } from '@/types/financial';
+import { TeamDeadlineNotice } from '@/components/TeamDeadlineNotice';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
 import { useSchoolFeature, BANK_PILOT_FEATURE } from '@/hooks/useBankPilot';
@@ -117,9 +118,12 @@ const Index = () => {
     }
   }, [isDemo, school, isAdminAll, accessibleSchoolIds, allSchools]);
 
+  const notice = isAdmin && !isPresentationMode ? <TeamDeadlineNotice /> : null;
+
   if (!school) {
     return (
       <div className="min-h-screen bg-background">
+        {notice}
         {isDemo && <DemoBanner />}
         {isDemo ? (
           <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center text-muted-foreground">
@@ -146,6 +150,8 @@ const Index = () => {
   }
 
   return (
+    <>
+    {notice}
     <GlobalPeriodProvider schoolId={school.id} key={school.id}>
       <SharedMonthProvider>
         <IndexBody
@@ -161,6 +167,7 @@ const Index = () => {
         />
       </SharedMonthProvider>
     </GlobalPeriodProvider>
+    </>
   );
 };
 

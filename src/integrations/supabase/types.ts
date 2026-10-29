@@ -3945,6 +3945,77 @@ export type Database = {
           },
         ]
       }
+      team_announcement_deadlines: {
+        Row: {
+          announcement_id: string
+          data: string
+          id: string
+          ordem: number
+          rotulo: string
+        }
+        Insert: {
+          announcement_id: string
+          data: string
+          id?: string
+          ordem?: number
+          rotulo: string
+        }
+        Update: {
+          announcement_id?: string
+          data?: string
+          id?: string
+          ordem?: number
+          rotulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_announcement_deadlines_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "team_announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_announcement_dismissals: {
+        Row: {
+          dia: string
+          user_id: string
+        }
+        Insert: {
+          dia: string
+          user_id: string
+        }
+        Update: {
+          dia?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      team_announcements: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          titulo: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          titulo?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          titulo?: string
+        }
+        Relationships: []
+      }
       team_supervision: {
         Row: {
           created_at: string
