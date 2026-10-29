@@ -80,7 +80,50 @@ export function fromOmni(rows: Record<string, any>[]): Record<string, any>[] {
   });
 }
 
+/** Cabeçalho do "Parcelas por aluno" do Omni (sem matrícula). */
+export function detectOmniParcelas(matrix: any[][]): number {
+  for (let r = 0; r < Math.min(30, matrix.length); r++) {
+    const vals = (matrix[r] ?? []).map(norm);
+    if (['aluno', 'vencimento', 'situacao', 'descricao', 'valor'].every(h => vals.includes(h)) && !vals.includes('matricula')) return r;
+  }
+  return -1;
+}
+
+const OMNI_COURSE = /^(parcela do curso|parcelamento|mensalidade modulo)/;
+
+/** Converte "Parcelas por aluno" do Omni para as chaves do Contas a Receber do Sponte. Vínculo só por nome (sem matrícula). */
+export function fromOmniParcelas(matrix: any[][], headerRow: number): Record<string, any>[] {
+  const h = (matrix[headerRow] ?? []).map(norm);
+  const at = (l: any[], n: string) => l[h.indexOf(n)];
+  const raw = matrix.slice(headerRow + 1).filter(l => String(at(l ?? [], 'aluno') ?? '').trim());
+  const out = raw.map(l => {
+    const desc = String(at(l, 'descricao') ?? '').trim();
+    const cat = desc.replace(/\(?\s*\d+\s*\/\s*\d+\s*\)?\s*$/, '').trim();
+    const course = OMNI_COURSE.test(norm(cat));
+    return {
+      Sacado: String(at(l, 'aluno')).trim(), NumeroMatricula: null, NumeroContrato: null,
+      DataVencimento: at(l, 'vencimento'), DataPagamento: at(l, 'pagamento'), Situacao: at(l, 'situacao'),
+      Categoria: course ? cat : `Taxa avulsa - ${cat}`, Valor: at(l, 'valor'), Descricao: desc, FormaCobranca: null as string | null,
+    };
+  });
+  // Forma (o Omni não informa o meio): tudo pago na mesma data = À vista; senão Parcelado.
+  const byAluno = new Map<string, typeof out>();
+  for (const o of out) if (!o.Categoria.startsWith('Taxa avulsa')) byAluno.set(norm(o.Sacado), [...(byAluno.get(norm(o.Sacado)) ?? []), o]);
+  for (const ps of byAluno.values()) {
+    const allPaid = ps.every(p => /pag/i.test(String(p.Situacao ?? '')));
+    const dates = new Set(ps.map(p => String(toIsoDate(p.DataPagamento) ?? '')));
+    const forma = allPaid && (ps.length === 1 || dates.size === 1) ? 'À vista' : 'Parcelado';
+    for (const p of ps) p.FormaCobranca = forma;
+  }
+  return out;
+}
+
 export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSource {
+  const parcRow = detectOmniParcelas(matrix);
+  if (parcRow >= 0 && force !== 'turmas_existentes' && force !== 'turmas_formacao') {
+    const rows = fromOmniParcelas(matrix, parcRow);
+    return { source: 'contas_receber', headers: Object.keys(rows[0] ?? {}), rows, discarded: 0 };
+  }
   const omniRow = detectOmni(matrix);
   if (omniRow >= 0 && force !== 'contas_receber') {
     const headers = (matrix[omniRow] ?? []).map(h => String(h ?? '').trim());
@@ -98,7 +141,7 @@ export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSou
   const det0 = detectSource(matrix);
   if (force === 'turmas_formacao' && det0 && det0.source !== 'turmas_existentes') throw new Error('Este arquivo não parece um relatório de turmas. Exporte as turmas em formação do próximo período com os integrantes.');
   const det = det0 && force ? { ...det0, source: force } : det0;
-  if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" do Sponte, ou "Alunos por turma" do Omni, em Excel.');
+  if (!det) throw new Error('Não reconheci o relatório. Envie "Turmas Existentes" (com integrantes) ou "Contas a Receber" do Sponte, ou "Alunos por turma" / "Parcelas por aluno" do Omni, em Excel.');
   const headers = (matrix[det.headerRow] ?? []).map(h => String(h ?? '').trim());
   const key = det.source === 'contas_receber' ? 'Sacado' : 'Aluno';
   const ki = headers.indexOf(key);
@@ -141,7 +184,7 @@ export function parseSponteWorkbook(sheets: any[][][], force?: SourceKey): Parse
   for (const m of sheets) {
     info = info ?? omniTurmasInfo(m);
     if (parsed) continue;
-    if (detectOmni(m) < 0 && !detectSource(m)) continue;
+    if (detectOmni(m) < 0 && detectOmniParcelas(m) < 0 && !detectSource(m)) continue;
     try { parsed = parseSponteMatrix(m, force); } catch (e) { firstErr = firstErr ?? e; }
   }
   if (!parsed) { if (firstErr) throw firstErr; return parseSponteMatrix(sheets[0] ?? [], force); }
