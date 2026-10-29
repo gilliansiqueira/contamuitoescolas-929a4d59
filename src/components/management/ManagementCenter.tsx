@@ -25,6 +25,7 @@ import { ClosingStepTemplatesDialog, SchoolStepsDialog } from '@/components/mana
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } from '@/components/management/ManagerDayPanel';
 import { previousBusinessDay } from '@/hooks/useMyDay';
+import { defaultReportMonth, prevMonthOf } from '@/lib/reportMonth';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
