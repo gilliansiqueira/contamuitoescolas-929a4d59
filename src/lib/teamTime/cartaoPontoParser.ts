@@ -155,7 +155,7 @@ function situacaoDoDia(d: CartaoDia): CartaoSituacao {
 export async function readPdfTokens(buf: ArrayBuffer): Promise<PdfToken[]> {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pdf = await (await import('@/lib/pdfPassword')).openPdfDocument(pdfjsLib, buf);
   const out: PdfToken[] = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const content = await (await pdf.getPage(p)).getTextContent();
