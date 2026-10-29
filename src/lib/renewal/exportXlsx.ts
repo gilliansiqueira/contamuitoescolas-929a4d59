@@ -126,7 +126,24 @@ function writeSheet(ws: ExcelJS.Worksheet, rows: RenewalRow[], columns: RenewalC
   ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: cols.length } };
 }
 
-export async function buildWorkbook(rows: RenewalRow[], columns: RenewalColumn[], structure: TemplateStructure | null): Promise<ArrayBuffer> {
+const normName = (v: any) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** Alunos com financeiro e sem turma (resolvidos ou não) que ainda não estão em nenhuma linha. */
+export function financeiroSemTurma(issues: { kind: string; detail?: any }[], rows: RenewalRow[]) {
+  const mats = new Set(rows.map(r => String(r.imported?.matricula ?? '').trim()).filter(Boolean));
+  const names = new Set(rows.map(r => normName(r.imported?.aluno)));
+  const seen = new Set<string>(); const out: { aluno: string; matricula: string; parcelas: number | null }[] = [];
+  for (const i of issues) {
+    if (i.kind !== 'sem_correspondencia') continue;
+    const d = i.detail ?? {}; const mat = String(d.mat ?? '').trim(); const n = normName(d.sacado);
+    if ((mat && mats.has(mat)) || names.has(n)) continue;
+    const k = mat || n; if (!k || seen.has(k)) continue; seen.add(k);
+    out.push({ aluno: String(d.sacado ?? ''), matricula: mat, parcelas: d.pending ?? d.count ?? null });
+  }
+  return out.sort((a, b) => a.aluno.localeCompare(b.aluno, 'pt-BR'));
+}
+
+export async function buildWorkbook(rows: RenewalRow[], columns: RenewalColumn[], structure: TemplateStructure | null, issues: { kind: string; detail?: any }[] = []): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   const main = structure?.mainSheet ?? 'Renovação';
   const groups = new Map<string, RenewalRow[]>();
@@ -134,6 +151,14 @@ export async function buildWorkbook(rows: RenewalRow[], columns: RenewalColumn[]
   if (!groups.has(main)) groups.set(main, []);
   for (const name of [main, ...[...groups.keys()].filter(k => k !== main).sort()]) {
     writeSheet(wb.addWorksheet(name.slice(0, 31)), groups.get(name)!, columns, structure);
+  }
+  const extra = financeiroSemTurma(issues, rows);
+  if (extra.length) {
+    const ws = wb.addWorksheet('Financeiro sem turma');
+    ws.addRow(['Aluno', 'Matrícula', 'Parcelas em aberto', 'Observação']).font = { bold: true };
+    for (const e of extra) ws.addRow([e.aluno, e.matricula || '—', e.parcelas, 'Tem financeiro, mas não está em nenhuma turma. Confirmar com a escola se está estudando.']);
+    ws.columns = [{ width: 40 }, { width: 12 }, { width: 18 }, { width: 80 }];
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
   }
   return wb.xlsx.writeBuffer() as Promise<ArrayBuffer>;
 }

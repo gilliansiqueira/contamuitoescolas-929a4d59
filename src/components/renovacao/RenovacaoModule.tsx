@@ -628,7 +628,7 @@ function SheetPanel({ sheet, templates }: { sheet: RenewalSheet; templates: Rene
     try { await applyTemplateToSheet(sheet, approvedTpl.id, approvedTpl.structure.columns, rows); toast.success('Planilha no formato do modelo aprovado.'); invalidate(sheet.school_id, sheet.id); }
     catch (e: any) { toast.error(e.message); }
   };
-  const exportNow = async () => downloadBuffer(await buildWorkbook(rows, columns, structure), `Renovacao_${sheet.period.replace('/', '-')}_rascunho.xlsx`);
+  const exportNow = async () => downloadBuffer(await buildWorkbook(rows, columns, structure, ((await db.from('renewal_issues').select('kind,detail').eq('sheet_id', sheet.id)).data ?? []) as any[]), `Renovacao_${sheet.period.replace('/', '-')}_rascunho.xlsx`);
 
   return (
     <div className="space-y-3">

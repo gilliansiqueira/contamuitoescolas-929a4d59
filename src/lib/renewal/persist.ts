@@ -104,7 +104,8 @@ export async function saveRows(sheet: RenewalSheet, rows: (RenewalRow & { id?: s
 
 export async function registerDelivery(sheet: RenewalSheet, rows: RenewalRow[], structure: TemplateStructure | null, d: { sent_at: string; recipient: string; channel: string }, userId?: string) {
   const version = (sheet.current_version ?? 0) + 1;
-  const buf = await buildWorkbook(rows, sheet.columns, structure);
+  const { data: iss } = await db.from('renewal_issues').select('kind,detail').eq('sheet_id', sheet.id);
+  const buf = await buildWorkbook(rows, sheet.columns, structure, iss ?? []);
   const path = `${sheet.school_id}/${sheet.id}/v${version}.xlsx`;
   const up = await (db.storage as any).from('renewal-files').upload(path, new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), { upsert: false });
   if (up.error) throw up.error;
