@@ -465,8 +465,6 @@ export function parseLooseCashSheet(rows: unknown[][]): BankParseResult | null {
   }
   if (iValor < 0) return null;
   let saldoAnterior: number | undefined;
-  // Sicoob: o C/D do saldo pode vir sozinho na linha de baixo ("2.412,00" / "SALDO DO DIA" / "D").
-  let saldoPend: 'anterior' | 'conta' | null = null;
   let saldo: number | undefined;
   let quebra: string | undefined;
   const txs: ParsedBankTx[] = [];
@@ -526,6 +524,8 @@ export function parsePdfLines(lines: string[]): BankParseResult {
   let pendVal: string | undefined;
   let semMarcador: ParsedBankTx | null = null;
   let saldoAnterior: number | undefined;
+  // Sicoob: o C/D do saldo pode vir sozinho na linha de baixo ("2.412,00" / "SALDO DO DIA" / "D").
+  let saldoPend: 'anterior' | 'conta' | null = null;
   // BB: a linha logo abaixo do lançamento traz o complemento (quem pagou/recebeu).
   let bbUltimo: ParsedBankTx | null = null;
   const bbLimpa = (d: string) => d
