@@ -41,6 +41,46 @@ export function dedupeAgainstResolved<T extends { kind: string; row_key?: string
   return issues.filter(i => { const s = issueSig(i); if (seen.has(s)) return false; seen.add(s); return true; });
 }
 
+const nk = (s: any) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const isoD = (v: any) => { const s = String(v ?? ''); const m = s.match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : s.slice(0, 10); };
+const numV = (v: any) => { if (typeof v === 'number') return v.toFixed(2); const n = Number(String(v ?? '').replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) ? n.toFixed(2) : ''; };
+
+/**
+ * Junta vários Contas a Receber (ex.: Sponte + Omni da mesma escola). Importações em ordem da mais nova
+ * para a mais antiga: a mesma parcela (aluno + vencimento + valor) conta uma vez, valendo a versão mais nova.
+ */
+export function mergeContasImports(importsNewestFirst: Record<string, any>[][]): Record<string, any>[] {
+  const seen = new Set<string>(); const out: Record<string, any>[] = [];
+  for (const rows of importsNewestFirst) {
+    const local = new Set<string>();
+    for (const r of rows) {
+      const k = `${nk(r.Sacado)}|${isoD(r.DataVencimento)}|${numV(r.Valor)}`;
+      if (seen.has(k)) continue;
+      local.add(k); out.push(r);
+    }
+    local.forEach(k => seen.add(k));
+  }
+  return out;
+}
+
+const OMNI_KEYS = ['Semestre', 'Dias'];
+const isOmniTurmas = (rows: any[]) => rows.some(r => OMNI_KEYS.some(k => k in r));
+const FILL: [string, string][] = [['Professor', 'Professor'], ['Estagio', 'Estagio'], ['FoneCelular', 'FoneCelular'], ['Email', 'Email']];
+
+/** Completa campos vazios das turmas com outro relatório de turmas (outro sistema), pela matrícula ou nome idêntico. Nunca adiciona alunos. */
+export function complementTurmas(base: Record<string, any>[], other: Record<string, any>[]): Record<string, any>[] {
+  const byMat = new Map<string, any>(); const byName = new Map<string, any>();
+  for (const o of other) { const m = String(o.NumeroMatricula ?? '').trim(); if (m) byMat.set(m, o); byName.set(nk(o.Aluno), o); }
+  const empty = (v: any) => v == null || String(v).trim() === '' || /^[\s\-–—]*$/.test(String(v));
+  return base.map(r => {
+    const o = byMat.get(String(r.NumeroMatricula ?? '').trim()) ?? byName.get(nk(r.Aluno));
+    if (!o) return r;
+    const n = { ...r };
+    for (const [to, from] of FILL) if (empty(n[to]) && !empty(o[from])) n[to] = o[from];
+    return n;
+  });
+}
+
 /** Recalcula a planilha a partir das últimas importações, preservando o que a equipe editou. */
 export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSettings, existing: RenewalRow[]) {
   const { data: imps, error } = await db.from('renewal_imports').select('*').eq('sheet_id', sheet.id).order('created_at', { ascending: false });
@@ -48,7 +88,12 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   const latest = (k: string) => imps.find((i: any) => i.source_key === k);
   const t = latest('turmas_existentes'); const c = latest('contas_receber');
   if (!t) return { stats: null, issues: 0 };
-  const { rows: imported, issues } = buildImported(t.summary.rows, c?.summary.rows ?? null, { settings, minDue: sheet.params?.minDue });
+  // Turmas: base = último envio; o último envio do outro sistema (Sponte × Omni) só completa campos vazios.
+  const tOmni = isOmniTurmas(t.summary.rows);
+  const t2 = imps.find((i: any) => i.source_key === 'turmas_existentes' && isOmniTurmas(i.summary.rows) !== tOmni);
+  const turmas = t2 ? complementTurmas(t.summary.rows, t2.summary.rows) : t.summary.rows;
+  const contas = c ? mergeContasImports(imps.filter((i: any) => i.source_key === 'contas_receber').map((i: any) => i.summary.rows ?? [])) : null;
+  const { rows: imported, issues } = buildImported(turmas, contas, { settings, minDue: sheet.params?.minDue });
   const f = latest('turmas_formacao');
   if (f) {
     issues.push(...applyRenewedFromNextPeriod(imported, f.summary.rows));
