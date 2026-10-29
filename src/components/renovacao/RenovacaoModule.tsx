@@ -445,7 +445,10 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
   const kinds = [...new Set(open.map(i => i.kind))];
   const conflicts = rows.filter(r => Object.keys(r.conflicts ?? {}).length).length;
   const toggle = async (id: string, resolved: boolean) => { const it = issues.find(x => x.id === id); await db.from('renewal_issues').update({ resolved, detail: { ...((it?.detail as any) ?? {}), ignored: false } }).eq('id', id); invalidate(sheet.school_id, sheet.id); };
-  const list = (kind ? main.filter(i => i.kind === kind) : main).slice(0, 500);
+  const [showResolved, setShowResolved] = useState(false);
+  const ofKind = kind ? main.filter(i => i.kind === kind) : main;
+  const resolvedCount = ofKind.filter(i => i.resolved).length;
+  const list = (showResolved ? ofKind : ofKind.filter(i => !i.resolved)).slice(0, 500);
   const setMany = async (items: typeof list, resolved: boolean, ignored: boolean) => {
     await Promise.all(items.map(i => db.from('renewal_issues').update({ resolved, detail: { ...(i.detail ?? {}), ignored } }).eq('id', i.id)));
     invalidate(sheet.school_id, sheet.id);
@@ -458,6 +461,7 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
         <button onClick={() => setKind('')} className={`rounded-lg border px-3 py-1.5 text-xs ${!kind ? 'border-primary bg-primary/10' : 'border-border'}`}>Todas ({open.length})</button>
         {kinds.map(k => <button key={k} onClick={() => setKind(k)} className={`rounded-lg border px-3 py-1.5 text-xs ${kind === k ? 'border-primary bg-primary/10' : 'border-border'}`}>{ISSUE_LABEL[k] ?? k} ({open.filter(i => i.kind === k).length})</button>)}
         {conflicts > 0 && <span className="rounded-lg border border-destructive px-3 py-1.5 text-xs text-destructive">{conflicts} linha(s) com conflito de importação — resolva na planilha</span>}
+        {resolvedCount > 0 && <button onClick={() => setShowResolved(v => !v)} className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground underline">{showResolved ? 'Ocultar resolvidos' : `Mostrar resolvidos (${resolvedCount})`}</button>}
       </div>
       {list.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
