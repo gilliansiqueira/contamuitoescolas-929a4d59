@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { isC6Pdf, parseC6PdfLines } from '@/lib/bankStatements/parsers';
 
