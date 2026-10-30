@@ -1009,6 +1009,7 @@ export type Database = {
           completed_by: string | null
           created_at: string
           day: string
+          due_time: string | null
           id: string
           label: string
           school_id: string
@@ -1024,6 +1025,7 @@ export type Database = {
           completed_by?: string | null
           created_at?: string
           day: string
+          due_time?: string | null
           id?: string
           label: string
           school_id: string
@@ -1039,6 +1041,7 @@ export type Database = {
           completed_by?: string | null
           created_at?: string
           day?: string
+          due_time?: string | null
           id?: string
           label?: string
           school_id?: string
@@ -1063,28 +1066,37 @@ export type Database = {
           active: boolean
           check_kind: string
           created_at: string
+          due_time: string | null
           id: string
           label: string
+          school_ids: string[] | null
           sort_order: number
           task_key: string
+          weekdays_only: boolean
         }
         Insert: {
           active?: boolean
           check_kind?: string
           created_at?: string
+          due_time?: string | null
           id?: string
           label: string
+          school_ids?: string[] | null
           sort_order?: number
           task_key: string
+          weekdays_only?: boolean
         }
         Update: {
           active?: boolean
           check_kind?: string
           created_at?: string
+          due_time?: string | null
           id?: string
           label?: string
+          school_ids?: string[] | null
           sort_order?: number
           task_key?: string
+          weekdays_only?: boolean
         }
         Relationships: []
       }
