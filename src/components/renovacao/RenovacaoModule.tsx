@@ -337,7 +337,12 @@ function ReportsPanel({ sheet }: { sheet: RenewalSheet }) {
     setParsed(null);
     toast.success(r.stats ? `Importado. ${r.stats.added} novas linhas, ${r.stats.kept} com edições preservadas, ${r.stats.conflicts} conflito(s), ${r.issues} item(ns) para conferência.` : 'Importado. Falta o relatório de Turmas Existentes para montar a base.');
   });
-  const recalc = () => run(async () => {
+  const recalc = () => {
+    const saved = sheet.params?.minDue as string | undefined;
+    if (saved && minDue > saved && !window.confirm(`A data de corte salva é ${saved.split('-').reverse().join('/')} e você vai recalcular a partir de ${minDue.split('-').reverse().join('/')}. Isso vai trazer de volta alunos que já tinham saído da Conferência. Continuar?`)) return;
+    return doRecalc();
+  };
+  const doRecalc = () => run(async () => {
     await db.from('renewal_sheets').update({ params: { ...sheet.params, minDue } }).eq('id', sheet.id);
     const r = await rebuildSheet({ ...sheet, params: { ...sheet.params, minDue } }, settings!, rows);
     toast.success(r.stats ? `Recalculado: ${r.issues} item(ns) para conferência.` : 'Envie primeiro Turmas Existentes.');
