@@ -8,7 +8,7 @@ import {
 } from '@/hooks/useManagementPortfolio';
 import { defaultReportMonth } from '@/lib/reportMonth';
 import {
-  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS,
+  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS, isTimedTaskOverdue, minutesSaoPaulo,
 } from '@/lib/teamAlerts';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -38,6 +38,19 @@ export function useTeamAlerts(enabled: boolean) {
     queryFn: async () => { const { data } = await (supabase as any).from('client_requests').select('id,school_id,titulo,prazo,status,responsavel_id').neq('status', 'resolvido'); return (data ?? []) as any[]; },
   });
 
+  const mineIds = rows.filter(r => r.responsible_user_id === user?.id).map(r => r.school_id);
+  const { data: timed = [] } = useQuery({
+    queryKey: ['daily_task_timed', today, mineIds.join(',')], enabled: enabled && mineIds.length > 0, refetchInterval: 5 * 60_000,
+    queryFn: async () => {
+      await (supabase as any).rpc('ensure_daily_tasks_bulk', { _school_ids: mineIds, _day: today });
+      const { data } = await (supabase as any).from('daily_task_checklist').select('id,school_id,label,due_time,status')
+        .eq('day', today).in('school_id', mineIds).not('due_time', 'is', null);
+      return (data ?? []) as any[];
+    },
+  });
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const i = setInterval(() => setTick(t => t + 1), 60_000); return () => clearInterval(i); }, []);
+
   return useMemo(() => {
     const uid = user?.id;
     const alerts: Alert[] = [];
@@ -54,6 +67,10 @@ export function useTeamAlerts(enabled: boolean) {
       if (rep) alerts.push({ key: `rep-${r.school_id}`, tone: rep.kind === 'late' ? 'late' : 'warn', schoolId: r.school_id, text: `${r.school_name}: relatório ${fmtM} ${rep.kind === 'late' ? `atrasado ${rep.days} dia(s)` : rep.days === 0 ? 'vence hoje' : `vence em ${rep.days} dia(s)`}` });
     }
     const schoolName = new Map(rows.map(r => [r.school_id, r.school_name]));
+    const mins = minutesSaoPaulo();
+    for (const t of timed) {
+      if (isTimedTaskOverdue(t, mins)) alerts.push({ key: `timed-${t.id}`, tone: 'late', schoolId: t.school_id, text: `${schoolName.get(t.school_id) ?? 'Empresa'}: ${t.label}` });
+    }
     for (const q of requests) {
       if (q.responsavel_id === uid && isOverdueRequest(q, today)) alerts.push({ key: `req-${q.id}`, tone: 'late', schoolId: q.school_id, text: `Pedido vencido · ${schoolName.get(q.school_id) ?? 'Empresa'}: ${q.titulo}` });
     }
@@ -71,7 +88,7 @@ export function useTeamAlerts(enabled: boolean) {
       }
     }
     return { alerts, today };
-  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month]);
+  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month, timed, tick]);
 }
 
 interface Props { schools: School[]; onOpenSchool: (s: School) => void; onOpenCenter: () => void }
