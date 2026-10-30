@@ -24,3 +24,14 @@ describe('avisos da equipe', () => {
     expect(reportAlert('2026-11-06', '2026-11-03', false)).toBeNull();
   });
 });
+
+import { isTimedTaskOverdue } from '@/lib/teamAlerts';
+describe('tarefa com horário', () => {
+  it('avisa a partir das 9h se não marcada', () => {
+    expect(isTimedTaskOverdue({ due_time: '09:00:00', status: 'open' }, 8 * 60 + 59)).toBe(false);
+    expect(isTimedTaskOverdue({ due_time: '09:00:00', status: 'open' }, 9 * 60)).toBe(true);
+  });
+  it('some quando marcada', () => {
+    expect(isTimedTaskOverdue({ due_time: '17:00:00', status: 'completed' }, 18 * 60)).toBe(false);
+  });
+});

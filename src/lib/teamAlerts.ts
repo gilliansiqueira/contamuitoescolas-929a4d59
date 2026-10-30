@@ -80,3 +80,15 @@ export function buildScoreboard(
   }
   return [...m.values()];
 }
+
+/** Tarefa com horário (ex.: "09:00:00") que já passou e não foi marcada. */
+export function isTimedTaskOverdue(t: { due_time: string | null; status: string }, minutesSP: number) {
+  if (!t.due_time || t.status !== 'open') return false;
+  const [h, m] = t.due_time.split(':').map(Number);
+  return minutesSP >= h * 60 + (m || 0);
+}
+
+export function minutesSaoPaulo(now = new Date()) {
+  const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(now).split(':').map(Number);
+  return (h % 24) * 60 + m;
+}
