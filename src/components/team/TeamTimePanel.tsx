@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, CalendarX2, CheckCircle2, ChevronDown, ChevronRight, Clock3, Hourglass, KeyRound, ListChecks, Loader2, RefreshCw, ShieldAlert, Timer, Trash2, Undo2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImportCartaoPonto } from './ImportCartaoPonto';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 const SIT_LABEL: Record<TeamSituacao, string> = {
