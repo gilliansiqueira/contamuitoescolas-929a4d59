@@ -72,6 +72,11 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
       .then(({ data }) => { if (!data) setPopup(true); });
   }, [user?.id, today, active.length, overdue.length]);
 
+  useEffect(() => {
+    (window as any).__deadlinePopupOpen = popup;
+    if (!popup) window.dispatchEvent(new Event('deadline-popup-closed'));
+  }, [popup]);
+
   if (!isAdmin) return null;
 
   const dismiss = async () => {
@@ -91,9 +96,10 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
         <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground shadow-md">
           <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
           <button className="text-center underline-offset-2 hover:underline" onClick={() => setPopup(true)}>🚨 {overdueText}</button>
+          {canManageCollaborators && <button onClick={() => setEditing(true)} aria-label="Gerenciar avisos" className="opacity-80 hover:opacity-100"><Settings className="h-4 w-4" /></button>}
         </div>
       )}
-      {active.map(a => (
+      {!overdueText && active.map(a => (
         <div key={a.id} className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground shadow-md">
           <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
           <span className="text-center">{sentence(a)}</span>
