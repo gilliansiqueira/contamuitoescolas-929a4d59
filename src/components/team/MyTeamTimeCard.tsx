@@ -87,7 +87,7 @@ export function MyTeamTimeCard({ showEmpty = false }: { showEmpty?: boolean }) {
             {days.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">Nenhum registro neste mês.</td></tr>}
             {days.map(({ d, c, batidas, faltando, canJustify }) => {
               const j = jBy.get(d.dia);
-              const sit = c.feriado ? { t: 'Feriado', s: 'bg-muted text-muted-foreground' } : c.emAndamento ? { t: 'Em andamento', s: 'bg-muted text-muted-foreground' }
+              const sit = c.atestado ? { t: 'Atestado', s: 'bg-progress/15 text-progress' } : c.feriado ? { t: 'Feriado', s: 'bg-muted text-muted-foreground' } : c.emAndamento ? { t: 'Em andamento', s: 'bg-muted text-muted-foreground' }
                 : c.faltaDia ? { t: 'Falta', s: 'bg-destructive/10 text-destructive' }
                 : canJustify ? { t: 'Batida faltando', s: 'bg-warning/15 text-warning' }
                 : c.faltaMin > 0 ? { t: 'Atraso / saída antes', s: 'bg-progress/15 text-progress' }
