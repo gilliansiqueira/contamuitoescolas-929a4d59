@@ -44,3 +44,4 @@ Updated: agora
 - [SSOT Financeira](mem://financeiro/single-source-of-truth) — classificationUtils + tipoMeta + useSchoolModel em todas as telas, sem heurística por nome
 - [Mês parcial e prazo único](mem://features/mes-parcial-corte-realizado) — Corte do realizado em meses abertos, prazo não reaplicado, observações por mês
 - [Operações previstas no Fluxo Diário](mem://features/fluxo-diario-operacoes-previstas) — Aplicação/Compra da Escola/Empréstimo fora da Saída Prevista, intencional
+- [Planilha da folha](mem://funcionalidades/planilha-folha-contabilidade) — Plano saúde titular 40% funcionária, dependente/copart 100%, odonto repete, VR Priscila 80
