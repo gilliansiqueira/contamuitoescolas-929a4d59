@@ -13,8 +13,8 @@ describe('horário corrigido da Geovanna (6h)', () => {
     expect(r.horas_extras).toBeNull();
     expect(r.horario_previsto).toBe(H);
   });
-  it('07/10: 7h07 trabalhadas gera 1h07 de extra', () => {
-    expect(applyScheduleOverride(day(['12:18', '13:18', '13:37', '19:26'], '01:19'), H).horas_extras).toBe('01:07');
+  it('07/10: 6h49 trabalhadas gera 49 min de extra', () => {
+    expect(applyScheduleOverride(day(['12:18', '13:18', '13:37', '19:26'], '01:19'), H).horas_extras).toBe('00:49');
   });
   it('19/10: 5h13 trabalhadas vira 47 min de atraso', () => {
     expect(applyScheduleOverride(day(['12:04', '14:03', '14:20', '17:34'], null, 'Faltas 00:17 (relatório)'), H).ocorrencia).toBe('Faltas 00:47 (horário corrigido)');
