@@ -1,0 +1,631 @@
+import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine, LabelList,
+} from 'recharts';
+import type { KpiDefinitionWithThresholds, KpiValue } from './types';
+import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+
+interface Props {
+  definition: KpiDefinitionWithThresholds;
+  values: KpiValue[];
+  months: string[];
+  /** Mês de referência para o valor exibido no card. Default: último mês de `months`. */
+  referenceMonth?: string;
+  /** Exibe o resumo à esquerda e amplia o gráfico na horizontal. */
+  expandedLayout?: boolean;
+}
+
+
+function formatMonth(m: string) {
+  const [y, mo] = m.split('-');
+  const names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  return `${names[parseInt(mo, 10) - 1]}/${y.slice(2)}`;
+}
+
+function formatValue(v: number, type: string, decimals = 2) {
+  const d = Number.isFinite(decimals) ? Math.min(Math.max(decimals, 0), 4) : 2;
+  const opts = { minimumFractionDigits: d, maximumFractionDigits: d };
+  if (type === 'currency') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', ...opts });
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', opts)}%`;
+  return v.toLocaleString('pt-BR', opts);
+}
+
+/** Rótulo curto para exibir dentro do gráfico (suave, sem poluir). */
+function formatCompact(v: number, type: string, decimals = 1) {
+  const d = Number.isFinite(decimals) ? Math.min(Math.max(decimals, 0), 4) : 1;
+  if (type === 'currency') {
+    const abs = Math.abs(v);
+    if (abs >= 1000) return `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: Math.min(d, 1) })}k`;
+    return v.toLocaleString('pt-BR', { maximumFractionDigits: Math.min(d, 1) });
+  }
+  if (type === 'percent') return `${v.toLocaleString('pt-BR', { maximumFractionDigits: d })}%`;
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: d });
+}
+
+const GOOD_TREND_COLOR = 'hsl(var(--success))';
+const BAD_TREND_COLOR = 'hsl(var(--destructive))';
+const WARNING_TREND_COLOR = 'hsl(var(--warning))';
+const INFO_TREND_COLOR = 'hsl(var(--info))';
+const NEUTRAL_LINE_COLOR = 'hsl(var(--chart-muted))';
+const YEAR_COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+  'hsl(var(--chart-6))',
+  'hsl(var(--chart-7))',
+  'hsl(var(--chart-8))',
+];
+
+function getSemanticKpiColor(color: string): string {
+  const normalized = color.replace(/[\s,]/g, '').toLowerCase();
+  if (normalized === '#ef4444' || normalized === '#ea384c' || normalized === '#dc2626' || normalized === '#f87171' || normalized === 'hsl(084%60%)') {
+    return BAD_TREND_COLOR;
+  }
+  if (normalized === '#22c55e' || normalized === '#10b981' || normalized === 'hsl(14271%45%)') {
+    return GOOD_TREND_COLOR;
+  }
+  if (normalized === '#eab308' || normalized === '#f59e0b' || normalized === 'hsl(4593%47%)') {
+    return WARNING_TREND_COLOR;
+  }
+  if (normalized === '#3b82f6' || normalized === '#0ea5e9' || normalized === 'hsl(21791%60%)') {
+    return INFO_TREND_COLOR;
+  }
+  return color;
+}
+
+function getThresholdColor(def: KpiDefinitionWithThresholds, value: number | null): string {
+  if (value === null || !def.thresholds.length) return 'hsl(var(--muted-foreground))';
+  for (const t of def.thresholds) {
+    const min = t.min_value ?? -Infinity;
+    const max = t.max_value ?? Infinity;
+    if (value >= min && value < max) return getSemanticKpiColor(t.color);
+  }
+  return getSemanticKpiColor(def.thresholds[def.thresholds.length - 1].color);
+}
+
+function getThresholdLabel(def: KpiDefinitionWithThresholds, value: number | null): string {
+  if (value === null || !def.thresholds.length) return '—';
+  for (const t of def.thresholds) {
+    const min = t.min_value ?? -Infinity;
+    const max = t.max_value ?? Infinity;
+    if (value >= min && value < max) return t.label;
+  }
+  return def.thresholds[def.thresholds.length - 1].label;
+}
+
+// Custom dot that uses threshold color
+function ThresholdDot(props: any) {
+  const { cx, cy, payload, def } = props;
+  if (cx === undefined || cy === undefined || payload.value === null) return null;
+  const color = getThresholdColor(def, payload.value);
+  return <circle cx={cx} cy={cy} r={4} fill={color} stroke="hsl(var(--background))" strokeWidth={1.5} />;
+}
+
+export function KpiCard({ definition: def, values, months, referenceMonth, expandedLayout = false }: Props) {
+  const isMobile = useIsMobile();
+  const [expanded, setExpanded] = useState(false);
+  // Group values by year
+  const years = useMemo(() => {
+    const allMonths = new Set<string>();
+    values.forEach(v => allMonths.add(v.month));
+    months.forEach(m => allMonths.add(m));
+    const yrs = new Set<string>();
+    allMonths.forEach(m => yrs.add(m.split('-')[0]));
+    return Array.from(yrs).sort();
+  }, [values, months]);
+
+  const isMultiYear = years.length > 1;
+
+  // Single year chart data
+  const chartData = useMemo(() => {
+    if (isMultiYear) return [];
+    return months.map(m => {
+      const v = values.find(v => v.month === m);
+      return { month: formatMonth(m), value: v?.value ?? null };
+    });
+  }, [months, values, isMultiYear]);
+
+  // Multi-year chart data: one line per year, X axis = month number
+  const multiYearData = useMemo(() => {
+    if (!isMultiYear) return [];
+    const monthNums = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const monthLabels = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return monthNums.map((mo, i) => {
+      const point: any = { month: monthLabels[i] };
+      years.forEach(y => {
+        const v = values.find(v => v.month === `${y}-${mo}`);
+        point[y] = v?.value ?? null;
+      });
+      return point;
+    });
+  }, [values, years, isMultiYear]);
+
+  // Mês "atual" exibido no card: usa referenceMonth se fornecido, senão último de `months`
+  const currentMonth = referenceMonth ?? months[months.length - 1];
+  const currentIdx = months.indexOf(currentMonth);
+  const prevMonth = currentIdx > 0 ? months[currentIdx - 1] : undefined;
+  const currentVal = values.find(v => v.month === currentMonth)?.value ?? null;
+  const prevVal = prevMonth ? values.find(v => v.month === prevMonth)?.value ?? null : null;
+
+  const variation = currentVal !== null && prevVal !== null ? currentVal - prevVal : null;
+  const isImprovement = variation !== null
+    ? def.direction === 'higher_is_better' ? variation > 0 : variation < 0
+    : null;
+
+  const color = getThresholdColor(def, currentVal);
+  const label = getThresholdLabel(def, currentVal);
+
+  // ─── YoY média Jan→mês selecionado vs mesmo período do ano anterior ───
+  // Todos os indicadores usam média (nunca soma acumulada).
+  const yoy = useMemo(() => {
+    if (!currentMonth) return null;
+    const [yStr, moStr] = currentMonth.split('-');
+    const year = parseInt(yStr, 10);
+    const monthIdx = parseInt(moStr, 10);
+    if (!year || !monthIdx) return null;
+    const prevYear = year - 1;
+
+    const isPercent = def.value_type === 'percent';
+    let sumCur = 0, cntCur = 0, sumPrev = 0, cntPrev = 0;
+    for (let i = 1; i <= monthIdx; i++) {
+      const mm = String(i).padStart(2, '0');
+      const cur = values.find(v => v.month === `${year}-${mm}`)?.value;
+      const prev = values.find(v => v.month === `${prevYear}-${mm}`)?.value;
+      if (cur !== undefined && cur !== null) { sumCur += cur; cntCur++; }
+      if (prev !== undefined && prev !== null) { sumPrev += prev; cntPrev++; }
+    }
+    if (cntCur === 0 || cntPrev === 0) return null;
+    const aggCur = sumCur / cntCur;
+    const aggPrev = sumPrev / cntPrev;
+    const delta = aggCur - aggPrev;
+    const relPct = aggPrev !== 0 ? (delta / Math.abs(aggPrev)) * 100 : null;
+    const improvement = def.direction === 'higher_is_better' ? delta > 0 : delta < 0;
+    return { aggCur, aggPrev, delta, relPct, improvement, isPercent, prevYear, monthIdx };
+  }, [currentMonth, values, def.value_type, def.direction]);
+
+  const yearlyAverages = useMemo(() => {
+    const grouped = new Map<string, number[]>();
+    values.forEach(value => {
+      const year = value.month.split('-')[0];
+      if (year < '2022' || (currentMonth && value.month > currentMonth)) return;
+      const yearValues = grouped.get(year) ?? [];
+      yearValues.push(value.value);
+      grouped.set(year, yearValues);
+    });
+
+    return Array.from(grouped.entries())
+      .sort(([yearA], [yearB]) => yearA.localeCompare(yearB))
+      .map(([year, yearValues]) => ({
+        year,
+        average: yearValues.reduce((total, value) => total + value, 0) / yearValues.length,
+      }));
+  }, [currentMonth, values]);
+
+  // Format variation (percent KPIs usam % em vez de p.p.)
+  const formatVariation = (v: number) => {
+    const prefix = v > 0 ? '+' : '';
+    if (def.value_type === 'percent') {
+      return `${prefix}${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+    }
+    return `${prefix}${formatValue(v, def.value_type, def.decimals)}`;
+  };
+
+
+  // Compute Y domain from thresholds and data
+  const allValues = values.map(v => v.value);
+  const thresholdBounds = def.thresholds.flatMap(t => [t.min_value, t.max_value].filter((v): v is number => v !== null && Number.isFinite(v)));
+  const allNums = [...allValues, ...thresholdBounds];
+  const yMin = allNums.length ? Math.floor(Math.min(...allNums) * 0.9) : 0;
+  const yMax = allNums.length ? Math.ceil(Math.max(...allNums) * 1.1) : 100;
+
+  if (isMobile) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl border border-border/50 bg-card shadow-sm p-2.5 flex flex-col"
+      >
+        <div className="flex items-center gap-1.5 mb-1 min-w-0">
+          {def.icon?.file_url ? (
+            <img src={def.icon.file_url} alt={def.name} className="object-contain shrink-0" style={{ width: 20, height: 20 }} />
+          ) : (
+            <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
+              {def.name.charAt(0)}
+            </div>
+          )}
+          <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground truncate">{def.name}</span>
+        </div>
+
+        <div className="flex items-baseline justify-between gap-1">
+          <span className="text-lg font-extrabold leading-tight" style={{ color }}>
+            {currentVal !== null ? formatValue(currentVal, def.value_type, def.decimals) : '—'}
+          </span>
+          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full text-primary-foreground shrink-0" style={{ backgroundColor: color }}>
+            {label}
+          </span>
+        </div>
+
+        {variation !== null && (
+          <div className="flex items-center gap-0.5 mt-0.5 text-[9px]">
+            {variation > 0 ? (
+              <ArrowUp className="w-2.5 h-2.5" style={{ color: isImprovement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }} />
+            ) : variation < 0 ? (
+              <ArrowDown className="w-2.5 h-2.5" style={{ color: isImprovement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }} />
+            ) : (
+              <Minus className="w-2.5 h-2.5 text-muted-foreground" />
+            )}
+            <span style={variation === 0 ? undefined : { color: isImprovement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }} className="font-medium truncate">
+              {formatVariation(variation)}
+            </span>
+            <span className="text-muted-foreground">vs mês ant.</span>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          className="mt-1.5 text-[9px] font-semibold text-primary self-start"
+        >
+          {expanded ? 'Ocultar' : 'Ver mais'}
+        </button>
+
+        {expanded && (
+          <div className="mt-1.5 space-y-1.5">
+            {yoy && (
+              <div className="text-[9px] text-muted-foreground leading-snug">
+                <span
+                  className="font-semibold"
+                  style={yoy.delta === 0 ? undefined : { color: yoy.improvement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }}
+                >
+                  {yoy.isPercent ? formatVariation(yoy.delta) : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type, def.decimals)}`}
+                </span>{' '}
+                vs {yoy.prevYear} (mesmo período) · Média {formatValue(yoy.aggCur, def.value_type, def.decimals)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type, def.decimals)}
+              </div>
+            )}
+            <ResponsiveContainer width="100%" height={130}>
+              <LineChart data={isMultiYear ? multiYearData : chartData} margin={{ top: 12, right: 4, bottom: 0, left: -22 }}>
+                <XAxis dataKey="month" tick={{ fontSize: 8 }} axisLine={false} tickLine={false} interval={isMultiYear ? 1 : Math.max(0, Math.ceil(chartData.length / 5) - 1)} />
+                <YAxis domain={[yMin, yMax]} tick={{ fontSize: 8 }} width={30} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(v: number, name: string) => [formatValue(v, def.value_type, def.decimals), isMultiYear ? name : def.name]}
+                  contentStyle={{ fontSize: 10, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+                />
+                {isMultiYear
+                  ? years.map((year, idx) => (
+                      <Line key={year} type="monotone" dataKey={year} name={year} stroke={YEAR_COLORS[idx % YEAR_COLORS.length]} strokeWidth={2} dot={false} connectNulls />
+                    ))
+                  : (
+                    <Line type="monotone" dataKey="value" stroke={NEUTRAL_LINE_COLOR} strokeWidth={2} dot={<ThresholdDot def={def} />} connectNulls />
+                  )}
+              </LineChart>
+            </ResponsiveContainer>
+            {isMultiYear && (
+              <div className="flex flex-wrap justify-center gap-2">
+                {years.map((year, idx) => (
+                  <div key={year} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                    <div className="w-2.5 h-0.5 rounded" style={{ backgroundColor: YEAR_COLORS[idx % YEAR_COLORS.length] }} />
+                    {year}
+                    {yearlyAverages.find(item => item.year === year) && (
+                      <span className="font-semibold">
+                        · média {formatValue(yearlyAverages.find(item => item.year === year)?.average ?? 0, def.value_type, def.decimals)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  if (expandedLayout) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 sm:p-7"
+      >
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+          <div className="w-full lg:w-64 lg:shrink-0 flex flex-col items-center justify-center text-center lg:border-r lg:border-border/60 lg:pr-8">
+            {def.icon?.file_url ? (
+              <img src={def.icon.file_url} alt={def.name} className="object-contain w-16 h-16" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
+                {def.name.charAt(0)}
+              </div>
+            )}
+            <span className="mt-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{def.name}</span>
+            <span className="my-2 text-4xl font-extrabold" style={{ color }}>
+              {currentVal !== null ? formatValue(currentVal, def.value_type, def.decimals) : '—'}
+            </span>
+            <span className="text-[10px] font-bold px-3 py-0.5 rounded-full text-primary-foreground" style={{ backgroundColor: color }}>
+              {label}
+            </span>
+
+            <div className="mt-5 space-y-1.5 text-xs">
+              {variation !== null && (
+                <div className="flex items-center justify-center gap-1">
+                  {variation > 0 ? <ArrowUp className="w-3.5 h-3.5" /> : variation < 0 ? <ArrowDown className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+                  <span className="font-semibold" style={variation === 0 ? undefined : { color: isImprovement ? 'hsl(var(--success))' : 'hsl(var(--destructive))' }}>
+                    {formatVariation(variation)}
+                  </span>
+                  <span className="text-muted-foreground">vs mês anterior</span>
+                </div>
+              )}
+              {yoy && (
+                <div className="text-muted-foreground">
+                  <span className="font-semibold" style={{ color: yoy.delta === 0 ? 'hsl(var(--muted-foreground))' : yoy.improvement ? 'hsl(var(--success))' : 'hsl(var(--destructive))' }}>
+                    {yoy.isPercent ? formatVariation(yoy.delta) : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type, def.decimals)}`}
+                  </span>{' '}
+                  vs {yoy.prevYear}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-border/60 w-full">
+              <div className="text-[10px] text-muted-foreground uppercase font-bold">Média de cada ano</div>
+              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                {yearlyAverages.map(({ year, average }) => (
+                  <div key={year} className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{year}</span>
+                    <span className="font-bold text-foreground">{formatValue(average, def.value_type, def.decimals)}</span>
+                  </div>
+                ))}
+                {yearlyAverages.length === 0 && <span className="text-muted-foreground">—</span>}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={isMultiYear ? multiYearData : chartData} margin={{ top: 22, right: 16, bottom: 0, left: -4 }}>
+                {def.thresholds.map((threshold, index) => {
+                  const low = threshold.min_value ?? yMin;
+                  const high = threshold.max_value ?? yMax;
+                  <ReferenceArea key={index} y1={Math.max(low, yMin)} y2={Math.min(high, yMax)} fill={getSemanticKpiColor(threshold.color)} fillOpacity={0.08} />;
+                })}
+                <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={44} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [formatValue(value, def.value_type, def.decimals), isMultiYear ? name : def.name]}
+                  contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))', backgroundColor: 'hsl(var(--card))' }}
+                />
+                {isMultiYear ? years.map((year, index) => (
+                  <Line
+                    key={year}
+                    type="monotone"
+                    dataKey={year}
+                    name={year}
+                    stroke={YEAR_COLORS[index % YEAR_COLORS.length]}
+                    strokeWidth={2.5}
+                    dot={{ r: 3, strokeWidth: 0, fill: YEAR_COLORS[index % YEAR_COLORS.length] }}
+                    connectNulls
+                    activeDot={{ r: 5 }}
+                  />
+                )) : (
+                  <Line type="monotone" dataKey="value" stroke={NEUTRAL_LINE_COLOR} strokeWidth={2.5} dot={<ThresholdDot def={def} />} connectNulls activeDot={{ r: 5 }} />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+
+            {isMultiYear && (
+              <div className="flex flex-wrap justify-center gap-4 mt-3">
+                {years.map((year, index) => (
+                  <div key={year} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="w-3 h-0.5 rounded" style={{ backgroundColor: YEAR_COLORS[index % YEAR_COLORS.length] }} />
+                    <span>{year}</span>
+                    {yearlyAverages.find(item => item.year === year) && (
+                      <span className="font-semibold text-foreground">
+                        média {formatValue(yearlyAverages.find(item => item.year === year)?.average ?? 0, def.value_type, def.decimals)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-border/50 bg-card shadow-sm p-5 flex flex-col"
+    >
+      {/* Header */}
+
+      <div className="flex flex-col items-center gap-2 mb-3">
+        {def.icon?.file_url ? (
+          <img
+            src={def.icon.file_url}
+            alt={def.name}
+            className="object-contain"
+            style={{ width: 64, height: 64 }}
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
+            {def.name.charAt(0)}
+          </div>
+        )}
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{def.name}</span>
+      </div>
+
+
+      {/* Value */}
+      <div className="text-center mb-1">
+        <span className="text-3xl font-extrabold" style={{ color }}>
+          {currentVal !== null ? formatValue(currentVal, def.value_type, def.decimals) : '—'}
+        </span>
+      </div>
+
+      {/* Status badge */}
+      <div className="flex justify-center mb-2">
+        <span
+          className="text-[10px] font-bold px-3 py-0.5 rounded-full text-primary-foreground"
+          style={{ backgroundColor: color }}
+        >
+          {label}
+        </span>
+      </div>
+
+      {/* Variation */}
+      {variation !== null && (
+        <div className="flex items-center justify-center gap-1 mb-1 text-xs">
+          {variation > 0 ? (
+              <ArrowUp className="w-3.5 h-3.5" style={{ color: isImprovement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }} />
+          ) : variation < 0 ? (
+              <ArrowDown className="w-3.5 h-3.5" style={{ color: isImprovement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }} />
+          ) : (
+            <Minus className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
+          <span className={variation === 0 ? 'text-muted-foreground' : 'font-medium'} style={isImprovement ? { color: GOOD_TREND_COLOR } : variation !== 0 ? { color: BAD_TREND_COLOR } : undefined}>
+            {formatVariation(variation)}
+          </span>
+          <span className="text-muted-foreground">vs mês anterior</span>
+        </div>
+      )}
+
+      {/* YoY acumulado Jan→mês vs mesmo período do ano anterior */}
+      {yoy && (
+        <div className="flex flex-col items-center gap-0.5 mb-3 text-[11px]">
+          <div className="flex items-center gap-1">
+            {yoy.delta > 0 ? (
+              <ArrowUp className="w-3 h-3" style={{ color: yoy.improvement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }} />
+            ) : yoy.delta < 0 ? (
+              <ArrowDown className="w-3 h-3" style={{ color: yoy.improvement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }} />
+            ) : (
+              <Minus className="w-3 h-3 text-muted-foreground" />
+            )}
+            <span
+              className="font-semibold"
+              style={yoy.delta === 0 ? { color: 'hsl(var(--muted-foreground))' } : { color: yoy.improvement ? GOOD_TREND_COLOR : BAD_TREND_COLOR }}
+            >
+              {yoy.isPercent
+                ? formatVariation(yoy.delta)
+                : `${yoy.delta > 0 ? '+' : ''}${formatValue(yoy.delta, def.value_type, def.decimals)}`}
+            </span>
+            {yoy.relPct !== null && (
+              <span className="text-muted-foreground">
+                ({yoy.relPct > 0 ? '+' : ''}{yoy.relPct.toFixed(1)}%)
+              </span>
+            )}
+            <span className="text-muted-foreground">vs {yoy.prevYear}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground text-center leading-snug">
+            Comparado ao acumulado do ano passado (mesmo período)
+          </div>
+          <div className="text-[10px] text-muted-foreground text-center">
+            Média Jan–{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][yoy.monthIdx - 1]}: {formatValue(yoy.aggCur, def.value_type, def.decimals)} · {yoy.prevYear}: {formatValue(yoy.aggPrev, def.value_type, def.decimals)}
+          </div>
+
+        </div>
+      )}
+
+      {/* Chart */}
+      <div className="flex-1 min-h-[170px]">
+        <ResponsiveContainer width="100%" height={170}>
+          {isMultiYear ? (
+            <LineChart data={multiYearData} margin={{ top: 16, right: 8, bottom: 0, left: -10 }}>
+              {def.thresholds.map((t, i) => {
+                const lo = t.min_value ?? yMin;
+                const hi = t.max_value ?? yMax;
+                return (
+                  <ReferenceArea key={i} y1={Math.max(lo, yMin)} y2={Math.min(hi, yMax)} fill={getSemanticKpiColor(t.color)} fillOpacity={0.08} />
+                );
+              })}
+              <XAxis dataKey="month" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                formatter={(v: number, name: string) => [formatValue(v, def.value_type, def.decimals), name]}
+                contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+              />
+              {years.map((year, idx) => (
+                <Line
+                  key={year}
+                  type="monotone"
+                  dataKey={year}
+                  name={year}
+                  stroke={YEAR_COLORS[idx % YEAR_COLORS.length]}
+                  strokeWidth={2.5}
+                  dot={{ r: 3, strokeWidth: 0, fill: YEAR_COLORS[idx % YEAR_COLORS.length] }}
+                  connectNulls
+                  activeDot={{ r: 5 }}
+                >
+                  {/* rótulo suave apenas no ano mais recente para não poluir */}
+                  {idx === years.length - 1 && (
+                    <LabelList
+                      dataKey={year}
+                      position="top"
+                      offset={8}
+                      fontSize={8}
+                      fill="hsl(var(--muted-foreground))"
+                      opacity={0.65}
+                      formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type, def.decimals))}
+                    />
+                  )}
+                </Line>
+              ))}
+            </LineChart>
+          ) : (
+            <LineChart data={chartData} margin={{ top: 16, right: 8, bottom: 0, left: -10 }}>
+              {def.thresholds.map((t, i) => {
+                const lo = t.min_value ?? yMin;
+                const hi = t.max_value ?? yMax;
+                return (
+                  <ReferenceArea key={i} y1={Math.max(lo, yMin)} y2={Math.min(hi, yMax)} fill={getSemanticKpiColor(t.color)} fillOpacity={0.08} />
+                );
+              })}
+              <XAxis dataKey="month" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[yMin, yMax]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                formatter={(v: number) => [formatValue(v, def.value_type, def.decimals), def.name]}
+                contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={NEUTRAL_LINE_COLOR}
+                strokeWidth={2.5}
+                dot={<ThresholdDot def={def} />}
+                connectNulls
+                activeDot={{ r: 5 }}
+              >
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  offset={8}
+                  fontSize={8}
+                  fill="hsl(var(--muted-foreground))"
+                  opacity={0.65}
+                  formatter={(v: any) => (v === null || v === undefined ? '' : formatCompact(v, def.value_type, def.decimals))}
+                />
+              </Line>
+            </LineChart>
+          )}
+        </ResponsiveContainer>
+
+      </div>
+
+      {/* Year legend for multi-year */}
+      {isMultiYear && (
+        <div className="flex justify-center gap-3 mt-1">
+          {years.map((year, idx) => (
+            <div key={year} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <div className="w-3 h-0.5 rounded" style={{ backgroundColor: YEAR_COLORS[idx % YEAR_COLORS.length] }} />
+              {year}
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}

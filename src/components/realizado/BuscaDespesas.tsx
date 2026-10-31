@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/select';
 import { Search, X, ListFilter, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { YoYLineChart } from './YoYLineChart';
+import { YoYLineChart } from './YoYLineChart.quintal';
 import { toast } from 'sonner';
 import { extractPersonName, attributeUnnamedProLabore } from '@/lib/expenseInsights';
 

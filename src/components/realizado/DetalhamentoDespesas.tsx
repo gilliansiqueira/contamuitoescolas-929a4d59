@@ -1,3 +1,5 @@
+import { isQuintal } from '@/lib/quintal';
+import { DetalhamentoDespesasQuintal } from './DetalhamentoDespesas.quintal';
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -227,7 +229,12 @@ interface ItemDraft {
   tipo: DetailTipo;
 }
 
-export function DetalhamentoDespesas({ schoolId }: Props) {
+/** Quintal de Casa usa a versão trazida do projeto dela; demais empresas, a padrão. */
+export function DetalhamentoDespesas(props: Props) {
+  return isQuintal(props.schoolId) ? <DetalhamentoDespesasQuintal key={props.schoolId} schoolId={props.schoolId} /> : <DetalhamentoDespesasBase key={props.schoolId} {...props} />;
+}
+
+function DetalhamentoDespesasBase({ schoolId }: Props) {
   const { label } = useExpenseDetailConfig(schoolId);
   const {
     groups,

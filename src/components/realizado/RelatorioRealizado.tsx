@@ -1,3 +1,5 @@
+import { isQuintal } from '@/lib/quintal';
+import { RelatorioRealizadoQuintal } from './RelatorioRealizado.quintal';
 import { useRealizedEntries } from '@/hooks/useRealizedEntries';
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,7 +69,12 @@ function useContainerWidth() {
   return { ref, width };
 }
 
-export function RelatorioRealizado({ schoolId }: Props) {
+/** Quintal de Casa usa a versão trazida do projeto dela; demais empresas, a padrão. */
+export function RelatorioRealizado(props: Props) {
+  return isQuintal(props.schoolId) ? <RelatorioRealizadoQuintal key={props.schoolId} schoolId={props.schoolId} /> : <RelatorioRealizadoBase key={props.schoolId} {...props} />;
+}
+
+function RelatorioRealizadoBase({ schoolId }: Props) {
   const queryClient = useQueryClient();
   const closedMonths = useClosedMonths(schoolId);
   const [mesFilter, setMesFilter] = useState('all');
