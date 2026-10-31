@@ -165,8 +165,10 @@ export function useTeamJustifications(month: string, enabled: boolean) {
     enabled,
     queryFn: async (): Promise<TeamJustification[]> => {
       const [y, m] = month.split('-').map(Number);
+      const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+      // Pendentes de qualquer mês + revisadas do mês escolhido.
       const { data, error } = await db.from('team_time_justifications').select('id,employee_external_id,dia,motivo,status,created_at')
-        .gte('dia', `${month}-01`).lte('dia', `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`).order('dia', { ascending: false });
+        .or(`status.eq.pendente,and(dia.gte.${month}-01,dia.lte.${end})`).order('dia', { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -192,6 +194,9 @@ export function useReviewJustification() {
     mutationFn: async (p: { id: string; status: 'aceita' | 'recusada' | 'pendente'; reviewer: string }) => {
       const { error } = await db.from('team_time_justifications').update({ status: p.status, revisado_por: p.status === 'pendente' ? null : p.reviewer, revisado_em: p.status === 'pendente' ? null : new Date().toISOString() }).eq('id', p.id);
       if (error) throw error;
+    },
+    onMutate: (p) => {
+      qc.setQueriesData<TeamJustification[]>({ queryKey: ['team-time-just'] }, old => old?.map(j => j.id === p.id ? { ...j, status: p.status } : j));
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['team-time-just'] }),
   });
