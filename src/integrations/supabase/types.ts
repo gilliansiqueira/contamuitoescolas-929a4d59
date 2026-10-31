@@ -4131,30 +4131,60 @@ export type Database = {
         }
         Relationships: []
       }
+      team_benefit_month: {
+        Row: {
+          dias_uteis: number | null
+          month: string
+          updated_at: string
+          vt_diario: number
+        }
+        Insert: {
+          dias_uteis?: number | null
+          month: string
+          updated_at?: string
+          vt_diario?: number
+        }
+        Update: {
+          dias_uteis?: number | null
+          month?: string
+          updated_at?: string
+          vt_diario?: number
+        }
+        Relationships: []
+      }
       team_payroll_defaults: {
         Row: {
           codigo_folha: number | null
           external_id: string
           nome_folha: string | null
           odonto: number | null
+          recebe_vt: boolean
           updated_at: string
           vr: number | null
+          vr_diario: number | null
+          vt_cartao: boolean
         }
         Insert: {
           codigo_folha?: number | null
           external_id: string
           nome_folha?: string | null
           odonto?: number | null
+          recebe_vt?: boolean
           updated_at?: string
           vr?: number | null
+          vr_diario?: number | null
+          vt_cartao?: boolean
         }
         Update: {
           codigo_folha?: number | null
           external_id?: string
           nome_folha?: string | null
           odonto?: number | null
+          recebe_vt?: boolean
           updated_at?: string
           vr?: number | null
+          vr_diario?: number | null
+          vt_cartao?: boolean
         }
         Relationships: []
       }
