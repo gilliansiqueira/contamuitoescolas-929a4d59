@@ -58,7 +58,7 @@ export function BenefitsTab() {
     return tt.data.employees.map(e => {
       const def = defs.get(e.external_id);
       const uteis = businessDays(mes, e.desligado_em);
-      const dias = e.desligado_em && e.desligado_em.slice(0, 7) === mes ? uteis.length : Math.min(diasMes, Math.max(diasMes, 0));
+      const dias = e.desligado_em && e.desligado_em.slice(0, 7) === mes ? Math.min(uteis.length, diasMes) : diasMes;
       const setUteis = new Set(uteis);
       let faltas = 0, atestados = 0;
       for (const d of tt.data!.daily.filter(x => x.employee_external_id === e.external_id && setUteis.has(x.dia))) {
