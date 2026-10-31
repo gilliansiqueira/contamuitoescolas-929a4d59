@@ -157,7 +157,6 @@ export function useMyTeamTime(month: string, userId: string | undefined) {
       const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
       const [d, j, ig2] = await Promise.all([
         db.from('team_time_daily').select('*').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
-        db.from('team_time_daily_overrides').select('dia,batidas_ignoradas').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
         db.from('team_time_justifications').select('id,employee_external_id,dia,motivo,status,created_at').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
         db.from('team_time_daily_overrides').select('dia,batidas_ignoradas').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
       ]);
