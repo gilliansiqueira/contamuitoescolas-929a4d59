@@ -1,5 +1,5 @@
 import { beforeTermination } from '@/lib/teamTime/termination';
-import { applyScheduleOverride } from '@/lib/teamTime/schedule';
+import { applyScheduleOverride, applyIgnoredPunches } from '@/lib/teamTime/schedule';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -39,14 +39,16 @@ export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
         meses.push(cur);
         if (cur >= endMonth) break;
       }
-      const [e, d, o, b, r, s] = await Promise.all([
+      const [e, d, o, b, r, s, ig] = await Promise.all([
         db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id,desligado_em,horario_override').eq('ativo', true).order('nome'),
         db.from('team_time_daily').select('*').gte('dia', start).lte('dia', end),
         db.from('team_time_occurrences').select('external_key,employee_external_id,dia,tipo,descricao,origem').gte('dia', start).lte('dia', end),
         db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').in('competencia', meses),
         db.from('team_time_sync_runs').select('id,status,started_at,finished_at,message').order('started_at', { ascending: false }).limit(1),
         db.from('team_time_sync_runs').select('id,status,started_at,finished_at,message').eq('status', 'success').order('started_at', { ascending: false }).limit(1),
+        db.from('team_time_daily_overrides').select('employee_external_id,dia,batidas_ignoradas').gte('dia', start).lte('dia', end),
       ]);
+      const ign = new Map<string, string[]>(((ig.data ?? []) as any[]).map(x => [`${x.employee_external_id}|${x.dia}`, x.batidas_ignoradas]));
       const err = [e, d, o, b, r, s].find(x => x.error)?.error;
       if (err) throw err;
       // Desligadas antes do período somem; dias a partir do desligamento não contam.
@@ -55,7 +57,7 @@ export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
       const cut = new Map(all.map(x => [x.external_id, x.desligado_em ?? null]));
       const ovr = new Map(all.map(x => [x.external_id, x.horario_override ?? null]));
       const keep = (x: { employee_external_id: string; dia?: string }) => vis.has(x.employee_external_id) && beforeTermination(x.dia, cut.get(x.employee_external_id));
-      return { employees: all.filter(x => !x.oculto), hidden: all.filter(x => x.oculto), daily: (d.data ?? []).filter(keep).map((x: TeamDaily) => applyScheduleOverride(x, ovr.get(x.employee_external_id))), occurrences: (o.data ?? []).filter(keep), hourBank: (b.data ?? []).filter(keep), lastRun: r.data?.[0] ?? null, lastSuccess: s.data?.[0] ?? null };
+      return { employees: all.filter(x => !x.oculto), hidden: all.filter(x => x.oculto), daily: (d.data ?? []).filter(keep).map((x: TeamDaily) => applyIgnoredPunches(x, ign.get(`${x.employee_external_id}|${x.dia}`), ovr.get(x.employee_external_id))), occurrences: (o.data ?? []).filter(keep), hourBank: (b.data ?? []).filter(keep), lastRun: r.data?.[0] ?? null, lastSuccess: s.data?.[0] ?? null };
     },
   });
 }
@@ -153,13 +155,16 @@ export function useMyTeamTime(month: string, userId: string | undefined) {
       const start = `${month}-01`;
       const [y, m] = month.split('-').map(Number);
       const end = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-      const [d, j] = await Promise.all([
+      const [d, j, ig2] = await Promise.all([
         db.from('team_time_daily').select('*').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
+        db.from('team_time_daily_overrides').select('dia,batidas_ignoradas').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
         db.from('team_time_justifications').select('id,employee_external_id,dia,motivo,status,created_at').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
+        db.from('team_time_daily_overrides').select('dia,batidas_ignoradas').eq('employee_external_id', emp.external_id).gte('dia', start).lte('dia', end),
       ]);
+      const ign2 = new Map<string, string[]>(((ig2.data ?? []) as any[]).map(x => [x.dia, x.batidas_ignoradas]));
       const err = [d, j].find(x => x.error)?.error;
       if (err) throw err;
-      return { employee: { ...emp, horario_previsto: emp.horario_override || emp.horario_previsto } as TeamEmployee, daily: ((d.data ?? []) as TeamDaily[]).filter(x => beforeTermination(x.dia, emp.desligado_em)).map(x => applyScheduleOverride(x, emp.horario_override)), justifications: (j.data ?? []) as TeamJustification[] };
+      return { employee: { ...emp, horario_previsto: emp.horario_override || emp.horario_previsto } as TeamEmployee, daily: ((d.data ?? []) as TeamDaily[]).filter(x => beforeTermination(x.dia, emp.desligado_em)).map(x => applyIgnoredPunches(x, ign2.get(x.dia), emp.horario_override)), justifications: (j.data ?? []) as TeamJustification[] };
     },
   });
 }
