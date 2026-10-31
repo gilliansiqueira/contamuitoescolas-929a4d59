@@ -186,7 +186,7 @@ export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
       // If baseDate is set, filter strictly from it. Empty result = empty result
       // (no silent fallback to all-time data — avoids mixing periods).
       const data = await fetchAllRows<any>('financial_entries', q => {
-        let qq = q.eq('school_id', schoolId);
+        let qq = applyEntityFilterShared(q.eq('school_id', schoolId), entityId);
         if (baseDate) qq = qq.gte('data', baseDate);
         return qq.order('data');
       }, 1000, ENTRY_COLS, signal);
