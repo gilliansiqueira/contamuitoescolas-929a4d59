@@ -264,6 +264,7 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
   const diaSit = (x?: PersonRow['cls'][number]) => {
     if (!x) return { t: SIT_LABEL.aguardando, s: SIT_STYLE.aguardando };
     const { d, c } = x;
+    if (c.atestado) return { t: 'Atestado', s: 'bg-progress/15 text-progress border-progress/30' };
     if (c.feriado) return { t: 'Feriado', s: SIT_STYLE.regular };
     if (c.emAndamento) return { t: 'Em andamento', s: SIT_STYLE.em_andamento };
     if (c.faltaDia) return { t: 'Falta', s: SIT_STYLE.falta };
@@ -411,11 +412,13 @@ const spTimeMin = (iso?: string | null) => {
 
 /** Regra única do Ponto: falta do dia inteiro, minutos faltando e extras. */
 export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previstoEmp: string | null, today = spToday()) {
-  if (!d) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false, feriado: false };
+  if (!d) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false, feriado: false, atestado: false };
   const isToday = d.dia === today;
   const semBatida = !(d.marcacoes?.length) && !d.primeira_marcacao;
   // Feriado nacional sem batida: nunca é falta nem gera minutos devidos.
-  if (semBatida && isNationalHoliday(d.dia)) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false, feriado: true };
+  if (semBatida && isNationalHoliday(d.dia)) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false, feriado: true, atestado: false };
+  // Atestado: nunca é falta; reaproveita as exclusões do feriado (flag feriado) com selo próprio.
+  if (/atestado/i.test((d.ocorrencia ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) return { faltaDia: false, faltaMin: 0, extraMin: Math.max(0, hhmmToMin(d.horas_extras)), emAndamento: false, feriado: true, atestado: true };
   const prev = (d.horario_previsto ?? previstoEmp ?? '').split(/\s+/).find(x => TIME_RE.test(x));
   const syncMin = spTimeMin(d.synced_at);
   const syncedSameDay = d.synced_at ? new Date(d.synced_at).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) === d.dia : false;
@@ -424,7 +427,7 @@ export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previs
   const faltaDia = semBatida && marcadoFalta && entradaPassou;
   const emAndamento = isToday && !faltaDia;
   const fm = (d.ocorrencia ?? '').match(/Faltas\s+(\d+:\d{2})/i);
-  return { faltaDia, faltaMin: emAndamento || !fm ? 0 : hhmmToMin(fm[1]), extraMin: emAndamento ? 0 : Math.max(0, hhmmToMin(d.horas_extras)), emAndamento, feriado: false };
+  return { faltaDia, faltaMin: emAndamento || !fm ? 0 : hhmmToMin(fm[1]), extraMin: emAndamento ? 0 : Math.max(0, hhmmToMin(d.horas_extras)), emAndamento, feriado: false, atestado: false };
 }
 
 function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; date: string; canEdit: boolean }) {
