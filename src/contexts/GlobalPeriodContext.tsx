@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { useAvailableMonths } from '@/hooks/useFinancialData';
 
