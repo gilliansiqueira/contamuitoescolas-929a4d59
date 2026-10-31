@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, CalendarX2, CheckCircle2, ChevronDown, ChevronRight, Clock3, Hourglass, KeyRound, ListChecks, Loader2, RefreshCw, ShieldAlert, Timer, Trash2, Undo2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImportCartaoPonto } from './ImportCartaoPonto';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 const SIT_LABEL: Record<TeamSituacao, string> = {
@@ -227,6 +227,9 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
 
   const justQ = useTeamJustifications(spToday().slice(0, 7), true);
   const pendingJust = (justQ.data ?? []).filter(j => j.status === 'pendente').length;
+  // Justificativa aceita tira o dia das horas devidas/faltas (mesma regra da planilha da contabilidade).
+  const justRange = useTeamJustifications(start.slice(0, 7), true);
+  const aceitas = useMemo(() => new Set((justRange.data ?? []).filter(j => j.status === 'aceita').map(j => `${j.employee_external_id}|${j.dia}`)), [justRange.data]);
   const rows = useMemo<PersonRow[]>(() => data.employees.map(e => {
     const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia >= start && d.dia <= end).sort((a, b) => b.dia.localeCompare(a.dia));
     const cls = days.map(d => ({ d, c: classifyDay(d, e.horario_previsto), occ: occKey.get(`${e.external_id}|${d.dia}`) ?? [] }));
@@ -234,12 +237,12 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
     return {
       e, cls, problemas,
       pend: problemas.length > 0,
-      faltas: cls.filter(x => x.c.faltaDia).length,
-      devidasMin: cls.reduce((s, x) => s + x.c.faltaMin, 0),
+      faltas: cls.filter(x => x.c.faltaDia && !aceitas.has(`${e.external_id}|${x.d.dia}`)).length,
+      devidasMin: cls.reduce((s, x) => s + (aceitas.has(`${e.external_id}|${x.d.dia}`) ? 0 : x.c.faltaMin), 0),
       extrasMin: cls.reduce((s, x) => s + x.c.extraMin, 0),
       incDias: cls.filter(x => !x.c.feriado && x.d.situacao === 'incompleta').length,
     };
-  }).sort((a, b) => a.e.nome.localeCompare(b.e.nome)), [data.employees, data.daily, occKey, start, end]);
+  }).sort((a, b) => a.e.nome.localeCompare(b.e.nome)), [data.employees, data.daily, occKey, start, end, aceitas]);
 
   const count = (f: (r: PersonRow) => boolean) => rows.filter(f).length;
   const totDevidas = rows.reduce((s, r) => s + r.devidasMin, 0);
@@ -435,6 +438,7 @@ export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previs
 function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; date: string; canEdit: boolean }) {
   const { user } = useAuth();
   const link = useLinkEmployeeUser();
+  const qc = useQueryClient();
   const review = useReviewJustification();
   const just = useTeamJustifications(date.slice(0, 7), true);
   const users = useQuery({
@@ -454,12 +458,15 @@ function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; 
         <h2 className="text-sm font-medium">Login de cada colaboradora</h2>
         <p className="text-[11px] text-muted-foreground">Quem tiver login vinculado vê somente o próprio ponto na Central e pode justificar dias com falta ou batida faltando.</p>
         <div className="overflow-x-auto rounded-lg border border-border bg-card"><table className="w-full text-xs">
-          <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Login vinculado</th></tr></thead>
+          <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Login vinculado</th><th className={th}>Desligada em</th></tr></thead>
           <tbody>{data.employees.map(e => <tr key={e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{e.nome}</td><td className="px-3 py-2">
             <Select value={e.user_id ?? 'none'} disabled={!canEdit || link.isPending} onValueChange={v => onLink(e.external_id, v)}>
               <SelectTrigger className="h-8 w-64 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="none">Sem login</SelectItem>{(users.data ?? []).map(u => <SelectItem key={u.user_id} value={u.user_id}>{u.email}</SelectItem>)}</SelectContent>
-            </Select></td></tr>)}</tbody>
+            </Select></td><td className="px-3 py-2">
+              <input type="date" aria-label={`Desligamento de ${e.nome}`} disabled={!canEdit} defaultValue={e.desligado_em ?? ''} className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                onChange={async ev => { const v = ev.target.value || null; const { error } = await (supabase as any).from('team_time_employees').update({ desligado_em: v }).eq('external_id', e.external_id); if (error) toast.error('Não foi possível salvar.'); else { toast.success(v ? 'Desligamento salvo: dias a partir dessa data não contam.' : 'Desligamento removido.'); qc.invalidateQueries({ queryKey: ['team-time'] }); } }} />
+            </td></tr>)}</tbody>
         </table></div>
       </section>
     </div>

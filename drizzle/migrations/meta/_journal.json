@@ -624,6 +624,13 @@
       "when": 1793452753963,
       "tag": "0088_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1793453916388,
+      "tag": "0089_team_time_desligado_em",
+      "breakpoints": true
     }
   ]
 }

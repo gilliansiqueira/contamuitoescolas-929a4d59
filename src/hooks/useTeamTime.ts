@@ -1,9 +1,10 @@
+import { beforeTermination } from '@/lib/teamTime/termination';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export type TeamSituacao = 'regular' | 'atraso' | 'sem_marcacao' | 'incompleta' | 'falta' | 'hora_extra' | 'inconsistencia' | 'aguardando' | 'em_andamento';
 
-export interface TeamEmployee { external_id: string; matricula: string | null; nome: string; horario_previsto: string | null; ativo: boolean; oculto?: boolean; user_id?: string | null }
+export interface TeamEmployee { external_id: string; matricula: string | null; nome: string; horario_previsto: string | null; ativo: boolean; oculto?: boolean; user_id?: string | null; desligado_em?: string | null }
 export interface TeamJustification { id: string; employee_external_id: string; dia: string; motivo: string; status: 'pendente' | 'aceita' | 'recusada'; created_at: string }
 export interface TeamDaily { employee_external_id: string; dia: string; horario_previsto: string | null; primeira_marcacao: string | null; ultima_marcacao: string | null; marcacoes?: string[]; horas_trabalhadas: string | null; horas_extras: string | null; situacao: TeamSituacao; ocorrencia: string | null; synced_at: string }
 export interface TeamOccurrence { external_key: string; employee_external_id: string; dia: string; tipo: string; descricao: string | null; origem: string }
@@ -38,7 +39,7 @@ export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
         if (cur >= endMonth) break;
       }
       const [e, d, o, b, r, s] = await Promise.all([
-        db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id').eq('ativo', true).order('nome'),
+        db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id,desligado_em').eq('ativo', true).order('nome'),
         db.from('team_time_daily').select('*').gte('dia', start).lte('dia', end),
         db.from('team_time_occurrences').select('external_key,employee_external_id,dia,tipo,descricao,origem').gte('dia', start).lte('dia', end),
         db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').in('competencia', meses),
@@ -47,9 +48,11 @@ export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
       ]);
       const err = [e, d, o, b, r, s].find(x => x.error)?.error;
       if (err) throw err;
-      const all: TeamEmployee[] = e.data ?? [];
+      // Desligadas antes do período somem; dias a partir do desligamento não contam.
+      const all: TeamEmployee[] = (e.data ?? []).filter((x: TeamEmployee) => !x.desligado_em || x.desligado_em > start);
       const vis = new Set(all.filter(x => !x.oculto).map(x => x.external_id));
-      const keep = (x: { employee_external_id: string }) => vis.has(x.employee_external_id);
+      const cut = new Map(all.map(x => [x.external_id, x.desligado_em ?? null]));
+      const keep = (x: { employee_external_id: string; dia?: string }) => vis.has(x.employee_external_id) && beforeTermination(x.dia, cut.get(x.employee_external_id));
       return { employees: all.filter(x => !x.oculto), hidden: all.filter(x => x.oculto), daily: (d.data ?? []).filter(keep), occurrences: (o.data ?? []).filter(keep), hourBank: (b.data ?? []).filter(keep), lastRun: r.data?.[0] ?? null, lastSuccess: s.data?.[0] ?? null };
     },
   });
@@ -143,7 +146,7 @@ export function useMyTeamTime(month: string, userId: string | undefined) {
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data: emp } = await db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id').eq('user_id', userId).maybeSingle();
+      const { data: emp } = await db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id,desligado_em').eq('user_id', userId).maybeSingle();
       if (!emp || emp.oculto) return null;
       const start = `${month}-01`;
       const [y, m] = month.split('-').map(Number);
@@ -154,7 +157,7 @@ export function useMyTeamTime(month: string, userId: string | undefined) {
       ]);
       const err = [d, j].find(x => x.error)?.error;
       if (err) throw err;
-      return { employee: emp as TeamEmployee, daily: (d.data ?? []) as TeamDaily[], justifications: (j.data ?? []) as TeamJustification[] };
+      return { employee: emp as TeamEmployee, daily: ((d.data ?? []) as TeamDaily[]).filter(x => beforeTermination(x.dia, emp.desligado_em)), justifications: (j.data ?? []) as TeamJustification[] };
     },
   });
 }

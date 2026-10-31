@@ -4295,6 +4295,7 @@ export type Database = {
           cargo: string | null
           created_at: string
           departamento: string | null
+          desligado_em: string | null
           external_id: string
           horario_previsto: string | null
           id: string
@@ -4311,6 +4312,7 @@ export type Database = {
           cargo?: string | null
           created_at?: string
           departamento?: string | null
+          desligado_em?: string | null
           external_id: string
           horario_previsto?: string | null
           id?: string
@@ -4327,6 +4329,7 @@ export type Database = {
           cargo?: string | null
           created_at?: string
           departamento?: string | null
+          desligado_em?: string | null
           external_id?: string
           horario_previsto?: string | null
           id?: string
