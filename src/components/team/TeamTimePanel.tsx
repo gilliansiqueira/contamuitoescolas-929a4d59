@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { isNationalHoliday } from '@/lib/teamTime/holidays';
 import { useAuth } from '@/hooks/useAuth';
+import { PayrollSheetButton } from '@/components/team/PayrollSheet';
 import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, useLinkEmployeeUser, useTeamJustifications, useReviewJustification, type TeamSituacao, type TeamTimeData, type TeamOccurrence } from '@/hooks/useTeamTime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -176,6 +177,7 @@ function Header({ mode, setMode, date, setDate, monthFrom, setMonthFrom, monthTo
           {sample ? <Button size="sm" variant="outline" className="h-9" onClick={() => setSample(false)}>Sair do exemplo</Button>
             : canEdit && <Button size="sm" className="h-9 gap-1.5" onClick={onSync} disabled={syncing}><RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />Atualizar agora</Button>}
           {!sample && canEdit && <ImportCartaoPonto />}
+          {!sample && <PayrollSheetButton />}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
