@@ -1,0 +1,2 @@
+ALTER TABLE public.team_time_employees ADD COLUMN IF NOT EXISTS horario_override text;
+COMMENT ON COLUMN public.team_time_employees.horario_override IS 'Horário corrigido pela super_admin; prevalece sobre o horário do PontoFopag e recalcula extras/atrasos.';
