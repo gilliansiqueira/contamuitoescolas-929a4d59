@@ -48,9 +48,12 @@ export function employeeShare(kind: PlanItem['kind'], tipo: PlanItem['tipo'], br
 
 export const normName = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** Lê o relatório rel0051 da operadora (HTML salvo como .xls). Valor Unitário vem em centavos. */
+/** Lê o relatório rel0051 da operadora (HTML salvo como .xls ou CSV com ";"). Valor Unitário vem em centavos. */
 export function parseRel0051(html: string): { competencia: string | null; kind: PlanItem['kind']; items: PlanItem[] } {
-  const rows = [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map(r => [...r[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(c => c[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()));
+  const isHtml = /<tr[\s>]/i.test(html);
+  const rows = isHtml
+    ? [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map(r => [...r[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(c => c[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()))
+    : html.split(/\r?\n/).filter(l => l.trim()).map(l => l.split(';').map(c => c.replace(/^"|"$/g, '').trim()));
   const head = rows.findIndex(r => r.some(c => /Valor Unit/i.test(c)));
   if (head < 0) throw new Error('Não encontrei a coluna "Valor Unitário". Confira se é o relatório do plano (rel0051).');
   const h = rows[head].map(c => normName(c));
