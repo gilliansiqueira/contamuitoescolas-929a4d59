@@ -4297,6 +4297,7 @@ export type Database = {
           departamento: string | null
           desligado_em: string | null
           external_id: string
+          horario_override: string | null
           horario_previsto: string | null
           id: string
           matricula: string | null
@@ -4314,6 +4315,7 @@ export type Database = {
           departamento?: string | null
           desligado_em?: string | null
           external_id: string
+          horario_override?: string | null
           horario_previsto?: string | null
           id?: string
           matricula?: string | null
@@ -4331,6 +4333,7 @@ export type Database = {
           departamento?: string | null
           desligado_em?: string | null
           external_id?: string
+          horario_override?: string | null
           horario_previsto?: string | null
           id?: string
           matricula?: string | null
