@@ -645,6 +645,20 @@
       "when": 1793455628164,
       "tag": "0091_team_time_ignored_punches",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1793456668188,
+      "tag": "0092_team_benefits",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1793456695397,
+      "tag": "0093_team_benefit_liquidos",
+      "breakpoints": true
     }
   ]
 }
