@@ -34,9 +34,9 @@ export function MyTeamTimeCard({ showEmpty = false }: { showEmpty?: boolean }) {
     const c = classifyDay(d, e.horario_previsto, today);
     const previstas = (d.horario_previsto ?? e.horario_previsto ?? '').split(/\s+/).filter(x => TIME_RE.test(x)).length;
     const batidas = d.marcacoes ?? [];
-    const faltando = Math.max(0, previstas - batidas.length);
+    const faltando = c.feriado ? 0 : Math.max(0, previstas - batidas.length);
     // Só batida não registrada pode ser justificada — atraso/saída antes não.
-    const canJustify = !c.emAndamento && (c.faltaDia || d.situacao === 'incompleta' || d.situacao === 'sem_marcacao' || (batidas.length > 0 && faltando > 0));
+    const canJustify = !c.feriado && !c.emAndamento && (c.faltaDia || d.situacao === 'incompleta' || d.situacao === 'sem_marcacao' || (batidas.length > 0 && faltando > 0));
     return { d, c, batidas, faltando, canJustify };
   });
   const exMes = days.reduce((s, x) => s + x.c.extraMin, 0);
@@ -87,7 +87,7 @@ export function MyTeamTimeCard({ showEmpty = false }: { showEmpty?: boolean }) {
             {days.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">Nenhum registro neste mês.</td></tr>}
             {days.map(({ d, c, batidas, faltando, canJustify }) => {
               const j = jBy.get(d.dia);
-              const sit = c.emAndamento ? { t: 'Em andamento', s: 'bg-muted text-muted-foreground' }
+              const sit = c.feriado ? { t: 'Feriado', s: 'bg-muted text-muted-foreground' } : c.emAndamento ? { t: 'Em andamento', s: 'bg-muted text-muted-foreground' }
                 : c.faltaDia ? { t: 'Falta', s: 'bg-destructive/10 text-destructive' }
                 : canJustify ? { t: 'Batida faltando', s: 'bg-warning/15 text-warning' }
                 : c.faltaMin > 0 ? { t: 'Atraso / saída antes', s: 'bg-progress/15 text-progress' }
