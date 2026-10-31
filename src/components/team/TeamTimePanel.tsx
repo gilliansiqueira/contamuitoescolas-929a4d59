@@ -222,6 +222,8 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
     return m;
   }, [data.occurrences]);
 
+  const justQ = useTeamJustifications(spToday().slice(0, 7), true);
+  const pendingJust = (justQ.data ?? []).filter(j => j.status === 'pendente').length;
   const rows = useMemo<PersonRow[]>(() => data.employees.map(e => {
     const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia >= start && d.dia <= end).sort((a, b) => b.dia.localeCompare(a.dia));
     const cls = days.map(d => ({ d, c: classifyDay(d, e.horario_previsto), occ: occKey.get(`${e.external_id}|${d.dia}`) ?? [] }));
@@ -283,7 +285,8 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
 
   return (
     <Tabs defaultValue="conferencia">
-      <TabsList><TabsTrigger value="conferencia">Conferência</TabsTrigger><TabsTrigger value="acessos">Logins e justificativas</TabsTrigger></TabsList>
+      <TabsList><TabsTrigger value="conferencia">Conferência</TabsTrigger><TabsTrigger value="justificativas">Justificativas{pendingJust ? ` (${pendingJust})` : ''}</TabsTrigger><TabsTrigger value="acessos">Logins</TabsTrigger></TabsList>
+      <TabsContent value="justificativas"><JustificationsTab data={data} month={spToday().slice(0, 7)} canEdit={canEdit} /></TabsContent>
       <TabsContent value="acessos"><AccessAndJustifications data={data} date={spToday()} canEdit={canEdit} /></TabsContent>
       <TabsContent value="conferencia" className="space-y-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
@@ -450,18 +453,48 @@ function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; 
             </Select></td></tr>)}</tbody>
         </table></div>
       </section>
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Justificativas do mês</h2>
-        {!just.data?.length ? <p className="rounded-md bg-muted/40 p-3 text-[11px] text-muted-foreground">Nenhuma justificativa neste mês.</p> :
-        <div className="space-y-2">{just.data.map(j => <div key={j.id} className="rounded-lg border border-border bg-card p-3 text-xs">
-          <div className="flex flex-wrap items-center gap-2"><strong>{nameBy.get(j.employee_external_id) ?? j.employee_external_id}</strong><span className="text-muted-foreground">{fmtDate(j.dia)}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${ST[j.status]}`}>{j.status === 'pendente' ? 'Pendente' : j.status === 'aceita' ? 'Aceita' : 'Recusada'}</span></div>
+    </div>
+  );
+}
+
+function JustificationsTab({ data, month, canEdit }: { data: TeamTimeData; month: string; canEdit: boolean }) {
+  const { user } = useAuth();
+  const review = useReviewJustification();
+  const just = useTeamJustifications(month, true);
+  const [who, setWho] = useState('all');
+  const [st, setSt] = useState<'pendente' | 'aceita' | 'recusada' | 'all'>('pendente');
+  const nameBy = new Map(data.employees.map(e => [e.external_id, e.nome]));
+  const ST: Record<string, string> = { pendente: 'border-warning/40 bg-warning/10 text-warning', aceita: 'border-success/40 bg-success/10 text-success', recusada: 'border-destructive/40 bg-destructive/10 text-destructive' };
+  const list = (just.data ?? []).filter(j => (who === 'all' || j.employee_external_id === who) && (st === 'all' || j.status === st));
+  const pend = (just.data ?? []).filter(j => j.status === 'pendente');
+  const pendBy = (id: string) => pend.filter(j => j.employee_external_id === id).length;
+  const act = (id: string, status: 'aceita' | 'recusada' | 'pendente') => user && review.mutate({ id, status, reviewer: user.id }, { onError: () => toast.error('Não foi possível salvar.') });
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={who} onValueChange={setWho}>
+          <SelectTrigger className="h-8 w-60 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="all">Todas as pessoas ({pend.length} pendentes)</SelectItem>{data.employees.map(e => <SelectItem key={e.external_id} value={e.external_id}>{e.nome}{pendBy(e.external_id) ? ` (${pendBy(e.external_id)})` : ''}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={st} onValueChange={v => setSt(v as typeof st)}>
+          <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="pendente">Pendentes</SelectItem><SelectItem value="aceita">Aceitas no mês</SelectItem><SelectItem value="recusada">Recusadas no mês</SelectItem><SelectItem value="all">Todas</SelectItem></SelectContent>
+        </Select>
+      </div>
+      {just.isLoading ? <p className="text-xs text-muted-foreground">Carregando…</p> : !list.length ? <p className="rounded-md bg-muted/40 p-3 text-[11px] text-muted-foreground">{st === 'pendente' ? 'Nenhuma justificativa pendente. Tudo revisado!' : 'Nenhuma justificativa neste filtro.'}</p> :
+      <div className="space-y-2">{list.map(j => {
+        const d = data.daily.find(x => x.employee_external_id === j.employee_external_id && x.dia === j.dia);
+        return <div key={j.id} className="rounded-lg border border-border bg-card p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2"><strong>{nameBy.get(j.employee_external_id) ?? j.employee_external_id}</strong><span className="text-muted-foreground">{fmtDate(j.dia)}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${ST[j.status]}`}>{j.status === 'pendente' ? 'Pendente' : j.status === 'aceita' ? 'Aceita' : 'Recusada'}</span>
+            <span className="text-[11px] text-muted-foreground">Batidas: {d?.marcacoes?.length ? d.marcacoes.join(' · ') : 'nenhuma'}</span></div>
           <p className="mt-1 whitespace-pre-wrap">{j.motivo}</p>
           {canEdit && user && <div className="mt-2 flex gap-2">
-            {j.status !== 'aceita' && <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={review.isPending} onClick={() => review.mutate({ id: j.id, status: 'aceita', reviewer: user.id })}>Aceitar</Button>}
-            {j.status !== 'recusada' && <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={review.isPending} onClick={() => review.mutate({ id: j.id, status: 'recusada', reviewer: user.id })}>Recusar</Button>}
+            {j.status !== 'aceita' && <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => act(j.id, 'aceita')}>Aceitar</Button>}
+            {j.status !== 'recusada' && <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => act(j.id, 'recusada')}>Recusar</Button>}
+            {j.status !== 'pendente' && <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => act(j.id, 'pendente')}>Voltar para pendente</Button>}
           </div>}
-        </div>)}</div>}
-      </section>
-    </div>
+        </div>;
+      })}</div>}
+    </section>
   );
 }
