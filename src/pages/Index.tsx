@@ -119,7 +119,7 @@ const Index = () => {
     }
   }, [isDemo, school, isAdminAll, accessibleSchoolIds, allSchools]);
 
-  const notice = isAdmin && !isPresentationMode ? <><TeamDeadlineNotice /><TeamAlerts schools={allSchools} onOpenSchool={setSchool} onOpenCenter={() => setSchool(null)} /></> : null;
+  const notice = isAdmin && !isPresentationMode ? <><TeamDeadlineNotice onOpenSchool={id => { const s = allSchools.find((x: any) => x.id === id); if (s) setSchool(s); }} /><TeamAlerts schools={allSchools} onOpenSchool={setSchool} onOpenCenter={() => setSchool(null)} /></> : null;
 
   if (!school) {
     return (

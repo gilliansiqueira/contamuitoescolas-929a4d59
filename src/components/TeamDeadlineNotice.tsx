@@ -10,11 +10,10 @@ import { AlertTriangle, Settings, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { deadlineParts, todaySP, overdueProjections, PROJ_STEPS, type ProjStep } from '@/lib/teamDeadlines';
 import { useManagementPortfolio } from '@/hooks/useManagementPortfolio';
-import { Link } from 'react-router-dom';
 
 type Ann = { id: string; titulo: string; ativo: boolean; team_announcement_deadlines: { id: string; rotulo: string; data: string; ordem: number }[] };
 
-export function TeamDeadlineNotice() {
+export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId: string) => void } = {}) {
   const { user, isAdmin, canManageCollaborators } = useAuth() as any;
   const qc = useQueryClient();
   const today = todaySP();
@@ -122,7 +121,7 @@ export function TeamDeadlineNotice() {
                       <div key={owner}>
                         {isManager && <p className="text-sm font-semibold">{owner} ({list.length})</p>}
                         <ul className="ml-4 list-disc text-sm">
-                          {list.map(p => <li key={p.school_id}><Link className="underline" to={`/escola/${p.school_id}`} onClick={() => setPopup(false)}>{p.school_name}</Link></li>)}
+                          {list.map(p => <li key={p.school_id}><button type="button" className="underline" onClick={() => { setPopup(false); onOpenSchool?.(p.school_id); }}>{p.school_name}</button></li>)}
                         </ul>
                       </div>
                     ))}
