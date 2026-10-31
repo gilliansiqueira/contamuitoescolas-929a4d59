@@ -10,6 +10,11 @@ export interface TeamOccurrence { external_key: string; employee_external_id: st
 export interface TeamHourBank { employee_external_id: string; competencia: string; saldo: string | null; saldo_minutos: number | null }
 export interface TeamSyncRun { id: string; status: 'running' | 'success' | 'error' | 'not_configured'; started_at: string; finished_at: string | null; message: string | null }
 
+/** Dia conta no ponto só antes da data de desligamento (o próprio dia do desligamento não conta). */
+export function beforeTermination(dia: string | undefined, desligadoEm: string | null | undefined) {
+  return !dia || !desligadoEm || dia < desligadoEm;
+}
+
 export interface TeamTimeData {
   employees: TeamEmployee[]; hidden?: TeamEmployee[]; daily: TeamDaily[]; occurrences: TeamOccurrence[]; hourBank: TeamHourBank[];
   lastRun: TeamSyncRun | null; lastSuccess: TeamSyncRun | null;
@@ -38,7 +43,7 @@ export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
         if (cur >= endMonth) break;
       }
       const [e, d, o, b, r, s] = await Promise.all([
-        db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id').eq('ativo', true).order('nome'),
+        db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id,desligado_em').eq('ativo', true).order('nome'),
         db.from('team_time_daily').select('*').gte('dia', start).lte('dia', end),
         db.from('team_time_occurrences').select('external_key,employee_external_id,dia,tipo,descricao,origem').gte('dia', start).lte('dia', end),
         db.from('team_time_hour_bank').select('employee_external_id,competencia,saldo,saldo_minutos').in('competencia', meses),
@@ -47,9 +52,11 @@ export function useTeamTime(month: string, enabled: boolean, monthTo?: string) {
       ]);
       const err = [e, d, o, b, r, s].find(x => x.error)?.error;
       if (err) throw err;
-      const all: TeamEmployee[] = e.data ?? [];
+      // Desligadas antes do período somem; dias a partir do desligamento não contam.
+      const all: TeamEmployee[] = (e.data ?? []).filter((x: TeamEmployee) => !x.desligado_em || x.desligado_em > start);
       const vis = new Set(all.filter(x => !x.oculto).map(x => x.external_id));
-      const keep = (x: { employee_external_id: string }) => vis.has(x.employee_external_id);
+      const cut = new Map(all.map(x => [x.external_id, x.desligado_em ?? null]));
+      const keep = (x: { employee_external_id: string; dia?: string }) => vis.has(x.employee_external_id) && beforeTermination(x.dia, cut.get(x.employee_external_id));
       return { employees: all.filter(x => !x.oculto), hidden: all.filter(x => x.oculto), daily: (d.data ?? []).filter(keep), occurrences: (o.data ?? []).filter(keep), hourBank: (b.data ?? []).filter(keep), lastRun: r.data?.[0] ?? null, lastSuccess: s.data?.[0] ?? null };
     },
   });
@@ -143,7 +150,7 @@ export function useMyTeamTime(month: string, userId: string | undefined) {
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data: emp } = await db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id').eq('user_id', userId).maybeSingle();
+      const { data: emp } = await db.from('team_time_employees').select('external_id,matricula,nome,horario_previsto,ativo,oculto,user_id,desligado_em').eq('user_id', userId).maybeSingle();
       if (!emp || emp.oculto) return null;
       const start = `${month}-01`;
       const [y, m] = month.split('-').map(Number);
@@ -154,7 +161,7 @@ export function useMyTeamTime(month: string, userId: string | undefined) {
       ]);
       const err = [d, j].find(x => x.error)?.error;
       if (err) throw err;
-      return { employee: emp as TeamEmployee, daily: (d.data ?? []) as TeamDaily[], justifications: (j.data ?? []) as TeamJustification[] };
+      return { employee: emp as TeamEmployee, daily: ((d.data ?? []) as TeamDaily[]).filter(x => beforeTermination(x.dia, emp.desligado_em)), justifications: (j.data ?? []) as TeamJustification[] };
     },
   });
 }
