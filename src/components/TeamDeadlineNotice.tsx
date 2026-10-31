@@ -8,7 +8,9 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertTriangle, Settings, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deadlineParts, todaySP } from '@/lib/teamDeadlines';
+import { deadlineParts, todaySP, overdueProjections, PROJ_STEPS, type ProjStep } from '@/lib/teamDeadlines';
+import { useManagementPortfolio } from '@/hooks/useManagementPortfolio';
+import { Link } from 'react-router-dom';
 
 type Ann = { id: string; titulo: string; ativo: boolean; team_announcement_deadlines: { id: string; rotulo: string; data: string; ordem: number }[] };
 
@@ -36,11 +38,40 @@ export function TeamDeadlineNotice() {
     parts: deadlineParts([...a.team_announcement_deadlines].sort((x, y) => x.ordem - y.ordem), today),
   })).filter(a => a.parts.length > 0);
 
+  // Projeções em atraso: prazo de "projeç..." já vencido no aviso ativo.
+  const projDeadline = anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
+    .filter(d => /proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0] ?? null;
+  const projMonth = projDeadline?.slice(0, 7) ?? '';
+  const projDue = !!projDeadline && today > projDeadline;
+  const { data: portfolio = [] } = useManagementPortfolio(projMonth, !!isAdmin && projDue);
+  const isManager = !!canManageCollaborators;
+  const scope = portfolio.filter(p => isManager || p.responsible_user_id === user?.id);
+  const scopeIds = scope.map(p => p.school_id);
+  const { data: projSteps = [] } = useQuery({
+    queryKey: ['proj-steps', projMonth, scopeIds.join(',')],
+    enabled: projDue && scopeIds.length > 0,
+    refetchInterval: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('monthly_closing_checklist').select('school_id,step_key,status,completed_at')
+        .eq('month', projMonth).in('step_key', [...PROJ_STEPS]).in('school_id', scopeIds);
+      if (error) throw error;
+      return (data ?? []) as ProjStep[];
+    },
+  });
+  const overdueIds = projDue && projDeadline ? overdueProjections(scopeIds, projSteps, projDeadline, today) : [];
+  const overdue = scope.filter(p => overdueIds.includes(p.school_id));
+  const nextOther = anns.filter(a => a.ativo).flatMap(a => deadlineParts(a.team_announcement_deadlines.filter(d => !/proje/i.test(d.rotulo)), today))
+    .sort((x, y) => x.dias - y.dias)[0];
+  const overdueText = overdue.length
+    ? `${overdue.length} projeç${overdue.length > 1 ? 'ões' : 'ão'} em atraso${isManager ? ' na equipe' : ''}.${nextOther ? ` ${nextOther.texto.charAt(0).toUpperCase()}${nextOther.texto.slice(1)}.` : ''}`
+    : null;
+  const byOwner = Object.entries(overdue.reduce<Record<string, typeof overdue>>((m, p) => { const k = p.responsible_email ?? 'Sem responsável'; (m[k] ||= []).push(p); return m; }, {}));
+
   useEffect(() => {
-    if (!user?.id || active.length === 0) return;
+    if (!user?.id || (active.length === 0 && overdue.length === 0)) return;
     supabase.from('team_announcement_dismissals').select('dia').eq('user_id', user.id).eq('dia', today).maybeSingle()
       .then(({ data }) => { if (!data) setPopup(true); });
-  }, [user?.id, today, active.length]);
+  }, [user?.id, today, active.length, overdue.length]);
 
   if (!isAdmin) return null;
 
@@ -57,6 +88,12 @@ export function TeamDeadlineNotice() {
 
   return (
     <>
+      {overdueText && (
+        <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground shadow-md">
+          <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
+          <button className="text-center underline-offset-2 hover:underline" onClick={() => setPopup(true)}>🚨 {overdueText}</button>
+        </div>
+      )}
       {active.map(a => (
         <div key={a.id} className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground shadow-md">
           <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
@@ -78,6 +115,19 @@ export function TeamDeadlineNotice() {
             <DialogTitle className="flex items-center gap-2 text-2xl text-accent"><AlertTriangle className="h-7 w-7" /> Prazos de entrega</DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-3 pt-2">
+                {overdue.length > 0 && (
+                  <div className="space-y-2 rounded-md border-2 border-destructive bg-destructive/10 p-3 text-foreground">
+                    <p className="text-lg font-bold text-destructive">{overdue.length} projeç{overdue.length > 1 ? 'ões' : 'ão'} em atraso</p>
+                    {byOwner.map(([owner, list]) => (
+                      <div key={owner}>
+                        {isManager && <p className="text-sm font-semibold">{owner} ({list.length})</p>}
+                        <ul className="ml-4 list-disc text-sm">
+                          {list.map(p => <li key={p.school_id}><Link className="underline" to={`/escola/${p.school_id}`} onClick={() => setPopup(false)}>{p.school_name}</Link></li>)}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {active.map(a => (
                   <div key={a.id} className="space-y-2">
                     <p className="text-base font-semibold text-foreground">{a.titulo}</p>
