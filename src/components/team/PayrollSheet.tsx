@@ -144,7 +144,7 @@ function PayrollSheet({ canEdit }: { canEdit: boolean }) {
       <DialogHeader><DialogTitle>Planilha da contabilidade</DialogTitle></DialogHeader>
       <div className="flex flex-wrap items-center gap-2">
         <Input type="month" value={mes} onChange={e => e.target.value && setMes(e.target.value)} className="w-40" />
-        {canEdit && <><input ref={fileRef} type="file" accept=".xls,.html,.htm" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
+        {canEdit && <><input ref={fileRef} type="file" accept=".xls,.html,.htm,.csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
           <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}><Upload className="mr-1 h-4 w-4" />Enviar relatório do plano</Button></>}
         <Button size="sm" onClick={exportXlsx} disabled={!rows.length}><Download className="mr-1 h-4 w-4" />Baixar planilha</Button>
       </div>
