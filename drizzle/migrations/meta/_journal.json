@@ -617,6 +617,13 @@
       "when": 1793377368693,
       "tag": "0087_daily_tasks_per_school_due_time",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1793452753963,
+      "tag": "0088_migration",
+      "breakpoints": true
     }
   ]
 }

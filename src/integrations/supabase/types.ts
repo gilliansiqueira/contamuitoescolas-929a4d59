@@ -4131,6 +4131,93 @@ export type Database = {
         }
         Relationships: []
       }
+      team_payroll_defaults: {
+        Row: {
+          codigo_folha: number | null
+          external_id: string
+          nome_folha: string | null
+          odonto: number | null
+          updated_at: string
+          vr: number | null
+        }
+        Insert: {
+          codigo_folha?: number | null
+          external_id: string
+          nome_folha?: string | null
+          odonto?: number | null
+          updated_at?: string
+          vr?: number | null
+        }
+        Update: {
+          codigo_folha?: number | null
+          external_id?: string
+          nome_folha?: string | null
+          odonto?: number | null
+          updated_at?: string
+          vr?: number | null
+        }
+        Relationships: []
+      }
+      team_payroll_month: {
+        Row: {
+          external_id: string
+          mes: string
+          overrides: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          external_id: string
+          mes: string
+          overrides?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          external_id?: string
+          mes?: string
+          overrides?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      team_payroll_uploads: {
+        Row: {
+          competencia: string | null
+          id: string
+          ignored: Json
+          imported_at: string
+          imported_by: string | null
+          items: Json
+          kind: string
+          mes: string
+          source_file: string
+        }
+        Insert: {
+          competencia?: string | null
+          id?: string
+          ignored?: Json
+          imported_at?: string
+          imported_by?: string | null
+          items?: Json
+          kind: string
+          mes: string
+          source_file: string
+        }
+        Update: {
+          competencia?: string | null
+          id?: string
+          ignored?: Json
+          imported_at?: string
+          imported_by?: string | null
+          items?: Json
+          kind?: string
+          mes?: string
+          source_file?: string
+        }
+        Relationships: []
+      }
       team_supervision: {
         Row: {
           created_at: string
