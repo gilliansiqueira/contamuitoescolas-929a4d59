@@ -438,6 +438,7 @@ export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previs
 function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; date: string; canEdit: boolean }) {
   const { user } = useAuth();
   const link = useLinkEmployeeUser();
+  const qc = useQueryClient();
   const review = useReviewJustification();
   const just = useTeamJustifications(date.slice(0, 7), true);
   const users = useQuery({
@@ -457,12 +458,15 @@ function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; 
         <h2 className="text-sm font-medium">Login de cada colaboradora</h2>
         <p className="text-[11px] text-muted-foreground">Quem tiver login vinculado vê somente o próprio ponto na Central e pode justificar dias com falta ou batida faltando.</p>
         <div className="overflow-x-auto rounded-lg border border-border bg-card"><table className="w-full text-xs">
-          <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Login vinculado</th></tr></thead>
+          <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Login vinculado</th><th className={th}>Desligada em</th></tr></thead>
           <tbody>{data.employees.map(e => <tr key={e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{e.nome}</td><td className="px-3 py-2">
             <Select value={e.user_id ?? 'none'} disabled={!canEdit || link.isPending} onValueChange={v => onLink(e.external_id, v)}>
               <SelectTrigger className="h-8 w-64 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="none">Sem login</SelectItem>{(users.data ?? []).map(u => <SelectItem key={u.user_id} value={u.user_id}>{u.email}</SelectItem>)}</SelectContent>
-            </Select></td></tr>)}</tbody>
+            </Select></td><td className="px-3 py-2">
+              <input type="date" aria-label={`Desligamento de ${e.nome}`} disabled={!canEdit} defaultValue={e.desligado_em ?? ''} className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                onChange={async ev => { const v = ev.target.value || null; const { error } = await (supabase as any).from('team_time_employees').update({ desligado_em: v }).eq('external_id', e.external_id); if (error) toast.error('Não foi possível salvar.'); else { toast.success(v ? 'Desligamento salvo: dias a partir dessa data não contam.' : 'Desligamento removido.'); qc.invalidateQueries({ queryKey: ['team-time'] }); } }} />
+            </td></tr>)}</tbody>
         </table></div>
       </section>
     </div>
