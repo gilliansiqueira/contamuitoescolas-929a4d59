@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { isNationalHoliday } from '@/lib/teamTime/holidays';
 import { useAuth } from '@/hooks/useAuth';
 import { buildSampleData, isPreviewEnv, useTeamTime, useTeamTimeSync, useSetEmployeeHidden, useLinkEmployeeUser, useTeamJustifications, useReviewJustification, type TeamSituacao, type TeamTimeData, type TeamOccurrence } from '@/hooks/useTeamTime';
 import { Button } from '@/components/ui/button';
@@ -196,9 +197,9 @@ interface PersonRow {
 
 /** Regra: ocorrência no dia (fora de "Em andamento"), situação marcada, falta do dia ou minutos faltando = problema. */
 const dayProblem = (d: TeamTimeData['daily'][number], c: ReturnType<typeof classifyDay>, occ: TeamOccurrence[]) =>
-  (occ.length > 0 && d.situacao !== 'em_andamento') ||
+  !c.feriado && ((occ.length > 0 && d.situacao !== 'em_andamento') ||
   ['atraso', 'incompleta', 'falta', 'inconsistencia', 'sem_marcacao'].includes(d.situacao) ||
-  c.faltaDia || c.faltaMin > 0;
+  c.faltaDia || c.faltaMin > 0);
 
 function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setSit, canEdit }: {
   data: TeamTimeData; mode: Mode; start: string; end: string; card: CardKey; setCard: (c: CardKey) => void;
@@ -234,7 +235,7 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
       faltas: cls.filter(x => x.c.faltaDia).length,
       devidasMin: cls.reduce((s, x) => s + x.c.faltaMin, 0),
       extrasMin: cls.reduce((s, x) => s + x.c.extraMin, 0),
-      incDias: cls.filter(x => x.d.situacao === 'incompleta').length,
+      incDias: cls.filter(x => !x.c.feriado && x.d.situacao === 'incompleta').length,
     };
   }).sort((a, b) => a.e.nome.localeCompare(b.e.nome)), [data.employees, data.daily, occKey, start, end]);
 
@@ -263,6 +264,7 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
   const diaSit = (x?: PersonRow['cls'][number]) => {
     if (!x) return { t: SIT_LABEL.aguardando, s: SIT_STYLE.aguardando };
     const { d, c } = x;
+    if (c.feriado) return { t: 'Feriado', s: SIT_STYLE.regular };
     if (c.emAndamento) return { t: 'Em andamento', s: SIT_STYLE.em_andamento };
     if (c.faltaDia) return { t: 'Falta', s: SIT_STYLE.falta };
     if (c.faltaMin > 0) return { t: `Atraso/saída antes · ${minToHhmm(c.faltaMin)}`, s: SIT_STYLE.atraso };
@@ -409,9 +411,11 @@ const spTimeMin = (iso?: string | null) => {
 
 /** Regra única do Ponto: falta do dia inteiro, minutos faltando e extras. */
 export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previstoEmp: string | null, today = spToday()) {
-  if (!d) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false };
+  if (!d) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false, feriado: false };
   const isToday = d.dia === today;
   const semBatida = !(d.marcacoes?.length) && !d.primeira_marcacao;
+  // Feriado nacional sem batida: nunca é falta nem gera minutos devidos.
+  if (semBatida && isNationalHoliday(d.dia)) return { faltaDia: false, faltaMin: 0, extraMin: 0, emAndamento: false, feriado: true };
   const prev = (d.horario_previsto ?? previstoEmp ?? '').split(/\s+/).find(x => TIME_RE.test(x));
   const syncMin = spTimeMin(d.synced_at);
   const syncedSameDay = d.synced_at ? new Date(d.synced_at).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) === d.dia : false;
@@ -420,7 +424,7 @@ export function classifyDay(d: TeamTimeData['daily'][number] | undefined, previs
   const faltaDia = semBatida && marcadoFalta && entradaPassou;
   const emAndamento = isToday && !faltaDia;
   const fm = (d.ocorrencia ?? '').match(/Faltas\s+(\d+:\d{2})/i);
-  return { faltaDia, faltaMin: emAndamento || !fm ? 0 : hhmmToMin(fm[1]), extraMin: emAndamento ? 0 : Math.max(0, hhmmToMin(d.horas_extras)), emAndamento };
+  return { faltaDia, faltaMin: emAndamento || !fm ? 0 : hhmmToMin(fm[1]), extraMin: emAndamento ? 0 : Math.max(0, hhmmToMin(d.horas_extras)), emAndamento, feriado: false };
 }
 
 function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; date: string; canEdit: boolean }) {
