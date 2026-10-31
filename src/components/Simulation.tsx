@@ -1,3 +1,5 @@
+import { PrevisaoFuturo } from '@/components/simulacao/PrevisaoFuturo';
+import { isQuintal } from '@/lib/quintal';
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -55,6 +57,12 @@ function addMonths(ym: string, n: number): string {
 }
 
 export function Simulation({ schoolId }: SimulationProps) {
+  // Quintal de Casa: previsão por expedições (trazida do projeto dela); demais empresas inalteradas.
+  if (isQuintal(schoolId)) return <PrevisaoFuturo key={schoolId} schoolId={schoolId} />;
+  return <LegacySimulation key={schoolId} schoolId={schoolId} />;
+}
+
+function LegacySimulation({ schoolId }: SimulationProps) {
   const qc = useQueryClient();
   const { entries } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
