@@ -227,6 +227,9 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
 
   const justQ = useTeamJustifications(spToday().slice(0, 7), true);
   const pendingJust = (justQ.data ?? []).filter(j => j.status === 'pendente').length;
+  // Justificativa aceita tira o dia das horas devidas/faltas (mesma regra da planilha da contabilidade).
+  const justRange = useTeamJustifications(start.slice(0, 7), true);
+  const aceitas = useMemo(() => new Set((justRange.data ?? []).filter(j => j.status === 'aceita').map(j => `${j.employee_external_id}|${j.dia}`)), [justRange.data]);
   const rows = useMemo<PersonRow[]>(() => data.employees.map(e => {
     const days = data.daily.filter(d => d.employee_external_id === e.external_id && d.dia >= start && d.dia <= end).sort((a, b) => b.dia.localeCompare(a.dia));
     const cls = days.map(d => ({ d, c: classifyDay(d, e.horario_previsto), occ: occKey.get(`${e.external_id}|${d.dia}`) ?? [] }));
@@ -234,12 +237,12 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
     return {
       e, cls, problemas,
       pend: problemas.length > 0,
-      faltas: cls.filter(x => x.c.faltaDia).length,
-      devidasMin: cls.reduce((s, x) => s + x.c.faltaMin, 0),
+      faltas: cls.filter(x => x.c.faltaDia && !aceitas.has(`${e.external_id}|${x.d.dia}`)).length,
+      devidasMin: cls.reduce((s, x) => s + (x.c.faltaDia || aceitas.has(`${e.external_id}|${x.d.dia}`) ? 0 : x.c.faltaMin), 0),
       extrasMin: cls.reduce((s, x) => s + x.c.extraMin, 0),
       incDias: cls.filter(x => !x.c.feriado && x.d.situacao === 'incompleta').length,
     };
-  }).sort((a, b) => a.e.nome.localeCompare(b.e.nome)), [data.employees, data.daily, occKey, start, end]);
+  }).sort((a, b) => a.e.nome.localeCompare(b.e.nome)), [data.employees, data.daily, occKey, start, end, aceitas]);
 
   const count = (f: (r: PersonRow) => boolean) => rows.filter(f).length;
   const totDevidas = rows.reduce((s, r) => s + r.devidasMin, 0);
