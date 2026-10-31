@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { beforeTermination } from '@/hooks/useTeamTime';
+import { beforeTermination } from '@/lib/teamTime/termination';
 
 describe('desligamento no ponto', () => {
   it('dias antes do desligamento contam', () => expect(beforeTermination('2026-10-23', '2026-10-26')).toBe(true));

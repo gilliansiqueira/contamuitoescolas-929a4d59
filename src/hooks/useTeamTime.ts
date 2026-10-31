@@ -1,3 +1,4 @@
+import { beforeTermination } from '@/lib/teamTime/termination';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -9,11 +10,6 @@ export interface TeamDaily { employee_external_id: string; dia: string; horario_
 export interface TeamOccurrence { external_key: string; employee_external_id: string; dia: string; tipo: string; descricao: string | null; origem: string }
 export interface TeamHourBank { employee_external_id: string; competencia: string; saldo: string | null; saldo_minutos: number | null }
 export interface TeamSyncRun { id: string; status: 'running' | 'success' | 'error' | 'not_configured'; started_at: string; finished_at: string | null; message: string | null }
-
-/** Dia conta no ponto só antes da data de desligamento (o próprio dia do desligamento não conta). */
-export function beforeTermination(dia: string | undefined, desligadoEm: string | null | undefined) {
-  return !dia || !desligadoEm || dia < desligadoEm;
-}
 
 export interface TeamTimeData {
   employees: TeamEmployee[]; hidden?: TeamEmployee[]; daily: TeamDaily[]; occurrences: TeamOccurrence[]; hourBank: TeamHourBank[];
