@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { employeeShare, hoursFromDays, matchTitular } from '../lib/teamTime/payroll';
+import { employeeShare, hoursFromDays, matchTitular, parseRel0051 } from '../lib/teamTime/payroll';
 
 describe('planilha da folha', () => {
   it('titular paga 40% da mensalidade (empresa 60%)', () => {
