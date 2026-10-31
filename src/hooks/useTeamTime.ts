@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type TeamSituacao = 'regular' | 'atraso' | 'sem_marcacao' | 'incompleta' | 'falta' | 'hora_extra' | 'inconsistencia' | 'aguardando' | 'em_andamento';
 
-export interface TeamEmployee { external_id: string; matricula: string | null; nome: string; horario_previsto: string | null; ativo: boolean; oculto?: boolean; user_id?: string | null }
+export interface TeamEmployee { external_id: string; matricula: string | null; nome: string; horario_previsto: string | null; ativo: boolean; oculto?: boolean; user_id?: string | null; desligado_em?: string | null }
 export interface TeamJustification { id: string; employee_external_id: string; dia: string; motivo: string; status: 'pendente' | 'aceita' | 'recusada'; created_at: string }
 export interface TeamDaily { employee_external_id: string; dia: string; horario_previsto: string | null; primeira_marcacao: string | null; ultima_marcacao: string | null; marcacoes?: string[]; horas_trabalhadas: string | null; horas_extras: string | null; situacao: TeamSituacao; ocorrencia: string | null; synced_at: string }
 export interface TeamOccurrence { external_key: string; employee_external_id: string; dia: string; tipo: string; descricao: string | null; origem: string }
