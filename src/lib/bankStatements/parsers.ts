@@ -1278,9 +1278,24 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
     if (isBBContaCorrentePdf(lines)) return parseBBContaCorrentePdfLines(lines);
     if (isNubankPjPdf(lines)) return parseNubankPjPdfLines(lines);
     if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
-    return parsePdfLines(lines);
+    return dropPagBankAReceber(lines, parsePdfLines(lines));
   }
   throw new Error('Formato não suportado. Use OFX, CSV, Excel ou PDF.');
+}
+
+/**
+ * PagBank: o "Extrato Financeiro" em PDF mistura o saldo "A receber" (vendas de cartão ainda
+ * não liberadas) com o "Disponível" (a conta). Só o Disponível movimenta a conta; linhas
+ * "A receber" (ex.: "Pagamento Liberado A receber", "Taxa de intermediação A receber") são ignoradas.
+ */
+export function dropPagBankAReceber(lines: string[], r: BankParseResult): BankParseResult {
+  if (!/pagbank|pagseguro/i.test(lines.join(' '))) return r;
+  const isAR = (t: ParsedBankTx) => /\ba receber\s*$/i.test(stripAccents(t.descricao ?? '').trim());
+  const fora = r.transactions.filter(isAR);
+  if (!fora.length) return r;
+  const keep = r.transactions.filter(t => !isAR(t));
+  const total = fora.reduce((a, t) => a + Math.abs(t.valor), 0);
+  return { ...r, transactions: keep, avisos: [...(r.avisos ?? []), `PagBank: ${fora.length} linha(s) do saldo "A receber" ignoradas (R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) — só o saldo Disponível movimenta a conta.`] };
 }
 
 async function sha256(text: string | ArrayBuffer): Promise<string> {
