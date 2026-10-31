@@ -4289,6 +4289,35 @@ export type Database = {
           },
         ]
       }
+      team_time_daily_overrides: {
+        Row: {
+          batidas_ignoradas: string[]
+          dia: string
+          employee_external_id: string
+          updated_at: string
+        }
+        Insert: {
+          batidas_ignoradas?: string[]
+          dia: string
+          employee_external_id: string
+          updated_at?: string
+        }
+        Update: {
+          batidas_ignoradas?: string[]
+          dia?: string
+          employee_external_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_time_daily_overrides_employee_external_id_fkey"
+            columns: ["employee_external_id"]
+            isOneToOne: false
+            referencedRelation: "team_time_employees"
+            referencedColumns: ["external_id"]
+          },
+        ]
+      }
       team_time_employees: {
         Row: {
           ativo: boolean

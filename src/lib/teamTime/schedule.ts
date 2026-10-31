@@ -34,3 +34,13 @@ export function applyScheduleOverride(d: TeamDaily, override?: string | null): T
   if (diff < -TOLERANCIA_MIN) return { ...base, horas_extras: null, ocorrencia: `Faltas ${hhmm(-diff)} (horário corrigido)` };
   return { ...base, horas_extras: null, ocorrencia: semFaltas, situacao: d.situacao === 'incompleta' ? d.situacao : 'regular' };
 }
+
+/** Batidas desconsideradas pela super_admin: removidas antes do cálculo, que é refeito pelo horário vigente. */
+export function applyIgnoredPunches(d: TeamDaily, ignored?: string[] | null, override?: string | null): TeamDaily {
+  if (!ignored?.length) return applyScheduleOverride(d, override);
+  const marc = (d.marcacoes ?? []).filter(t => !ignored.includes(t));
+  const ocorr = (d.ocorrencia ?? '').replace(/Marca[çc][õo]es Incorretas/i, '').trim() || null;
+  const base: TeamDaily = { ...d, marcacoes: marc, ocorrencia: ocorr, primeira_marcacao: marc[0] ?? null, ultima_marcacao: marc[marc.length - 1] ?? null,
+    situacao: pairsMinutes(marc) != null && d.situacao === 'incompleta' ? 'regular' : d.situacao } as TeamDaily;
+  return applyScheduleOverride(base, override || d.horario_previsto);
+}

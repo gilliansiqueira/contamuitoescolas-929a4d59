@@ -638,6 +638,13 @@
       "when": 1793455473389,
       "tag": "0090_team_time_horario_override",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1793455628164,
+      "tag": "0091_team_time_ignored_punches",
+      "breakpoints": true
     }
   ]
 }
