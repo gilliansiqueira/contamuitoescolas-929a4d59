@@ -1,3 +1,4 @@
+import { parseSchedule } from '@/lib/teamTime/schedule';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { isNationalHoliday } from '@/lib/teamTime/holidays';
 import { useAuth } from '@/hooks/useAuth';
@@ -458,7 +459,7 @@ function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; 
         <h2 className="text-sm font-medium">Login de cada colaboradora</h2>
         <p className="text-[11px] text-muted-foreground">Quem tiver login vinculado vê somente o próprio ponto na Central e pode justificar dias com falta ou batida faltando.</p>
         <div className="overflow-x-auto rounded-lg border border-border bg-card"><table className="w-full text-xs">
-          <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Login vinculado</th><th className={th}>Desligada em</th></tr></thead>
+          <thead className="bg-muted/40 text-left text-[11px] text-muted-foreground"><tr><th className={th}>Colaboradora</th><th className={th}>Login vinculado</th><th className={th}>Desligada em</th><th className={th}>Horário correto</th></tr></thead>
           <tbody>{data.employees.map(e => <tr key={e.external_id} className="border-t border-border"><td className="px-3 py-2 font-medium">{e.nome}</td><td className="px-3 py-2">
             <Select value={e.user_id ?? 'none'} disabled={!canEdit || link.isPending} onValueChange={v => onLink(e.external_id, v)}>
               <SelectTrigger className="h-8 w-64 text-xs"><SelectValue /></SelectTrigger>
@@ -466,6 +467,9 @@ function AccessAndJustifications({ data, date, canEdit }: { data: TeamTimeData; 
             </Select></td><td className="px-3 py-2">
               <input type="date" aria-label={`Desligamento de ${e.nome}`} disabled={!canEdit} defaultValue={e.desligado_em ?? ''} className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                 onChange={async ev => { const v = ev.target.value || null; const { error } = await (supabase as any).from('team_time_employees').update({ desligado_em: v }).eq('external_id', e.external_id); if (error) toast.error('Não foi possível salvar.'); else { toast.success(v ? 'Desligamento salvo: dias a partir dessa data não contam.' : 'Desligamento removido.'); qc.invalidateQueries({ queryKey: ['team-time'] }); } }} />
+            </td><td className="px-3 py-2">
+              <input type="text" aria-label={`Horário correto de ${e.nome}`} disabled={!canEdit} placeholder={e.horario_previsto ?? '08:00 12:00 13:00 17:00'} defaultValue={e.horario_override ?? ''} className="h-8 w-48 rounded-md border border-input bg-background px-2 text-xs"
+                onBlur={async ev => { const raw = ev.target.value.trim().replace(/\s+/g, ' '); if (raw === (e.horario_override ?? '')) return; if (raw && !parseSchedule(raw)) { toast.error('Use pares de horários, ex.: 12:00 14:00 14:15 18:15'); return; } const { error } = await (supabase as any).from('team_time_employees').update({ horario_override: raw || null }).eq('external_id', e.external_id); if (error) toast.error('Não foi possível salvar.'); else { toast.success(raw ? 'Horário corrigido: extras e atrasos recalculados.' : 'Voltou ao horário do PontoFopag.'); qc.invalidateQueries({ queryKey: ['team-time'] }); } }} />
             </td></tr>)}</tbody>
         </table></div>
       </section>
