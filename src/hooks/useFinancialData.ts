@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { FinancialEntry, School, TypeClassification, PaymentDelayRule, ExclusionRule, UploadRecord, AuditLogEntry } from '@/types/financial';
 import { fetchAllRows } from '@/lib/fetchAll';
+import { useEntityFilter, applyEntityFilterShared, scaleSharedRows } from '@/contexts/GlobalPeriodContext';
 import { applyCashflowOverlay, type CashflowOverlayRow } from '@/lib/bankCashflowOverlay';
 import { syncWeekendAllowedSchools, setSchoolAllowsWeekend } from '@/lib/dateUtils';
 
@@ -144,17 +145,18 @@ async function withCashflowSource(schoolId: string, entries: FinancialEntry[]): 
 
 // Colunas realmente usadas pelas telas (mapEntry). Buscar só estas reduz o
 // tráfego e o tempo de carregamento sem alterar nenhum cálculo.
-const ENTRY_COLS = 'id, data, descricao, valor, tipo, categoria, origem, school_id, origem_upload_id, tipo_original, tipo_registro, editado_manualmente, data_original, delay_rule_applied, afeta_saldo';
+const ENTRY_COLS = 'id, data, descricao, valor, tipo, categoria, origem, school_id, origem_upload_id, tipo_original, tipo_registro, editado_manualmente, data_original, delay_rule_applied, afeta_saldo, entity_id';
 
 export function useEntries(schoolId: string) {
+  const entityId = useEntityFilter();
   return useQuery({
-    queryKey: ['entries', schoolId, DATA_FETCH_VERSION],
+    queryKey: ['entries', schoolId, DATA_FETCH_VERSION, entityId],
     queryFn: async ({ signal }): Promise<FinancialEntry[]> => {
       const data = await fetchAllRows<any>('financial_entries', q =>
-        q.eq('school_id', schoolId).order('data'),
+        applyEntityFilterShared(q.eq('school_id', schoolId), entityId).order('data'),
         1000, ENTRY_COLS, signal,
       );
-      return withCashflowSource(schoolId, data.map(mapEntry));
+      return withCashflowSource(schoolId, (await scaleSharedRows(data, entityId, schoolId)).map(mapEntry));
     },
     enabled: !!schoolId,
   });
@@ -177,17 +179,18 @@ export function useRawEntriesFromBaseDate(schoolId: string, baseDate?: string, e
 }
 
 export function useEntriesFromBaseDate(schoolId: string, baseDate?: string) {
+  const entityId = useEntityFilter();
   return useQuery({
-    queryKey: ['entries', schoolId, 'fromBase', baseDate, DATA_FETCH_VERSION],
+    queryKey: ['entries', schoolId, 'fromBase', baseDate, DATA_FETCH_VERSION, entityId],
     queryFn: async ({ signal }): Promise<FinancialEntry[]> => {
       // If baseDate is set, filter strictly from it. Empty result = empty result
       // (no silent fallback to all-time data — avoids mixing periods).
       const data = await fetchAllRows<any>('financial_entries', q => {
-        let qq = q.eq('school_id', schoolId);
+        let qq = applyEntityFilterShared(q.eq('school_id', schoolId), entityId);
         if (baseDate) qq = qq.gte('data', baseDate);
         return qq.order('data');
       }, 1000, ENTRY_COLS, signal);
-      return withCashflowSource(schoolId, data.map(mapEntry));
+      return withCashflowSource(schoolId, (await scaleSharedRows(data, entityId, schoolId)).map(mapEntry));
     },
     enabled: !!schoolId,
   });

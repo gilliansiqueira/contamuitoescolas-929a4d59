@@ -12,6 +12,11 @@ import { ScenarioSelector } from '@/components/ScenarioSelector';
 import type { ScenarioType } from '@/components/ScenarioSelector';
 import { ExportPdfSection } from '@/components/ExportPdfSection';
 import { GlobalPeriodProvider, useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
+import { isQuintal } from '@/lib/quintal';
+import { CnpjConfig } from '@/components/CnpjConfig';
+import { EntitySelector } from '@/components/EntitySelector';
+import { ResultBasisToggle } from '@/components/indicadores/ResultBasisToggle';
+import { SaldosBancosCard } from '@/components/dashboard/SaldosBancosCard';
 import { SharedMonthProvider } from '@/components/realizado/SharedMonthContext';
 
 import { RealizadoModule, useRealizadoViews, type MainView as RealizadoView } from '@/components/realizado/RealizadoModule';
@@ -215,7 +220,7 @@ function IndexBody({
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
   const canSeeAdminTabs = isAdmin && !isPresentationMode && !isDemo;
   const { data: bankPilotEnabled = false } = useSchoolFeature(school.id, BANK_PILOT_FEATURE, canSeeAdminTabs);
-  const visibleMainTabs = mainTabs.filter(t => (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled));
+  const visibleMainTabs = mainTabs.filter(t => (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled) && !(t.key === 'renewal' && isQuintal(school.id)));
 
   if ((isPresentationMode || isDemo) && isSettingsTab) {
     setActiveTab('dashboard');
@@ -367,6 +372,14 @@ function IndexBody({
           onToggleCollapsed={toggleSidebar}
           onOpenMobileNav={() => setNavOpen(true)}
         />
+        {isQuintal(school.id) && (
+          <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border/30 px-4 py-2">
+            <EntitySelector />
+            <div className="flex items-center px-2 py-1 rounded-lg bg-primary/5 border border-primary/20" title="Visão do resultado aplicada em todas as abas">
+              <ResultBasisToggle schoolId={school.id} compact />
+            </div>
+          </div>
+        )}
 
         {appModule === 'projecao' ? (
           <>
@@ -390,6 +403,7 @@ function IndexBody({
                 >
                   <Suspense fallback={<ScreenLoading />}>
                   {activeTab === 'dashboard' && <Dashboard schoolId={school.id} selectedMonth={selectedMonth} />}
+                  {activeTab === 'daily_flow' && isQuintal(school.id) && <div className="mb-4"><SaldosBancosCard schoolId={school.id} compact /></div>}
                   {activeTab === 'daily_flow' && (
                     <ExportPdfSection fileName={`fluxo-diario-${selectedMonth}`}>
                       <DailyFlowTable schoolId={school.id} selectedMonth={selectedMonth} />
@@ -440,7 +454,7 @@ function IndexBody({
                   )}
                   {activeTab === 'export' && <ExportImport schoolId={school.id} selectedMonth={selectedMonth} onDataChanged={refresh} />}
                   {activeTab === 'uploads_history' && <UploadHistory schoolId={school.id} onDataChanged={refresh} />}
-                  {activeTab === 'saldo_inicial' && <SaldoInicialConfig schoolId={school.id} onChanged={refresh} />}
+                  {activeTab === 'saldo_inicial' && <><SaldoInicialConfig schoolId={school.id} onChanged={refresh} />{isQuintal(school.id) && <CnpjConfig schoolId={school.id} />}</>}
 
                   {activeTab === 'payment_delays' && <PaymentDelayConfig schoolId={school.id} onChanged={refresh} />}
                   {activeTab === 'audit_history' && <AuditHistory schoolId={school.id} />}

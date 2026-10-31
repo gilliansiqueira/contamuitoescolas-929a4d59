@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useGlobalPeriod } from '@/contexts/GlobalPeriodContext';
 
 interface RealizedEntry {
   id: string;
@@ -14,6 +15,7 @@ interface RealizedEntry {
   conta_codigo: string;
   complemento: string;
   tipo: string;
+  entity_id?: string | null;
 }
 
 interface ContaRow {
@@ -49,6 +51,8 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
   const [grupo, setGrupo] = useState('');
   const [scope, setScope] = useState<'single' | 'all'>('single');
   const [saving, setSaving] = useState(false);
+  const { entities } = useGlobalPeriod();
+  const [entity, setEntity] = useState('none');
 
   // Derive groups and children
   const groups = [...new Set(contas.filter(c => c.nivel === 1).map(c => c.grupo || c.nome))].sort();
@@ -66,6 +70,7 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
       const found = contas.find(c => c.nome === entry.conta_nome && c.nivel > 1);
       setGrupo(found?.grupo || '');
       setScope('single');
+      setEntity(entry.entity_id || 'none');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, open]);
@@ -84,6 +89,7 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
         valor: numVal,
         descricao,
         conta_nome: contaNome,
+        ...((entry.entity_id || 'none') !== entity ? { entity_id: entity === 'none' ? null : entity } : {}),
       }, isCategoryChanged ? scope : 'single');
       
       toast.success('Lançamento atualizado');
@@ -141,6 +147,19 @@ export function EditEntryDialog({ open, onOpenChange, entry, contas, onSave }: P
               </SelectContent>
             </Select>
           </div>
+
+          {entities.length > 1 && (
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1">CNPJ</label>
+              <Select value={entity} onValueChange={setEntity}>
+                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem CNPJ definido</SelectItem>
+                  {entities.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {isCategoryChanged && (
             <div className="space-y-2 border-t pt-3 mt-3">

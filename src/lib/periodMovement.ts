@@ -117,6 +117,10 @@ const ORIGEM_LABEL: Record<string, string> = {
   contas_pagar: 'Despesa (Contas a Pagar)',
 };
 
+/** Fluxo importado que é realizado de fato (não marcado como projetado). */
+export const isRealFluxo = (e: { origem?: string; tipoRegistro?: string }) =>
+  e.origem === 'fluxo' && e.tipoRegistro !== 'projetado';
+
 export function prevMonth(month: string): string {
   const [y, m] = month.split('-').map(Number);
   const d = new Date(y, m - 2, 1);

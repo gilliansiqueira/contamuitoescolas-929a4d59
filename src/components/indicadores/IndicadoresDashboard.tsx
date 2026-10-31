@@ -1,3 +1,5 @@
+import { isQuintal } from '@/lib/quintal';
+import { IndicadoresDashboardQuintal } from './IndicadoresDashboard.quintal';
 import { useMemo, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,7 +33,12 @@ function generateMonths(values: { month: string }[]): string[] {
   return Array.from(months).sort();
 }
 
-export function IndicadoresDashboard({ schoolId }: Props) {
+/** Quintal de Casa usa a versão trazida do projeto dela; demais empresas, a padrão. */
+export function IndicadoresDashboard(props: Props) {
+  return isQuintal(props.schoolId) ? <IndicadoresDashboardQuintal key={props.schoolId} schoolId={props.schoolId} /> : <IndicadoresDashboardBase key={props.schoolId} {...props} />;
+}
+
+function IndicadoresDashboardBase({ schoolId }: Props) {
   const { isPresentationMode } = usePresentation();
   const [configOpen, setConfigOpen] = useState(false);
   const [referenceMonth, setReferenceMonth] = useState<string>(''); // '' or comma-separated list
