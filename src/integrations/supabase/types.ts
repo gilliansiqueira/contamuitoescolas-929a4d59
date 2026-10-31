@@ -4134,18 +4134,21 @@ export type Database = {
       team_benefit_month: {
         Row: {
           dias_uteis: number | null
+          liquidos: Json
           month: string
           updated_at: string
           vt_diario: number
         }
         Insert: {
           dias_uteis?: number | null
+          liquidos?: Json
           month: string
           updated_at?: string
           vt_diario?: number
         }
         Update: {
           dias_uteis?: number | null
+          liquidos?: Json
           month?: string
           updated_at?: string
           vt_diario?: number

@@ -1,0 +1,1 @@
+ALTER TABLE public.team_benefit_month ADD COLUMN IF NOT EXISTS liquidos jsonb NOT NULL DEFAULT '{}'::jsonb;
