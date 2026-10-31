@@ -238,7 +238,7 @@ function Content({ data, mode, start, end, card, setCard, who, setWho, sit, setS
       e, cls, problemas,
       pend: problemas.length > 0,
       faltas: cls.filter(x => x.c.faltaDia && !aceitas.has(`${e.external_id}|${x.d.dia}`)).length,
-      devidasMin: cls.reduce((s, x) => s + (x.c.faltaDia || aceitas.has(`${e.external_id}|${x.d.dia}`) ? 0 : x.c.faltaMin), 0),
+      devidasMin: cls.reduce((s, x) => s + (aceitas.has(`${e.external_id}|${x.d.dia}`) ? 0 : x.c.faltaMin), 0),
       extrasMin: cls.reduce((s, x) => s + x.c.extraMin, 0),
       incDias: cls.filter(x => !x.c.feriado && x.d.situacao === 'incompleta').length,
     };
