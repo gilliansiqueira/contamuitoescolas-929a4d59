@@ -96,6 +96,7 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
         <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground shadow-md">
           <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
           <button className="text-center underline-offset-2 hover:underline" onClick={() => setPopup(true)}>🚨 {overdueText}</button>
+          {canManageCollaborators && <button onClick={() => setEditing(true)} aria-label="Gerenciar avisos" className="opacity-80 hover:opacity-100"><Settings className="h-4 w-4" /></button>}
         </div>
       )}
       {!overdueText && active.map(a => (
