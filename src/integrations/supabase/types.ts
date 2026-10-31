@@ -188,6 +188,60 @@ export type Database = {
           },
         ]
       }
+      bank_balances: {
+        Row: {
+          created_at: string
+          data_ref: string
+          entity_id: string | null
+          id: string
+          nome: string
+          saldo: number | null
+          school_id: string
+          sort_order: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_ref: string
+          entity_id?: string | null
+          id?: string
+          nome: string
+          saldo?: number | null
+          school_id: string
+          sort_order?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_ref?: string
+          entity_id?: string | null
+          id?: string
+          nome?: string
+          saldo?: number | null
+          school_id?: string
+          sort_order?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_balances_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "company_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_balances_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_cashflow_entries: {
         Row: {
           account_id: string
@@ -853,6 +907,41 @@ export type Database = {
         }
         Relationships: []
       }
+      company_entities: {
+        Row: {
+          cnpj: string
+          created_at: string
+          id: string
+          nome: string
+          school_id: string
+          sort_order: number
+        }
+        Insert: {
+          cnpj?: string
+          created_at?: string
+          id?: string
+          nome: string
+          school_id: string
+          sort_order?: number
+        }
+        Update: {
+          cnpj?: string
+          created_at?: string
+          id?: string
+          nome?: string
+          school_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_entities_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversion_data: {
         Row: {
           contatos: number
@@ -1165,6 +1254,48 @@ export type Database = {
         }
         Relationships: []
       }
+      entity_allocation_rates: {
+        Row: {
+          created_at: string
+          entity_id: string
+          id: string
+          month: string
+          pct: number
+          school_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          id?: string
+          month: string
+          pct: number
+          school_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          id?: string
+          month?: string
+          pct?: number
+          school_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_allocation_rates_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "company_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_allocation_rates_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exclusion_rules: {
         Row: {
           acao: string
@@ -1282,6 +1413,7 @@ export type Database = {
           created_at: string
           data: string
           descricao: string
+          entity_id: string | null
           group_id: string
           id: string
           imported_at: string | null
@@ -1295,6 +1427,7 @@ export type Database = {
           created_at?: string
           data: string
           descricao?: string
+          entity_id?: string | null
           group_id: string
           id?: string
           imported_at?: string | null
@@ -1308,6 +1441,7 @@ export type Database = {
           created_at?: string
           data?: string
           descricao?: string
+          entity_id?: string | null
           group_id?: string
           id?: string
           imported_at?: string | null
@@ -1318,6 +1452,13 @@ export type Database = {
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "expense_detail_items_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "company_entities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expense_detail_items_group_id_fkey"
             columns: ["group_id"]
@@ -1341,6 +1482,60 @@ export type Database = {
           },
         ]
       }
+      expense_detail_trips: {
+        Row: {
+          activity: string
+          created_at: string
+          group_id: string
+          id: string
+          paying_people: number
+          revenue: number
+          school_id: string
+          source_row_key: string
+          trip_date: string
+          updated_at: string
+        }
+        Insert: {
+          activity?: string
+          created_at?: string
+          group_id: string
+          id?: string
+          paying_people?: number
+          revenue?: number
+          school_id: string
+          source_row_key: string
+          trip_date: string
+          updated_at?: string
+        }
+        Update: {
+          activity?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          paying_people?: number
+          revenue?: number
+          school_id?: string
+          source_row_key?: string
+          trip_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_detail_trips_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "expense_detail_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_detail_trips_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           afeta_saldo: boolean
@@ -1352,6 +1547,7 @@ export type Database = {
           delay_rule_applied: Json | null
           descricao: string
           editado_manualmente: boolean
+          entity_id: string | null
           id: string
           imported_at: string | null
           origem: string
@@ -1375,6 +1571,7 @@ export type Database = {
           delay_rule_applied?: Json | null
           descricao?: string
           editado_manualmente?: boolean
+          entity_id?: string | null
           id?: string
           imported_at?: string | null
           origem: string
@@ -1398,6 +1595,7 @@ export type Database = {
           delay_rule_applied?: Json | null
           descricao?: string
           editado_manualmente?: boolean
+          entity_id?: string | null
           id?: string
           imported_at?: string | null
           origem?: string
@@ -1412,6 +1610,13 @@ export type Database = {
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "financial_entries_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "company_entities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "financial_entries_origem_upload_id_fkey"
             columns: ["origem_upload_id"]
@@ -1495,6 +1700,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      financial_month_statuses: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          note: string | null
+          school_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          note?: string | null
+          school_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          note?: string | null
+          school_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_month_statuses_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       historical_monthly: {
         Row: {
@@ -2486,6 +2729,7 @@ export type Database = {
           created_at: string
           data: string
           descricao: string
+          entity_id: string | null
           id: string
           origem_arquivo: string
           school_id: string
@@ -2500,6 +2744,7 @@ export type Database = {
           created_at?: string
           data: string
           descricao?: string
+          entity_id?: string | null
           id?: string
           origem_arquivo?: string
           school_id: string
@@ -2514,6 +2759,7 @@ export type Database = {
           created_at?: string
           data?: string
           descricao?: string
+          entity_id?: string | null
           id?: string
           origem_arquivo?: string
           school_id?: string
@@ -2526,6 +2772,13 @@ export type Database = {
             columns: ["conta_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "realized_entries_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "company_entities"
             referencedColumns: ["id"]
           },
           {
@@ -3920,6 +4173,35 @@ export type Database = {
           },
         ]
       }
+      simulation_assumptions: {
+        Row: {
+          data: Json
+          id: string
+          school_id: string
+          updated_at: string
+        }
+        Insert: {
+          data?: Json
+          id?: string
+          school_id: string
+          updated_at?: string
+        }
+        Update: {
+          data?: Json
+          id?: string
+          school_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_assumptions_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: true
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       simulation_entries: {
         Row: {
           created_at: string
@@ -4814,6 +5096,14 @@ export type Database = {
       ensure_monthly_checklist_bulk: {
         Args: { _month: string; _school_ids: string[] }
         Returns: number
+      }
+      entity_monthly_totals: {
+        Args: { _entity_id: string; _school_id: string }
+        Returns: {
+          month: string
+          tipo_valor: string
+          valor: number
+        }[]
       }
       get_available_financial_months: {
         Args: { _school_id: string }
