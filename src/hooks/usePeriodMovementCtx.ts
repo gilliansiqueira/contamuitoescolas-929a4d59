@@ -4,8 +4,7 @@
  * calcular movimento/saldo de forma independente.
  */
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useHistoricalRows } from '@/hooks/useHistoricalRows';
 import { useSchool, useTypeClassifications } from '@/hooks/useFinancialData';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useSnapshotMap } from '@/hooks/usePeriodSnapshots';
@@ -30,18 +29,7 @@ export function usePeriodMovementCtx(schoolId: string): UsePeriodMovementCtx {
   const cashflowAnchor = useCashflowAnchor(schoolId);
   const { hasModel, isInModel, items: modelItems } = useSchoolModel(schoolId);
 
-  const { data: historicalRowsRaw = [], isLoading: l3 } = useQuery({
-    queryKey: ['historicalMonthly', schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('historical_monthly' as any)
-        .select('month, tipo_valor, valor')
-        .eq('school_id', schoolId);
-      if (error) throw error;
-      return (data ?? []) as unknown as HistoricalRow[];
-    },
-    enabled: !!schoolId,
-  });
+  const { data: historicalRowsRaw = [], isLoading: l3 } = useHistoricalRows(schoolId);
 
   const historicalRows = useMemo(
     () => hasModel ? historicalRowsRaw.filter(r => isInModel(r.tipo_valor)) : historicalRowsRaw,
