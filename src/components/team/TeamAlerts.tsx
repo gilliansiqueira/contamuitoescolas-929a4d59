@@ -103,7 +103,12 @@ export function TeamAlerts({ schools, onOpenSchool, onOpenCenter }: Props) {
     if (!user?.id || checked || alerts.length === 0) return;
     setChecked(true);
     (supabase as any).from('team_alert_dismissals').select('dia').eq('user_id', user.id).eq('dia', today).maybeSingle()
-      .then(({ data }: any) => { if (!data) setPopup(true); });
+      .then(({ data }: any) => {
+        if (data) return;
+        // Espera a janela de prazos (se abrir) ser fechada, para nunca abrir duas juntas.
+        const show = () => { if ((window as any).__deadlinePopupOpen) window.addEventListener('deadline-popup-closed', () => setPopup(true), { once: true }); else setPopup(true); };
+        setTimeout(show, 2500);
+      });
   }, [user?.id, today, alerts.length, checked]);
 
   if (!isAdmin) return null;
