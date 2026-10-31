@@ -1,3 +1,4 @@
+import { useHistoricalRows } from '@/hooks/useHistoricalRows';
 import { isQuintal } from '@/lib/quintal';
 import { SaldosBancosCard } from '@/components/dashboard/SaldosBancosCard';
 import { ManualEntriesPanel } from '@/components/ManualEntriesPanel';
@@ -104,18 +105,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   );
 
   // Histórico Financeiro consolidado (para gráficos que ainda precisam iterar bruto).
-  const { data: historicalRowsRaw = [] } = useQuery({
-    queryKey: ['historicalMonthly', schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('historical_monthly' as any)
-        .select('month, tipo_valor, valor')
-        .eq('school_id', schoolId);
-      if (error) throw error;
-      return (data ?? []) as unknown as Array<{ month: string; tipo_valor: string; valor: number }>;
-    },
-    enabled: !!schoolId,
-  });
+  const { data: historicalRowsRaw = [] } = useHistoricalRows(schoolId);
   const historicalRows = useMemo(
     () => hasModel ? historicalRowsRaw.filter(r => isInModel(r.tipo_valor)) : historicalRowsRaw,
     [historicalRowsRaw, hasModel, isInModel]
