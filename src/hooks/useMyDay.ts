@@ -79,6 +79,8 @@ export interface MyDayCashRisk {
   schoolName: string;
   firstNegativeDate: string;
   minBalance: number;
+  baseDate: string;
+  baseBalance: number;
 }
 
 export interface MyDayData {
@@ -284,24 +286,13 @@ function computeSchool(bundle: SchoolBundle, today: string): MyDayData {
   // do Fluxo Diário) e soma só as projeções (SSOT) posteriores a essa data.
   // Sem saldo bancário conferido não há base confiável: a empresa fica fora do alerta.
   if (bundle.bankBalance) {
-    const base = bundle.bankBalance;
-    const impactsByDay = new Map<string, number>();
-    for (const e of projected) {
-      if (!e.impacto || e.tipoRegistro !== 'projetado' || e.dataProjetada <= base.date) continue;
-      impactsByDay.set(e.dataProjetada, (impactsByDay.get(e.dataProjetada) ?? 0) + e.impacto);
-    }
-    let saldo = base.balance;
-    let firstNegative: string | null = null;
-    let minBalance = Infinity;
-    for (let d = addDays(base.date, 1); d <= addDays(today, 15); d = addDays(d, 1)) {
-      saldo += impactsByDay.get(d) ?? 0;
-      if (d >= today && saldo < 0) {
-        if (!firstNegative) firstNegative = d;
-        if (saldo < minBalance) minBalance = saldo;
-      }
-    }
-    if (firstNegative) {
-      empty.cashRisks.push({ schoolId: bundle.id, schoolName: bundle.nome, firstNegativeDate: firstNegative, minBalance });
+    const r = projectCashRisk(
+      bundle.bankBalance,
+      projected.filter(e => e.tipoRegistro === 'projetado').map(e => ({ date: e.dataProjetada, impacto: e.impacto })),
+      today,
+    );
+    if (r.firstNegativeDate) {
+      empty.cashRisks.push({ schoolId: bundle.id, schoolName: bundle.nome, firstNegativeDate: r.firstNegativeDate, minBalance: r.minBalance, baseDate: r.baseDate, baseBalance: r.baseBalance });
     }
   }
 
