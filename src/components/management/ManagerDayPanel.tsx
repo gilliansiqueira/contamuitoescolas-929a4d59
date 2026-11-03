@@ -121,8 +121,15 @@ export function ManagerDayPanel({ today, team, stalled, allSchools, canViewTeamT
 
       {open === 'risks' && <div className="mt-3 space-y-2 rounded-md border border-border p-3 text-xs">
         {risks.isLoading || !risks.data ? <span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Calculando todas as empresas… pode levar alguns segundos.</span> : <>
-          <p className="font-medium">Caixa previsto negativo em 15 dias</p>
-          {risks.data.cashRisks.length === 0 ? <p className="text-muted-foreground">Nenhuma empresa.</p> : risks.data.cashRisks.map(r => <div key={r.schoolId} className="flex items-center justify-between gap-2"><span><strong className="font-medium">{r.schoolName}</strong> — negativo em {fmtDay(r.firstNegativeDate)} (menor saldo {brl(r.minBalance)})</span><Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => onOpenSchool(r.schoolId)}>Abrir</Button></div>)}
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-medium">Caixa previsto negativo em 15 dias</p>
+            <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              {risks.dataUpdatedAt ? `Atualizado às ${new Date(risks.dataUpdatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : null}
+              <Button size="sm" variant="outline" className="h-6 text-[11px]" disabled={risks.isFetching} onClick={() => risks.refetch()}>{risks.isFetching ? 'Atualizando…' : 'Atualizar'}</Button>
+            </span>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Parte do saldo do último extrato e soma os recebimentos e contas a pagar previstos a partir do dia seguinte.</p>
+          {risks.data.cashRisks.length === 0 ? <p className="text-muted-foreground">Nenhuma empresa.</p> : risks.data.cashRisks.map(r => <div key={r.schoolId} className="flex items-center justify-between gap-2"><span><strong className="font-medium">{r.schoolName}</strong> — negativo em {fmtDay(r.firstNegativeDate)} (menor saldo {brl(r.minBalance)}) <span className="text-muted-foreground">· extrato de {fmtDay(r.baseDate)}, saldo {brl(r.baseBalance)}</span></span><Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => onOpenSchool(r.schoolId)}>Abrir</Button></div>)}
           <p className="pt-2 font-medium">Contas que não saíram da conta</p>
           {(() => {
             const by = new Map<string, { name: string; n: number; v: number }>();
