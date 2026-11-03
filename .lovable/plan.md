@@ -19,9 +19,9 @@ Os valores aplicados (BB Rende Fácil e os fundos do Sicredi) não aparecem ness
 4. Antes de gravar, mostro a tabela mês a mês: receita, despesa, resultado, lucratividade, distribuição, ajuste e saldo.
 5. **2025:** quando chegar o balancete do Sponte de 2025, repito o processo. Para isso, vou precisar dos extratos de dezembro/2024.
 
-## Uma decisão sua
-- **Opção A, rápida:** sem os saldos de fim de mês, o ajuste de caixa é distribuído pela diferença de cada mês entre a planilha bancária revisada e o resultado. Os saldos intermediários ficam aproximados, mas jan e ago fecham exatos.
-- **Opção B, exata:** você me manda o saldo de fim de mês de cada conta, de jan a jul, ou os extratos, e cada mês fecha no valor real.
+## Decisão: opção A (rápida)
+- O ajuste de caixa é distribuído conforme a diferença de cada mês entre a planilha bancária revisada e o resultado. Janeiro e agosto fecham exatos; os meses do meio ficam aproximados.
+- Depois, com os saldos de fim de mês de cada conta, refinamos para que cada mês feche no valor real.
 
 ## Detalhes técnicos
 - Grava em `historical_monthly`, só de Rondonópolis, meses 2026-01 a 2026-08, com os tipos `receita`, `despesa`, `distribuicao de lucros` e `ajuste de caixa`. O ajuste é classificado como operação na SSOT (`tipoMeta`) e afeta só o Caixa.
