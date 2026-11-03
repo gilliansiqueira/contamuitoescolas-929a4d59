@@ -17,7 +17,7 @@ import { Tag, CalendarCheck } from 'lucide-react';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
 import { Download, FileClock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSchoolFeature } from '@/hooks/useBankPilot';
+import { useSchoolFeature, useDataSource } from '@/hooks/useBankPilot';
 import { exportMovementsXlsx, type MovementExportRow, type AccountSummaryRow } from '@/lib/bankStatements/exportMovements';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
