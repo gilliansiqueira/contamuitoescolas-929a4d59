@@ -18,6 +18,7 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
   const qc = useQueryClient();
   const today = todaySP();
   const [popup, setPopup] = useState(false);
+  const [openOwner, setOpenOwner] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
   const { data: anns = [] } = useQuery({
@@ -123,13 +124,30 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
                 {overdue.length > 0 && (
                   <div className="space-y-2 rounded-md border-2 border-destructive bg-destructive/10 p-3 text-foreground">
                     <p className="text-lg font-bold text-destructive">{overdue.length} projeç{overdue.length > 1 ? 'ões' : 'ão'} em atraso</p>
-                    {byOwner.map(([owner, list]) => (
-                      <div key={owner}>
-                        {isManager && <p className="text-sm font-semibold">{owner} ({list.length})</p>}
-                        <ul className="ml-4 list-disc text-sm">
-                          {list.map(p => <li key={p.school_id}><button type="button" className="underline" onClick={() => { setPopup(false); onOpenSchool?.(p.school_id); }}>{p.school_name}</button></li>)}
-                        </ul>
+                    {isManager ? (
+                      <div className="max-h-[40vh] divide-y divide-destructive/20 overflow-y-auto rounded border border-destructive/30 bg-background">
+                        {[...byOwner].sort((a, b) => (a[0] === 'Sem responsável' ? 1 : b[0] === 'Sem responsável' ? -1 : b[1].length - a[1].length)).map(([owner, list]) => {
+                          const short = owner === 'Sem responsável' ? owner : owner.split('@')[0].replace(/[._-]?contamuito\d*$/i, '').replace(/^./, c => c.toUpperCase());
+                          const open = openOwner === owner;
+                          return (
+                            <div key={owner}>
+                              <button type="button" className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-destructive/5" onClick={() => setOpenOwner(open ? null : owner)}>
+                                <span className="font-medium">{open ? '▾' : '▸'} {short}</span>
+                                <span className="font-bold text-destructive">{list.length}</span>
+                              </button>
+                              {open && (
+                                <p className="px-6 pb-2 text-xs">
+                                  {list.map((p, i) => <span key={p.school_id}>{i > 0 && ', '}<button type="button" className="underline" onClick={() => { setPopup(false); onOpenSchool?.(p.school_id); }}>{p.school_name}</button></span>)}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
+                    ) : byOwner.map(([owner, list]) => (
+                      <ul key={owner} className="ml-4 list-disc text-sm">
+                        {list.map(p => <li key={p.school_id}><button type="button" className="underline" onClick={() => { setPopup(false); onOpenSchool?.(p.school_id); }}>{p.school_name}</button></li>)}
+                      </ul>
                     ))}
                   </div>
                 )}
