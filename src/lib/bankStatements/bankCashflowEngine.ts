@@ -223,7 +223,7 @@ export function suggestTransferPairs(txs: BankTx[]): [BankTx, BankTx][] {
   const pairs: [BankTx, BankTx][] = [];
   const dayDiff = (a: string, b: string) => Math.abs((Date.parse(a) - Date.parse(b)) / 86400000);
   for (const e of free.filter(t => t.tipo === 'entrada')) {
-    const s = saidas.find(x => !used.has(x.id) && x.account_id !== e.account_id && Math.abs(Number(x.valor) - Number(e.valor)) < 0.005 && dayDiff(x.data, e.data) <= 2);
+    const s = saidas.find(x => !used.has(x.id) && x.account_id !== e.account_id && Math.abs(Number(x.valor) - Number(e.valor)) < 0.005 && businessDayDiff(x.data, e.data) <= 2);
     if (s) { used.add(s.id); pairs.push([s, e]); }
   }
   return pairs;
@@ -250,15 +250,22 @@ export function detectOwnTransfer(descricao: string, ownNames: string[]): boolea
 
 type PairTx = Pick<BankTx, 'id' | 'account_id' | 'data' | 'valor' | 'tipo' | 'transfer_pair_id' | 'movement_kind'>;
 const dDiff = (a: string, b: string) => Math.abs((Date.parse(a) - Date.parse(b)) / 86400000);
+/** Diferença em dias úteis (seg–sex) entre duas datas ISO; fim de semana não conta. */
+export function businessDayDiff(a: string, b: string): number {
+  let [x, y] = [a.slice(0, 10), b.slice(0, 10)].sort();
+  const d = new Date(x + 'T12:00:00Z'); const end = new Date(y + 'T12:00:00Z'); let n = 0;
+  while (d < end) { d.setUTCDate(d.getUTCDate() + 1); const w = d.getUTCDay(); if (w !== 0 && w !== 6) n++; }
+  return n;
+}
 const pairable = (t: PairTx) => !t.transfer_pair_id && !isAutoInvest(t) && t.movement_kind !== 'operacao' && t.movement_kind !== 'ignorar';
 
-/** Outra ponta: mesmo valor, sentido oposto, outra conta, até 2 dias; prefere data mais próxima e já marcada. */
+/** Outra ponta: mesmo valor, sentido oposto, outra conta, até 2 dias úteis; prefere data mais próxima e já marcada. */
 export function findTransferCounterpart<T extends PairTx>(tx: T, txs: T[], used: Set<string> = new Set()): T | null {
   let best: T | null = null; let bestScore = Infinity;
   for (const c of txs) {
     if (c.id === tx.id || used.has(c.id) || !pairable(c) || c.account_id === tx.account_id || c.tipo === tx.tipo) continue;
     if (Math.abs(Number(c.valor) - Number(tx.valor)) >= 0.005) continue;
-    const d = dDiff(c.data, tx.data); if (d > 2) continue;
+    if (businessDayDiff(c.data, tx.data) > 2) continue; const d = dDiff(c.data, tx.data);
     const score = d - (c.movement_kind === 'transferencia' ? 0.5 : 0);
     if (score < bestScore) { best = c; bestScore = score; }
   }
