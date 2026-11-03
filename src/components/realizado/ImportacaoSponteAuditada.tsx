@@ -9,6 +9,7 @@
  *   5. Gravação + auditoria pós-importação
  */
 
+import { dropSponteCardCoveredByMaquininha } from '@/lib/import/sponteCardGuard';
 import { useState, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
