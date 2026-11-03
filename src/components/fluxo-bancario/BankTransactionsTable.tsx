@@ -17,7 +17,7 @@ import { Tag, CalendarCheck } from 'lucide-react';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
 import { Download, FileClock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSchoolFeature } from '@/hooks/useBankPilot';
+import { useSchoolFeature, useDataSource } from '@/hooks/useBankPilot';
 import { exportMovementsXlsx, type MovementExportRow, type AccountSummaryRow } from '@/lib/bankStatements/exportMovements';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
@@ -65,6 +65,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [descTx, setDescTx] = useState<BankTx | null>(null);
   const [descText, setDescText] = useState('');
   const updText = useUpdateTxText(schoolId);
+  const { data: dataSource } = useDataSource(schoolId);
+  const startMonth = dataSource?.start_month ? `${dataSource.start_month.slice(0, 7)}-01` : null;
   const catOf = (t: BankTx) => isAutoInvest(t) ? 'auto' : isOwnTransfer(t) ? 'transf' : t.splits?.length ? 'dividido' : t.movement_kind === 'ignorar' ? 'ignorar' : isOperacao(t) ? 'operacao' : 'mov';
   const CAT_LABEL: Record<SplitCategoria, string> = { normal: 'Entrada/Saída', operacao: 'Operação', ignorar: 'Ignorar' };
   const setSplitsM = useSetSplits(schoolId);
@@ -151,7 +153,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const needsItem = (t: BankTx) => !isAutoInvest(t) && !t.transfer_pair_id && t.movement_kind !== 'ignorar';
   const unclassified = (t: BankTx) => needsItem(t) && (t.splits?.length ? t.splits.some(sp => sp.categoria !== 'ignorar' && !sp.model_item_id) : !t.model_item_id);
   const operationPending = txs.filter(t => t.movement_kind === 'operacao' && !t.model_item_id).length;
-  const transferPending = txs.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id).length;
+  const transferPending = txs.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id && (!startMonth || t.data >= startMonth)).length;
   const opSemSub = (t: BankTx) => t.splits?.length ? t.splits.some(sp => sp.categoria === 'operacao' && !sp.model_item_id) : (t.movement_kind === 'operacao' && !t.model_item_id && !t.transfer_pair_id);
   const splitPending = txs.filter(t => t.splits?.some(sp => sp.categoria === 'operacao' && !sp.model_item_id)).length;
   const applyItem = async (ids: string[], itemId: string | null) => {
