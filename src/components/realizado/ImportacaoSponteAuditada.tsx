@@ -9,6 +9,7 @@
  *   5. Gravação + auditoria pós-importação
  */
 
+import { dropSponteCardCoveredByMaquininha } from '@/lib/import/sponteCardGuard';
 import { useState, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
@@ -274,7 +275,12 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
       }
 
       // 3) insert new entries with full traceability
-      const entries = buildInsertableEntries(parsed, { schoolId, uploadId, fileName, rules });
+      const allBuilt = buildInsertableEntries(parsed, { schoolId, uploadId, fileName, rules });
+      const guard = dropSponteCardCoveredByMaquininha(allBuilt as any[], allEntries as any[]);
+      const entries = guard.kept as typeof allBuilt;
+      if (guard.dropped.length > 0) {
+        toast.info(`${guard.dropped.length} recebimentos de cartão do Sponte não foram gravados: a maquininha já cobre o período até ${guard.ate?.split('-').reverse().join('/')}.`);
+      }
       const dbRows = entries.map(e => ({
         id: e.id, school_id: e.school_id, data: e.data, descricao: e.descricao,
         valor: e.valor, tipo: e.tipo, categoria: e.categoria, origem: e.origem,
