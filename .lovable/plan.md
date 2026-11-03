@@ -1,28 +1,24 @@
-# Rondonópolis: histórico de jan a ago/2026 (e depois 2025)
+# Rondonópolis: histórico de 2025 e jan–ago/2026, saldo e lucratividade
 
-## O que os extratos de dezembro mostram
-Saldo em conta corrente no fim de 31/12/2025:
+## Fontes
+- **Receitas:** balancetes do Sponte de 2025 e de jan–ago/2026.
+- **Despesas:** Análise de Despesas da plataforma. Em 2026 entram também as taxas de cartão e as devoluções de cheques que faltavam (R$ 37.510,21). Em 2025 a mesma conferência é feita antes, e eu mostro as diferenças.
+- **Divisão de Lucros:** fica fora do resultado e da lucratividade, mas reduz o saldo. Foram R$ 1.055.831,27 em 2025 e R$ 426.285,52 de jan a ago/2026.
+- **Saldo:** R$ 328,72 em conta corrente em 01/01/2026 (extratos de dezembro) e R$ 81.619,16 em 31/08/2026 (Fluxo Bancário, confirmado).
 
-| Conta | Saldo |
-|---|---|
-| BB | R$ 0,00 (tudo vai para o Rende Fácil automaticamente) |
-| Sicredi | R$ 328,71 (último movimento em 18/12) |
-| Stone | R$ 0,01 |
-| **Total em conta** | **R$ 328,72** |
+## Passos
+1. **Conferir 2025:** comparar categoria por categoria as despesas do balancete com a Análise de Despesas e listar as diferenças para você aprovar.
+2. **Histórico mensal (01/2025 a 08/2026):** receita, despesa, distribuição de lucros e resultado de cada mês.
+3. **Saldo, opção A:**
+   - 2026: sai de R$ 328,72 e chega em R$ 81.619,16. A diferença entra como "Ajuste de caixa (aplicações, resgates, transferências)", distribuída pela planilha bancária revisada. É só caixa, nunca resultado.
+   - 2025: calculado para trás a partir de R$ 328,72 com receita − despesa − distribuição. Se aparecer um saldo absurdo, eu aviso antes de gravar e usamos os extratos de dez/2024 para fechar.
+4. **Lucratividade nos Indicadores:** gravar a lucratividade de cada mês, de 01/2025 a 08/2026, no indicador "Lucratividade" de Rondonópolis. Cálculo: (receita − despesa sem Divisão de Lucros) ÷ receita. Ela aparece nos Indicadores e no painel.
+5. Antes de gravar, mostro a tabela final: mês, receita, despesa, resultado, lucratividade, distribuição, ajuste e saldo.
 
-Os valores aplicados (BB Rende Fácil e os fundos do Sicredi) não aparecem nesses extratos.
-
-## Como vou montar
-1. **Saldo inicial em 01/01/2026: R$ 328,72**, só conta corrente, o mesmo critério do Fluxo Bancário em 31/08. As aplicações e os resgates entram como operação: afetam só o caixa e nunca o resultado.
-2. **Resultado e lucratividade por mês:** receita do Sponte e despesa da Análise de Despesas, com as taxas de cartão e as devoluções de cheques (R$ 37.510,21) somadas. A Divisão de Lucros fica fora do resultado e da lucratividade, mas reduz o saldo.
-3. **Fechamento do saldo:** a diferença entre o saldo calculado e o saldo real de cada mês aparece como uma linha "Ajuste de caixa (aplicações, resgates, transferências e diferenças de baixa no Sponte)". Ela é só caixa. Assim o painel sai de R$ 328,72 e chega exatamente em R$ 81.619,16 em 31/08.
-4. Antes de gravar, mostro a tabela mês a mês: receita, despesa, resultado, lucratividade, distribuição, ajuste e saldo.
-5. **2025:** quando chegar o balancete do Sponte de 2025, repito o processo. Para isso, vou precisar dos extratos de dezembro/2024.
-
-## Decisão: opção A (rápida)
-- O ajuste de caixa é distribuído conforme a diferença de cada mês entre a planilha bancária revisada e o resultado. Janeiro e agosto fecham exatos; os meses do meio ficam aproximados.
-- Depois, com os saldos de fim de mês de cada conta, refinamos para que cada mês feche no valor real.
+## Depois, com calma
+- Para os meses do meio fecharem no valor exato, precisamos do saldo aplicado (BB Rende Fácil e fundos do Sicredi) no fim de cada mês. O OFX normalmente também não mostra esse saldo. O melhor é o **extrato de investimentos/aplicações** de cada banco, ou o resumo de saldo do fim do mês no internet banking.
 
 ## Detalhes técnicos
-- Grava em `historical_monthly`, só de Rondonópolis, meses 2026-01 a 2026-08, com os tipos `receita`, `despesa`, `distribuicao de lucros` e `ajuste de caixa`. O ajuste é classificado como operação na SSOT (`tipoMeta`) e afeta só o Caixa.
-- O saldo inicial de 01/01/2026 vai no mesmo lugar que o painel usa para o saldo de abertura, sem mudar o Fluxo Bancário, que continua começando em 31/08.
+- `historical_monthly` só de Rondonópolis, meses 2025-01 a 2026-08: `receita`, `despesa`, `distribuicao de lucros` e `ajuste de caixa`. O ajuste é classificado como operação na SSOT e afeta só o Caixa.
+- `kpi_values` do indicador "Lucratividade" da escola, um valor por mês, substituindo só esses meses.
+- Nada de outras escolas ou de outros meses é alterado. Nada é gravado sem a sua aprovação da tabela.
