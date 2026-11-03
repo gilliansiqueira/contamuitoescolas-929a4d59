@@ -136,14 +136,17 @@ export function monthOf(date: string): string {
  */
 export function resolveMonthSource(
   month: string,
-  ctx: PeriodMovementCtx
+  ctx: PeriodMovementCtx,
+  today: string = new Date().toISOString().slice(0, 10)
 ): MovementSource {
   if (ctx.snapshotMap.has(month)) return 'snapshot';
   const monthEntries = ctx.entries.filter(e => monthOf(e.dataProjetada) === month);
   const hasFluxo = monthEntries.some(e => e.origem === 'fluxo');
   if (hasFluxo) return 'fluxo';
   const hasHist = ctx.historicalRows.some(r => r.month === month);
-  if (hasHist) return 'historico';
+  // Histórico é passado: no mês atual/futuro com projeção, a projeção vale
+  // (senão um valor histórico avulso apagaria todas as contas a pagar do mês).
+  if (hasHist && !(month >= monthOf(today) && monthEntries.length > 0)) return 'historico';
   if (monthEntries.length > 0) return 'projecao';
   return 'vazio';
 }
