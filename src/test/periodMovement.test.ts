@@ -199,3 +199,13 @@ describe('periodMovement — SSOT única de movimentação', () => {
     expect(computeSaldoFinal('2026-06', ctx)).toBe(500);
   });
 });
+
+import { resolveMonthSource as rms } from '@/lib/periodMovement';
+describe('histórico avulso no mês atual', () => {
+  const ctx: any = {
+    snapshotMap: new Map(), historicalRows: [{ month: '2026-11', tipo_valor: 'receita', valor: 7372.03 }],
+    entries: [{ origem: 'contas_pagar', dataProjetada: '2026-11-05', tipoRegistro: 'projetado' }],
+  };
+  it('mês atual com projeção usa a projeção', () => { expect(rms('2026-11', ctx, '2026-11-03')).toBe('projecao'); });
+  it('mês passado continua histórico', () => { expect(rms('2026-11', ctx, '2026-12-10')).toBe('historico'); });
+});
