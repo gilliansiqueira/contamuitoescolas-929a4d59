@@ -1,3 +1,4 @@
+import { projectCashRisk } from "@/lib/cashRisk";
 /**
  * Painel "Meu dia" da Central: contas a pagar, conferência de pagamento pela
  * conciliação e alerta de caixa em 15 dias — tudo derivado da SSOT
