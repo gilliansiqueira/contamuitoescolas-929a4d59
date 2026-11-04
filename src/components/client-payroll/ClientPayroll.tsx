@@ -247,7 +247,7 @@ export function ClientPayroll({ schoolId }: { schoolId: string }) {
                 {match.matched.map(m => <div key={m.employee.id} className="flex justify-between border-b border-border py-0.5"><span>{m.employee.nome}</span><span>{brl(m.line.liquido)}</span></div>)}</div>
               {match.unmatched.length > 0 && <div><p className="mb-1 font-semibold">Não estão no cadastro ({match.unmatched.length})</p>
                 {match.unmatched.map((l, i) => <div key={i} className="flex justify-between border-b border-border py-0.5"><span>{l.nome}</span><span>{brl(l.liquido)}</span></div>)}</div>}
-              {match.missing.filter(e => e.ativo).length > 0 && <p className="text-muted-foreground">Cadastrados sem holerite neste arquivo: {(match.missing as Emp[]).filter(e => e.ativo).map(e => e.nome).join(', ')}.</p>}
+              {(match.missing as Emp[]).filter(e => e.ativo).length > 0 && <p className="text-muted-foreground">Cadastrados sem holerite neste arquivo: {(match.missing as Emp[]).filter(e => e.ativo).map(e => e.nome).join(', ')}.</p>}
             </>}
             {q.data?.ups.length ? <p className="text-muted-foreground">Gravar substitui o upload anterior deste mês.</p> : null}
           </div>
