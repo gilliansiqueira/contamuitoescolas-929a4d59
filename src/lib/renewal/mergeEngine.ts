@@ -155,7 +155,10 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       else issues.push({ kind: 'varios_contratos', row_key: key, message: `${r.aluno}: parcelas de ${contratos.length} contratos (${contratos.join(', ')}).` });
     }
     if (!ps.length) {
-      Object.assign(r, { venc_ultima_parcela: SEM_INFO, forma_pagamento_atual: SEM_INFO, termino_pagamento: SEM_INFO });
+      const pre = [...(preCutRows.get(mat)?.values() ?? [])];
+      // Só há parcelas antes do corte (Sponte ou Omni): a planilha usa essas em vez de "Sem informação".
+      if (pre.length) fillPayment(r, pre);
+      else Object.assign(r, { venc_ultima_parcela: SEM_INFO, forma_pagamento_atual: SEM_INFO, termino_pagamento: SEM_INFO });
       const corte = minDue ? ` com vencimento a partir de ${minDue.split('-').reverse().join('/')}` : '';
       const pc = preCut.get(mat);
       const corteBr = minDue ? minDue.split('-').reverse().join('/') : '';
