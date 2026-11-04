@@ -13,9 +13,20 @@ A Praia da Costa ainda não tem nenhum extrato na plataforma. Então:
 - Na tabela do extrato aparece a sugestão com o grau de confiança e o motivo ("conciliado assim 12 vezes desde agosto").
 - Botão **"Aceitar sugestões confiáveis"** concilia de uma vez as que tiverem histórico forte (ex.: 3 ou mais vezes, sem nenhuma divergência). As demais ficam para revisar com um clique.
 
-## 2. Baixa automática do cartão
-- Ao subir o extrato da maquininha (Stone, PagBank, Cielo, Rede, Getnet, Omni), a plataforma cruza cada repasse com o depósito no banco (mesmo dia ou até 2 dias úteis, mesmo valor líquido ou soma do dia) e já concilia o depósito como recebimento de cartão.
-- A previsão de cartão do Sponte daquele período é substituída pelo valor real (regra que já existe), e a tela mostra o que sobrou sem par: repasse sem depósito ou depósito sem repasse.
+## 2. Cruzamento triplo dos recebimentos: previsão, maquininha e banco
+Para cada recebimento, a plataforma liga as três pontas:
+
+```text
+Sponte/Omni (previsão: aluno, parcela, valor)
+        -> Repasse da maquininha (Stone, Getnet, Rede, PagBank, Sicredi: bruto, taxa, líquido, data)
+        -> Entrada no banco (extrato)
+```
+
+- **Previsão ↔ repasse**: por aluno ou autorização (quando o relatório tiver), data e valor bruto, com tolerância para a taxa. Parcelado no cartão: cada parcela do repasse liga à mesma venda.
+- **Repasse ↔ banco**: o líquido do dia (ou a soma dos repasses do dia) com o depósito, até 2 dias úteis.
+- **Boleto/PIX** (sem maquininha): previsão ligada direto à entrada no banco.
+- Uma tela por mês com quatro colunas de status: **Fechou nas três pontas**, **Falta repasse** (previsto e não vendido/pago), **Repasse sem depósito** e **Depósito sem previsão**. Cada linha mostra exatamente o que falta e a diferença em reais (taxa, valor divergente ou duplicidade).
+- Quando fecha nas três pontas, a entrada do banco é conciliada automaticamente como recebimento, e a previsão do cartão do Sponte daquele período é substituída pelo valor real, sem nunca coexistir com a maquininha (regra que já existe).
 
 ## 3. Baixa automática das contas a pagar
 - A conferência nova do Meu Dia (antecipado, juros, lote, item conciliado) passa a dar baixa na conta prevista quando acha a saída, e já sugere o item do modelo dessa saída no extrato. O que não bater continua no aviso "Não saiu da conta".
@@ -39,7 +50,8 @@ Como as conversas são em grupos, a ligação oficial do WhatsApp não consegue 
 
 ## Detalhes técnicos
 - Motor puro `src/lib/reconSuggest.ts` (chave: contraparte normalizada via `counterparty.ts` + sentido + faixa de valor; confiança por frequência/consistência), com testes. A classificação continua passando por itens do modelo/SSOT, nunca pelo sinal do valor.
-- Cartão: `src/lib/cardSettlementMatch.ts` (repasse ↔ depósito, tolerância e lote por dia), reaproveitando os parsers de maquininha e `sponteCardGuard`.
+- Cruzamento triplo: `src/lib/receiptThreeWayMatch.ts` (previsão ↔ repasse por aluno/autorização/data/bruto; repasse ↔ depósito por líquido e lote diário; boleto/PIX direto), com testes. Reaproveita os parsers Sponte/Omni e de maquininha e o `sponteCardGuard`. Novos leitores de repasse para Getnet, Rede e Sicredi, se ainda não existirem (pedir um arquivo de exemplo de cada um).
+- Ligações gravadas em uma nova tabela `receipt_matches` (previsão, repasse e transação bancária, status, diferença), com RLS da equipe e RESTRICTIVE `can_see_school`.
 - Auditoria: nova coluna `recon_source` (manual | sugestao | automatico) em `bank_transactions` (migração aditiva), mais registro em `bank_reconciliation_history`; desfazer em lote por importação.
 - Baixa no sistema da escola: colunas `school_system_status` (pendente | baixado | nao_se_aplica), `school_system_confirmed_at/by/source` em `bank_transactions` (aditivas); cruzamento puro `src/lib/schoolSystemMatch.ts` com os relatórios Omni/Sponte já lidos pelos parsers existentes; liberado por empresa em `school_features`.
 - Liberação por `school_features.conciliacao_assistida`, ativada só para Praia da Costa (`7a5b74f3-6340-4c0b-bc24-cd64341b4551`).
