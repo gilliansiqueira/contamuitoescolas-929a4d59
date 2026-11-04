@@ -32,7 +32,7 @@ import { TeamScoreboard } from '@/components/team/TeamScoreboard';
 import { ClientRequestsList, SchoolProfileDialog } from '@/components/team/ClientService';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, LogIn } from 'lucide-react';
 const UsersConfigLazy = lazy(() => import('@/components/UsersConfig').then(m => ({ default: m.UsersConfig })));
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
