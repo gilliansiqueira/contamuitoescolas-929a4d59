@@ -8,7 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertTriangle, Settings, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deadlineParts, todaySP, overdueProjections, PROJ_STEPS, projectionReportMonth, type ProjStep } from '@/lib/teamDeadlines';
+import { deadlineParts, todaySP, overdueProjections, PROJ_STEPS, type ProjStep } from '@/lib/teamDeadlines';
+import { defaultReportMonth } from '@/lib/reportMonth';
 import { useManagementPortfolio } from '@/hooks/useManagementPortfolio';
 
 type Ann = { id: string; titulo: string; ativo: boolean; team_announcement_deadlines: { id: string; rotulo: string; data: string; ordem: number }[] };
@@ -41,7 +42,8 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
   // Projeções em atraso: prazo de "projeç..." já vencido no aviso ativo.
   const projDeadline = anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
     .filter(d => /proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0] ?? null;
-  const projMonth = projDeadline ? projectionReportMonth(anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)) : '';
+  // Mesmo mês que o Controle de relatórios abre (anterior até o dia 20).
+  const projMonth = projDeadline ? defaultReportMonth(today, false) : '';
   const projDue = !!projDeadline && today > projDeadline;
   const { data: portfolio = [] } = useManagementPortfolio(projMonth, !!isAdmin && projDue);
   const isManager = !!canManageCollaborators;

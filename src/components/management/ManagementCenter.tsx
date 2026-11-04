@@ -362,6 +362,14 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
   const { data: displayNames = [] } = useManagementResponsibleDisplayNames(true);
   const { data: stepTemplates = [] } = useClosingStepTemplates(true);
   const { data: monthlySteps, isLoading: monthlyStepsLoading } = useMonthlyChecklistSummary(month, view === 'closing');
+  const { data: projDeadline = null } = useQuery({
+    queryKey: ['proj-deadline-active'],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from('team_announcements').select('ativo,team_announcement_deadlines(rotulo,data)').eq('ativo', true);
+      const ds = ((data ?? []) as any[]).flatMap(a => a.team_announcement_deadlines ?? []).filter((d: any) => /proje/i.test(d.rotulo)).map((d: any) => d.data as string).sort();
+      return ds[ds.length - 1] ?? null;
+    },
+  });
   const setResponsible = useSetManagementResponsible(month);
   const setDisplayName = useSetManagementResponsibleDisplayName();
   const addSchool = useAddSchool();
@@ -459,13 +467,14 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
         const g0 = groupByKey.get(s.step_key); if (!g0) continue;
         const g = g0 === 'vendas' ? 'receitas' : g0;
         seen.add(g);
-        if (s.status === 'open' && !row.report_delivered) o.add(g);
+        // "Projeções futuras" marcada cedo demais não vale como entregue (mesma regra da faixa vermelha).
+        if ((s.status === 'open' || isFuturasTooEarly(s as any, projDeadline)) && !row.report_delivered) o.add(g);
       }
       open.set(row.school_id, o);
       done.set(row.school_id, new Set([...seen].filter(g => !o.has(g))));
     }
     return { openGroups: open, doneGroups: done };
-  }, [monthlySteps, rows, stepTemplates]);
+  }, [monthlySteps, rows, stepTemplates, projDeadline]);
   const cardDefs = useMemo(() => view === 'closing' ? [
     ...reportGroups.map(g => ({ ...g, reportGroup: true, match: (row: PortfolioRow) => !!(cardGroupMode === 'done' ? doneGroups : openGroups).get(row.school_id)?.has(g.key) })),
     { key: 'sem_etapas', label: 'Outras pendências', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row: PortfolioRow) => reportStage.get(row.school_id) === 'sem_etapas' || reportStage.get(row.school_id) === 'extras' },
