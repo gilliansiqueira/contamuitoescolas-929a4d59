@@ -4,7 +4,7 @@ import { buildImported, mergeRows, applyRenewedFromNextPeriod, reclassifyNewStud
 import type { RenewalRow, RenewalSettings, Override, RenewalColumn, Issue } from './types';
 import type { ParsedSource } from './sponteParser';
 import { buildWorkbook } from './exportXlsx';
-import { mergeContasImports, complementTurmas, isOmniTurmas, inOtherTurmas, divergenciaSistemas } from './multiSource';
+import { mergeContasImports, complementTurmas, isOmniTurmas, inOtherTurmas, divergenciaSistemas, dropNextPeriod } from './multiSource';
 export { mergeContasImports, complementTurmas } from './multiSource';
 import type { TemplateStructure } from './types';
 
@@ -62,7 +62,9 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   // Turmas: base = último envio; o último envio do outro sistema (Sponte × Omni) só completa campos vazios.
   const tOmni = isOmniTurmas(t.summary.rows);
   const t2 = imps.find((i: any) => i.source_key === 'turmas_existentes' && isOmniTurmas(i.summary.rows) !== tOmni);
-  const turmas = t2 ? complementTurmas(t.summary.rows, t2.summary.rows) : t.summary.rows;
+  const turmas0 = t2 ? complementTurmas(t.summary.rows, t2.summary.rows) : t.summary.rows;
+  // Quem já está em turma do próximo período (ex.: 2027/1) sai da planilha de renovação.
+  const { rows: turmas } = dropNextPeriod(turmas0, t2?.summary.rows);
   const contas = c ? mergeContasImports(imps.filter((i: any) => i.source_key === 'contas_receber').map((i: any) => i.summary.rows ?? [])) : null;
   const { rows: imported, issues } = buildImported(turmas, contas, { settings, minDue: sheet.params?.minDue });
   const f = latest('turmas_formacao');
