@@ -1,3 +1,4 @@
+import { ClientLoginActivity } from './ClientLoginActivity';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,7 +32,7 @@ import { TeamScoreboard } from '@/components/team/TeamScoreboard';
 import { ClientRequestsList, SchoolProfileDialog } from '@/components/team/ClientService';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, LogIn } from 'lucide-react';
 const UsersConfigLazy = lazy(() => import('@/components/UsersConfig').then(m => ({ default: m.UsersConfig })));
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -68,7 +69,7 @@ interface Props {
 }
 
 type Situation = 'all' | 'finalizado' | 'bloqueado' | 'atrasado' | 'atencao' | 'em_dia' | 'sem_etapas';
-type ManagementView = 'portfolio' | 'closing' | 'pending' | 'responsible' | 'team_time' | 'my_time';
+type ManagementView = 'portfolio' | 'closing' | 'pending' | 'responsible' | 'team_time' | 'my_time' | 'client_logins';
 type RowStatus = Exclude<Situation, 'all'>;
 
 const statusLabels: Record<RowStatus, string> = {
@@ -115,7 +116,7 @@ const rowAccent: Record<RowStatus, string> = {
 };
 
 const viewLabels: Record<ManagementView, string> = {
-  portfolio: 'Carteira de clientes', closing: 'Relatórios', pending: 'Pendências', responsible: 'Por responsável', team_time: 'Equipe', my_time: 'Meu ponto',
+  portfolio: 'Carteira de clientes', closing: 'Relatórios', pending: 'Pendências', responsible: 'Por responsável', team_time: 'Equipe', my_time: 'Meu ponto', client_logins: 'Acessos dos clientes',
 };
 
 type PeriodMode = 'hoje' | 'ontem' | 'mes';
@@ -276,7 +277,7 @@ function ProgressRing({ value, label, tone }: { value: number | null; label: str
 }
 
 export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
-  const { isSuperAdmin, profile, canViewTeamTime } = useAuth();
+  const { isSuperAdmin, profile, canViewTeamTime, canViewClientLogins } = useAuth();
   // Padrão: mês anterior até o dia 20 (ou até todos entregues); depois, o mês atual.
   const todaySpStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
   const [month, setMonthState] = useState(() => defaultReportMonth(todaySpStr, false));
@@ -721,6 +722,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     { key: 'closing' as const, label: 'Relatórios', icon: FileCheck2 },
     { key: 'pending' as const, label: 'Pendências', icon: AlertCircle },
     ...(isSuperAdmin ? [{ key: 'responsible' as const, label: 'Por responsável', icon: Users }] : [{ key: 'my_time' as const, label: 'Meu ponto', icon: Clock3 }]),
+    ...(canViewClientLogins ? [{ key: 'client_logins' as const, label: 'Acessos dos clientes', icon: LogIn }] : []),
   ];
   const profileName = profile?.email ? nameFromEmail(profile.email) : 'Equipe Conta Muito';
   const profileInitials = initialsOf(profileName);
@@ -757,7 +759,9 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           {canViewTeamTime && <Button type="button" size="sm" variant={view === 'team_time' ? 'secondary' : 'ghost'} onClick={() => { setCardFilter(null); setView('team_time'); }} className="shrink-0 gap-1.5 text-xs"><Clock3 className="h-3.5 w-3.5" />Equipe</Button>}
         </nav>
 
-        {view === 'my_time' ? (
+        {view === 'client_logins' && canViewClientLogins ? (
+          <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><ClientLoginActivity /></main>
+        ) : view === 'my_time' ? (
           <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><MyTeamTimeCard showEmpty /></main>
         ) : view === 'team_time' ? (
           <main className="mx-auto max-w-[1500px] px-3 py-5 sm:px-5 lg:px-6 lg:py-6"><TeamHub schools={schools.map(x => ({ id: x.id, nome: x.nome }))} people={servicePeople} rows={rows} canViewTeamTime={canViewTeamTime} /></main>

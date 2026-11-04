@@ -936,6 +936,27 @@ export type Database = {
           },
         ]
       }
+      client_access_log: {
+        Row: {
+          day: string
+          first_at: string
+          last_at: string
+          user_id: string
+        }
+        Insert: {
+          day: string
+          first_at?: string
+          last_at?: string
+          user_id: string
+        }
+        Update: {
+          day?: string
+          first_at?: string
+          last_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_access_views: {
         Row: {
           acao: string
@@ -5562,6 +5583,7 @@ export type Database = {
       can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }
       can_manage_collaborators: { Args: never; Returns: boolean }
       can_see_school: { Args: { _school_id: string }; Returns: boolean }
+      can_view_client_logins: { Args: never; Returns: boolean }
       can_view_team_time: { Args: never; Returns: boolean }
       close_recon_day: {
         Args: { _day: string; _school_id: string }
@@ -5625,6 +5647,18 @@ export type Database = {
         Args: { _school_id: string }
         Returns: {
           month: string
+        }[]
+      }
+      get_client_access_overview: {
+        Args: never
+        Returns: {
+          days_30: number
+          email: string
+          last_seen_at: string
+          last_sign_in_at: string
+          school_id: string
+          school_name: string
+          user_id: string
         }[]
       }
       get_management_daily_status: {
@@ -5785,6 +5819,7 @@ export type Database = {
         Args: { _school_id: string }
         Returns: undefined
       }
+      touch_client_access: { Args: never; Returns: undefined }
       transfer_portfolio: {
         Args: { _from: string; _school_ids: string[]; _to: string }
         Returns: number
