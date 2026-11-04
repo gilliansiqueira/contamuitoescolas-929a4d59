@@ -37,10 +37,19 @@ export function teamFilledPayment(row: RenewalRow | undefined, columns: RenewalC
 }
 
 const issueSig = (i: { kind: string; row_key?: string | null; message: string }) => `${i.kind}|${i.row_key ?? ''}|${i.message}`;
-/** Remove avisos repetidos e os que a equipe já resolveu com a mesma mensagem. */
-export function dedupeAgainstResolved<T extends { kind: string; row_key?: string | null; message: string }>(issues: T[], resolved: { kind: string; row_key?: string | null; message: string }[]): T[] {
+const nkS = (v: any) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+/** "Sem correspondência" é do aluno: mudar a quantidade de parcelas não reabre o que a equipe já conferiu. */
+const studentSigs = (i: { kind: string; detail?: any }) => {
+  if (i.kind !== 'sem_correspondencia') return [];
+  const out: string[] = []; const m = String(i.detail?.mat ?? '').trim(); const n = nkS(i.detail?.sacado);
+  if (m) out.push(`${i.kind}|mat:${m}`); if (n) out.push(`${i.kind}|nome:${n}`); return out;
+};
+type Iss = { kind: string; row_key?: string | null; message: string; detail?: any };
+/** Remove avisos repetidos e os que a equipe já resolveu (mesma mensagem, ou mesmo aluno em "sem correspondência"). */
+export function dedupeAgainstResolved<T extends Iss>(issues: T[], resolved: Iss[]): T[] {
   const seen = new Set(resolved.map(issueSig));
-  return issues.filter(i => { const s = issueSig(i); if (seen.has(s)) return false; seen.add(s); return true; });
+  const stud = new Set(resolved.flatMap(studentSigs));
+  return issues.filter(i => { const s = issueSig(i); if (seen.has(s) || studentSigs(i).some(x => stud.has(x))) return false; seen.add(s); return true; });
 }
 
 /** Recalcula a planilha a partir das últimas importações, preservando o que a equipe editou. */
@@ -84,7 +93,7 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
     }
   }
   // Avisos já conferidos/desconsiderados pela equipe não voltam; só reabrem se a mensagem mudar (ex.: nº de parcelas).
-  const { data: done } = await db.from('renewal_issues').select('kind,row_key,message').eq('sheet_id', sheet.id).eq('resolved', true);
+  const { data: done } = await db.from('renewal_issues').select('kind,row_key,message,detail').eq('sheet_id', sheet.id).eq('resolved', true);
   const all2 = dedupeAgainstResolved([...issues.filter(i => !(i.kind === 'sem_correspondencia' && fromOther({ aluno: i.detail?.sacado, matricula: i.detail?.mat }))), ...extra], done ?? []);
   const rowByKey = new Map(all.map(r => [r.row_key, r]));
   const autoResolved = (i: Issue) => INFO_KINDS.has(i.kind) || (i.kind === 'sem_financeiro' && i.detail?.quitado) || (i.kind === 'sem_financeiro' && teamFilledPayment(rowByKey.get(i.row_key ?? ''), sheet.columns));
