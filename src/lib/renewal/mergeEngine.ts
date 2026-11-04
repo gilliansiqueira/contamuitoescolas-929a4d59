@@ -94,6 +94,9 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
   const parcelasByMat = new Map<string, Record<string, any>[]>();
   const unmatched = new Map<string, { sacado: string; mat: string; count: number; pending: number }>();
   const materialMats = new Set<string>();
+  // Parcelas do módulo antes do corte (de qualquer sistema): confirmam se o curso já foi quitado.
+  const preCut = new Map<string, { paid: number; open: number; lastPay: string }>();
+  const matOf = (c: Record<string, any>) => { const m = toId(c.NumeroMatricula); if (m && byMat.has(m)) return m; const ms = [...new Set((byName.get(norm(c.Sacado)) ?? []).map(k => k.split('|')[0]))]; return ms.length === 1 ? ms[0] : null; };
   for (const c of contas) {
     if (!isModuleInstallment(c, p.settings)) {
       if (/material/i.test(String(c.Categoria ?? ''))) {
@@ -104,20 +107,28 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       continue;
     }
     const due = toIsoDate(c.DataVencimento);
-    if (!due || (minDue && due < minDue)) continue;
+    if (due && minDue && due < minDue) {
+      const m = matOf(c);
+      if (m) { const x = preCut.get(m) ?? { paid: 0, open: 0, lastPay: '' }; if (isPaid(c)) { x.paid++; const pd = toIsoDate(c.DataPagamento) ?? due; if (pd > x.lastPay) x.lastPay = pd; } else x.open++; preCut.set(m, x); }
+      continue;
+    }
+    if (!due) continue;
     let mat = toId(c.NumeroMatricula);
     if (!mat || !byMat.has(mat)) {
       const cands = byName.get(norm(c.Sacado)) ?? [];
       const mats = [...new Set(cands.map(k => k.split('|')[0]))];
       if (mats.length === 1 && !mats[0].startsWith('nome:')) mat = mats[0];
       else if (mats.length > 1) { issues.push({ kind: 'nome_ambiguo', message: `"${c.Sacado}" corresponde a ${mats.length} alunos com o mesmo nome.`, detail: { sacado: c.Sacado } }); continue; }
-      else { const k = `${mat}|${norm(c.Sacado)}`; const u = unmatched.get(k) ?? { sacado: String(c.Sacado), mat, count: 0, pending: 0 }; u.count++; if (!isPaid(c)) u.pending++; unmatched.set(k, u); continue; }
+      else { const k = norm(c.Sacado); const u = unmatched.get(k) ?? { sacado: String(c.Sacado), mat, count: 0, pending: 0, _due: new Set<string>(), _open: new Set<string>() } as any;
+        // Mesmo aluno no Sponte (com matrícula) e no Omni (sem): um aviso só, contando cada vencimento uma vez.
+        if (mat && !u.mat) u.mat = mat; u._due.add(due); if (!isPaid(c)) u._open.add(due); u.count = u._due.size; u.pending = u._open.size; unmatched.set(k, u); continue; }
     }
     parcelasByMat.set(mat, [...(parcelasByMat.get(mat) ?? []), { ...c, _due: due }]);
   }
   // Vínculo só por matrícula ou nome idêntico. Quem está fora das turmas e já quitou tudo é ex-aluno: não vira pendência.
   for (const u of unmatched.values()) {
     if (!u.pending) continue;
+    delete (u as any)._due; delete (u as any)._open;
     issues.push({ kind: 'sem_correspondencia', message: `"${u.sacado}" (mat. ${u.mat || '—'}) tem ${u.pending} parcela(s) do módulo em aberto mas não está nas turmas.`, detail: u });
   }
 
@@ -132,6 +143,10 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
     if (!ps.length) {
       Object.assign(r, { venc_ultima_parcela: SEM_INFO, forma_pagamento_atual: SEM_INFO, termino_pagamento: SEM_INFO });
       const corte = minDue ? ` com vencimento a partir de ${minDue.split('-').reverse().join('/')}` : '';
+      const pc = preCut.get(mat);
+      const corteBr = minDue ? minDue.split('-').reverse().join('/') : '';
+      if (pc && pc.open) { issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: nenhuma parcela a partir de ${corteBr}, mas tem ${pc.open} parcela(s) do curso vencida(s) antes disso — cobrar antes de renovar.` }); continue; }
+      if (pc && pc.paid) { issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: curso quitado — ${pc.paid} parcela(s) do curso pagas antes de ${corteBr} (último pagamento ${pc.lastPay.split('-').reverse().join('/')}).`, detail: { quitado: true, ...pc } }); continue; }
       if (materialMats.has(mat)) { issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: curso provavelmente quitado antes${corte ? ` de ${minDue!.split('-').reverse().join('/')}` : ''} — só material didático em aberto. Confirme com o relatório de recebidas.` }); continue; }
       issues.push({ kind: 'sem_financeiro', row_key: key, message: `${r.aluno}: nenhuma parcela do módulo${corte} (não significa quitado — confira se pagou à vista, é bolsista ou se a data de corte está tarde).` });
       continue;
