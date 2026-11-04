@@ -28,7 +28,7 @@ import { ManagementCenter } from '@/components/management/ManagementCenter';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
-  CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark, GraduationCap, Wallet,
+  CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark, GraduationCap, Wallet, KeyRound,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -58,6 +58,7 @@ const ModelosFinanceirosManager = lazyNamed(() => import('@/components/ModelosFi
 const EmpresaModeloConfig = lazyNamed(() => import('@/components/EmpresaModeloConfig'), 'EmpresaModeloConfig');
 const ReconReasonsConfig = lazyNamed(() => import('@/components/fluxo-bancario/ReconReasonsConfig'), 'ReconReasonsConfig');
 const ClientPayroll = lazyNamed(() => import('@/components/client-payroll/ClientPayroll'), 'ClientPayroll');
+const ClientAccess = lazyNamed(() => import('@/components/client-access/ClientAccess'), 'ClientAccess');
 const RenovacaoModule = lazyNamed(() => import('@/components/renovacao/RenovacaoModule'), 'RenovacaoModule');
 const FluxoBancario = lazyNamed(() => import('@/components/fluxo-bancario/FluxoBancario'), 'FluxoBancario');
 
@@ -65,7 +66,7 @@ const ScreenLoading = () => (
   <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>
 );
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons' | 'renewal' | 'payroll';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons' | 'renewal' | 'payroll' | 'access';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -81,6 +82,7 @@ const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean; pilot
   { key: 'bank_flow', label: 'Fluxo Bancário', icon: Landmark, adminOnly: true, pilotOnly: true },
   { key: 'renewal', label: 'Renovação escolar', icon: GraduationCap, adminOnly: true },
   { key: 'payroll', label: 'Folha e benefícios', icon: Wallet, adminOnly: true },
+  { key: 'access', label: 'Acessos e senhas', icon: KeyRound, adminOnly: true },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
@@ -315,7 +317,7 @@ function IndexBody({
         ? [
             ...(['datatable'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['renewal'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
-            ...(['bank_flow', 'payroll'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
+            ...(['bank_flow', 'payroll', 'access'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['upload', 'uploads_history', 'audit_history'] as Tab[])
               .filter(t => settingsTabs.some(s => s.key === t))
               .map(settingsItem),
@@ -427,6 +429,7 @@ function IndexBody({
                     <FluxoBancario schoolId={school.id} selectedMonth={selectedMonth} />
                   )}
                   {activeTab === 'payroll' && canSeeAdminTabs && <ClientPayroll schoolId={school.id} />}
+                  {activeTab === 'access' && canSeeAdminTabs && <ClientAccess schoolId={school.id} schoolName={school.nome} />}
                   {activeTab === 'renewal' && canSeeAdminTabs && <RenovacaoModule schoolId={school.id} schoolName={school.nome} />}
                   {activeTab === 'datatable' && (
                     <ExportPdfSection fileName={`dados-${selectedMonth}`}>

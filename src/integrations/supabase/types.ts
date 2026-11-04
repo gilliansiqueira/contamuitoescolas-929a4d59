@@ -818,6 +818,159 @@ export type Database = {
           },
         ]
       }
+      client_access_entries: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by: string | null
+          extras: Json
+          grupo: string
+          id: string
+          login: string | null
+          observacao: string | null
+          ordem: number
+          school_id: string
+          secret_enc: string | null
+          servico: string
+          updated_at: string
+          updated_by: string | null
+          url: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          extras?: Json
+          grupo?: string
+          id?: string
+          login?: string | null
+          observacao?: string | null
+          ordem?: number
+          school_id: string
+          secret_enc?: string | null
+          servico: string
+          updated_at?: string
+          updated_by?: string | null
+          url?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          extras?: Json
+          grupo?: string
+          id?: string
+          login?: string | null
+          observacao?: string | null
+          ordem?: number
+          school_id?: string
+          secret_enc?: string | null
+          servico?: string
+          updated_at?: string
+          updated_by?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_access_entries_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_access_history: {
+        Row: {
+          acao: string
+          changed_at: string
+          changed_by: string | null
+          entry_id: string
+          extras: Json | null
+          grupo: string | null
+          id: string
+          login: string | null
+          observacao: string | null
+          school_id: string
+          secret_enc: string | null
+          servico: string | null
+          url: string | null
+        }
+        Insert: {
+          acao: string
+          changed_at?: string
+          changed_by?: string | null
+          entry_id: string
+          extras?: Json | null
+          grupo?: string | null
+          id?: string
+          login?: string | null
+          observacao?: string | null
+          school_id: string
+          secret_enc?: string | null
+          servico?: string | null
+          url?: string | null
+        }
+        Update: {
+          acao?: string
+          changed_at?: string
+          changed_by?: string | null
+          entry_id?: string
+          extras?: Json | null
+          grupo?: string | null
+          id?: string
+          login?: string | null
+          observacao?: string | null
+          school_id?: string
+          secret_enc?: string | null
+          servico?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_access_history_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "client_access_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_access_views: {
+        Row: {
+          acao: string
+          entry_id: string
+          id: string
+          school_id: string
+          user_id: string | null
+          viewed_at: string
+        }
+        Insert: {
+          acao?: string
+          entry_id: string
+          id?: string
+          school_id: string
+          user_id?: string | null
+          viewed_at?: string
+        }
+        Update: {
+          acao?: string
+          entry_id?: string
+          id?: string
+          school_id?: string
+          user_id?: string | null
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_access_views_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "client_access_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_employees: {
         Row: {
           ativo: boolean
@@ -5199,11 +5352,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _access_can: { Args: { _school: string }; Returns: boolean }
       _refresh_report_progress: {
         Args: { _month: string; _school_id: string }
         Returns: number
       }
       admin_manages_school: { Args: { _school_id: string }; Returns: boolean }
+      archive_access_entry: {
+        Args: { _archive: boolean; _id: string }
+        Returns: undefined
+      }
       can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }
       can_manage_collaborators: { Args: never; Returns: boolean }
       can_see_school: { Args: { _school_id: string }; Returns: boolean }
@@ -5377,6 +5535,30 @@ export type Database = {
         Returns: undefined
       }
       report_due_date: { Args: { _month: string }; Returns: string }
+      restore_access_version: { Args: { _hist_id: string }; Returns: undefined }
+      reveal_access_history_secret: {
+        Args: { _hist_id: string }
+        Returns: string
+      }
+      reveal_access_secret: {
+        Args: { _acao?: string; _id: string }
+        Returns: string
+      }
+      save_access_entry: {
+        Args: {
+          _change_senha: boolean
+          _extras: Json
+          _grupo: string
+          _id: string
+          _login: string
+          _observacao: string
+          _school_id: string
+          _senha: string
+          _servico: string
+          _url: string
+        }
+        Returns: string
+      }
       set_bank_split_model_item: {
         Args: { _item_id: string; _split_id: string }
         Returns: undefined
