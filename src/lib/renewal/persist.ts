@@ -4,7 +4,7 @@ import { buildImported, mergeRows, applyRenewedFromNextPeriod, reclassifyNewStud
 import type { RenewalRow, RenewalSettings, Override, RenewalColumn, Issue } from './types';
 import type { ParsedSource } from './sponteParser';
 import { buildWorkbook } from './exportXlsx';
-import { mergeContasImports, complementTurmas, isOmniTurmas, inOtherTurmas } from './multiSource';
+import { mergeContasImports, complementTurmas, isOmniTurmas, inOtherTurmas, divergenciaSistemas } from './multiSource';
 export { mergeContasImports, complementTurmas } from './multiSource';
 import type { TemplateStructure } from './types';
 
@@ -73,7 +73,8 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   if (stats.renamed.length) { const { error: e } = await db.from('renewal_rows').delete().eq('sheet_id', sheet.id).in('row_key', stats.renamed); if (e) throw e; }
   await db.from('renewal_issues').delete().eq('sheet_id', sheet.id).eq('resolved', false);
   const fromOther = inOtherTurmas(t2?.summary.rows);
-  const extra: Issue[] = stats.removed.filter(k => !fromOther(auto.get(k)?.imported)).map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` }));
+  const extra: Issue[] = t2 ? divergenciaSistemas(t.summary.rows, t2.summary.rows, tOmni) : [];
+  extra.push(...stats.removed.filter(k => !fromOther(auto.get(k)?.imported)).map(k => ({ kind: 'fora_da_base', row_key: k, message: `Linha ${k.split('|')[0]} não veio na nova importação de turmas (mantida para conferência).` })));
   // Formação diz "Rematriculado" mas a equipe marcou outra coisa: mantém a marcação e pede revisão.
   for (const r of rows) {
     if (!r.imported?.formacao_turma) continue;
@@ -86,8 +87,8 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   const { data: done } = await db.from('renewal_issues').select('kind,row_key,message').eq('sheet_id', sheet.id).eq('resolved', true);
   const all2 = dedupeAgainstResolved([...issues.filter(i => !(i.kind === 'sem_correspondencia' && fromOther({ aluno: i.detail?.sacado, matricula: i.detail?.mat }))), ...extra], done ?? []);
   const rowByKey = new Map(all.map(r => [r.row_key, r]));
-  const autoResolved = (i: Issue) => INFO_KINDS.has(i.kind) || (i.kind === 'sem_financeiro' && teamFilledPayment(rowByKey.get(i.row_key ?? ''), sheet.columns));
-  await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: autoResolved(i) && !INFO_KINDS.has(i.kind) ? { ...(i.detail ?? {}), resolucao: { motivo: 'Preenchido pela equipe' } } : i.detail ?? {}, resolved: autoResolved(i) }))); if (e) throw e; });
+  const autoResolved = (i: Issue) => INFO_KINDS.has(i.kind) || (i.kind === 'sem_financeiro' && i.detail?.quitado) || (i.kind === 'sem_financeiro' && teamFilledPayment(rowByKey.get(i.row_key ?? ''), sheet.columns));
+  await chunked(all2, 400, async part => { const { error: e } = await db.from('renewal_issues').insert(part.map(i => ({ sheet_id: sheet.id, school_id: sheet.school_id, kind: i.kind, row_key: i.row_key ?? null, message: i.message, detail: autoResolved(i) && !INFO_KINDS.has(i.kind) ? { ...(i.detail ?? {}), resolucao: { motivo: i.detail?.quitado ? 'Curso quitado (parcelas pagas)' : 'Preenchido pela equipe' } } : i.detail ?? {}, resolved: autoResolved(i) }))); if (e) throw e; });
   const patch: any = { updated_at: new Date().toISOString() };
   if (c && sheet.status === 'aguardando_relatorios') patch.status = 'em_preparacao';
   if (sheet.sent_version) patch.dirty = true;

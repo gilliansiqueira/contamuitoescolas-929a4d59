@@ -45,3 +45,15 @@ export function inOtherTurmas(other: Record<string, any>[] | null | undefined) {
   for (const o of other ?? []) { const m = String(o.NumeroMatricula ?? '').trim(); if (m) mats.add(m); if (o.Aluno) names.add(nk(o.Aluno)); }
   return (row: { matricula?: any; aluno?: any } | undefined) => !!row && ((row.matricula && mats.has(String(row.matricula).trim())) || names.has(nk(row.aluno)));
 }
+
+/** Alunos que estão em turma num sistema e não no outro (Sponte × Omni). Só aviso: ninguém entra nem sai da planilha. */
+export function divergenciaSistemas(base: Record<string, any>[], other: Record<string, any>[], baseIsOmni: boolean) {
+  const [bn, on] = baseIsOmni ? ['Omni', 'Sponte'] : ['Sponte', 'Omni'];
+  const names = (rs: Record<string, any>[]) => new Map(rs.filter(r => String(r.Aluno ?? '').trim()).map(r => [nk(r.Aluno), String(r.Aluno).trim()]));
+  const b = names(base), o = names(other); const out: { kind: string; message: string; detail: any }[] = [];
+  const soO = [...o].filter(([k]) => !b.has(k)).map(([, v]) => v).sort();
+  const soB = [...b].filter(([k]) => !o.has(k)).map(([, v]) => v).sort();
+  for (const a of soO) out.push({ kind: 'divergencia_sistemas', message: `${a}: está em turma no ${on}, mas não no ${bn}.`, detail: { aluno: a, so_em: on } });
+  for (const a of soB) out.push({ kind: 'divergencia_sistemas', message: `${a}: está em turma no ${bn}, mas não no ${on}.`, detail: { aluno: a, so_em: bn } });
+  return out;
+}
