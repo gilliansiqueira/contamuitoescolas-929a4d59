@@ -190,6 +190,8 @@ export function parseSponteMatrix(matrix: any[][], force?: SourceKey): ParsedSou
   return { source, headers, rows, discarded };
 }
 
+export const OMNI_OCUPACAO_MSG = 'Este é o relatório de ocupação das turmas do Omni (uma linha por turma, sem os alunos). Para a renovação, exporte no Omni o relatório "Alunos por turma" (com Turma, Aluno e Matrícula).';
+
 /** Aba "Turmas" do Omni: Turma + Instrutor + Sala + Alunos (sem coluna Aluno). */
 function omniTurmasInfo(matrix: any[][]): Map<string, { sala: any; alunos: any }> | null {
   for (let r = 0; r < Math.min(30, matrix.length); r++) {
@@ -217,6 +219,7 @@ export function parseSponteWorkbook(sheets: any[][][], force?: SourceKey): Parse
     if (detectOmni(m) < 0 && detectOmniParcelas(m) < 0 && !detectSource(m)) continue;
     try { parsed = parseSponteMatrix(m, force); } catch (e) { firstErr = firstErr ?? e; }
   }
+  if (!parsed && info && !firstErr) throw new Error(OMNI_OCUPACAO_MSG);
   if (!parsed) { if (firstErr) throw firstErr; return parseSponteMatrix(sheets[0] ?? [], force); }
   if (info) {
     for (const row of parsed.rows) {
