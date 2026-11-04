@@ -60,3 +60,13 @@ describe('parcelas só antes do corte', () => {
     expect([r.forma_pagamento_atual, r.venc_ultima_parcela, r.termino_pagamento]).toEqual(['Parcelado', '2026-06-10', '2026-06-10']);
   });
 });
+
+import { dedupeAgainstResolved } from '@/lib/renewal/persist';
+describe('desconsiderados não voltam', () => {
+  it('mesmo aluno com outra contagem de parcelas continua resolvido', () => {
+    const old = [{ kind: 'sem_correspondencia', message: '"Sophia" (mat. 7500) tem 3 parcela(s)', detail: { sacado: 'Sophia', mat: '7500' } }];
+    const novo = [{ kind: 'sem_correspondencia', message: '"Sophia" (mat. 7500) tem 8 parcela(s)', detail: { sacado: 'Sophia', mat: '7500' } },
+      { kind: 'sem_correspondencia', message: '"Renata" tem 9', detail: { sacado: 'Renata', mat: '11425' } }];
+    expect(dedupeAgainstResolved(novo, old).map(i => i.detail.sacado)).toEqual(['Renata']);
+  });
+});
