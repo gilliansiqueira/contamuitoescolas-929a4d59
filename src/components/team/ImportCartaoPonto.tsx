@@ -41,14 +41,14 @@ export function ImportCartaoPonto() {
         {reading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}Importar relatório de ponto (PDF)
       </Button>
       <Dialog open={!!rep} onOpenChange={o => !o && setRep(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-3xl flex-col">
           <DialogHeader><DialogTitle>Conferência do relatório de ponto</DialogTitle></DialogHeader>
-          {rep && <div className="space-y-3 text-sm">
+          {rep && <div className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm">
             <p>{rep.funcionarios.length} funcionário(s) · período {fmt(rep.periodoInicio)} a {fmt(rep.periodoFim)} · CPF e PIS não são gravados.</p>
             {rep.divergencias.length > 0
-              ? <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive"><p className="flex items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" />Importação bloqueada: os totais não batem.</p><ul className="mt-1 list-disc pl-5 text-xs">{rep.divergencias.map(d => <li key={d}>{d}</li>)}</ul></div>
+              ? <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive"><details><summary className="flex cursor-pointer items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" />Importação bloqueada: {rep.divergencias.length} total(is) não batem. Clique para ver.</summary><ul className="mt-1 max-h-48 list-disc overflow-y-auto pl-5 text-xs">{rep.divergencias.map(d => <li key={d}>{d}</li>)}</ul></details></div>
               : <p className="flex items-center gap-1.5 text-success"><CheckCircle2 className="h-4 w-4" />Todos os totais conferem com o relatório.</p>}
-            <div className="max-h-80 overflow-y-auto rounded-md border border-border">
+            <div className="max-h-72 overflow-y-auto rounded-md border border-border">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-muted text-muted-foreground"><tr><th className="p-2 text-left">Funcionário</th><th className="p-2 text-right">Dias</th><th className="p-2 text-right">Trabalhadas</th><th className="p-2 text-right">Extras</th><th className="p-2 text-right">Faltas</th><th className="p-2 text-left">Ocorrências</th></tr></thead>
                 <tbody>{rep.funcionarios.map(f => (
@@ -63,7 +63,7 @@ export function ImportCartaoPonto() {
               </table>
             </div>
           </div>}
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="ghost" onClick={() => setRep(null)}>Cancelar</Button>
             <Button disabled={blocked || save.isPending} onClick={confirm}>{save.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Gravar no Ponto da Equipe</Button>
           </DialogFooter>
