@@ -32,6 +32,8 @@ interface AuthContextValue {
   canViewTeamTime: boolean;
   /** Gestão delegada da equipe, sem privilégios de proprietária. */
   canManageCollaborators: boolean;
+  /** Vê os acessos dos clientes (super admin ou permissão client_logins_view). */
+  canViewClientLogins: boolean;
   /** Conjunto de school_ids que o usuário pode acessar (principal + extras). Para admin scope='all' = todas. */
   accessibleSchoolIds: string[];
   loading: boolean;
@@ -116,6 +118,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Registra 1x por dia que o cliente abriu a plataforma (acompanhamento de acessos).
+  useEffect(() => {
+    if (profile?.role === 'cliente') void (supabase as any).rpc('touch_client_access').then(() => {});
+  }, [profile?.user_id, profile?.role]);
+
   const accessibleSchoolIds = useMemo<string[]>(() => {
     if (!profile) return [];
     const ids = new Set<string>();
@@ -135,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdminAll: (profile?.role === 'admin' || profile?.role === 'super_admin') && profile?.admin_scope !== 'list',
         canViewTeamTime: profile?.role === 'super_admin' || !!profile?.permissions?.includes('ponto_view'),
         canManageCollaborators: profile?.role === 'super_admin' || (profile?.role === 'admin' && !!profile.permissions.includes('collaborators_manage')),
+        canViewClientLogins: profile?.role === 'super_admin' || (profile?.role === 'admin' && !!profile.permissions.includes('client_logins_view')),
         accessibleSchoolIds,
         loading,
         signIn,
