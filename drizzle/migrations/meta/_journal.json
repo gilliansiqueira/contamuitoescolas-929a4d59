@@ -680,6 +680,13 @@
       "when": 1793833672839,
       "tag": "0096_client_access_vault",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1793834296007,
+      "tag": "0097_client_access_use_admin_manages",
+      "breakpoints": true
     }
   ]
 }
