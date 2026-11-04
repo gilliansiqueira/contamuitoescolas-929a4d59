@@ -14,6 +14,7 @@ import { getEffectiveClassification, normalizeTipo } from '@/lib/classificationU
 import { syncWeekendAllowedSchools } from '@/lib/dateUtils';
 import { fetchBankAccounts } from '@/hooks/useBankPilot';
 import { confirmedBankBalance } from '@/lib/bankStatements/confirmedBalance';
+import { matchPayables, nearbyOuts, DEPOIS_DIAS, ANTES_DIAS, type MatchOut } from '@/lib/payableMatching';
 import type { FinancialEntry, PaymentDelayRule, TypeClassification } from '@/types/financial';
 
 /** Feriados nacionais (mesma referência do prazo do relatório). */
@@ -58,10 +59,6 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Tolerância de valor usada na conciliação (regra do produto). */
-const VALOR_TOLERANCIA = 20;
-/** Janela de dias após o vencimento em que o pagamento ainda é reconhecido. */
-const PAGAMENTO_JANELA_DIAS = 3;
 
 export interface MyDayPayable {
   entryId: string;
@@ -73,6 +70,8 @@ export interface MyDayPayable {
   dueDate: string; // dataProjetada (vencimento ajustado pela SSOT)
   /** true quando o vencimento cai em dia não útil e o aviso foi antecipado */
   antecipado: boolean;
+  /** Saídas do extrato próximas (para "Já foi paga" e para explicar o aviso). */
+  nearby?: { id: string; data: string; valor: number; descricao: string }[];
 }
 
 export interface MyDayCashRisk {
@@ -105,7 +104,8 @@ interface SchoolBundle {
   classifications: TypeClassification[];
   hasModel: boolean;
   validKeys: Set<string>;
-  paidOuts: { data: string; valor: number }[];
+  paidOuts: (MatchOut & { descricao: string })[];
+  manualLinks: Map<string, string>;
   acks: Set<string>; // `${entry_id}|${due_date}`
 }
 
@@ -176,9 +176,9 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
     statementCoverage
       ? fetchAllRows<any>('bank_transactions', q => q
           .eq('school_id', schoolId).eq('tipo', 'saida').eq('is_forecast', false)
-          .gte('data', addDays(today, -10)).lte('data', today), 1000, 'data, valor')
+          .gte('data', addDays(today, -10 - ANTES_DIAS)).lte('data', today), 1000, 'id, data, valor, descricao, model_item_id')
       : Promise.resolve([]),
-    db.from('payable_acknowledgements').select('entry_id, due_date').eq('school_id', schoolId).then((r: any) => {
+    db.from('payable_acknowledgements').select('entry_id, due_date, bank_transaction_id').eq('school_id', schoolId).then((r: any) => {
       if (r.error) throw r.error;
       return r.data ?? [];
     }),
@@ -200,6 +200,7 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
     };
   });
 
+  const itemKeyById = new Map((itemRows as any[]).map(i => [i.id, normalizeTipo(i.name)] as [string, string]));
   const hasModel = !!school?.financial_model_template_id && (itemRows as any[]).length > 0;
   const validKeys = new Set([
     ...(itemRows as any[]).map(i => normalizeTipo(i.name)),
@@ -223,8 +224,9 @@ async function fetchBundle(schoolId: string, schoolName: string, today: string):
     classifications,
     hasModel,
     validKeys,
-    paidOuts: paidOuts.map((r: any) => ({ data: r.data, valor: Math.abs(Number(r.valor)) })),
-    acks: new Set((ackRows as any[]).map(a => `${a.entry_id}|${a.due_date}`)),
+    paidOuts: paidOuts.map((r: any) => ({ id: r.id, data: r.data, valor: Math.abs(Number(r.valor)), descricao: r.descricao ?? '', itemKey: r.model_item_id ? itemKeyById.get(r.model_item_id) ?? null : null })),
+    acks: new Set((ackRows as any[]).filter(a => !a.bank_transaction_id).map(a => `${a.entry_id}|${a.due_date}`)),
+    manualLinks: new Map((ackRows as any[]).filter(a => a.bank_transaction_id).map(a => [`${a.entry_id}|${a.due_date}`, a.bank_transaction_id] as [string, string])),
   };
 }
 
@@ -256,6 +258,7 @@ function computeSchool(bundle: SchoolBundle, today: string): MyDayData {
     && e.impacto < 0,
   );
 
+  const overdue: MyDayPayable[] = [];
   for (const p of payables.map(toPayable)) {
     if (bundle.acks.has(`${p.entryId}|${p.dueDate}`)) {
       empty.acknowledgedCount += 1;
@@ -263,15 +266,8 @@ function computeSchool(bundle: SchoolBundle, today: string): MyDayData {
     }
     if (p.dueDate < today) {
       // Sem extrato cobrindo vencimento + janela, não dá para afirmar que não saiu.
-      if (!bundle.statementCoverage || bundle.statementCoverage < addDays(p.dueDate, PAGAMENTO_JANELA_DIAS)) continue;
-      // Conferência pela conciliação: saída conciliada de valor igual
-      // (tolerância R$ 20) entre o vencimento e hoje quita a conta.
-      const paid = bundle.paidOuts.some(tx =>
-        tx.data >= p.dueDate
-        && tx.data <= addDays(p.dueDate, PAGAMENTO_JANELA_DIAS)
-        && Math.abs(tx.valor - p.valor) <= VALOR_TOLERANCIA,
-      );
-      if (!paid) empty.notPaid.push(p);
+      if (!bundle.statementCoverage || bundle.statementCoverage < addDays(p.dueDate, DEPOIS_DIAS)) continue;
+      overdue.push(p);
       continue;
     }
     if (p.dueDate === today) {
@@ -281,6 +277,18 @@ function computeSchool(bundle: SchoolBundle, today: string): MyDayData {
     // Aviso 1 dia útil antes: se o vencimento cai em dia não útil, o aviso
     // aparece no último dia útil anterior ("agendar hoje").
     if (previousBusinessDay(p.dueDate) === today) empty.scheduleToday.push(p);
+  }
+  // Conferência pelo extrato (antecipado, juros, lote, item conciliado, vínculo manual).
+  const keyOf = (p: MyDayPayable) => `${p.entryId}|${p.dueDate}`;
+  const paid = matchPayables(
+    overdue.map(p => ({ key: keyOf(p), valor: p.valor, dueDate: p.dueDate, categoriaKey: normalizeTipo(p.categoria) })),
+    bundle.paidOuts,
+    bundle.manualLinks,
+  );
+  for (const p of overdue) {
+    if (paid.has(keyOf(p))) continue;
+    p.nearby = nearbyOuts(p, bundle.paidOuts).map(t => ({ id: t.id, data: t.data, valor: t.valor, descricao: (t as any).descricao ?? '' }));
+    empty.notPaid.push(p);
   }
 
   // Alerta de caixa: parte do saldo oficial do banco (extrato conferido, o mesmo
@@ -333,7 +341,7 @@ export function useMyDay(schools: { id: string; nome: string }[], today: string,
 export function useAcknowledgePayable() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (p: { schoolId: string; entryId: string; dueDate: string; kind?: 'agendado' | 'descartado'; note?: string }) => {
+    mutationFn: async (p: { schoolId: string; entryId: string; dueDate: string; kind?: 'agendado' | 'descartado' | 'pago'; note?: string; bankTransactionId?: string }) => {
       const { data: auth } = await supabase.auth.getUser();
       const { error } = await (supabase as any).from('payable_acknowledgements').upsert({
         school_id: p.schoolId,
@@ -342,6 +350,7 @@ export function useAcknowledgePayable() {
         acknowledged_by: auth.user?.id ?? null,
         kind: p.kind ?? 'agendado',
         note: p.note ?? null,
+        bank_transaction_id: p.bankTransactionId ?? null,
       }, { onConflict: 'entry_id,due_date' });
       if (error) throw error;
     },

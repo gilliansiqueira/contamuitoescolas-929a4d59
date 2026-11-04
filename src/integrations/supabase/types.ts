@@ -2858,6 +2858,7 @@ export type Database = {
         Row: {
           acknowledged_at: string
           acknowledged_by: string | null
+          bank_transaction_id: string | null
           due_date: string
           entry_id: string
           id: string
@@ -2868,6 +2869,7 @@ export type Database = {
         Insert: {
           acknowledged_at?: string
           acknowledged_by?: string | null
+          bank_transaction_id?: string | null
           due_date: string
           entry_id: string
           id?: string
@@ -2878,6 +2880,7 @@ export type Database = {
         Update: {
           acknowledged_at?: string
           acknowledged_by?: string | null
+          bank_transaction_id?: string | null
           due_date?: string
           entry_id?: string
           id?: string
@@ -2886,6 +2889,13 @@ export type Database = {
           school_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payable_acknowledgements_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payable_acknowledgements_entry_id_fkey"
             columns: ["entry_id"]

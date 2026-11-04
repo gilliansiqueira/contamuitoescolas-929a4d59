@@ -1,0 +1,1 @@
+ALTER TABLE public.payable_acknowledgements ADD COLUMN IF NOT EXISTS bank_transaction_id uuid REFERENCES public.bank_transactions(id) ON DELETE CASCADE;

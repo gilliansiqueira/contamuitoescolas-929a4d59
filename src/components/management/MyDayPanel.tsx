@@ -2,6 +2,7 @@ import { logActivity } from '@/lib/teamActivity';
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, CircleDollarSign, ListTodo, Wallet, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAcknowledgePayable, useUnacknowledgePayable, useMyDay, type MyDayPayable } from '@/hooks/useMyDay';
 import { fmtBRL, fmtDate } from '@/components/fluxo-bancario/shared';
@@ -45,8 +46,40 @@ function PayableRow({ p, onOpenSchool }: { p: MyDayPayable; onOpenSchool: (id: s
         <p className="text-[10px] text-muted-foreground">
           {p.schoolName} · vence {fmtDate(p.dueDate)}{p.antecipado ? ' (dia não útil — agendar antes)' : ''}
         </p>
+        {p.nearby && (
+          <p className="text-[10px] text-muted-foreground">
+            {p.nearby[0]
+              ? `Nenhuma saída de valor igual. Mais parecida: ${fmtBRL(p.nearby[0].valor)} em ${fmtDate(p.nearby[0].data)}${p.nearby[0].descricao ? ` — ${p.nearby[0].descricao}` : ''}`
+              : 'Nenhuma saída no extrato entre 7 dias antes e 3 dias depois do vencimento.'}
+          </p>
+        )}
       </div>
       <strong className="text-xs">{fmtBRL(p.valor)}</strong>
+      {p.nearby && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]"><CheckCircle2 className="h-3 w-3" />Já foi paga</Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-2 text-xs" align="end">
+            <p className="mb-1.5 text-muted-foreground">Qual saída do extrato pagou esta conta? (7 dias antes a 3 dias depois do vencimento)</p>
+            {p.nearby.length === 0 && <p className="py-2 text-center text-muted-foreground">Nenhuma saída no extrato nesse período.</p>}
+            <div className="max-h-60 space-y-1 overflow-y-auto">
+              {p.nearby.map(t => (
+                <button key={t.id} type="button" disabled={ack.isPending}
+                  onClick={() => ack.mutate(
+                    { schoolId: p.schoolId, entryId: p.entryId, dueDate: p.dueDate, kind: 'pago', note: 'Vinculada à saída do extrato', bankTransactionId: t.id },
+                    { onSuccess: () => toast.success('Conta ligada à saída do extrato.'), onError: () => toast.error('Não foi possível ligar a conta.') },
+                  )}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/50">
+                  <span className="shrink-0 text-muted-foreground">{fmtDate(t.data)}</span>
+                  <span className="min-w-0 flex-1 truncate" title={t.descricao}>{t.descricao || 'Saída'}</span>
+                  <strong>{fmtBRL(t.valor)}</strong>
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
       <Button
         size="sm" variant="outline" className="h-7 gap-1 text-[11px]"
         disabled={ack.isPending}
