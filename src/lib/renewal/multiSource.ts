@@ -57,3 +57,24 @@ export function divergenciaSistemas(base: Record<string, any>[], other: Record<s
   for (const a of soB) out.push({ kind: 'divergencia_sistemas', message: `${a}: está em turma no ${bn}, mas não no ${on}.`, detail: { aluno: a, so_em: bn } });
   return out;
 }
+
+/**
+ * Turmas do próximo período (ex.: 2027/1) não entram na planilha de renovação.
+ * Período atual = semestre mais comum no relatório do Omni; tira da base quem só aparece em turma de semestre posterior
+ * (no próprio relatório ou no do outro sistema).
+ */
+export function dropNextPeriod(base: Record<string, any>[], other: Record<string, any>[] = []) {
+  const all = [...base, ...other].filter(r => String(r.Semestre ?? '').trim());
+  if (!all.length) return { rows: base, removed: [] as string[] };
+  const cnt = new Map<string, number>(); for (const r of all) cnt.set(String(r.Semestre).trim(), (cnt.get(String(r.Semestre).trim()) ?? 0) + 1);
+  const cur = [...cnt].sort((a, b) => b[1] - a[1])[0][0];
+  const isNext = (r: Record<string, any>) => { const s = String(r.Semestre ?? '').trim(); return !!s && s > cur; };
+  const nextOther = new Set(other.filter(isNext).map(r => nk(r.Aluno)));
+  const curOther = new Set(other.filter(r => !isNext(r)).map(r => nk(r.Aluno)));
+  const removed: string[] = [];
+  const rows = base.filter(r => {
+    const out = isNext(r) || (nextOther.has(nk(r.Aluno)) && !curOther.has(nk(r.Aluno)));
+    if (out) removed.push(String(r.Aluno)); return !out;
+  });
+  return { rows, removed };
+}
