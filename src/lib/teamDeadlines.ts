@@ -51,3 +51,10 @@ export function overdueProjections(schoolIds: string[], steps: ProjStep[], deadl
 export function nextDeadlineText(deadlines: Deadline[], today: string): string | null {
   return deadlineParts(deadlines, today)[0]?.texto ?? null;
 }
+
+/** Mês (YYYY-MM) do relatório a que as projeções pertencem: o do prazo de relatório mais tardio. */
+export function projectionReportMonth(deadlines: { rotulo: string; data: string }[]): string {
+  const other = deadlines.filter(d => !/proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0];
+  const proj = deadlines.filter(d => /proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0];
+  return (other ?? proj ?? '').slice(0, 7);
+}

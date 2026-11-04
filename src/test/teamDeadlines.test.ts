@@ -18,3 +18,13 @@ describe('contagem de prazos', () => {
     expect(deadlineParts(dl, '2026-11-07')).toEqual([]);
   });
 });
+
+import { projectionReportMonth, overdueProjections } from '@/lib/teamDeadlines';
+describe('mês das projeções na faixa', () => {
+  it('usa o mês do relatório (06/11), não o do prazo de projeção (30/10)', () => {
+    expect(projectionReportMonth([{ rotulo: 'as projeções', data: '2026-10-30' }, { rotulo: 'o texto e o relatório', data: '2026-11-06' }])).toBe('2026-11');
+  });
+  it('sem prazo de relatório usa o de projeção', () => {
+    expect(projectionReportMonth([{ rotulo: 'as projeções', data: '2026-10-30' }])).toBe('2026-10');
+  });
+});

@@ -165,6 +165,7 @@ export function useEnsureMonthlyChecklist() {
     },
     onSuccess: (_inserted, { schoolId, month }) => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
+      queryClient.invalidateQueries({ queryKey: ['proj-steps'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist-summary', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
@@ -184,6 +185,7 @@ export function useSetChecklistStatus(schoolId: string | null, month: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist', schoolId, month] });
+      queryClient.invalidateQueries({ queryKey: ['proj-steps'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-checklist-summary', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio', month] });
       queryClient.invalidateQueries({ queryKey: ['management-portfolio'] });
