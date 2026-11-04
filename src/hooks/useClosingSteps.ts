@@ -142,12 +142,12 @@ export function useMonthlyChecklistSummary(month: string, enabled: boolean) {
     queryKey: ['monthly-checklist-summary', month],
     enabled: enabled && /^\d{4}-\d{2}$/.test(month),
     queryFn: async () => {
-      const bySchool = new Map<string, Pick<ChecklistItem, 'step_key' | 'status'>[]>();
+      const bySchool = new Map<string, Pick<ChecklistItem, 'step_key' | 'status' | 'completed_at'>[]>();
       for (let from = 0; ; from += 1000) {
         const { data, error } = await supabase.from('monthly_closing_checklist')
-          .select('school_id, step_key, status').eq('month', month).order('id').range(from, from + 999);
+          .select('school_id, step_key, status, completed_at').eq('month', month).order('id').range(from, from + 999);
         if (error) throw error;
-        for (const item of data ?? []) bySchool.set(item.school_id, [...(bySchool.get(item.school_id) ?? []), { step_key: item.step_key, status: item.status as ChecklistItem['status'] }]);
+        for (const item of data ?? []) bySchool.set(item.school_id, [...(bySchool.get(item.school_id) ?? []), { step_key: item.step_key, status: item.status as ChecklistItem['status'], completed_at: item.completed_at }]);
         if (!data || data.length < 1000) break;
       }
       return bySchool;
