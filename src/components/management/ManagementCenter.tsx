@@ -116,7 +116,7 @@ const rowAccent: Record<RowStatus, string> = {
 };
 
 const viewLabels: Record<ManagementView, string> = {
-  portfolio: 'Carteira de clientes', closing: 'Relatórios', pending: 'Pendências', responsible: 'Por responsável', team_time: 'Equipe', my_time: 'Meu ponto',
+  portfolio: 'Carteira de clientes', closing: 'Relatórios', pending: 'Pendências', responsible: 'Por responsável', team_time: 'Equipe', my_time: 'Meu ponto', client_logins: 'Acessos dos clientes',
 };
 
 type PeriodMode = 'hoje' | 'ontem' | 'mes';
