@@ -1,3 +1,4 @@
+import { logActivity } from '@/lib/teamActivity';
 import { useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, CircleDollarSign, ListTodo, Wallet, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -139,6 +140,7 @@ function GroupedPending({ items, onOpenSchool }: { items: MyDayPendingItem[]; on
 
 export function MyDayPanel({ schools, today, pendingItems, personSelector, personLabel, onOpenSchool }: Props) {
   const { data, isLoading } = useMyDay(schools, today, schools.length > 0);
+  useEffect(() => { logActivity('meudia_aberto', { ref: personSelector?.value ?? null }); }, [personSelector?.value]);
   const [open, setOpen] = useState<CardKey | null>(null);
 
   const totals = useMemo(() => ({
