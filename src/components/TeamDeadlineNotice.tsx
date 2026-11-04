@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertTriangle, Settings, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deadlineParts, todaySP, overdueProjections, PROJ_STEPS, type ProjStep } from '@/lib/teamDeadlines';
+import { deadlineParts, todaySP, overdueProjections, PROJ_STEPS, projectionReportMonth, type ProjStep } from '@/lib/teamDeadlines';
 import { useManagementPortfolio } from '@/hooks/useManagementPortfolio';
 
 type Ann = { id: string; titulo: string; ativo: boolean; team_announcement_deadlines: { id: string; rotulo: string; data: string; ordem: number }[] };
@@ -41,7 +41,7 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
   // Projeções em atraso: prazo de "projeç..." já vencido no aviso ativo.
   const projDeadline = anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
     .filter(d => /proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0] ?? null;
-  const projMonth = projDeadline?.slice(0, 7) ?? '';
+  const projMonth = projDeadline ? projectionReportMonth(anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)) : '';
   const projDue = !!projDeadline && today > projDeadline;
   const { data: portfolio = [] } = useManagementPortfolio(projMonth, !!isAdmin && projDue);
   const isManager = !!canManageCollaborators;
@@ -50,7 +50,8 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
   const { data: projSteps = [] } = useQuery({
     queryKey: ['proj-steps', projMonth, scopeIds.join(',')],
     enabled: projDue && scopeIds.length > 0,
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const { data, error } = await supabase.from('monthly_closing_checklist').select('school_id,step_key,status,completed_at')
         .eq('month', projMonth).in('step_key', [...PROJ_STEPS]).in('school_id', scopeIds);
