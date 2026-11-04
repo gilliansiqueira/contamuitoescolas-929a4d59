@@ -694,6 +694,13 @@
       "when": 1793834318240,
       "tag": "0098_client_access_hide_secret_col",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1793834799038,
+      "tag": "0099_help_center_and_team_activity",
+      "breakpoints": true
     }
   ]
 }

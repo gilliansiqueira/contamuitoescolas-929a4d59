@@ -2053,6 +2053,145 @@ export type Database = {
           },
         ]
       }
+      help_article_versions: {
+        Row: {
+          article_id: string
+          changed_at: string
+          changed_by: string | null
+          conteudo: string | null
+          id: string
+          titulo: string | null
+          versao: number
+        }
+        Insert: {
+          article_id: string
+          changed_at?: string
+          changed_by?: string | null
+          conteudo?: string | null
+          id?: string
+          titulo?: string | null
+          versao: number
+        }
+        Update: {
+          article_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          conteudo?: string | null
+          id?: string
+          titulo?: string | null
+          versao?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_article_versions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "help_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_articles: {
+        Row: {
+          conteudo: string
+          created_at: string
+          id: string
+          ordem: number
+          resumo: string | null
+          slug: string
+          tela: string | null
+          titulo: string
+          trilha: boolean
+          updated_at: string
+          updated_by: string | null
+          versao: number
+        }
+        Insert: {
+          conteudo?: string
+          created_at?: string
+          id?: string
+          ordem?: number
+          resumo?: string | null
+          slug: string
+          tela?: string | null
+          titulo: string
+          trilha?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          versao?: number
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          id?: string
+          ordem?: number
+          resumo?: string | null
+          slug?: string
+          tela?: string | null
+          titulo?: string
+          trilha?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          versao?: number
+        }
+        Relationships: []
+      }
+      help_progress: {
+        Row: {
+          article_id: string
+          concluido_em: string
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          concluido_em?: string
+          user_id: string
+        }
+        Update: {
+          article_id?: string
+          concluido_em?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_progress_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "help_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_questions: {
+        Row: {
+          created_at: string
+          fontes: string[]
+          id: string
+          pergunta: string
+          respondida: boolean
+          resposta: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fontes?: string[]
+          id?: string
+          pergunta: string
+          respondida?: boolean
+          resposta?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          fontes?: string[]
+          id?: string
+          pergunta?: string
+          respondida?: boolean
+          resposta?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       historical_monthly: {
         Row: {
           created_at: string
@@ -4640,6 +4779,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_activity_events: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          ref: string | null
+          school_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          ref?: string | null
+          school_id?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          ref?: string | null
+          school_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      team_alert_acks: {
+        Row: {
+          alert_key: string
+          created_at: string
+          dia: string
+          user_id: string
+        }
+        Insert: {
+          alert_key: string
+          created_at?: string
+          dia: string
+          user_id?: string
+        }
+        Update: {
+          alert_key?: string
+          created_at?: string
+          dia?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       team_alert_dismissals: {
         Row: {
