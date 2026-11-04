@@ -1,3 +1,4 @@
+import { canonicalProfessors } from './professorNames';
 import { norm } from './fields';
 import { toIsoDate, toId } from './sponteParser';
 import type { Issue, RenewalColumn, RenewalRow, RenewalSettings } from './types';
@@ -83,6 +84,8 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
     if (!(byName.get(n) ?? []).some(k => k.split('|')[0] === key.split('|')[0])) byName.set(n, [...(byName.get(n) ?? []), key]);
     if (!mat) issues.push({ kind: 'sem_matricula', row_key: key, message: `${t.Aluno}: sem matrícula na base de turmas.` });
   }
+  const profMap = canonicalProfessors([...rows.values()].map(r => r.professor));
+  for (const r of rows.values()) if (r.professor && profMap.has(r.professor)) r.professor = profMap.get(r.professor);
   for (const [mat, keys] of byMat) if (keys.length > 1) issues.push({ kind: 'varias_turmas', row_key: keys[0], message: `Matrícula ${mat} (${rows.get(keys[0])!.aluno}) está em ${keys.length} turmas.`, detail: { turmas: keys.map(k => rows.get(k)!.turma) } });
 
   if (!contas) {
