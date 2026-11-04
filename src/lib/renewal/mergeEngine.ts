@@ -1,3 +1,4 @@
+import { canonicalProfessors } from './professorNames';
 import { norm } from './fields';
 import { toIsoDate, toId } from './sponteParser';
 import type { Issue, RenewalColumn, RenewalRow, RenewalSettings } from './types';
