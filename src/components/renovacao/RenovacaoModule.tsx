@@ -26,7 +26,7 @@ import { defaultColumns } from '@/lib/renewal/fields';
 import { applyTemplateToSheet } from '@/lib/renewal/persist';
 import { buildWorkbook, computeSummary } from '@/lib/renewal/exportXlsx';
 import { SHEET_STATUS, type RenewalColumn, type RenewalRow, type TemplateStructure } from '@/lib/renewal/types';
-import { saveImport, INFO_KINDS, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
+import { saveImport, INFO_KINDS, NOTICE_KINDS, rebuildSheet, applyEdit, saveRows, registerDelivery, downloadVersion, downloadBuffer } from '@/lib/renewal/persist';
 import { RenewalGrid, type CellEdit } from './RenewalGrid';
 import { TemplateBuilder } from './TemplateBuilder';
 
@@ -146,7 +146,7 @@ function NextStepBanner({ sheet, onGo }: { sheet: RenewalSheet | undefined; onGo
   if (!sheet) text = 'Para começar: digite o período (ex.: 2027/1) no campo "Nova renovação" e clique em Criar planilha do período.';
   else if (imports.length === 0) { text = 'Etapa 2: envie os relatórios do Sponte — primeiro Turmas Existentes, depois Contas a Receber.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
   else if (rows.length === 0) { text = 'Etapa 2: falta o relatório de Turmas Existentes para montar a base de alunos.'; go = 'relatorios'; goLabel = 'Ir para Relatórios'; }
-  else if (issues.some(i => !i.resolved && !INFO_KINDS.has(i.kind))) { text = `Etapa 3: confira ${issues.filter(i => !i.resolved && !INFO_KINDS.has(i.kind)).length} item(ns) antes de usar a planilha.`; go = 'conferencia'; goLabel = 'Ir para Conferência'; }
+  else if (issues.some(i => !i.resolved && !INFO_KINDS.has(i.kind) && !NOTICE_KINDS.has(i.kind))) { text = `Etapa 3: confira ${issues.filter(i => !i.resolved && !INFO_KINDS.has(i.kind) && !NOTICE_KINDS.has(i.kind)).length} item(ns) antes de usar a planilha.`; go = 'conferencia'; goLabel = 'Ir para Conferência'; }
   else if (deliveries.length === 0) { text = 'Etapa 4: a planilha está montada — ajuste o que precisar e baixe o Excel. Depois registre o envio na etapa 5.'; go = 'planilha'; goLabel = 'Ir para Planilha'; }
   else if (sheet.dirty) { text = 'A planilha mudou depois do último envio. Registre um novo envio para guardar a versão atualizada.'; go = 'envios'; goLabel = 'Ir para Envios'; }
   else { text = 'Tudo em dia: planilha montada, conferida e enviada.'; go = 'planilha'; goLabel = 'Abrir Planilha'; }
@@ -483,7 +483,7 @@ function IssuesPanel({ sheet }: { sheet: RenewalSheet }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setKind('')} className={`rounded-lg border px-3 py-1.5 text-xs ${!kind ? 'border-primary bg-primary/10' : 'border-border'}`}>Todas ({open.length})</button>
+        <button onClick={() => setKind('')} className={`rounded-lg border px-3 py-1.5 text-xs ${!kind ? 'border-primary bg-primary/10' : 'border-border'}`}>Todas ({open.filter(i => !NOTICE_KINDS.has(i.kind)).length})</button>
         {kinds.map(k => <button key={k} onClick={() => setKind(k)} className={`rounded-lg border px-3 py-1.5 text-xs ${kind === k ? 'border-primary bg-primary/10' : 'border-border'}`}>{ISSUE_LABEL[k] ?? k} ({open.filter(i => i.kind === k).length})</button>)}
         {conflicts > 0 && <span className="rounded-lg border border-destructive px-3 py-1.5 text-xs text-destructive">{conflicts} linha(s) com conflito de importação — resolva na planilha</span>}
         {resolvedCount > 0 && <button onClick={() => setShowResolved(v => !v)} className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground underline">{showResolved ? 'Ocultar resolvidos' : `Mostrar resolvidos (${resolvedCount})`}</button>}

@@ -26,6 +26,8 @@ export async function saveImport(sheet: RenewalSheet, parsed: ParsedSource, file
 
 /** Avisos só informativos: entram como conferidos e não contam como pendência. */
 export const INFO_KINDS = new Set(['formacao_aluno_novo', 'formacao_aluno_novo_parcelas']);
+/** Só aviso: aparece na Conferência, mas não conta como pendência. */
+export const NOTICE_KINDS = new Set(['divergencia_sistemas']);
 
 /** Campos que a equipe pode preencher na Conferência quando faltam parcelas. */
 export const PAYMENT_FIELDS = ['forma_pagamento_atual', 'venc_ultima_parcela', 'termino_pagamento'];
@@ -104,7 +106,7 @@ export async function rebuildSheet(sheet: RenewalSheet, settings: RenewalSetting
   if (c && sheet.status === 'aguardando_relatorios') patch.status = 'em_preparacao';
   if (sheet.sent_version) patch.dirty = true;
   await db.from('renewal_sheets').update(patch).eq('id', sheet.id);
-  return { stats, issues: all2.filter(i => !INFO_KINDS.has(i.kind)).length };
+  return { stats, issues: all2.filter(i => !INFO_KINDS.has(i.kind) && !NOTICE_KINDS.has(i.kind)).length };
 }
 
 export function applyEdit(row: RenewalRow, col: RenewalColumn, value: any, userEmail?: string): RenewalRow {
