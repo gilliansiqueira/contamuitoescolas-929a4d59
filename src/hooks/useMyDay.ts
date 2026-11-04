@@ -14,7 +14,7 @@ import { getEffectiveClassification, normalizeTipo } from '@/lib/classificationU
 import { syncWeekendAllowedSchools } from '@/lib/dateUtils';
 import { fetchBankAccounts } from '@/hooks/useBankPilot';
 import { confirmedBankBalance } from '@/lib/bankStatements/confirmedBalance';
-import { matchPayables, nearbyOuts, addDaysIso, DEPOIS_DIAS, ANTES_DIAS, type MatchOut } from '@/lib/payableMatching';
+import { matchPayables, nearbyOuts, DEPOIS_DIAS, ANTES_DIAS, type MatchOut } from '@/lib/payableMatching';
 import type { FinancialEntry, PaymentDelayRule, TypeClassification } from '@/types/financial';
 
 /** Feriados nacionais (mesma referência do prazo do relatório). */
