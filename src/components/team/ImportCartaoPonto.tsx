@@ -7,6 +7,9 @@ import { geracaoDoArquivo, parseCartaoPonto, readPdfTokens, type CartaoRelatorio
 import { useTeamTimeImportReport } from '@/hooks/useTeamTime';
 
 const fmt = (d: string | null) => d ? d.split('-').reverse().join('/') : '—';
+/** Dias corridos do período (inclusive). */
+const periodDays = (a: string | null, b: string | null) =>
+  a && b ? Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000) + 1 : 0;
 
 /** Importa o "Relatório de Cartão Ponto Individual" do PontoFopag com conferência antes de gravar. */
 export function ImportCartaoPonto() {
@@ -29,7 +32,7 @@ export function ImportCartaoPonto() {
     try {
       const r = await save.mutateAsync({ arquivo: file, periodoInicio: rep.periodoInicio, periodoFim: rep.periodoFim,
         funcionarios: rep.funcionarios.map(({ codigo, nome, matricula, departamento, funcao, dias }) => ({ codigo, nome, matricula, departamento, funcao, dias })) });
-      toast.success(`Ponto importado: ${r.counts.funcionarios} funcionários, ${r.counts.dias} dias.`); setRep(null);
+      toast.success(`Ponto importado: ${r.counts.funcionarios} pessoas, período ${fmt(rep.periodoInicio)} a ${fmt(rep.periodoFim)} (${r.counts.dias} dias-pessoa registrados).`); setRep(null);
     } catch (e: any) { toast.error(e.message ?? 'Erro ao gravar'); }
   };
 
@@ -44,13 +47,17 @@ export function ImportCartaoPonto() {
         <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-3xl flex-col">
           <DialogHeader><DialogTitle>Conferência do relatório de ponto</DialogTitle></DialogHeader>
           {rep && <div className="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm">
-            <p>{rep.funcionarios.length} funcionário(s) · período {fmt(rep.periodoInicio)} a {fmt(rep.periodoFim)} · CPF e PIS não são gravados.</p>
+            <p className="text-base font-semibold">Período do relatório: {fmt(rep.periodoInicio)} a {fmt(rep.periodoFim)} ({periodDays(rep.periodoInicio, rep.periodoFim)} dias)</p>
+            <p className="text-muted-foreground">{rep.funcionarios.length} pessoa(s) · CPF e PIS não são gravados.</p>
+            {periodDays(rep.periodoInicio, rep.periodoFim) > 7 && (
+              <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 p-2 text-warning-foreground"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Este relatório cobre {periodDays(rep.periodoInicio, rep.periodoFim)} dias. Se você queria só alguns dias, gere de novo no sistema de ponto escolhendo as datas.</p>
+            )}
             {rep.divergencias.length > 0
               ? <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive"><details><summary className="flex cursor-pointer items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" />Importação bloqueada: {rep.divergencias.length} total(is) não batem. Clique para ver.</summary><ul className="mt-1 max-h-48 list-disc overflow-y-auto pl-5 text-xs">{rep.divergencias.map(d => <li key={d}>{d}</li>)}</ul></details></div>
               : <p className="flex items-center gap-1.5 text-success"><CheckCircle2 className="h-4 w-4" />Todos os totais conferem com o relatório.</p>}
             <div className="max-h-72 overflow-y-auto rounded-md border border-border">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-muted text-muted-foreground"><tr><th className="p-2 text-left">Funcionário</th><th className="p-2 text-right">Dias</th><th className="p-2 text-right">Trabalhadas</th><th className="p-2 text-right">Extras</th><th className="p-2 text-right">Faltas</th><th className="p-2 text-left">Ocorrências</th></tr></thead>
+                <thead className="sticky top-0 bg-muted text-muted-foreground"><tr><th className="p-2 text-left">Funcionário</th><th className="p-2 text-right">Dias com registro</th><th className="p-2 text-right">Trabalhadas</th><th className="p-2 text-right">Extras</th><th className="p-2 text-right">Faltas</th><th className="p-2 text-left">Ocorrências</th></tr></thead>
                 <tbody>{rep.funcionarios.map(f => (
                   <tr key={f.codigo} className={`border-t border-border ${f.divergencias.length ? 'bg-destructive/5' : ''}`}>
                     <td className="p-2">{f.nome}</td>
