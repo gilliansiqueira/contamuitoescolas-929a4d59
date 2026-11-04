@@ -31,3 +31,22 @@ describe('aluno nas turmas do outro sistema', () => {
     expect(f({ aluno: 'Fulano', matricula: '123' })).toBe(false);
   });
 });
+
+import { divergenciaSistemas } from '@/lib/renewal/multiSource';
+import { buildImported } from '@/lib/renewal/mergeEngine';
+describe('Sponte × Omni', () => {
+  it('lista quem está em turma só num sistema', () => {
+    const d = divergenciaSistemas([{ Aluno: 'Ana' }, { Aluno: 'Bia' }], [{ Aluno: 'Ana' }, { Aluno: 'Caio', Semestre: '2026/2' }], false);
+    expect(d.map(x => x.message)).toEqual(['Caio: está em turma no Omni, mas não no Sponte.', 'Bia: está em turma no Sponte, mas não no Omni.']);
+  });
+  it('curso pago antes do corte vira "quitado"; a mesma parcela nos dois sistemas conta uma vez', () => {
+    const settings = { include_material: false, module_categories: [], separate_modalities: [] };
+    const t = [{ Nome: 'B1', Aluno: 'Ana Souza', NumeroMatricula: '10' }];
+    const c = [
+      { Sacado: 'Ana Souza', NumeroMatricula: '10', DataVencimento: '10/05/2026', Situacao: 'Quitada', Categoria: 'Parcela Regular', Valor: '555' },
+      { Sacado: 'Ana Souza', NumeroMatricula: null, DataVencimento: '10/05/2026', DataPagamento: '11/05/2026', Situacao: 'Pago', Categoria: 'Parcela Curso Turmas', Valor: '557,56' },
+    ];
+    const { issues } = buildImported(t, c, { settings, minDue: '2026-10-01' });
+    expect(issues[0].detail).toMatchObject({ quitado: true, parcelas_pagas: 1 });
+  });
+});

@@ -36,7 +36,7 @@ const KIND_LABEL: Record<string, string> = { imported: 'Importada', calculated: 
 const ISSUE_LABEL: Record<string, string> = {
   formacao_nome_semelhante: 'Formação: nome parecido', formacao_aluno_novo: 'Formação: alunos novos', formacao_conflito: 'Formação: marcação diferente',
   sem_financeiro: 'Sem parcelas do módulo', nome_ambiguo: 'Nome ambíguo', nome_semelhante: 'Nome parecido', sem_correspondencia: 'Sem correspondência nas turmas', formacao_aluno_novo_parcelas: 'Aluno novo 2027/1',
-  varios_contratos: 'Vários contratos', varias_turmas: 'Aluno em mais de uma turma', sem_matricula: 'Sem matrícula', fora_da_base: 'Saiu da base',
+  varios_contratos: 'Vários contratos', varias_turmas: 'Aluno em mais de uma turma', sem_matricula: 'Sem matrícula', fora_da_base: 'Saiu da base', divergencia_sistemas: 'Divergência entre sistemas',
 };
 
 export function RenovacaoModule({ schoolId, schoolName }: { schoolId: string; schoolName: string }) {
