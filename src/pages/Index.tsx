@@ -200,6 +200,7 @@ function IndexBody({
   const { isSuperAdmin } = useAuth();
   const [appModule, setAppModule] = useState<AppModule>('projecao');
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  useEffect(() => { setHelpScreen(activeTab); return () => setHelpScreen(null); }, [activeTab]);
   const [realizadoView, setRealizadoView] = useState<RealizadoView>('relatorio');
   const [navOpen, setNavOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
