@@ -28,6 +28,13 @@ export const PROJ_STEPS = ['proj_futuras', 'proj_realizado', 'proj_simulacao'] a
 export const FUTURAS_VALIDADE_DIAS = 15;
 export interface ProjStep { school_id: string; step_key: string; status: string; completed_at: string | null }
 
+/** "Projeções futuras" concluída cedo demais (mais de 15 dias antes do prazo): não vale como entregue. */
+export function isFuturasTooEarly(s: { step_key: string; status: string; completed_at: string | null }, deadline: string | null): boolean {
+  if (!deadline || s.step_key !== 'proj_futuras' || s.status !== 'completed') return false;
+  if (!s.completed_at) return true;
+  return diffDays(todaySP(new Date(s.completed_at)), deadline) > FUTURAS_VALIDADE_DIAS;
+}
+
 /** Projeção entregue = 3 etapas concluídas (ou "não se aplica"); "futuras" só vale se marcada até 15 dias antes do prazo. */
 export function isProjectionDelivered(steps: ProjStep[], deadline: string): boolean {
   return PROJ_STEPS.every(k => {

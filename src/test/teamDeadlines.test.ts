@@ -19,12 +19,14 @@ describe('contagem de prazos', () => {
   });
 });
 
-import { projectionReportMonth, overdueProjections } from '@/lib/teamDeadlines';
-describe('mês das projeções na faixa', () => {
-  it('usa o mês do relatório (06/11), não o do prazo de projeção (30/10)', () => {
-    expect(projectionReportMonth([{ rotulo: 'as projeções', data: '2026-10-30' }, { rotulo: 'o texto e o relatório', data: '2026-11-06' }])).toBe('2026-11');
+import { isFuturasTooEarly } from '@/lib/teamDeadlines';
+import { defaultReportMonth } from '@/lib/reportMonth';
+describe('projeções na faixa e no Controle', () => {
+  it('em 04/11 a faixa usa outubro, o mesmo mês do Controle', () => {
+    expect(defaultReportMonth('2026-11-04', false)).toBe('2026-10');
   });
-  it('sem prazo de relatório usa o de projeção', () => {
-    expect(projectionReportMonth([{ rotulo: 'as projeções', data: '2026-10-30' }])).toBe('2026-10');
+  it('projeções futuras marcadas antes de 15/10 (prazo 30/10) não valem', () => {
+    expect(isFuturasTooEarly({ step_key: 'proj_futuras', status: 'completed', completed_at: '2026-10-10T15:00:00Z' }, '2026-10-30')).toBe(true);
+    expect(isFuturasTooEarly({ step_key: 'proj_futuras', status: 'completed', completed_at: '2026-10-20T15:00:00Z' }, '2026-10-30')).toBe(false);
   });
 });
