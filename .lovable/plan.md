@@ -2,6 +2,12 @@
 
 Hoje há 47.314 lançamentos de extrato conciliados e 5.158 pendentes, todos marcados um a um pela equipe. A ideia é a plataforma fazer o trabalho repetitivo e deixar para a equipe só o que não bater. Nada vira "conciliado" sem regra clara, e tudo pode ser desfeito.
 
+## Teste inicial: só Praia da Costa
+Tudo fica ligado apenas para a Praia da Costa, por meio de uma chave por empresa. As outras empresas continuam exatamente como hoje até você aprovar.
+A Praia da Costa ainda não tem nenhum extrato na plataforma. Então:
+- as sugestões começam com base no que outras escolas da rede já conciliaram (mesmos fornecedores, tarifas e maquininhas), marcadas como "sugestão da rede", e passam a aprender com a própria empresa conforme a equipe concilia;
+- o cartão, as contas a pagar e a baixa no Omni/Sponte já funcionam desde o primeiro extrato.
+
 ## 1. Sugestão automática de classificação (maior ganho)
 - A plataforma aprende com o que a equipe já conciliou em cada empresa: mesmo favorecido ou descrição parecida, mesmo sentido e valor parecido → sugere o mesmo item do modelo.
 - Na tabela do extrato aparece a sugestão com o grau de confiança e o motivo ("conciliado assim 12 vezes desde agosto").
@@ -36,4 +42,5 @@ Como as conversas são em grupos, a ligação oficial do WhatsApp não consegue 
 - Cartão: `src/lib/cardSettlementMatch.ts` (repasse ↔ depósito, tolerância e lote por dia), reaproveitando os parsers de maquininha e `sponteCardGuard`.
 - Auditoria: nova coluna `recon_source` (manual | sugestao | automatico) em `bank_transactions` (migração aditiva), mais registro em `bank_reconciliation_history`; desfazer em lote por importação.
 - Baixa no sistema da escola: colunas `school_system_status` (pendente | baixado | nao_se_aplica), `school_system_confirmed_at/by/source` em `bank_transactions` (aditivas); cruzamento puro `src/lib/schoolSystemMatch.ts` com os relatórios Omni/Sponte já lidos pelos parsers existentes; liberado por empresa em `school_features`.
-- Antes de gravar, primeiro rodar em modo simulação numa empresa (ex.: Rondonópolis) e comparar com o que a equipe já conciliou, para medir acerto antes de liberar o "Aceitar".
+- Liberação por `school_features.conciliacao_assistida`, ativada só para Praia da Costa (`7a5b74f3-6340-4c0b-bc24-cd64341b4551`).
+- Para medir o acerto antes de liberar o "Aceitar", rodar a sugestão em modo simulação (sem gravar) sobre o histórico de uma empresa já conciliada e comparar com o que a equipe fez.
