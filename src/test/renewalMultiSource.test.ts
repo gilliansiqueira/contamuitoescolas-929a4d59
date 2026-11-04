@@ -50,3 +50,13 @@ describe('Sponte × Omni', () => {
     expect(issues[0].detail).toMatchObject({ quitado: true, parcelas_pagas: 1 });
   });
 });
+
+describe('parcelas só antes do corte', () => {
+  it('preenchem o pagamento na planilha em vez de "Sem informação"', () => {
+    const settings = { include_material: false, module_categories: [], separate_modalities: [] };
+    const p = (d: string) => ({ Sacado: 'Ana Souza', NumeroMatricula: null, DataVencimento: d, DataPagamento: d, Situacao: 'Pago', Categoria: 'Parcela Curso Turmas', Valor: '1', FormaCobranca: 'Parcelado' });
+    const { rows } = buildImported([{ Nome: 'B1', Aluno: 'Ana Souza', NumeroMatricula: '10' }], [p('10/05/2026'), p('10/06/2026')], { settings, minDue: '2026-10-01' });
+    const r: any = [...rows.values()][0];
+    expect([r.forma_pagamento_atual, r.venc_ultima_parcela, r.termino_pagamento]).toEqual(['Parcelado', '2026-06-10', '2026-06-10']);
+  });
+});

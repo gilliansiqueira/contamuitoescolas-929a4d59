@@ -96,6 +96,14 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
   const materialMats = new Set<string>();
   // Parcelas do módulo antes do corte (de qualquer sistema): confirmam se o curso já foi quitado.
   const preCut = new Map<string, { paid: number; open: number; lastPay: string; _p: Set<string>; _o: Set<string> }>();
+  const preCutRows = new Map<string, Map<string, Record<string, any>>>();
+  const fillPayment = (r: any, list: Record<string, any>[]) => {
+    const last = list.reduce((a, b) => (b._due > a._due ? b : a));
+    const forma = String(last.FormaCobranca ?? '').trim() || SEM_INFO;
+    r.venc_ultima_parcela = last._due; r.forma_pagamento_atual = forma;
+    // Cartão: o recebimento/antecipação da escola não prova que o aluno terminou de pagar.
+    r.termino_pagamento = /cart[aã]o de cr[eé]dito|recorr/i.test(forma) ? A_CONFIRMAR : last._due;
+  };
   const matOf = (c: Record<string, any>) => { const m = toId(c.NumeroMatricula); if (m && byMat.has(m)) return m; const ms = [...new Set((byName.get(norm(c.Sacado)) ?? []).map(k => k.split('|')[0]))]; return ms.length === 1 ? ms[0] : null; };
   for (const c of contas) {
     if (!isModuleInstallment(c, p.settings)) {
@@ -112,7 +120,10 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       if (m) { const x = preCut.get(m) ?? { paid: 0, open: 0, lastPay: '', _p: new Set<string>(), _o: new Set<string>() };
         // Mesma parcela nos dois sistemas conta uma vez (pelo vencimento); paga em qualquer um = paga.
         if (isPaid(c)) { x._p.add(due); x._o.delete(due); const pd = toIsoDate(c.DataPagamento) ?? due; if (pd > x.lastPay) x.lastPay = pd; } else if (!x._p.has(due)) x._o.add(due);
-        x.paid = x._p.size; x.open = x._o.size; preCut.set(m, x); }
+        x.paid = x._p.size; x.open = x._o.size; preCut.set(m, x);
+        const byDue = preCutRows.get(m) ?? new Map<string, Record<string, any>>(); const prev = byDue.get(due);
+        if (!prev || (!String(prev.FormaCobranca ?? '').trim() && String(c.FormaCobranca ?? '').trim())) byDue.set(due, { ...c, _due: due });
+        preCutRows.set(m, byDue); }
       continue;
     }
     if (!due) continue;
@@ -144,7 +155,10 @@ export function buildImported(turmas: Record<string, any>[], contas: Record<stri
       else issues.push({ kind: 'varios_contratos', row_key: key, message: `${r.aluno}: parcelas de ${contratos.length} contratos (${contratos.join(', ')}).` });
     }
     if (!ps.length) {
-      Object.assign(r, { venc_ultima_parcela: SEM_INFO, forma_pagamento_atual: SEM_INFO, termino_pagamento: SEM_INFO });
+      const pre = [...(preCutRows.get(mat)?.values() ?? [])];
+      // Só há parcelas antes do corte (Sponte ou Omni): a planilha usa essas em vez de "Sem informação".
+      if (pre.length) fillPayment(r, pre);
+      else Object.assign(r, { venc_ultima_parcela: SEM_INFO, forma_pagamento_atual: SEM_INFO, termino_pagamento: SEM_INFO });
       const corte = minDue ? ` com vencimento a partir de ${minDue.split('-').reverse().join('/')}` : '';
       const pc = preCut.get(mat);
       const corteBr = minDue ? minDue.split('-').reverse().join('/') : '';
