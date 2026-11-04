@@ -71,6 +71,11 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
   const lines = toLines(tokens);
   const out: CartaoRelatorio = { periodoInicio: null, periodoFim: null, funcionarios: [], divergencias: [] };
   let cur: CartaoFuncionario | null = null;
+  // Cada "Funcionário:" abre uma parte do relatório com o seu próprio total impresso.
+  type Bloco = { dias: CartaoDia[]; totais: { trabalhadas: string | null; extras: string | null; faltas: string | null } };
+  const blocos = new Map<CartaoFuncionario, Bloco[]>();
+  const novoBloco = (f: CartaoFuncionario) => { blocos.set(f, [...(blocos.get(f) ?? []), { dias: [], totais: { trabalhadas: null, extras: null, faltas: null } }]); };
+  const blocoAtual = (f: CartaoFuncionario): Bloco | undefined => { const b = blocos.get(f); return b?.[b.length - 1]; };
   // Colunas (x) lidas do cabeçalho; valores padrão do layout PontoFopag.
   let col = { marcIni: 165, marcFim: 345, trab: 365, extra: 405, falta: 450, obs: 495 };
   const dayLines: { line: Line; dia: CartaoDia }[] = [];
@@ -84,9 +89,9 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
     if (f) {
       const codigo = f[1]; const nome = f[2].trim();
       const existing = out.funcionarios.find(x => x.codigo === codigo);
-      if (existing) { cur = existing; continue; }
+      if (existing) { cur = existing; novoBloco(cur); continue; }
       cur = { codigo, nome, matricula: null, departamento: null, funcao: null, dias: [], totais: { trabalhadas: null, extras: null, faltas: null }, somados: { trabalhadas: '00:00', extras: '00:00', faltas: '00:00' }, divergencias: [] };
-      out.funcionarios.push(cur); continue;
+      out.funcionarios.push(cur); novoBloco(cur); continue;
     }
     if (!cur) continue;
     const mat = t.match(/Matrícula:\s*(\S+)/); if (mat) { cur.matricula = mat[1]; continue; } // CPF/PIS da mesma linha são ignorados
@@ -99,7 +104,7 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
       continue;
     }
     const tot = t.match(/^(Trabalhadas|Extras|Faltas)\s+(\d{1,3}:\d{2})/);
-    if (tot) { const k = tot[1].toLowerCase() as 'trabalhadas' | 'extras' | 'faltas'; cur.totais[k] = tot[2]; continue; }
+    if (tot) { const k = tot[1].toLowerCase() as 'trabalhadas' | 'extras' | 'faltas'; { const b = blocoAtual(cur); if (b) b.totais[k] = tot[2]; } continue; }
     if (l.items[0] && DATE.test(l.items[0].s) && l.items[0].x < 40) {
       const dia = isoFromBr(l.items[0].s)!;
       const rest = l.items.slice(1);
@@ -111,7 +116,9 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
       const faltas = pickCol(col.falta, col.falta + 30);
       const obsTxt = rest.filter(x => x.x >= col.obs && !TIME.test(x.s)).map(x => x.s).join(' ').trim();
       const d: CartaoDia = { dia, jornada: jornadaTimes.length ? jornadaTimes.join(' ') : null, marcacoes, trabalhadas, extras, faltas, observacao: obsTxt || null, situacao: 'regular' };
-      cur.dias.push(d); dayLines.push({ line: l, dia: d });
+      blocoAtual(cur)?.dias.push(d);
+      if (!cur.dias.some(x => x.dia === dia)) cur.dias.push(d); // dia repetido em duas partes conta uma vez
+      dayLines.push({ line: l, dia: d });
       continue;
     }
     // Observação impressa um pouco acima/abaixo da linha do dia (ex.: "Férias").
@@ -128,10 +135,24 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
     for (const d of f.dias) d.situacao = emAndamento(d, geracao) ? 'em_andamento' : situacaoDoDia(d);
     const sum = (k: 'trabalhadas' | 'extras' | 'faltas') => f.dias.reduce((s, d) => s + toMin(d[k]), 0);
     f.somados = { trabalhadas: fmtMin(sum('trabalhadas')), extras: fmtMin(sum('extras')), faltas: fmtMin(sum('faltas')) };
+    const bs = (blocos.get(f) ?? []).filter(b => b.dias.length || b.totais.trabalhadas || b.totais.extras || b.totais.faltas);
+    const brd = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
     (['trabalhadas', 'extras', 'faltas'] as const).forEach(k => {
-      const imp = f.totais[k];
-      if (imp == null) f.divergencias.push(`Total de ${k} não encontrado no relatório.`);
-      else if (toMin(imp) !== sum(k)) f.divergencias.push(`${k}: relatório ${imp}, soma dos dias ${f.somados[k]} (diferença ${fmtMin(Math.abs(toMin(imp) - sum(k)))}).`);
+      const comTotal = bs.filter(b => b.totais[k] != null);
+      f.totais[k] = comTotal.length ? fmtMin(comTotal.reduce((s, b) => s + toMin(b.totais[k]), 0)) : null;
+      if (!comTotal.length) { f.divergencias.push(`Total de ${k} não encontrado no relatório.`); return; }
+      // Parte sem total próprio (ex.: continuação na página seguinte) soma com a parte anterior.
+      let acc = 0;
+      for (const b of bs) {
+        acc += b.dias.reduce((s, d) => s + toMin(d[k]), 0);
+        if (b.totais[k] == null) continue;
+        if (toMin(b.totais[k]) !== acc) {
+          const ds = b.dias.map(d => d.dia).sort();
+          const per = ds.length ? ` (parte ${brd(ds[0])} a ${brd(ds[ds.length - 1])})` : '';
+          f.divergencias.push(`${k}${per}: relatório ${b.totais[k]}, soma dos dias ${fmtMin(acc)} (diferença ${fmtMin(Math.abs(toMin(b.totais[k]) - acc))}).`);
+        }
+        acc = 0;
+      }
     });
     f.divergencias.forEach(m => out.divergencias.push(`${f.codigo} - ${f.nome}: ${m}`));
   }
