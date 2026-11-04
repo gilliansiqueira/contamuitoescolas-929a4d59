@@ -50,7 +50,7 @@ export function ImportCartaoPonto() {
             <p className="text-base font-semibold">Período do relatório: {fmt(rep.periodoInicio)} a {fmt(rep.periodoFim)} ({periodDays(rep.periodoInicio, rep.periodoFim)} dias)</p>
             <p className="text-muted-foreground">{rep.funcionarios.length} pessoa(s) · CPF e PIS não são gravados.</p>
             {periodDays(rep.periodoInicio, rep.periodoFim) > 7 && (
-              <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 p-2 text-warning-foreground"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Este relatório cobre {periodDays(rep.periodoInicio, rep.periodoFim)} dias. Se você queria só alguns dias, gere de novo no sistema de ponto escolhendo as datas.</p>
+              <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 p-2 text-warning"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />Este relatório cobre {periodDays(rep.periodoInicio, rep.periodoFim)} dias. Se você queria só alguns dias, gere de novo no sistema de ponto escolhendo as datas.</p>
             )}
             {rep.divergencias.length > 0
               ? <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive"><details><summary className="flex cursor-pointer items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" />Importação bloqueada: {rep.divergencias.length} total(is) não batem. Clique para ver.</summary><ul className="mt-1 max-h-48 list-disc overflow-y-auto pl-5 text-xs">{rep.divergencias.map(d => <li key={d}>{d}</li>)}</ul></details></div>
