@@ -1,5 +1,5 @@
 import { logActivity } from '@/lib/teamActivity';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, CircleDollarSign, ListTodo, Wallet, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
