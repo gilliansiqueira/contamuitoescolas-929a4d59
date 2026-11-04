@@ -26,6 +26,7 @@ import { TeamHub } from '@/components/team/TeamHub';
 import { ManagerDayPanel, type ManagerTeamPerson, type ManagerStalledSchool } from '@/components/management/ManagerDayPanel';
 import { previousBusinessDay } from '@/hooks/useMyDay';
 import { defaultReportMonth, prevMonthOf } from '@/lib/reportMonth';
+import { isFuturasTooEarly } from '@/lib/teamDeadlines';
 import { TeamScoreboard } from '@/components/team/TeamScoreboard';
 import { ClientRequestsList, SchoolProfileDialog } from '@/components/team/ClientService';
 import { Button } from '@/components/ui/button';
