@@ -8,8 +8,12 @@ import {
 } from '@/hooks/useManagementPortfolio';
 import { defaultReportMonth } from '@/lib/reportMonth';
 import {
-  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS, isTimedTaskOverdue, minutesSaoPaulo,
+  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS, isTimedTaskOverdue, minutesSaoPaulo, moneyAlerts, onlyMine,
 } from '@/lib/teamAlerts';
+import { useMyDay } from '@/hooks/useMyDay';
+import { logActivity } from '@/lib/teamActivity';
+import { useQueryClient } from '@tanstack/react-query';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -48,6 +52,12 @@ export function useTeamAlerts(enabled: boolean) {
       return (data ?? []) as any[];
     },
   });
+  const mineSchools = useMemo(() => rows.filter(r => r.responsible_user_id === user?.id).map(r => ({ id: r.school_id, nome: r.school_name })), [rows, user?.id]);
+  const { data: myDay } = useMyDay(mineSchools, today, enabled && mineSchools.length > 0);
+  const { data: acks = [] } = useQuery({
+    queryKey: ['team_alert_acks', user?.id, today], enabled: enabled && !!user?.id,
+    queryFn: async () => { const { data } = await (supabase as any).from('team_alert_acks').select('alert_key').eq('dia', today); return ((data ?? []) as any[]).map(r => r.alert_key as string); },
+  });
   const [tick, setTick] = useState(0);
   useEffect(() => { const i = setInterval(() => setTick(t => t + 1), 60_000); return () => clearInterval(i); }, []);
 
@@ -65,6 +75,11 @@ export function useTeamAlerts(enabled: boolean) {
       if (o) alerts.push({ key: `old-${r.school_id}`, tone: 'late', schoolId: r.school_id, text: `${r.school_name}: ${o.count} pendência(s) paradas há mais de ${OLD_PENDENCY_DAYS} dias (a mais antiga há ${o.oldestDays} dias)` });
       const rep = reportAlert(dueDate, today, r.report_delivered);
       if (rep) alerts.push({ key: `rep-${r.school_id}`, tone: rep.kind === 'late' ? 'late' : 'warn', schoolId: r.school_id, text: `${r.school_name}: relatório ${fmtM} ${rep.kind === 'late' ? `atrasado ${rep.days} dia(s)` : rep.days === 0 ? 'vence hoje' : `vence em ${rep.days} dia(s)`}` });
+    }
+    const mineIdSet = mine.map(r => r.school_id);
+    if (myDay) {
+      const stale = mine.filter(r => { const d = dailyBy.get(r.school_id); return d && d.statement_received === false; }).map(r => ({ schoolId: r.school_id, schoolName: r.school_name }));
+      alerts.unshift(...onlyMine(moneyAlerts({ ...myDay, staleStatements: stale }), mineIdSet));
     }
     const schoolName = new Map(rows.map(r => [r.school_id, r.school_name]));
     const mins = minutesSaoPaulo();
@@ -87,8 +102,9 @@ export function useTeamAlerts(enabled: boolean) {
         managerAlerts(label, s.late, s.lastActivityDay, today, hour).forEach((t, i) => alerts.push({ key: `team-${s.userId}-${i}`, tone: 'team', text: t }));
       }
     }
-    return { alerts, today };
-  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month, timed, tick]);
+    const ackSet = new Set(acks);
+    return { alerts: alerts.filter(a => !ackSet.has(a.key)), today };
+  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month, timed, tick, myDay, acks]);
 }
 
 interface Props { schools: School[]; onOpenSchool: (s: School) => void; onOpenCenter: () => void }
@@ -97,6 +113,7 @@ export function TeamAlerts({ schools, onOpenSchool, onOpenCenter }: Props) {
   const { user, isAdmin } = useAuth() as any;
   const { alerts, today } = useTeamAlerts(!!isAdmin);
   const [popup, setPopup] = useState(false);
+  const qc = useQueryClient();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -112,15 +129,21 @@ export function TeamAlerts({ schools, onOpenSchool, onOpenCenter }: Props) {
   }, [user?.id, today, alerts.length, checked]);
 
   if (!isAdmin) return null;
-  const dismiss = async () => { setPopup(false); await (supabase as any).from('team_alert_dismissals').upsert({ user_id: user.id, dia: today }); };
-  const open = (id?: string) => { const s = id && schools.find(x => x.id === id); if (s) { setPopup(false); onOpenSchool(s); } };
+  const ack = async (a: Alert) => {
+    logActivity('aviso_visto', { schoolId: a.schoolId, ref: a.key });
+    await (supabase as any).from('team_alert_acks').upsert({ user_id: user.id, alert_key: a.key, dia: today });
+    qc.invalidateQueries({ queryKey: ['team_alert_acks', user?.id, today] });
+  };
+  const dismiss = async () => { logActivity('popup_entendi'); setPopup(false); await (supabase as any).from('team_alert_dismissals').upsert({ user_id: user.id, dia: today }); };
+  const open = (id?: string, key?: string) => { if (id) logActivity('aviso_clicado', { schoolId: id, ref: key }); const s = id && schools.find(x => x.id === id); if (s) { setPopup(false); onOpenSchool(s); } };
   const toneCls = (t: Alert['tone']) => t === 'late' ? 'border-l-destructive bg-destructive/10' : t === 'team' ? 'border-l-info bg-info/10' : 'border-l-warning bg-warning/10';
   const list = (
     <ul className="max-h-[55vh] space-y-1.5 overflow-y-auto">
       {alerts.length === 0 && <li className="text-sm text-muted-foreground">Nenhum atraso. Tudo em dia!</li>}
       {alerts.map(a => (
-        <li key={a.key}>
-          <button type="button" disabled={!a.schoolId} onClick={() => open(a.schoolId)} className={`w-full rounded-md border-l-4 px-3 py-2 text-left text-xs text-foreground ${toneCls(a.tone)} ${a.schoolId ? 'hover:opacity-80' : 'cursor-default'}`}>{a.text}</button>
+        <li key={a.key} className="flex items-stretch gap-1">
+          <button type="button" disabled={!a.schoolId} onClick={() => open(a.schoolId, a.key)} className={`flex-1 rounded-md border-l-4 px-3 py-2 text-left text-xs text-foreground ${toneCls(a.tone)} ${a.schoolId ? 'hover:opacity-80' : 'cursor-default'}`}>{a.text}</button>
+          {a.tone !== 'team' && <button type="button" title="Marcar como visto hoje" aria-label="Marcar como visto" onClick={() => ack(a)} className="rounded-md border px-2 text-muted-foreground hover:text-primary"><Check className="h-3.5 w-3.5" /></button>}
         </li>
       ))}
     </ul>
@@ -128,7 +151,7 @@ export function TeamAlerts({ schools, onOpenSchool, onOpenCenter }: Props) {
 
   return (
     <>
-      <Popover>
+      <Popover onOpenChange={o => o && logActivity('sino_aberto')}>
         <PopoverTrigger asChild>
           <Button size="icon" variant="outline" aria-label="Avisos de atraso" className="fixed bottom-4 right-4 z-50 h-11 w-11 rounded-full bg-card shadow-lg">
             <Bell className="h-5 w-5" />
@@ -145,7 +168,7 @@ export function TeamAlerts({ schools, onOpenSchool, onOpenCenter }: Props) {
         <DialogContent className="border-4 border-destructive/60">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl"><AlertTriangle className="h-6 w-6 text-destructive" /> Resumo do seu dia</DialogTitle>
-            <DialogDescription>Atrasos e pendências da sua carteira. Clique para abrir a empresa.</DialogDescription>
+            <DialogDescription>Só as empresas da sua carteira: saldo, contas a pagar, conciliação e relatório. Clique para abrir a empresa; ✓ marca como visto hoje.</DialogDescription>
           </DialogHeader>
           {list}
           <DialogFooter className="gap-2">
