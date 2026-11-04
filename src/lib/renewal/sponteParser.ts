@@ -114,7 +114,7 @@ export function detectOmniParcelas(matrix: any[][]): number {
   return -1;
 }
 
-const OMNI_COURSE = /^(parcela do curso|parcelamento|mensalidade modulo)/;
+const OMNI_COURSE = /^(parcela (do )?curso|parcelamento|mensalidade modulo|parcela vacation)/;
 
 /** Converte "Parcelas por aluno" do Omni para as chaves do Contas a Receber do Sponte. Vínculo só por nome (sem matrícula). */
 export function fromOmniParcelas(matrix: any[][], headerRow: number): Record<string, any>[] {
