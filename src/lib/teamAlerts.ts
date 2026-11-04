@@ -92,3 +92,41 @@ export function minutesSaoPaulo(now = new Date()) {
   const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(now).split(':').map(Number);
   return (h % 24) * 60 + m;
 }
+
+/** Avisos de dinheiro (saldo e contas a pagar) de UMA pessoa: recebe só os dados da carteira dela. */
+export interface MoneyAlertInput {
+  payToday: { schoolId: string; schoolName: string; valor: number }[];
+  scheduleToday: { schoolId: string; schoolName: string; valor: number }[];
+  notPaid: { schoolId: string; schoolName: string; valor: number }[];
+  cashRisks: { schoolId: string; schoolName: string; firstNegativeDate: string; minBalance: number }[];
+  staleStatements: { schoolId: string; schoolName: string }[];
+}
+export type MoneyAlert = { key: string; tone: 'late' | 'warn'; schoolId: string; text: string };
+
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+
+function groupSum(items: { schoolId: string; schoolName: string; valor: number }[]) {
+  const m = new Map<string, { name: string; n: number; total: number }>();
+  for (const i of items) {
+    const g = m.get(i.schoolId) ?? { name: i.schoolName, n: 0, total: 0 };
+    g.n += 1; g.total += i.valor; m.set(i.schoolId, g);
+  }
+  return m;
+}
+
+export function moneyAlerts(d: MoneyAlertInput): MoneyAlert[] {
+  const out: MoneyAlert[] = [];
+  for (const r of d.cashRisks) out.push({ key: `cash-${r.schoolId}`, tone: 'late', schoolId: r.schoolId, text: `${r.schoolName}: saldo previsto negativo em ${dm(r.firstNegativeDate)} (menor saldo ${brl(r.minBalance)})` });
+  for (const s of d.staleStatements) out.push({ key: `stmt-${s.schoolId}`, tone: 'warn', schoolId: s.schoolId, text: `${s.schoolName}: extrato do último dia útil ainda não chegou — saldo desatualizado` });
+  for (const [id, g] of groupSum(d.notPaid)) out.push({ key: `notpaid-${id}`, tone: 'late', schoolId: id, text: `${g.name}: ${g.n} conta(s) vencida(s) sem saída no extrato (${brl(g.total)})` });
+  for (const [id, g] of groupSum(d.payToday)) out.push({ key: `pay-${id}`, tone: 'warn', schoolId: id, text: `${g.name}: ${g.n} conta(s) vencem hoje (${brl(g.total)})` });
+  for (const [id, g] of groupSum(d.scheduleToday)) out.push({ key: `sched-${id}`, tone: 'warn', schoolId: id, text: `${g.name}: ${g.n} conta(s) para agendar hoje (${brl(g.total)})` });
+  return out;
+}
+
+/** Só as empresas da carteira da pessoa entram nos avisos — evita bagunça entre carteiras. */
+export function onlyMine<T extends { schoolId?: string }>(alerts: T[], mySchoolIds: Iterable<string>): T[] {
+  const set = new Set(mySchoolIds);
+  return alerts.filter(a => !a.schoolId || set.has(a.schoolId));
+}

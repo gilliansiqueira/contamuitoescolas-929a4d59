@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TeamTimePanel } from '@/components/team/TeamTimePanel';
 import { BenefitsTab } from '@/components/team/BenefitsTab';
+import { TeamActivityTab } from '@/components/team/TeamActivityTab';
 import { ClientRequestsList, type Person } from '@/components/team/ClientService';
 import type { PortfolioRow } from '@/hooks/useManagementPortfolio';
 
@@ -30,6 +31,7 @@ export function TeamHub({ schools, people, rows, canViewTeamTime }: Props) {
         {canViewTeamTime && <TabsTrigger value="beneficios">Benefícios e holerites</TabsTrigger>}
         <TabsTrigger value="usuarios">Usuários e carteiras</TabsTrigger>
         <TabsTrigger value="meudia">Meu Dia, pedidos e avisos</TabsTrigger>
+        {isSuperAdmin && <TabsTrigger value="acompanhamento">Acompanhamento</TabsTrigger>}
       </TabsList>
       {canViewTeamTime && <TabsContent value="ponto"><TeamTimePanel /></TabsContent>}
       {canViewTeamTime && <TabsContent value="beneficios"><BenefitsTab /></TabsContent>}
@@ -40,6 +42,7 @@ export function TeamHub({ schools, people, rows, canViewTeamTime }: Props) {
           <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando…</p>}><UsersConfig /></Suspense>
         </section>
       </TabsContent>
+      {isSuperAdmin && <TabsContent value="acompanhamento"><TeamActivityTab people={people} /></TabsContent>}
       <TabsContent value="meudia" className="space-y-5">
         <DailyTaskTemplates schools={schools} canEdit={!!isSuperAdmin} />
         <section className="rounded-lg border border-border bg-card p-3.5"><ClientRequestsList schools={schools} people={people} /></section>
