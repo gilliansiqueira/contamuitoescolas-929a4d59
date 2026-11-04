@@ -818,6 +818,167 @@ export type Database = {
           },
         ]
       }
+      client_employees: {
+        Row: {
+          ativo: boolean
+          cargo: string | null
+          cpf: string | null
+          created_at: string
+          desligado_em: string | null
+          id: string
+          nome: string
+          pix_chave: string | null
+          pix_tipo: string | null
+          recebe_vt: boolean
+          school_id: string
+          updated_at: string
+          vr_diario: number
+          vt_diario: number
+        }
+        Insert: {
+          ativo?: boolean
+          cargo?: string | null
+          cpf?: string | null
+          created_at?: string
+          desligado_em?: string | null
+          id?: string
+          nome: string
+          pix_chave?: string | null
+          pix_tipo?: string | null
+          recebe_vt?: boolean
+          school_id: string
+          updated_at?: string
+          vr_diario?: number
+          vt_diario?: number
+        }
+        Update: {
+          ativo?: boolean
+          cargo?: string | null
+          cpf?: string | null
+          created_at?: string
+          desligado_em?: string | null
+          id?: string
+          nome?: string
+          pix_chave?: string | null
+          pix_tipo?: string | null
+          recebe_vt?: boolean
+          school_id?: string
+          updated_at?: string
+          vr_diario?: number
+          vt_diario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_employees_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_payroll_month: {
+        Row: {
+          dias_trabalhados: number | null
+          employee_id: string
+          id: string
+          liquido: number | null
+          liquido_origem_upload_id: string | null
+          month: string
+          school_id: string
+          updated_at: string
+        }
+        Insert: {
+          dias_trabalhados?: number | null
+          employee_id: string
+          id?: string
+          liquido?: number | null
+          liquido_origem_upload_id?: string | null
+          month: string
+          school_id: string
+          updated_at?: string
+        }
+        Update: {
+          dias_trabalhados?: number | null
+          employee_id?: string
+          id?: string
+          liquido?: number | null
+          liquido_origem_upload_id?: string | null
+          month?: string
+          school_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_payroll_month_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "client_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_payroll_month_liquido_origem_upload_id_fkey"
+            columns: ["liquido_origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "client_payroll_uploads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_payroll_month_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_payroll_uploads: {
+        Row: {
+          id: string
+          imported_at: string
+          imported_by: string | null
+          month: string
+          qtd: number
+          school_id: string
+          source_file: string
+          source_kind: string
+          storage_path: string | null
+          total_liquido: number
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          month: string
+          qtd?: number
+          school_id: string
+          source_file: string
+          source_kind: string
+          storage_path?: string | null
+          total_liquido?: number
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          month?: string
+          qtd?: number
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          storage_path?: string | null
+          total_liquido?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_payroll_uploads_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_requests: {
         Row: {
           created_at: string
