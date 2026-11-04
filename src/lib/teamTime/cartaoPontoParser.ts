@@ -74,8 +74,8 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
   // Cada "Funcionário:" abre uma parte do relatório com o seu próprio total impresso.
   type Bloco = { dias: CartaoDia[]; totais: { trabalhadas: string | null; extras: string | null; faltas: string | null } };
   const blocos = new Map<CartaoFuncionario, Bloco[]>();
-  let bloco: Bloco | null = null;
-  const novoBloco = (f: CartaoFuncionario) => { bloco = { dias: [], totais: { trabalhadas: null, extras: null, faltas: null } }; blocos.set(f, [...(blocos.get(f) ?? []), bloco]); };
+  const novoBloco = (f: CartaoFuncionario) => { blocos.set(f, [...(blocos.get(f) ?? []), { dias: [], totais: { trabalhadas: null, extras: null, faltas: null } }]); };
+  const blocoAtual = (f: CartaoFuncionario): Bloco | undefined => { const b = blocos.get(f); return b?.[b.length - 1]; };
   // Colunas (x) lidas do cabeçalho; valores padrão do layout PontoFopag.
   let col = { marcIni: 165, marcFim: 345, trab: 365, extra: 405, falta: 450, obs: 495 };
   const dayLines: { line: Line; dia: CartaoDia }[] = [];
@@ -104,7 +104,7 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
       continue;
     }
     const tot = t.match(/^(Trabalhadas|Extras|Faltas)\s+(\d{1,3}:\d{2})/);
-    if (tot) { const k = tot[1].toLowerCase() as 'trabalhadas' | 'extras' | 'faltas'; if (bloco) bloco.totais[k] = tot[2]; continue; }
+    if (tot) { const k = tot[1].toLowerCase() as 'trabalhadas' | 'extras' | 'faltas'; { const b = blocoAtual(cur); if (b) b.totais[k] = tot[2]; } continue; }
     if (l.items[0] && DATE.test(l.items[0].s) && l.items[0].x < 40) {
       const dia = isoFromBr(l.items[0].s)!;
       const rest = l.items.slice(1);
@@ -116,7 +116,7 @@ export function parseCartaoPonto(tokens: PdfToken[], geracao?: { dia: string; mi
       const faltas = pickCol(col.falta, col.falta + 30);
       const obsTxt = rest.filter(x => x.x >= col.obs && !TIME.test(x.s)).map(x => x.s).join(' ').trim();
       const d: CartaoDia = { dia, jornada: jornadaTimes.length ? jornadaTimes.join(' ') : null, marcacoes, trabalhadas, extras, faltas, observacao: obsTxt || null, situacao: 'regular' };
-      bloco?.dias.push(d);
+      blocoAtual(cur)?.dias.push(d);
       if (!cur.dias.some(x => x.dia === dia)) cur.dias.push(d); // dia repetido em duas partes conta uma vez
       dayLines.push({ line: l, dia: d });
       continue;
