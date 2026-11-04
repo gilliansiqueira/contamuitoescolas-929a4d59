@@ -9,6 +9,7 @@ import { fmtBRL, fmtDate, todayIso } from './shared';
 import { BankTransactionsTable, type TableFocus } from './BankTransactionsTable';
 import { BankAccountsImports } from './BankAccountsImports';
 import { CashflowConference } from './CashflowConference';
+import { ReconAssist } from './ReconAssist';
 import { useDataSource } from '@/hooks/useBankPilot';
 import { Landmark, ShieldCheck } from 'lucide-react';
 
@@ -24,6 +25,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const { data: accounts = [] } = useBankAccounts(schoolId);
   const { isAdmin } = useAuth();
   const { data: chequesSocios } = useSchoolFeature(schoolId, 'cheques_socios', isAdmin);
+  const { data: reconAssist } = useSchoolFeature(schoolId, 'conciliacao_assistida', isAdmin);
   const { data: txs = [], isLoading } = useBankTransactions(schoolId);
   const { entries: projected } = useProjectedEntries(schoolId);
   const { data: imports = [] } = useBankImports(schoolId);
@@ -80,6 +82,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
           <TabsTrigger value="resumo">Resumo</TabsTrigger>
           <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
           <TabsTrigger value="contas">Contas e Extratos</TabsTrigger>
+          {reconAssist && isAdmin && <TabsTrigger value="assistida">Conciliação assistida</TabsTrigger>}
           {source && <TabsTrigger value="conferencia">Conferência Dashboard</TabsTrigger>}
         </TabsList>
 
@@ -144,6 +147,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
           <BankTransactionsTable schoolId={schoolId} accounts={accounts} txs={txs} defaultFrom={tableRange.from} defaultTo={tableRange.to} focus={focus} />
         </TabsContent>
 
+        {reconAssist && isAdmin && <TabsContent value="assistida"><ReconAssist schoolId={schoolId} txs={txs} /></TabsContent>}
         <TabsContent value="conferencia">
           <CashflowConference schoolId={schoolId} accounts={accounts} txs={txs} />
         </TabsContent>

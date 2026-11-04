@@ -595,8 +595,13 @@ export type Database = {
           recon_by: string | null
           recon_by_email: string | null
           recon_note: string | null
+          recon_source: string | null
           recon_status: string
           school_id: string
+          school_system_confirmed_at: string | null
+          school_system_confirmed_by: string | null
+          school_system_source: string | null
+          school_system_status: string | null
           tipo: string
           transfer_pair_id: string | null
           valor: number
@@ -623,8 +628,13 @@ export type Database = {
           recon_by?: string | null
           recon_by_email?: string | null
           recon_note?: string | null
+          recon_source?: string | null
           recon_status?: string
           school_id: string
+          school_system_confirmed_at?: string | null
+          school_system_confirmed_by?: string | null
+          school_system_source?: string | null
+          school_system_status?: string | null
           tipo: string
           transfer_pair_id?: string | null
           valor: number
@@ -651,8 +661,13 @@ export type Database = {
           recon_by?: string | null
           recon_by_email?: string | null
           recon_note?: string | null
+          recon_source?: string | null
           recon_status?: string
           school_id?: string
+          school_system_confirmed_at?: string | null
+          school_system_confirmed_by?: string | null
+          school_system_source?: string | null
+          school_system_status?: string | null
           tipo?: string
           transfer_pair_id?: string | null
           valor?: number
@@ -3274,6 +3289,66 @@ export type Database = {
           },
         ]
       }
+      receipt_matches: {
+        Row: {
+          bank_total: number | null
+          bank_transaction_id: string | null
+          created_at: string
+          created_by: string | null
+          detalhe: Json
+          diferenca: number | null
+          forecast_total: number | null
+          id: string
+          month: string
+          school_id: string
+          settlement_total: number | null
+          status: string
+        }
+        Insert: {
+          bank_total?: number | null
+          bank_transaction_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          detalhe?: Json
+          diferenca?: number | null
+          forecast_total?: number | null
+          id?: string
+          month: string
+          school_id: string
+          settlement_total?: number | null
+          status: string
+        }
+        Update: {
+          bank_total?: number | null
+          bank_transaction_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          detalhe?: Json
+          diferenca?: number | null
+          forecast_total?: number | null
+          id?: string
+          month?: string
+          school_id?: string
+          settlement_total?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipt_matches_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_matches_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       receivable_categories: {
         Row: {
           active: boolean
@@ -5761,6 +5836,15 @@ export type Database = {
       is_platform_member: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       my_team_time_external_id: { Args: never; Returns: string }
+      recon_network_patterns: {
+        Args: { _school_id: string }
+        Returns: {
+          descricao: string
+          item_name: string
+          n: number
+          tipo: string
+        }[]
+      }
       refresh_bank_cashflow_status: {
         Args: { _school_id: string }
         Returns: undefined

@@ -7,3 +7,7 @@
 - [ ] Quintal: ativar Fluxo Bancário em nov/2026 (aguarda contas e saldo de 31/10)
 - [ ] Quintal: conferência tela a tela com o projeto original
 - [x] Manaus Centro: enviar planilha de renovação corrigida (Omni + Sponte), sem a turma 2027/1
+- [x] Conciliação assistida (teste Praia da Costa): sugestões, cruzamento triplo, baixa Omni/Sponte manual, painel de ganho
+- [ ] Baixa automática no Omni/Sponte por relatório (aguarda relatório de baixas de exemplo)
+- [ ] Leitores de repasse Getnet/Rede/Sicredi (aguarda arquivos de exemplo)
+- [ ] WhatsApp por exportação de conversa de grupo (etapa seguinte)

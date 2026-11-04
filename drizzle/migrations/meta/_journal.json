@@ -715,6 +715,13 @@
       "when": 1793835676678,
       "tag": "0101_client_login_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1793836496019,
+      "tag": "0102_recon_assist",
+      "breakpoints": true
     }
   ]
 }
