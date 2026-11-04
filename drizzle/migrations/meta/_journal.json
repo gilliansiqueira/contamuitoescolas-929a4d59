@@ -687,6 +687,13 @@
       "when": 1793834296007,
       "tag": "0097_client_access_use_admin_manages",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1793834318240,
+      "tag": "0098_client_access_hide_secret_col",
+      "breakpoints": true
     }
   ]
 }
