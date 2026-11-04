@@ -117,8 +117,8 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
       )}
 
       <Dialog open={popup} onOpenChange={o => !o && dismiss()}>
-        <DialogContent className="border-4 border-accent">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85vh] w-[95vw] max-w-lg flex-col border-4 border-accent">
+          <DialogHeader className="min-h-0 flex-1 overflow-y-auto pr-1">
             <DialogTitle className="flex items-center gap-2 text-2xl text-accent"><AlertTriangle className="h-7 w-7" /> Prazos de entrega</DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-3 pt-2">
@@ -126,7 +126,7 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
                   <div className="space-y-2 rounded-md border-2 border-destructive bg-destructive/10 p-3 text-foreground">
                     <p className="text-lg font-bold text-destructive">{overdue.length} projeç{overdue.length > 1 ? 'ões' : 'ão'} em atraso</p>
                     {isManager ? (
-                      <div className="max-h-[40vh] divide-y divide-destructive/20 overflow-y-auto rounded border border-destructive/30 bg-background">
+                      <div className="divide-y divide-destructive/20 overflow-y-auto rounded border border-destructive/30 bg-background">
                         {[...byOwner].sort((a, b) => (a[0] === 'Sem responsável' ? 1 : b[0] === 'Sem responsável' ? -1 : b[1].length - a[1].length)).map(([owner, list]) => {
                           const short = owner === 'Sem responsável' ? owner : owner.split('@')[0].replace(/[._-]?contamuito\d*$/i, '').replace(/^./, c => c.toUpperCase());
                           const open = openOwner === owner;
@@ -166,7 +166,7 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
               </div>
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter><Button onClick={dismiss}>Entendi</Button></DialogFooter>
+          <DialogFooter className="shrink-0"><Button onClick={dismiss}>Entendi</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
