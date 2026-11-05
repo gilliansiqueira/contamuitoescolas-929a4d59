@@ -12,6 +12,7 @@ import { usePresentation } from '@/components/presentation-provider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMonthSync, useRangeSync } from '@/components/realizado/SharedMonthContext';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
+import { useAutoProfitability } from '@/hooks/useAutoProfitability';
 
 interface Props {
   schoolId: string;
@@ -44,6 +45,7 @@ function IndicadoresDashboardBase({ schoolId }: Props) {
   const [referenceMonth, setReferenceMonth] = useState<string>(''); // '' or comma-separated list
   const { definitions, isLoading, icons } = useKpiDefinitions(schoolId);
   const { data: allValues = [] } = useKpiValues(schoolId);
+  useAutoProfitability(schoolId);
   
   const months = useMemo(() => generateMonths(allValues), [allValues]);
   const enabledDefs = useMemo(() => definitions.filter(d => d.enabled), [definitions]);

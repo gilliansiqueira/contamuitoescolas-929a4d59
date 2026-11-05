@@ -58,6 +58,8 @@ import { fetchAllRows } from '@/lib/fetchAll';
 
 import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
 import { TrendingUp, TrendingDown, Sparkles, PiggyBank, Flame } from 'lucide-react';
+import { IntegralRevenueCard } from '@/components/dashboard/IntegralRevenueCard';
+import { useAutoProfitability } from '@/hooks/useAutoProfitability';
 // Ignorados do banco se anulam e só mexem no saldo: não viram card de operação.
 const IGNORADOS_BANCO_LABELS = new Set([IGNORADO_ENTRADA, IGNORADO_SAIDA]);
 
@@ -84,6 +86,7 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
 
 export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { isPresentationMode } = usePresentation();
+  useAutoProfitability(schoolId);
   const { data: school } = useSchool(schoolId);
   const saldoInicial = school?.saldoInicial ?? 0;
   const { entries: ssotEntries } = useProjectedEntries(schoolId);
@@ -1139,6 +1142,9 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       </div>
 
 
+      {selectedMonths.length === 1 && monthMovements[0] && (
+        <IntegralRevenueCard schoolId={schoolId} month={selectedMonths[0]} totals={monthMovements[0]} readOnly={isPresentationMode} />
+      )}
 
       {/* KPIs DINÂMICOS por tipo */}
       {tipoAggregations.filter(a => a.entraNoResultado).length > 0 && (
