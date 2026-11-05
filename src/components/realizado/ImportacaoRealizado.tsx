@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { loadSchoolModelItems } from '@/lib/modelValidation';
 import { matchCategory, normalizeCategory, AUTO_APPLY_THRESHOLD, type MatchResult } from '@/lib/categoryMatcher';
 import { parseSpreadsheetDate } from '@/lib/dateUtils';
+import { CategoryPicker } from './CategoryPicker';
 
 interface Props { schoolId: string; }
 type Step = 'idle' | 'mapping' | 'preview';
@@ -95,6 +96,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
   /** Sugestões por categoria não reconhecida (memory/exact/alias/keyword/fuzzy/ai). */
   const [suggestions, setSuggestions] = useState<Record<string, MatchResult>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [onlyPending, setOnlyPending] = useState(false);
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
@@ -513,102 +515,114 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                 </div>
 
                 {/* Unmapped categories */}
-                {unmapped.length > 0 && (
+                {unmapped.length > 0 && (() => {
+                  const isResolved = (norm: string) => !!categoryMappings[norm] || !!newCatMappings[norm];
+                  const pendingCount = unmapped.filter(u => !isResolved(normalizeStr(u.categoria))).length;
+                  const acceptable = unmapped.filter(u => { const n = normalizeStr(u.categoria); return !isResolved(n) && suggestions[n]?.target; });
+                  const withoutSug = unmapped.filter(u => { const n = normalizeStr(u.categoria); return !isResolved(n) && !suggestions[n]?.target; });
+                  const confLabel = (s: number) => s >= 0.9 ? 'muito parecida' : s >= 0.8 ? 'parecida' : 'possível';
+                  const askAiFor = async (raw: string, silent = false) => {
+                    const norm = normalizeStr(raw);
+                    setAiLoading(prev => ({ ...prev, [norm]: true }));
+                    try {
+                      const { data, error } = await supabase.functions.invoke('categorize-expense', { body: { raw, candidates: knownCategoryNames } });
+                      if (error) throw error;
+                      if (data?.target) {
+                        setSuggestions(prev => ({ ...prev, [norm]: { target: data.target, score: data.score ?? 0.78, method: 'ai', matchMethod: 'ai' } }));
+                        if (!silent) toast.success(`IA sugeriu: ${data.target}`);
+                      } else if (!silent) toast.info('IA não encontrou correspondência');
+                    } catch (err: any) {
+                      if (!silent) toast.error(`IA indisponível: ${err?.message ?? 'erro'}`);
+                    } finally {
+                      setAiLoading(prev => ({ ...prev, [norm]: false }));
+                    }
+                  };
+                  const acceptAll = () => {
+                    setCategoryMappings(prev => {
+                      const n = { ...prev };
+                      acceptable.forEach(u => { const k = normalizeStr(u.categoria); n[k] = suggestions[k]!.target!; });
+                      return n;
+                    });
+                    toast.success(`${acceptable.length} sugestões aceitas`);
+                  };
+                  const aiAll = async () => {
+                    const queue = [...withoutSug];
+                    const worker = async () => { while (queue.length) { const u = queue.shift()!; await askAiFor(u.categoria, true); } };
+                    await Promise.all([worker(), worker(), worker()]);
+                    toast.success('IA terminou as sugestões');
+                  };
+                  const anyAiLoading = Object.values(aiLoading).some(Boolean);
+                  const list = onlyPending ? unmapped.filter(u => !isResolved(normalizeStr(u.categoria))) : unmapped;
+                  return (
                   <div className="mb-4 p-4 rounded-xl border border-orange-400/30 bg-orange-50/50 dark:bg-orange-900/10 space-y-3">
-                    <p className="text-sm font-medium flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                      <AlertTriangle className="w-4 h-4" />
-                      Categorias não reconhecidas ({unmapped.length})
-                    </p>
-                    <p className="text-xs text-muted-foreground">Associe a uma categoria existente ou crie uma nova vinculada a uma categoria mãe.</p>
-                    <div className="space-y-2 max-h-52 overflow-y-auto">
-                      {unmapped.map(u => {
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                        <AlertTriangle className="w-4 h-4" />
+                        Categorias não reconhecidas — faltam {pendingCount} de {unmapped.length}
+                      </p>
+                      <div className="ml-auto flex flex-wrap items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                          <input type="checkbox" checked={onlyPending} onChange={e => setOnlyPending(e.target.checked)} />
+                          Só pendentes
+                        </label>
+                        {withoutSug.length > 0 && (
+                          <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={aiAll} disabled={anyAiLoading}>
+                            {anyAiLoading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+                            Sugerir as que faltam com IA ({withoutSug.length})
+                          </Button>
+                        )}
+                        {acceptable.length > 0 && (
+                          <Button type="button" size="sm" className="h-7 text-xs" onClick={acceptAll}>
+                            <Check className="w-3.5 h-3.5 mr-1" /> Aceitar todas as sugestões ({acceptable.length})
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Confirme a sugestão com ✓, ou escolha outra categoria digitando na lista.</p>
+                    <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+                      {list.length === 0 && <p className="text-xs text-muted-foreground py-2">Todas associadas. Pode importar.</p>}
+                      {list.map(u => {
                         const norm = normalizeStr(u.categoria);
                         const isNew = !!newCatMappings[norm];
                         const sug = suggestions[norm];
                         const loadingAi = !!aiLoading[norm];
-                        const applySuggestion = (target: string) => {
-                          setNewCatMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
-                          setCategoryMappings(prev => ({ ...prev, [norm]: target }));
-                        };
-                        const askAi = async () => {
-                          setAiLoading(prev => ({ ...prev, [norm]: true }));
-                          try {
-                            const { data, error } = await supabase.functions.invoke('categorize-expense', {
-                              body: { raw: u.categoria, candidates: knownCategoryNames },
-                            });
-                            if (error) throw error;
-                            if (data?.target) {
-                              setSuggestions(prev => ({ ...prev, [norm]: { target: data.target, score: data.score ?? 0.78, method: 'ai', matchMethod: 'ai' } }));
-                              toast.success(`IA sugeriu: ${data.target}`);
-                            } else {
-                              toast.info('IA não encontrou correspondência');
-                            }
-                          } catch (err: any) {
-                            toast.error(`IA indisponível: ${err?.message ?? 'erro'}`);
-                          } finally {
-                            setAiLoading(prev => ({ ...prev, [norm]: false }));
+                        const resolved = isResolved(norm);
+                        const setValue = (v: string) => {
+                          if (v === '__new__') {
+                            setCategoryMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
+                            setNewCatMappings(prev => ({ ...prev, [norm]: { nome: u.categoria, grupo: '' } }));
+                          } else {
+                            setNewCatMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
+                            setCategoryMappings(prev => ({ ...prev, [norm]: v }));
                           }
                         };
+                        const showSug = sug?.target && !resolved;
                         return (
-                          <div key={u.categoria} className="p-2 rounded-lg bg-background border border-border space-y-1.5">
+                          <div key={u.categoria} className={`p-2 rounded-lg border space-y-1.5 ${resolved ? 'bg-muted/40 border-border' : 'bg-background border-orange-300/60'}`}>
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs shrink-0 rounded-md">{u.categoria}</Badge>
+                              {resolved ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" /> : <span className="w-4 h-4 shrink-0" />}
+                              <Badge variant="outline" className="text-xs shrink-0 rounded-md max-w-[220px] truncate">{u.categoria}</Badge>
                               <span className="text-xs text-muted-foreground">→</span>
-                              <Select
-                                value={categoryMappings[norm] || (isNew ? '__new__' : '')}
-                                onValueChange={v => {
-                                  if (v === '__new__') {
-                                    setCategoryMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
-                                    setNewCatMappings(prev => ({ ...prev, [norm]: { nome: u.categoria, grupo: '' } }));
-                                  } else {
-                                    setNewCatMappings(prev => { const n = { ...prev }; delete n[norm]; return n; });
-                                    setCategoryMappings(prev => ({ ...prev, [norm]: v }));
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-xs flex-1 rounded-lg"><SelectValue placeholder="Escolher..." /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="__new__">+ Criar nova categoria</SelectItem>
-                                  {modelItems.length > 0 && (
-                                    <>
-                                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Modelo Financeiro</div>
-                                      {modelItems.map(it => (
-                                        <SelectItem key={`m-${it.id}`} value={it.name}>★ {it.name}</SelectItem>
-                                      ))}
-                                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">Plano de Contas</div>
-                                    </>
-                                  )}
-                                  {categoriaFilhas.map(c => <SelectItem key={c.id} value={c.nome}>{c.grupo} → {c.nome}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2 shrink-0"
-                                title="Sugerir com IA"
-                                onClick={askAi}
-                                disabled={loadingAi}
-                              >
+                              {showSug ? (
+                                <>
+                                  <div className="flex-1 min-w-0 flex items-center gap-2 h-8 px-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 text-xs">
+                                    <span className="truncate font-medium">{sug.target}</span>
+                                    <span className="text-[10px] text-muted-foreground shrink-0">({sug.method === 'ai' ? 'IA' : confLabel(sug.score)})</span>
+                                  </div>
+                                  <Button type="button" size="sm" className="h-8 px-3 shrink-0" title="É essa" onClick={() => setValue(sug.target!)}>
+                                    <Check className="w-4 h-4 mr-1" /> É essa
+                                  </Button>
+                                  <div className="w-40 shrink-0 flex">
+                                    <CategoryPicker value="" modelItems={modelItems} categorias={categoriaFilhas} onChange={setValue} />
+                                  </div>
+                                </>
+                              ) : (
+                                <CategoryPicker value={categoryMappings[norm] || (isNew ? '__new__' : '')} modelItems={modelItems} categorias={categoriaFilhas} onChange={setValue} />
+                              )}
+                              <Button type="button" size="sm" variant="ghost" className="h-8 px-2 shrink-0" title="Sugerir com IA" onClick={() => askAiFor(u.categoria)} disabled={loadingAi}>
                                 {loadingAi ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                               </Button>
                             </div>
-                            {sug?.target && !categoryMappings[norm] && !isNew && (
-                              <div className="flex items-center gap-2 pl-2">
-                                <span className="text-[11px] text-muted-foreground shrink-0">
-                                  Sugestão ({sug.method}, {Math.round(sug.score * 100)}%):
-                                </span>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 text-[11px] px-2 rounded-md"
-                                  onClick={() => applySuggestion(sug.target!)}
-                                >
-                                  <Check className="w-3 h-3 mr-1" /> {sug.target}
-                                </Button>
-                              </div>
-                            )}
                             {isNew && (
                               <div className="flex items-center gap-2 pl-2">
                                 <span className="text-xs text-muted-foreground shrink-0">Mãe:</span>
@@ -628,7 +642,8 @@ export function ImportacaoRealizado({ schoolId }: Props) {
                       })}
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Data preview */}
                 <div className="rounded-xl border border-border overflow-hidden">
