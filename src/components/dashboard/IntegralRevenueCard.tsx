@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Scale } from 'lucide-react';
 import { useIntegralRevenue } from '@/hooks/useAutoProfitability';
 import { computeProfitability, integralClosing, type MonthTotals } from '@/lib/profitability';
-import { formatCurrency } from '@/lib/utils';
+const formatCurrency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 interface Props {
   schoolId: string;
