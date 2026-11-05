@@ -45,5 +45,5 @@ export function integralClosing(t: MonthTotals, receitaIntegral: number) {
 }
 
 export function isAutoProfitMonth(month: string, currentMonth: string) {
-  return month >= AUTO_PROFIT_START && month <= currentMonth;
+  return month >= AUTO_PROFIT_START && month < currentMonth;
 }

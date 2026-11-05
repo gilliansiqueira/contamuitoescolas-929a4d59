@@ -20,9 +20,9 @@ describe('lucratividade automática', () => {
   it('fechamento integral troca só a receita', () => {
     expect(integralClosing(base, 140000)).toEqual({ receitas: 140000, despesas: 70000, resultado: 70000, diferencaReceita: 40000 });
   });
-  it('automático a partir de outubro/2026 até o mês atual', () => {
+  it('automático a partir de outubro/2026 até o mês anterior ao atual', () => {
     expect(isAutoProfitMonth('2026-09', '2026-11')).toBe(false);
     expect(isAutoProfitMonth('2026-10', '2026-11')).toBe(true);
-    expect(isAutoProfitMonth('2026-12', '2026-11')).toBe(false);
+    expect(isAutoProfitMonth('2026-11', '2026-11')).toBe(false);
   });
 });
