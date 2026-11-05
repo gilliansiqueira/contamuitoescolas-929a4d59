@@ -3,6 +3,7 @@ import { buildDailyRows, closingEstimate } from '@/lib/dailyFlow';
 import { buildMonthMovement, type PeriodMovementCtx } from '@/lib/periodMovement';
 import { projectCashRisk } from '@/lib/cashRisk';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
+import { remainingDayForecast } from '@/lib/currentDayForecast';
 
 const today = '2026-11-05';
 function entry(id: string, valor: number, tipo: 'entrada' | 'saida', origem: ProjectedEntry['origem'], data = today, categoria = tipo === 'entrada' ? 'Receita' : 'Despesa'): ProjectedEntry {
@@ -50,7 +51,7 @@ describe('previsão pendente do dia atual', () => {
     expect(buildMonthMovement('2026-11', { ...ctx(), todayStr: '2026-11-06' }).despesas).toBe(0);
   });
   it('sem realizado ainda considera toda a previsão', () => {
-    expect(rows(projected, [])[1].saldoFinalProjecao).toBeCloseTo(35874.10 - 30116.48, 2);
+    expect(rows(projected, [])[1].saldoFinalProjecao).toBeCloseTo(5874.10, 2);
   });
   it('operações não abatem salários nem entram em receita/despesa', () => {
     const operations = [entry('emprestimo-previsto', 1000, 'entrada', 'sponte', today, 'Entrada Empréstimo')];
@@ -59,5 +60,16 @@ describe('previsão pendente do dia atual', () => {
     expect(movement.operacoesIn).toBe(1000);
     expect(movement.receitas).toBeCloseTo(978.54, 2);
     expect(rows([...projected, ...operations], actual)[1].saldoFinalProjecao).toBeCloseTo(6874.10, 2);
+  });
+  it('aviso de caixa inclui salário pendente quando o extrato é de hoje', () => {
+    const impacts = remainingDayForecast(projected, realized, today, []).map(e => ({ date: e.dataProjetada, impacto: e.impacto }));
+    const risk = projectCashRisk({ date: today, balance: 20000 }, impacts, today);
+    expect(risk.firstNegativeDate).toBe(today);
+    expect(risk.minBalance).toBe(-9546.04);
+  });
+  it('extrato futuro continua previsão sem suprimir salários pendentes de hoje', () => {
+    const future = entry('debito-futuro', 100, 'saida', 'fluxo', '2026-11-10');
+    future.tipoRegistro = 'projetado';
+    expect(buildMonthMovement('2026-11', ctx([...projected, ...realized, future])).despesas).toBeCloseTo(30216.48, 2);
   });
 });
