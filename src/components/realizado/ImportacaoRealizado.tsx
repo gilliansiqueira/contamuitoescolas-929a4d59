@@ -96,6 +96,7 @@ export function ImportacaoRealizado({ schoolId }: Props) {
   /** Sugestões por categoria não reconhecida (memory/exact/alias/keyword/fuzzy/ai). */
   const [suggestions, setSuggestions] = useState<Record<string, MatchResult>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [onlyPending, setOnlyPending] = useState(false);
 
   const { data: contas = [] } = useQuery({
     queryKey: ['chart_of_accounts', schoolId],
