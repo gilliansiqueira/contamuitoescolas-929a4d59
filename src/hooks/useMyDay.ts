@@ -1,4 +1,5 @@
 import { projectCashRisk } from "@/lib/cashRisk";
+import { remainingDayForecast } from '@/lib/currentDayForecast';
 /**
  * Painel "Meu dia" da Central: contas a pagar, conferência de pagamento pela
  * conciliação e alerta de caixa em 15 dias — tudo derivado da SSOT
@@ -297,7 +298,8 @@ function computeSchool(bundle: SchoolBundle, today: string): MyDayData {
   if (bundle.bankBalance) {
     const r = projectCashRisk(
       bundle.bankBalance,
-      projected.filter(e => e.tipoRegistro === 'projetado').map(e => ({ date: e.dataProjetada, impacto: e.impacto })),
+      remainingDayForecast(projected.filter(e => e.tipoRegistro === 'projetado'), projected.filter(e => e.tipoRegistro !== 'projetado'), today, bundle.classifications)
+        .map(e => ({ date: e.dataProjetada, impacto: e.impacto })),
       today,
     );
     if (r.firstNegativeDate) {

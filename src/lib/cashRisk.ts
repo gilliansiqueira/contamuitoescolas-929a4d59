@@ -15,7 +15,8 @@ export interface CashRiskResult {
 /**
  * Parte do saldo do extrato. Um extrato com data final no futuro não pode "pular"
  * os recebimentos projetados desses dias: a data base nunca passa de hoje, então
- * a projeção conta a partir de amanhã (o movimento futuro do extrato vale como previsão).
+ * os impactos futuros continuam como previsão. Quando a base é hoje, os impactos
+ * de hoje devem ser apenas o restante calculado por remainingDayForecast.
  */
 export function projectCashRisk(
   base: { date: string; balance: number },
@@ -26,13 +27,13 @@ export function projectCashRisk(
   const baseDate = base.date > today ? today : base.date;
   const byDay = new Map<string, number>();
   for (const i of impacts) {
-    if (!i.impacto || i.date <= baseDate) continue;
+    if (!i.impacto || i.date < baseDate || (i.date === baseDate && baseDate !== today)) continue;
     byDay.set(i.date, (byDay.get(i.date) ?? 0) + i.impacto);
   }
   let saldo = base.balance;
   let firstNegativeDate: string | null = null;
   let minBalance = Infinity;
-  for (let d = addDays(baseDate, 1); d <= addDays(today, horizonDays); d = addDays(d, 1)) {
+  for (let d = baseDate === today ? today : addDays(baseDate, 1); d <= addDays(today, horizonDays); d = addDays(d, 1)) {
     saldo += byDay.get(d) ?? 0;
     if (d >= today && saldo < 0) {
       if (!firstNegativeDate) firstNegativeDate = d;
