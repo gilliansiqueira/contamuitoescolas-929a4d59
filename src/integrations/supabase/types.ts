@@ -2423,6 +2423,7 @@ export type Database = {
       }
       kpi_definitions: {
         Row: {
+          auto_key: string | null
           created_at: string
           decimals: number
           direction: string
@@ -2435,6 +2436,7 @@ export type Database = {
           value_type: string
         }
         Insert: {
+          auto_key?: string | null
           created_at?: string
           decimals?: number
           direction?: string
@@ -2447,6 +2449,7 @@ export type Database = {
           value_type?: string
         }
         Update: {
+          auto_key?: string | null
           created_at?: string
           decimals?: number
           direction?: string
@@ -2821,6 +2824,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "monthly_closing_cycles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_integral_revenue: {
+        Row: {
+          id: string
+          month: string
+          school_id: string
+          updated_at: string
+          updated_by: string | null
+          valor: number
+        }
+        Insert: {
+          id?: string
+          month: string
+          school_id: string
+          updated_at?: string
+          updated_by?: string | null
+          valor: number
+        }
+        Update: {
+          id?: string
+          month?: string
+          school_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_integral_revenue_school_id_fkey"
             columns: ["school_id"]
             isOneToOne: false
             referencedRelation: "schools"
