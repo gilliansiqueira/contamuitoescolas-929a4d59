@@ -11,6 +11,7 @@ import { useTypeClassifications } from '@/hooks/useFinancialData';
 import { calculateTotals } from '@/lib/classificationUtils';
 import type { ChecklistItem, ClosingStepTemplate } from '@/hooks/useClosingSteps';
 import { useSetChecklistStatus } from '@/hooks/useClosingSteps';
+import { isFuturasTooEarly, FUTURAS_VALIDADE_DIAS } from '@/lib/teamDeadlines';
 
 const GROUPS: { key: string; label: string }[] = [
   { key: 'projecao', label: '1. Projeção' },
@@ -50,6 +51,14 @@ interface Props {
 export function ReportChecklist({ schoolId, schoolName, month, monthLabel, checklist, templates }: Props) {
   const setStatus = useSetChecklistStatus(schoolId, month);
   const { data: hints } = useStepHints(schoolId, month);
+  const { data: projDeadline = null } = useQuery({
+    queryKey: ['proj-deadline-active'],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from('team_announcements').select('ativo,team_announcement_deadlines(rotulo,data)').eq('ativo', true);
+      const ds = ((data ?? []) as any[]).flatMap(a => a.team_announcement_deadlines ?? []).filter((d: any) => /proje/i.test(d.rotulo)).map((d: any) => d.data as string).sort();
+      return (ds[ds.length - 1] ?? null) as string | null;
+    },
+  });
   const templateByKey = useMemo(() => new Map(templates.map(t => [t.step_key, t])), [templates]);
   const done = checklist.filter(i => i.status !== 'open').length;
 
@@ -87,6 +96,12 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
                        {item.completed_at && <span className="text-muted-foreground">{item.source === 'automatic' ? 'Marcado automaticamente' : 'Marcado pela equipe'} em {new Date(item.completed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
                     </div>
                     {item.note && item.source === 'automatic' && <p className="mt-0.5 text-[10px] text-muted-foreground">{item.note}</p>}
+                    {isFuturasTooEarly(item as any, projDeadline) && (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 rounded border border-warning/40 bg-warning/10 px-2 py-1 text-[10px] text-warning">
+                        <span>Marcada em {new Date(item.completed_at!).toLocaleDateString('pt-BR')}, cedo demais (mais de {FUTURAS_VALIDADE_DIAS} dias antes do prazo). Ainda conta como atrasada — atualize a projeção ou confirme de novo.</span>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px]" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: item.id, status: 'completed' }, { onSuccess: () => toast.success('Projeção confirmada hoje.'), onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar.') })}>Confirmar hoje</Button>
+                      </div>
+                    )}
                   </div>
                   <Select value={item.status} onValueChange={value => setStatus.mutate({ id: item.id, status: value as ChecklistItem['status'] }, { onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível atualizar.') })}>
                     <SelectTrigger className="h-7 w-[120px] text-[11px]"><SelectValue /></SelectTrigger>
