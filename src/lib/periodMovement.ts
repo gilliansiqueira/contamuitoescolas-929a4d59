@@ -43,6 +43,7 @@ import {
   normalizeTipo,
 } from '@/lib/ledgerEngine';
 import { resolveTipoMeta } from '@/lib/tipoMeta';
+import { remainingDayForecast } from '@/lib/currentDayForecast';
 
 export type MovementSource = 'snapshot' | 'fluxo' | 'historico' | 'projecao' | 'vazio';
 export type Classificacao = 'receita' | 'despesa' | 'operacao' | 'ignorar';
@@ -205,6 +206,7 @@ export function includeEntryForMonth(
     if (entry.origem === 'manual') return true;
     const cutoff = opts.fluxoCutoff;
     if (!cutoff) return false;
+    if (entry.dataProjetada === todayStr) return true;
     return entry.dataProjetada > (opts.fluxoForecastThrough ?? cutoff);
   }
   if (source === 'historico') {
@@ -295,7 +297,8 @@ export function buildMonthMovement(
   const source = resolveMonthSource(month, ctx);
   if (source === 'vazio') return emptyMovement(month, source);
   if (source === 'snapshot') {
-    const snap = ctx.snapshotMap.get(month)!;
+    const snap = ctx.snapshotMap.get(month);
+    if (!snap) return emptyMovement(month, source);
     return fromSnapshot(snap, opts.isInModel);
   }
 
@@ -365,7 +368,11 @@ export function buildMonthMovement(
   }
 
   // 2. Entries do mês
-  const monthEntries = ctx.entries.filter(e => monthOf(e.dataProjetada) === month);
+  const originalMonthEntries = ctx.entries.filter(e => monthOf(e.dataProjetada) === month);
+  const actualToday = originalMonthEntries.filter(e => isRealFluxo(e) || (e.origem === 'manual' && e.tipoRegistro === 'realizado'));
+  const pending = remainingDayForecast(originalMonthEntries.filter(e => !actualToday.includes(e)), actualToday, todayStr, ctx.classifications);
+  const pendingByEntry = new Map(originalMonthEntries.filter(e => !actualToday.includes(e)).map((e, i) => [e, pending[i]]));
+  const monthEntries = source === 'fluxo' ? originalMonthEntries.map(e => pendingByEntry.get(e) ?? e) : originalMonthEntries;
   for (const e of monthEntries) {
     if (!includeEntryForMonth(e, source, todayStr, ctx.classifications, { fluxoCutoff, fluxoForecastThrough })) continue;
     const valor = Number(e.valor) || 0;

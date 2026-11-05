@@ -26,13 +26,13 @@ export function projectCashRisk(
   const baseDate = base.date > today ? today : base.date;
   const byDay = new Map<string, number>();
   for (const i of impacts) {
-    if (!i.impacto || i.date <= baseDate) continue;
+    if (!i.impacto || i.date < baseDate || (i.date === baseDate && baseDate !== today)) continue;
     byDay.set(i.date, (byDay.get(i.date) ?? 0) + i.impacto);
   }
   let saldo = base.balance;
   let firstNegativeDate: string | null = null;
   let minBalance = Infinity;
-  for (let d = addDays(baseDate, 1); d <= addDays(today, horizonDays); d = addDays(d, 1)) {
+  for (let d = baseDate === today ? today : addDays(baseDate, 1); d <= addDays(today, horizonDays); d = addDays(d, 1)) {
     saldo += byDay.get(d) ?? 0;
     if (d >= today && saldo < 0) {
       if (!firstNegativeDate) firstNegativeDate = d;

@@ -8,6 +8,7 @@ import { isWeekend, getDayOfWeek } from '@/lib/dateUtils';
 import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
 import type { TypeClassification } from '@/types/financial';
+import { remainingDayForecast } from '@/lib/currentDayForecast';
 
 const IGNORADOS_BANCO = new Set([IGNORADO_ENTRADA, IGNORADO_SAIDA]);
 
@@ -27,6 +28,9 @@ export interface DayRow {
   dayOfWeek: string;
   isAfterCutoff: boolean;
   isCutoff: boolean;
+  entradaRestante: number;
+  saidaRestante: number;
+  includesPendingToday: boolean;
 }
 
 export interface BuildDailyRowsInput {
@@ -38,9 +42,11 @@ export interface BuildDailyRowsInput {
   historicalRows: { month: string; tipo_valor: string; valor: number | string }[];
   monthSources: Record<string, string>;
   modelItems: any;
+  todayStr?: string;
 }
 
-export function buildDailyRows({ allDays, priorSaldo, projected, realized, classifications, historicalRows, monthSources, modelItems }: BuildDailyRowsInput): DayRow[] {
+export function buildDailyRows({ allDays, priorSaldo, projected, realized, classifications, historicalRows, monthSources, modelItems, todayStr = new Date().toISOString().slice(0, 10) }: BuildDailyRowsInput): DayRow[] {
+  const pendingToday = remainingDayForecast(projected.filter(e => e.dataProjetada === todayStr), realized, todayStr, classifications);
   const daySet = new Set(allDays);
   const byDate: Record<string, { entradaPrevista: number; entradaRealizada: number; saidaPrevista: number; saidaRealizada: number; operacoesPrev: number; operacoesReal: number; ignorados: number }> = {};
   const ensureDay = (data: string) => {
@@ -92,18 +98,30 @@ export function buildDailyRows({ allDays, priorSaldo, projected, realized, class
   let saldo = priorSaldo, saldoPrev = priorSaldo, saldoReal = priorSaldo, saldoProj = priorSaldo;
   return allDays.map((data, i) => {
     const d = byDate[data] || { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoesPrev: 0, operacoesReal: 0, ignorados: 0 };
-    const isAfterCutoff = cutoffIdx >= 0 && i > cutoffIdx;
+    const isAfterCutoff = cutoffIdx < 0 || i > cutoffIdx;
+    const includesPendingToday = data === todayStr;
+    const pending = includesPendingToday ? pendingToday.filter(e => e.dataProjetada === data) : [];
+    const remaining = pending.reduce((a, e) => {
+      if (!resolveEntryLedgerRule(e, classifications).entraNoResultado) a.op += e.impacto;
+      else if (e.impacto > 0) a.e += e.impacto;
+      else a.s += Math.abs(e.impacto);
+      return a;
+    }, { e: 0, s: 0, op: 0 });
+    const entradaRestante = includesPendingToday ? remaining.e : isAfterCutoff ? d.entradaPrevista : 0;
+    const saidaRestante = includesPendingToday ? remaining.s : isAfterCutoff ? d.saidaPrevista : 0;
     // Até o último dia realizado, Operações mostra só o que aconteceu (previsões antigas não somam).
-    const operacoes = cutoffIdx >= 0 && !isAfterCutoff ? d.operacoesReal : d.operacoesPrev + d.operacoesReal;
+    const operacoes = includesPendingToday ? d.operacoesReal + remaining.op : cutoffIdx >= 0 && !isAfterCutoff ? d.operacoesReal : d.operacoesPrev + d.operacoesReal;
     saldo += (d.entradaPrevista + d.entradaRealizada) - (d.saidaPrevista + d.saidaRealizada) + d.operacoesPrev + d.operacoesReal + d.ignorados;
     saldoPrev += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
     saldoReal += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados;
-    if (!isAfterCutoff) saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados;
+    if (includesPendingToday) saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados + remaining.e - remaining.s + remaining.op;
+    else if (!isAfterCutoff) saldoProj += d.entradaRealizada - d.saidaRealizada + d.operacoesReal + d.ignorados;
     else saldoProj += d.entradaPrevista - d.saidaPrevista + d.operacoesPrev;
     return {
       data, entradaPrevista: d.entradaPrevista, entradaRealizada: d.entradaRealizada, saidaPrevista: d.saidaPrevista, saidaRealizada: d.saidaRealizada,
       operacoes, ignorados: d.ignorados, saldoFinal: saldo, saldoFinalPrevisto: saldoPrev, saldoFinalRealizado: saldoReal, saldoFinalProjecao: saldoProj,
       isWeekend: isWeekend(data), dayOfWeek: getDayOfWeek(data), isAfterCutoff,
+      entradaRestante, saidaRestante, includesPendingToday,
       isCutoff: i === cutoffIdx && cutoffIdx >= 0 && cutoffIdx < allDays.length - 1,
     };
   });
@@ -112,7 +130,6 @@ export function buildDailyRows({ allDays, priorSaldo, projected, realized, class
 /** Previsto de fechamento: realizado até o corte + previsto só dos dias futuros. */
 export function closingEstimate(rows: DayRow[]) {
   const t = rows.reduce((a, d) => ({ er: a.er + d.entradaRealizada, sr: a.sr + d.saidaRealizada, op: a.op + d.operacoes }), { er: 0, sr: 0, op: 0 });
-  const hasRealized = t.er > 0 || t.sr > 0;
-  const rest = rows.reduce((a, d) => (hasRealized && !d.isAfterCutoff) ? a : { e: a.e + d.entradaPrevista, s: a.s + d.saidaPrevista }, { e: 0, s: 0 });
+  const rest = rows.reduce((a, d) => ({ e: a.e + d.entradaRestante, s: a.s + d.saidaRestante }), { e: 0, s: 0 });
   return { entrada: t.er + rest.e, saida: t.sr + rest.s, entradaRealizada: t.er, entradaRestante: rest.e, operacoes: t.op };
 }

@@ -19,7 +19,7 @@ import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CompactStat } from '@/components/mobile/CompactStat';
-import { buildDailyRows } from '@/lib/dailyFlow';
+import { buildDailyRows, closingEstimate as estimateClosing } from '@/lib/dailyFlow';
 import type { FinancialEntry } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
 import { IGNORADO_ENTRADA, IGNORADO_SAIDA } from '@/lib/bankCashflowOverlay';
@@ -135,17 +135,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
 
   // Previsto de fechamento: realizado até o corte + previsto apenas dos dias futuros.
   // Sem nenhum realizado no período, todo o previsto conta como "restante".
-  const closingEstimate = useMemo(() => {
-    const hasRealized = totals.entradaRealizada > 0 || totals.saidaRealizada > 0;
-    const restante = dailyData.reduce((acc, d) => {
-      if (hasRealized && !d.isAfterCutoff) return acc;
-      return { entrada: acc.entrada + d.entradaPrevista, saida: acc.saida + d.saidaPrevista };
-    }, { entrada: 0, saida: 0 });
-    return {
-      entrada: totals.entradaRealizada + restante.entrada,
-      saida: totals.saidaRealizada + restante.saida,
-    };
-  }, [dailyData, totals]);
+  const closingEstimate = useMemo(() => estimateClosing(dailyData), [dailyData]);
 
 
   if (allDays.length === 0) {
@@ -226,7 +216,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 </div>
                 {day.isCutoff && (
                   <p className="mt-1.5 text-[9px] uppercase tracking-wider text-emerald-700 font-semibold">
-                    Realizado até aqui · a seguir, previsão
+                    {day.includesPendingToday ? 'Hoje: realizado + previsão pendente' : 'Realizado até aqui · a seguir, previsão'}
                   </p>
                 )}
               </div>
@@ -284,7 +274,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <th className="px-3 py-2.5 text-right font-medium text-purple-600">Operações</th>
                 <th className="px-3 py-2.5 text-right font-medium text-blue-700 dark:text-blue-300">Saldo Final Previsto</th>
                 <th className="px-3 py-2.5 text-right font-medium text-primary">Saldo Final Realizado</th>
-                <th className="px-3 py-2.5 text-right font-medium text-emerald-600" title="Realizado até o último dia com movimento + previsto daí em diante">
+                <th className="px-3 py-2.5 text-right font-medium text-emerald-600" title="Realizado + previsão pendente de hoje + previsão dos dias seguintes">
                   Saldo Final Projetado
                 </th>
               </tr>
@@ -301,7 +291,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                     {day.isCutoff && (
                       <tr key={`${day.data}-cut`} className="bg-emerald-500/5 border-t border-emerald-500/30">
                         <td colSpan={10} className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-emerald-700 font-semibold text-center">
-                          ↑ Realizado até {formatDateBR(day.data)} · ↓ Previsão a partir do próximo dia
+                          {day.includesPendingToday ? `Hoje (${formatDateBR(day.data)}): realizado + previsão pendente` : `↑ Realizado até ${formatDateBR(day.data)} · ↓ Previsão a partir do próximo dia`}
                         </td>
                       </tr>
                     )}
