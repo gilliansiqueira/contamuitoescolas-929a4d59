@@ -736,6 +736,13 @@
       "when": 1793892702378,
       "tag": "0104_auto_profitability",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1793898365129,
+      "tag": "0105_migration",
+      "breakpoints": true
     }
   ]
 }
