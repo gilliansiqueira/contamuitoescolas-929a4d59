@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { CheckCircle2, Circle, Copy, MinusCircle, Sparkles, Loader2 } from 'lucide-react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useTypeClassifications } from '@/hooks/useFinancialData';
-import { calculateTotals } from '@/lib/classificationUtils';
+import { buildReportFacts, buildProjectionFacts, unknownNumbers, type KpiSeries } from '@/lib/reportNarrativeFacts';
 import type { ChecklistItem, ClosingStepTemplate } from '@/hooks/useClosingSteps';
 import { useSetChecklistStatus } from '@/hooks/useClosingSteps';
 import { isFuturasTooEarly, FUTURAS_VALIDADE_DIAS } from '@/lib/teamDeadlines';
@@ -124,52 +124,66 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
 
 export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { schoolId: string; schoolName: string; month: string; monthLabel: string }) {
   const qc = useQueryClient();
-  const { entries } = useProjectedEntries(schoolId);
+  const { entries, saldoInicial } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const [kind, setKind] = useState<'relatorio' | 'projecao'>('relatorio');
   const [text, setText] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [lastFacts, setLastFacts] = useState('');
 
   const { data: saved } = useQuery({
-    queryKey: ['report-analysis', schoolId, month],
+    queryKey: ['report-analysis', schoolId, month, kind],
     queryFn: async () => {
-      const { data, error } = await supabase.from('monthly_report_analyses').select('content').eq('school_id', schoolId).eq('month', month).maybeSingle();
+      const { data, error } = await supabase.from('monthly_report_analyses').select('content').eq('school_id', schoolId).eq('month', month).eq('kind', kind).maybeSingle();
       if (error) throw error;
       return data?.content ?? '';
     },
   });
   useEffect(() => { if (saved !== undefined) setText(saved); }, [saved]);
 
+  const { data: kpis = [] } = useQuery({
+    queryKey: ['report-analysis-kpis', schoolId],
+    queryFn: async (): Promise<KpiSeries[]> => {
+      const [{ data: defs, error: e1 }, { data: vals, error: e2 }] = await Promise.all([
+        supabase.from('kpi_definitions').select('id,name,value_type,decimals,enabled,sort_order').eq('school_id', schoolId).eq('enabled', true).order('sort_order'),
+        supabase.from('kpi_values').select('kpi_definition_id,month,value').eq('school_id', schoolId),
+      ]);
+      if (e1) throw e1; if (e2) throw e2;
+      return (defs ?? []).map(d => ({
+        name: d.name, valueType: d.value_type, decimals: d.decimals,
+        values: Object.fromEntries((vals ?? []).filter(v => v.kpi_definition_id === d.id).map(v => [v.month, Number(v.value)])),
+      }));
+    },
+  });
+
   const save = useMutation({
     mutationFn: async (content: string) => {
       const { data: auth } = await supabase.auth.getUser();
-      const { error } = await supabase.from('monthly_report_analyses').upsert({ school_id: schoolId, month, content, edited_by: auth.user?.id ?? null, updated_at: new Date().toISOString() }, { onConflict: 'school_id,month' });
+      const { error } = await supabase.from('monthly_report_analyses').upsert({ school_id: schoolId, month, kind, content, edited_by: auth.user?.id ?? null, updated_at: new Date().toISOString() }, { onConflict: 'school_id,month,kind' });
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['report-analysis', schoolId, month] }); toast.success('Análise salva.'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['report-analysis', schoolId, month, kind] }); toast.success('Análise salva.'); },
     onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível salvar.'),
   });
 
   // Fatos oficiais: totais da SSOT (projectionEngine + ledgerEngine), sem recálculo próprio.
   const facts = useMemo(() => {
-    const next = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1);
-    const nextMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-    const inMonth = entries.filter(e => e.dataProjetada.startsWith(month));
-    const real = calculateTotals(inMonth.filter(e => e.tipoRegistro === 'realizado'), classifications);
-    const proj = calculateTotals(inMonth.filter(e => e.tipoRegistro === 'projetado'), classifications);
-    const nxt = calculateTotals(entries.filter(e => e.dataProjetada.startsWith(nextMonth)), classifications);
-    return [
-      `Realizado no mês: receitas ${brl(real.receitas)}, despesas ${brl(real.despesas)}, resultado ${brl(real.resultado)}.`,
-      `Ainda previsto no mês: receitas ${brl(proj.receitas)}, despesas ${brl(proj.despesas)}.`,
-      `Próximo mês (previsão): receitas ${brl(nxt.receitas)}, despesas ${brl(nxt.despesas)}, resultado ${brl(nxt.resultado)}.`,
-    ].join('\n');
-  }, [entries, classifications, month]);
+    const today = new Date().toLocaleDateString('sv-SE');
+    const lines = kind === 'relatorio'
+      ? buildReportFacts({ schoolName, month, entries, classifications, kpis })
+      : buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today });
+    return lines.join('\n');
+  }, [kind, entries, classifications, kpis, month, schoolName, saldoInicial]);
+
+  const warnings = useMemo(() => (text && lastFacts ? unknownNumbers(text, lastFacts) : []), [text, lastFacts]);
 
   const generate = async () => {
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('draft-monthly-analysis', { body: { schoolName, monthLabel, facts } });
+      const { data, error } = await supabase.functions.invoke('draft-monthly-analysis', { body: { schoolName, monthLabel, facts, kind } });
       if (error || !data?.text) throw new Error(data?.error === 'credits' ? 'Créditos de IA esgotados.' : data?.error === 'rate_limit' ? 'Muitas solicitações, tente em instantes.' : 'Não foi possível gerar o rascunho.');
       setText(data.text);
+      setLastFacts(facts);
       toast.success('Rascunho gerado. Revise antes de enviar.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Não foi possível gerar o rascunho.');
@@ -181,15 +195,25 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
   return (
      <div id={`report-analysis-${schoolId}`} className="scroll-mt-4 space-y-2 border-t border-border bg-primary/[0.04] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-         <p className="text-xs font-semibold">Texto da análise para o cliente</p>
+         <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold">Texto para o cliente</p>
+          <div className="flex rounded-md border border-border p-0.5">
+            {(['relatorio', 'projecao'] as const).map(k => (
+              <button key={k} type="button" onClick={() => setKind(k)} className={`rounded px-2 py-0.5 text-[11px] ${kind === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>{k === 'relatorio' ? 'Relatório' : 'Projeção'}</button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-1.5">
-          <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => void generate()} disabled={generating}>{generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}Gerar rascunho da análise</Button>
+          <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => void generate()} disabled={generating}>{generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}{kind === 'relatorio' ? 'Gerar texto do Relatório' : 'Gerar texto da Projeção'}</Button>
           <Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" onClick={() => { void navigator.clipboard.writeText(text); toast.success('Texto copiado.'); }} disabled={!text}><Copy className="h-3 w-3" />Copiar</Button>
         </div>
       </div>
-       <Textarea value={text} onChange={e => setText(e.target.value)} rows={7} className="text-xs" aria-label="Texto da análise para o cliente" placeholder="Gere um rascunho ou escreva a análise do mês." />
+       <Textarea value={text} onChange={e => setText(e.target.value)} rows={12} className="text-xs" aria-label="Texto da análise para o cliente" placeholder="Gere um rascunho ou escreva a análise do mês." />
+      {warnings.length > 0 && (
+        <p className="rounded border border-accent/40 bg-accent/10 p-1.5 text-[11px]">Confira antes de enviar: estes números não vieram do cálculo da plataforma — {warnings.join(', ')}</p>
+      )}
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] text-muted-foreground">Os números vêm do cálculo oficial do sistema; a IA só redige. O PDF é gerado no Relatório Realizado.</p>
+        <p className="text-[10px] text-muted-foreground">{text.length} caracteres · Os números vêm do cálculo oficial; a IA só redige. Revise antes de enviar.</p>
         <Button size="sm" className="h-7 text-[11px]" onClick={() => save.mutate(text)} disabled={save.isPending}>Salvar texto</Button>
       </div>
     </div>

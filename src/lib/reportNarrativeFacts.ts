@@ -1,0 +1,165 @@
+// Monta os "fatos" (números prontos) dos textos de análise. Regra pura e testada:
+// todos os totais saem de calculateTotals/resolveEntryLedgerRule (SSOT); a IA só redige.
+import { calculateTotals } from '@/lib/classificationUtils';
+import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
+import { remainingDayForecast } from '@/lib/currentDayForecast';
+import type { ProjectedEntry } from '@/lib/projectionEngine';
+import type { TypeClassification } from '@/types/financial';
+
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const num = (v: number, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+export const monthName = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
+export function shiftMonth(m: string, n: number): string {
+  const d = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+/** Variação percentual arredondada (inteiro); null sem base. */
+export function pctChange(atual: number, anterior: number): number | null {
+  if (!anterior) return null;
+  return Math.round(((atual - anterior) / Math.abs(anterior)) * 100);
+}
+
+export interface KpiSeries { name: string; valueType: string; decimals: number; values: Record<string, number> }
+
+type Cls = TypeClassification[];
+function totalsOf(entries: ProjectedEntry[], month: string, cls: Cls, tipo: 'realizado' | 'projetado') {
+  return calculateTotals(entries.filter(e => e.tipoRegistro === tipo && e.dataProjetada.startsWith(month)), cls);
+}
+function expenseByCategory(entries: ProjectedEntry[], months: string[], cls: Cls): Map<string, number> {
+  const set = new Set(months);
+  const map = new Map<string, number>();
+  for (const e of entries) {
+    if (e.tipoRegistro !== 'realizado' || !set.has(e.dataProjetada.slice(0, 7))) continue;
+    const r = resolveEntryLedgerRule(e, cls);
+    if (!r.entraNoResultado || r.operacaoSinal === 'somar') continue;
+    const k = (e.categoria || e.tipoOriginal || 'Sem categoria').trim();
+    map.set(k, (map.get(k) ?? 0) + Math.abs(e.valor));
+  }
+  return map;
+}
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+export function buildReportFacts(p: { schoolName: string; month: string; entries: ProjectedEntry[]; classifications: Cls; kpis: KpiSeries[] }): string[] {
+  const { month, entries, classifications: cls } = p;
+  const L: string[] = [];
+  const t = totalsOf(entries, month, cls, 'realizado');
+  L.push(`Título: Relatório ${p.schoolName} - ${monthName(month)}`);
+  L.push(`Mês: receitas ${brl(t.receitas)}, despesas ${brl(t.despesas)}, resultado ${brl(t.resultado)}.`);
+
+  const tot = (m: string) => totalsOf(entries, m, cls, 'realizado');
+  const last3 = [1, 2, 3].map(i => tot(shiftMonth(month, -i))).filter(x => x.receitas || x.despesas);
+  const prev3 = [4, 5, 6].map(i => tot(shiftMonth(month, -i))).filter(x => x.receitas || x.despesas);
+  if (last3.length) {
+    const r3 = avg(last3.map(x => x.receitas)), d3 = avg(last3.map(x => x.despesas));
+    L.push(`Média dos 3 meses anteriores: receitas ${brl(r3)}, despesas ${brl(d3)}, resultado ${brl(r3 - d3)}.`);
+    if (prev3.length) {
+      const rp = avg(prev3.map(x => x.receitas)), dp = avg(prev3.map(x => x.despesas));
+      const vr = pctChange(r3, rp), vd = pctChange(d3, dp);
+      if (vr != null) L.push(`Tendência das receitas (3 meses vs 3 anteriores): ${vr > 0 ? '+' : ''}${vr}% (${brl(r3 - rp)} por mês).`);
+      if (vd != null) L.push(`Tendência das despesas (3 meses vs 3 anteriores): ${vd > 0 ? '+' : ''}${vd}% (${brl(d3 - dp)} por mês).`);
+    }
+  }
+  const ly = tot(shiftMonth(month, -12));
+  if (ly.receitas || ly.despesas) {
+    const vr = pctChange(t.receitas, ly.receitas), vd = pctChange(t.despesas, ly.despesas);
+    L.push(`Mesmo mês do ano anterior: receitas ${brl(ly.receitas)}${vr != null ? ` (${vr > 0 ? '+' : ''}${vr}%)` : ''}, despesas ${brl(ly.despesas)}${vd != null ? ` (${vd > 0 ? '+' : ''}${vd}%)` : ''}, resultado ${brl(ly.resultado)}.`);
+  }
+  // Acumulado do ano x mesmo período do ano anterior
+  const ytd = Array.from({ length: Number(month.slice(5, 7)) }, (_, i) => `${month.slice(0, 4)}-${String(i + 1).padStart(2, '0')}`);
+  const ytdLy = ytd.map(m => shiftMonth(m, -12));
+  const sum = (ms: string[]) => ms.map(tot).reduce((a, x) => ({ r: a.r + x.receitas, d: a.d + x.despesas }), { r: 0, d: 0 });
+  const a = sum(ytd), b = sum(ytdLy);
+  if (b.r || b.d) {
+    const vr = pctChange(a.r, b.r), vd = pctChange(a.d, b.d);
+    L.push(`Acumulado do ano: receitas ${brl(a.r)}${vr != null ? ` (${vr > 0 ? '+' : ''}${vr}% vs ano anterior)` : ''}, despesas ${brl(a.d)}${vd != null ? ` (${vd > 0 ? '+' : ''}${vd}% vs ano anterior)` : ''}.`);
+  }
+  // Categorias
+  const catMonth = expenseByCategory(entries, [month], cls);
+  const catYear = expenseByCategory(entries, ytd, cls);
+  const catPrev = expenseByCategory(entries, [1, 2, 3].map(i => shiftMonth(month, -i)), cls);
+  const top = (m: Map<string, number>) => [...m.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3);
+  const ty = top(catYear);
+  if (ty.length) L.push(`Maiores despesas no ano: ${ty.map(([k, v]) => `${k} ${brl(v)}`).join('; ')}.`);
+  const tm = top(catMonth);
+  if (tm.length) L.push(`Maiores despesas no mês: ${tm.map(([k, v]) => {
+    const media = (catPrev.get(k) ?? 0) / 3;
+    const ch = pctChange(v, media);
+    return `${k} ${brl(v)}${ch != null ? ` (${ch > 0 ? '+' : ''}${ch}% vs média dos 3 meses anteriores)` : ''}`;
+  }).join('; ')}.`);
+
+  // KPIs
+  for (const k of p.kpis) {
+    const v = k.values[month];
+    if (v == null) continue;
+    const isPct = k.valueType === 'percent' || /%|lucrativ|inadimpl|evas|desconto/i.test(k.name);
+    const fmt = (x: number) => isPct ? `${num(x, Math.max(1, k.decimals))}%` : num(x, k.decimals);
+    const yearVals = ytd.map(m => k.values[m]).filter((x): x is number => x != null);
+    const lyVals = ytdLy.map(m => k.values[m]).filter((x): x is number => x != null);
+    const prev = k.values[shiftMonth(month, -1)];
+    const parts = [`KPI ${k.name}: ${fmt(v)}`];
+    if (prev != null) parts.push(`mês anterior ${fmt(prev)}`);
+    if (yearVals.length > 1) parts.push(`média do ano ${fmt(avg(yearVals))}`);
+    if (lyVals.length) parts.push(`média do mesmo período do ano anterior ${fmt(avg(lyVals))}`);
+    L.push(parts.join(', ') + '.');
+  }
+  return L;
+}
+
+/** Saldo diário previsto do mês: saldo inicial + realizados até ontem, restante de hoje e previstos futuros (SSOT). */
+export function projectedDailyBalances(entries: ProjectedEntry[], cls: Cls, saldoInicial: number, today: string, untilMonth: string) {
+  const realized = entries.filter(e => e.tipoRegistro === 'realizado');
+  const projected = entries.filter(e => e.tipoRegistro === 'projetado');
+  const impacts: { d: string; v: number }[] = [
+    ...realized.filter(e => e.dataProjetada < today).map(e => ({ d: e.dataProjetada, v: e.impacto })),
+    ...realized.filter(e => e.dataProjetada === today).map(e => ({ d: today, v: e.impacto })),
+    ...remainingDayForecast(projected.filter(e => e.dataProjetada === today), realized, today, cls).map(e => ({ d: today, v: e.impacto })),
+    ...projected.filter(e => e.dataProjetada > today && e.dataProjetada.slice(0, 7) <= untilMonth).map(e => ({ d: e.dataProjetada, v: e.impacto })),
+  ].sort((x, y) => x.d.localeCompare(y.d));
+  const byDay = new Map<string, number>();
+  let s = saldoInicial;
+  for (const i of impacts) { s += i.v || 0; byDay.set(i.d, s); }
+  return byDay;
+}
+
+export function buildProjectionFacts(p: { schoolName: string; closedMonth: string; entries: ProjectedEntry[]; classifications: Cls; saldoInicial: number; today: string }): string[] {
+  const { closedMonth, entries, classifications: cls, today } = p;
+  const cur = shiftMonth(closedMonth, 1);
+  const L: string[] = [`Empresa: ${p.schoolName}. Mês fechado: ${monthName(closedMonth)}. Mês atual: ${monthName(cur)}.`];
+  const real = totalsOf(entries, closedMonth, cls, 'realizado');
+  const prev = totalsOf(entries, closedMonth, cls, 'projetado');
+  L.push(`${monthName(closedMonth)} realizado: receitas ${brl(real.receitas)}, despesas ${brl(real.despesas)}, resultado ${brl(real.resultado)}.`);
+  if (prev.receitas || prev.despesas) {
+    L.push(`${monthName(closedMonth)} previsto: receitas ${brl(prev.receitas)}, despesas ${brl(prev.despesas)}.`);
+    L.push(`Diferença realizado - previsto: receitas ${brl(real.receitas - prev.receitas)}, despesas ${brl(real.despesas - prev.despesas)}.`);
+  }
+  const next = calculateTotals(entries.filter(e => e.dataProjetada.startsWith(cur) && (e.tipoRegistro === 'projetado' || e.dataProjetada < today)), cls);
+  L.push(`${monthName(cur)} (realizado até ontem + previsto): receitas ${brl(next.receitas)}, despesas ${brl(next.despesas)}, resultado ${brl(next.resultado)}.`);
+  const bal = projectedDailyBalances(entries, cls, p.saldoInicial, today, cur);
+  const days = [...bal.entries()].filter(([d]) => d.startsWith(cur) && d >= today);
+  if (days.length) {
+    const [minD, minV] = days.reduce((a, x) => (x[1] < a[1] ? x : a));
+    const end = days[days.length - 1][1];
+    L.push(`Menor saldo previsto em ${monthName(cur)}: ${brl(minV)} em ${minD.slice(8, 10)}/${minD.slice(5, 7)}. Saldo previsto no fim do mês: ${brl(end)}.`);
+    L.push(minV < 0 ? `Atenção: o saldo previsto fica negativo em ${monthName(cur)}.` : `O saldo previsto não fica negativo em ${monthName(cur)}.`);
+  }
+  L.push('Cenário de matrículas/renovações: não há número na plataforma; deixar o lembrete [completar cenário de matrículas e renovações].');
+  return L;
+}
+
+/** Números (R$ e %) do texto que não aparecem nos fatos enviados. */
+export function unknownNumbers(text: string, facts: string): string[] {
+  const norm = (s: string) => s.replace(/R\$\s?/g, '').replace(/[+\-−]/g, '').trim();
+  const allowed = new Set((facts.match(/\d{1,3}(?:\.\d{3})*(?:,\d+)?/g) ?? []).map(norm));
+  const found = text.match(/(?:R\$\s?)?\d{1,3}(?:\.\d{3})*(?:,\d+)?\s?%?/g) ?? [];
+  const out: string[] = [];
+  for (const raw of found) {
+    const n = norm(raw.replace('%', ''));
+    const isMoney = /R\$/.test(raw) || /\./.test(n) || (/,/.test(n) && !/%/.test(raw));
+    const isPct = /%/.test(raw);
+    if (!isMoney && !isPct) continue;
+    if (/^20\d\d$/.test(n)) continue;
+    if (!allowed.has(n)) out.push(raw.trim());
+  }
+  return [...new Set(out)];
+}

@@ -2872,6 +2872,7 @@ export type Database = {
           edited_by: string | null
           generated_at: string | null
           id: string
+          kind: string
           month: string
           school_id: string
           updated_at: string
@@ -2881,6 +2882,7 @@ export type Database = {
           edited_by?: string | null
           generated_at?: string | null
           id?: string
+          kind?: string
           month: string
           school_id: string
           updated_at?: string
@@ -2890,6 +2892,7 @@ export type Database = {
           edited_by?: string | null
           generated_at?: string | null
           id?: string
+          kind?: string
           month?: string
           school_id?: string
           updated_at?: string
