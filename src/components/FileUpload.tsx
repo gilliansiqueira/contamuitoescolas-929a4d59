@@ -747,9 +747,7 @@ export function FileUpload({ schoolId, onImported }: FileUploadProps) {
         // Floor de segurança: nunca apaga projeções anteriores a hoje (a menos que o usuário tenha
         // pedido explicitamente "Substituir tudo" com o sentinel 0000-01-01).
         const today = new Date().toISOString().slice(0, 10);
-        const effectiveCutoff = cutoffDate === '0000-01-01'
-          ? cutoffDate
-          : (cutoffDate < today ? today : cutoffDate);
+        const effectiveCutoff = effectiveReplaceCutoff(cutoffDate, today, preview.map((e: any) => e.data));
         const { data: deleted, error: delErr } = await supabase
           .from('financial_entries')
           .delete()
