@@ -81,9 +81,8 @@ export function useAutoProfitability(schoolId: string) {
   const lastSig = useRef('');
   useEffect(() => {
     if (!computed || !defs) return;
-    const hasOperacional = defs.some(d => d.auto_key === 'lucro_operacional');
-    // Só escolas que já usam lucratividade automática recebem gravação.
-    if (!hasOperacional && !defs.length) return;
+    // Só escolas que já usam lucratividade automática (ou preencheram receita integral) recebem gravação.
+    if (!defs.length && !Object.values(computed).some(v => v.lucro_integral != null)) return;
     const sig = JSON.stringify([computed, defs.map(d => d.id)]);
     if (sig === lastSig.current) return;
     lastSig.current = sig;
@@ -94,12 +93,12 @@ export function useAutoProfitability(schoolId: string) {
         const maxSort = Math.max(0, ...list.map(d => d.sort_order ?? 0));
         const { data } = await supabase.from('kpi_definitions').insert({
           school_id: schoolId, name: PROFIT_LABELS.lucro_integral, auto_key: 'lucro_integral',
-          value_type: 'percentage', direction: 'higher_better', sort_order: maxSort + 1, enabled: true,
+          value_type: 'percent', direction: 'higher_is_better', sort_order: maxSort + 1, enabled: true,
         } as any).select('id, auto_key, sort_order').single();
         if (data) list = [...list, data];
       }
       const { data: closed } = await supabase.from('period_closures').select('month, status').eq('school_id', schoolId);
-      const closedSet = new Set((closed ?? []).filter((c: any) => c.status !== 'reaberto' && c.status !== 'open').map((c: any) => c.month));
+      const closedSet = new Set((closed ?? []).filter((c: any) => c.status === 'closed').map((c: any) => c.month));
       const rows: { school_id: string; kpi_definition_id: string; month: string; value: number }[] = [];
       const toDelete: { id: string; month: string }[] = [];
       for (const [month, vals] of Object.entries(computed)) {
@@ -110,8 +109,11 @@ export function useAutoProfitability(schoolId: string) {
           rows.push({ school_id: schoolId, kpi_definition_id: d.id, month, value: v });
         }
       }
-      if (rows.length) {
-        await supabase.from('kpi_values').upsert(rows, { onConflict: 'school_id,kpi_definition_id,month' });
+      const byMonth = new Map<string, typeof rows>();
+      rows.forEach(r => byMonth.set(r.month, [...(byMonth.get(r.month) ?? []), r]));
+      for (const monthRows of byMonth.values()) {
+        // Um mês por vez: se o banco recusar (mês fechado), os outros seguem.
+        await supabase.from('kpi_values').upsert(monthRows, { onConflict: 'school_id,kpi_definition_id,month' });
       }
       for (const t of toDelete) {
         await supabase.from('kpi_values').delete().eq('school_id', schoolId).eq('kpi_definition_id', t.id).eq('month', t.month);
