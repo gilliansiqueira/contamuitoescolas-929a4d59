@@ -1,5 +1,6 @@
 import { useDataSource } from '@/hooks/useBankPilot';
 import { ManualEntriesPanel } from '@/components/ManualEntriesPanel';
+import { effectiveReplaceCutoff } from '@/lib/projectionReplace';
 import { useState, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { FinancialEntry, ValidationError, UPLOAD_TYPES, UploadType, ExclusionRule, determineTipoRegistro, TypeClassification } from '@/types/financial';
