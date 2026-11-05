@@ -177,9 +177,14 @@ export function useSetChecklistStatus(schoolId: string | null, month: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: 'open' | 'completed' | 'not_applicable' }) => {
+      const { data: auth } = await supabase.auth.getUser();
       const { error } = await supabase
         .from('monthly_closing_checklist')
-        .update({ status, completed_at: status === 'completed' ? new Date().toISOString() : null })
+        .update({
+          status,
+          completed_at: status === 'completed' ? new Date().toISOString() : null,
+          ...(status === 'completed' ? { source: 'manual', completed_by: auth.user?.id ?? null } : {}),
+        } as any)
         .eq('id', id);
       if (error) throw error;
     },
