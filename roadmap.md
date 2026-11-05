@@ -1,5 +1,6 @@
 # Roadmap
-- [ ] Manter previsão pendente do dia atual no Fluxo Diário, fechamento e avisos de saldo
+- [x] Manter previsão pendente do dia atual no Fluxo Diário, fechamento e avisos de saldo (23 testes financeiros)
+- [ ] Conferir Fluxo Diário do Champagnat com login (sessão não disponível; aguarda login na prévia)
 - [x] Aviso de projeções em atraso
 - [x] Menu Equipe com abas
 - [ ] Leitura automática do PDF de holerites (aguarda PDF de exemplo)

@@ -133,7 +133,7 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
     ignorados: acc.ignorados + d.ignorados,
   }), { entradaPrevista: 0, entradaRealizada: 0, saidaPrevista: 0, saidaRealizada: 0, operacoes: 0, ignorados: 0 }), [dailyData]);
 
-  // Previsto de fechamento: realizado até o corte + previsto apenas dos dias futuros.
+  // Previsto de fechamento: realizado + pendente de hoje + dias futuros (SSOT).
   // Sem nenhum realizado no período, todo o previsto conta como "restante".
   const closingEstimate = useMemo(() => estimateClosing(dailyData), [dailyData]);
 
@@ -351,15 +351,15 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
                 <td className={`px-3 py-2.5 text-right font-bold ${(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo) >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>{formatCurrency(dailyData.length ? dailyData[dailyData.length-1].saldoFinalProjecao : saldoInicialPeriodo)}</td>
               </tr>
               <tr className="border-t border-border/50 bg-muted/20">
-                <td className="px-3 py-2.5 text-foreground font-bold italic" colSpan={2} title="Realizado até hoje + previsto dos dias futuros">
+                <td className="px-3 py-2.5 text-foreground font-bold italic" colSpan={2} title="Realizado + previsão pendente de hoje + dias futuros">
                   Previsto de fechamento
                 </td>
                 <td className="px-3 py-2.5 text-right text-muted-foreground">—</td>
-                <td className="px-3 py-2.5 text-right text-primary font-bold italic" title="Entrada realizada até hoje + entradas previstas dos dias futuros">
+                <td className="px-3 py-2.5 text-right text-primary font-bold italic" title="Entradas realizadas + entradas pendentes de hoje + dias futuros">
                   {formatCurrency(closingEstimate.entrada)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-muted-foreground">—</td>
-                <td className="px-3 py-2.5 text-right text-destructive font-bold italic" title="Saída realizada até hoje + saídas previstas dos dias futuros">
+                <td className="px-3 py-2.5 text-right text-destructive font-bold italic" title="Saídas realizadas + saídas pendentes de hoje + dias futuros">
                   {formatCurrency(closingEstimate.saida)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-muted-foreground" colSpan={4}>—</td>

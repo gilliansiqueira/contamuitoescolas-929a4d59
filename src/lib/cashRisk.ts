@@ -15,7 +15,8 @@ export interface CashRiskResult {
 /**
  * Parte do saldo do extrato. Um extrato com data final no futuro não pode "pular"
  * os recebimentos projetados desses dias: a data base nunca passa de hoje, então
- * a projeção conta a partir de amanhã (o movimento futuro do extrato vale como previsão).
+ * os impactos futuros continuam como previsão. Quando a base é hoje, os impactos
+ * de hoje devem ser apenas o restante calculado por remainingDayForecast.
  */
 export function projectCashRisk(
   base: { date: string; balance: number },
