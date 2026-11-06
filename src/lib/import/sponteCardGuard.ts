@@ -1,25 +1,39 @@
 /**
- * Cartão do Sponte é só previsão. Onde já existem recebíveis reais da
- * maquininha (origem 'cartao'), o cartão do Sponte não pode coexistir:
- * descartamos as linhas de crédito/débito do Sponte até a última data
- * coberta pela maquininha (a partir da data inicial dela).
+ * Cartão no Sponte = aluno que AINDA NÃO passou o cartão (a receber).
+ * Cartão da maquininha (origem 'cartao') = cartão JÁ passado.
+ * São pessoas diferentes: um relatório nunca apaga o outro. Aqui só
+ * apontamos possíveis duplicidades (mesmo valor no mesmo mês) para conferência.
  */
 const CARD_KEYS = new Set(['credito', 'debito']);
 
-export interface CardGuardEntry { data: string; origem: string; tipo: string; payment_method_key?: string | null }
+export interface CardGuardEntry { data: string; origem: string; tipo: string; valor?: number; payment_method_key?: string | null }
 
-export function dropSponteCardCoveredByMaquininha<T extends CardGuardEntry>(
+export function isSponteCard(e: CardGuardEntry): boolean {
+  return e.tipo === 'entrada' && CARD_KEYS.has(String(e.payment_method_key ?? ''));
+}
+
+export function summarizeSponteVsMaquininha<T extends CardGuardEntry>(
   sponte: T[],
   existing: CardGuardEntry[],
-): { kept: T[]; dropped: T[]; ate: string | null } {
-  const maq = existing.filter(e => e.origem === 'cartao' && e.tipo === 'entrada').map(e => e.data).sort();
-  if (maq.length === 0) return { kept: sponte, dropped: [], ate: null };
-  const de = maq[0], ate = maq[maq.length - 1];
-  const kept: T[] = [], dropped: T[] = [];
-  for (const e of sponte) {
-    const isCard = e.tipo === 'entrada' && CARD_KEYS.has(String(e.payment_method_key ?? ''));
-    if (isCard && e.data >= de && e.data <= ate) dropped.push(e);
-    else kept.push(e);
+): { kept: T[]; sponteCard: { n: number; total: number }; maquininha: { n: number; total: number }; suspects: T[] } {
+  const maq = existing.filter(e => e.origem === 'cartao' && e.tipo === 'entrada');
+  const keys = new Map<string, number>();
+  for (const m of maq) {
+    const k = `${m.data.slice(0, 7)}|${Math.round(Math.abs(m.valor ?? 0) * 100)}`;
+    keys.set(k, (keys.get(k) ?? 0) + 1);
   }
-  return { kept, dropped, ate };
+  const cards = sponte.filter(isSponteCard);
+  const suspects: T[] = [];
+  for (const e of cards) {
+    const k = `${e.data.slice(0, 7)}|${Math.round(Math.abs(e.valor ?? 0) * 100)}`;
+    const n = keys.get(k) ?? 0;
+    if (n > 0) { suspects.push(e); keys.set(k, n - 1); }
+  }
+  const sum = (a: CardGuardEntry[]) => a.reduce((s, e) => s + Math.abs(e.valor ?? 0), 0);
+  return {
+    kept: sponte,
+    sponteCard: { n: cards.length, total: sum(cards) },
+    maquininha: { n: maq.length, total: sum(maq) },
+    suspects,
+  };
 }

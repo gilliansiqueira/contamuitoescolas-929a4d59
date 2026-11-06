@@ -9,7 +9,7 @@
  *   5. Gravação + auditoria pós-importação
  */
 
-import { dropSponteCardCoveredByMaquininha } from '@/lib/import/sponteCardGuard';
+import { summarizeSponteVsMaquininha } from '@/lib/import/sponteCardGuard';
 import { useState, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
@@ -276,10 +276,14 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
 
       // 3) insert new entries with full traceability
       const allBuilt = buildInsertableEntries(parsed, { schoolId, uploadId, fileName, rules });
-      const guard = dropSponteCardCoveredByMaquininha(allBuilt as any[], allEntries as any[]);
+      const guard = summarizeSponteVsMaquininha(allBuilt as any[], allEntries as any[]);
       const entries = guard.kept as typeof allBuilt;
-      if (guard.dropped.length > 0) {
-        toast.info(`${guard.dropped.length} recebimentos de cartão do Sponte não foram gravados: a maquininha já cobre o período até ${guard.ate?.split('-').reverse().join('/')}.`);
+      const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      if (guard.sponteCard.n > 0 || guard.maquininha.n > 0) {
+        toast.info(`Cartão no Sponte (a passar): ${guard.sponteCard.n} • ${brl(guard.sponteCard.total)}. Cartão na maquininha (já passado): ${guard.maquininha.n} • ${brl(guard.maquininha.total)}. Os dois somam.`, { duration: 10000 });
+      }
+      if (guard.suspects.length > 0) {
+        toast.warning(`${guard.suspects.length} cartões do Sponte têm o mesmo valor no mesmo mês da maquininha — confira se são a mesma pessoa. Nada foi removido.`, { duration: 12000 });
       }
       const dbRows = entries.map(e => ({
         id: e.id, school_id: e.school_id, data: e.data, descricao: e.descricao,
