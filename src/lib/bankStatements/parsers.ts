@@ -1334,9 +1334,19 @@ export function sameCounterpartyTokens(a: string, b: string): boolean {
 /** Resgate de aplicação descrito de outro jeito (Bradesco PDF "RESG AUTOMATICO INVESTIM" × OFX "RESG/VENCTO CDB"). */
 const isResgateAplicacao = (s: string) => /\bresg(ate)?\b/.test(normalizeDesc(s).replace(/[^a-z0-9 ]/g, ' ')) && !/rendiment|juros/.test(normalizeDesc(s));
 
+/**
+ * Bradesco Invest Fácil: o mesmo resgate automático sai como "TRANSF.AUTORIZ.ENTRE C/C" (sem nome) no extrato do dia
+ * e como "TRANSF.MMA.TITULARIDADE*" no arquivo seguinte (Manaus Laranjeiras, 26/10 e 05/11).
+ */
+const isBradescoInvestResgate = (s: string) => {
+  const n = normalizeDesc(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return /^transf mma titularidade$/.test(n) || /^transf autoriz entre c c$/.test(n);
+};
+
 /** Mesmo lançamento do banco apesar da mudança de texto entre arquivos (usado só com data, sentido e valor iguais). */
 export function sameBankEntryText(a: string, b: string): boolean {
   if (sameCounterpartyTokens(a, b)) return true;
+  if (isBradescoInvestResgate(a) && isBradescoInvestResgate(b)) return true;
   return isResgateAplicacao(a) && isResgateAplicacao(b);
 }
 
