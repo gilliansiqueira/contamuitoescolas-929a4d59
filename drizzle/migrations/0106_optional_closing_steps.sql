@@ -1,0 +1,2 @@
+ALTER TABLE public.closing_step_templates ADD COLUMN IF NOT EXISTS optional boolean NOT NULL DEFAULT false;
+UPDATE public.closing_step_templates SET optional = true WHERE step_key = 'receitas_categoria';

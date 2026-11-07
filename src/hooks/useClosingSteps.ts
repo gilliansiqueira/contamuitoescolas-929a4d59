@@ -9,6 +9,7 @@ export interface ClosingStepTemplate {
   active: boolean;
   check_kind?: string;
   group_key?: string | null;
+  optional?: boolean | null;
 }
 
 export interface SchoolStepOverride {
@@ -41,7 +42,7 @@ export function useClosingStepTemplates(enabled: boolean) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('closing_step_templates')
-        .select('id, step_key, label, sort_order, active, check_kind, group_key')
+        .select('id, step_key, label, sort_order, active, check_kind, group_key, optional')
         .order('sort_order')
         .order('label');
       if (error) throw error;

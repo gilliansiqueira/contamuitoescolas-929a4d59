@@ -1227,6 +1227,7 @@ export type Database = {
           id: string
           label: string
           link_tab: string | null
+          optional: boolean
           sort_order: number
           step_key: string
           updated_at: string
@@ -1239,6 +1240,7 @@ export type Database = {
           id?: string
           label: string
           link_tab?: string | null
+          optional?: boolean
           sort_order?: number
           step_key: string
           updated_at?: string
@@ -1251,6 +1253,7 @@ export type Database = {
           id?: string
           label?: string
           link_tab?: string | null
+          optional?: boolean
           sort_order?: number
           step_key?: string
           updated_at?: string

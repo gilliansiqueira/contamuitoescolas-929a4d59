@@ -60,7 +60,9 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
     },
   });
   const templateByKey = useMemo(() => new Map(templates.map(t => [t.step_key, t])), [templates]);
-  const done = checklist.filter(i => i.status !== 'open').length;
+  const isOptional = (k: string) => !!templateByKey.get(k)?.optional;
+  const countable = checklist.filter(i => !(isOptional(i.step_key) && i.status === 'open'));
+  const done = countable.filter(i => i.status !== 'open').length;
 
   const grouped = useMemo(() => {
     const map = new Map<string, ChecklistItem[]>();
@@ -76,7 +78,7 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-muted-foreground">{done} de {checklist.length} etapas concluídas em {monthLabel}.</p>
+      <p className="text-[11px] text-muted-foreground">{done} de {countable.length} etapas concluídas em {monthLabel}.</p>
       {groups.map(group => (
          <div key={group.key} className={`rounded-md border ${group.key === 'envio' ? 'border-primary/40' : 'border-border'}`}>
            <p className={`border-b px-2.5 py-1.5 text-[11px] font-semibold ${group.key === 'envio' ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-muted/30'}`}>{group.label}</p>
@@ -92,6 +94,7 @@ export function ReportChecklist({ schoolId, schoolName, month, monthLabel, check
                     <p className={`text-xs ${item.status === 'completed' ? 'text-muted-foreground line-through' : ''}`}>{item.label}</p>
                     <div className="mt-0.5 flex flex-wrap gap-1.5 text-[10px]">
                       <span className={`rounded-full px-1.5 py-0.5 ${kind === 'auto' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{KIND_LABEL[kind] ?? 'Manual'}</span>
+                      {tpl?.optional && <span className="rounded-full bg-muted px-1.5 py-0.5 text-muted-foreground">Opcional (temporário)</span>}
                       {kind === 'hint' && hint !== undefined && <span className={`rounded-full px-1.5 py-0.5 ${hint ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>{hint ? 'Já há dados lançados' : 'Ainda sem dados'}</span>}
                        {item.completed_at && <span className="text-muted-foreground">{item.source === 'automatic' ? 'Marcado automaticamente' : 'Marcado pela equipe'} em {new Date(item.completed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
                     </div>

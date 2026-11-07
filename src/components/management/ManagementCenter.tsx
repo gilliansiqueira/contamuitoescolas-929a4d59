@@ -448,7 +448,8 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     if (!monthlySteps) return bySchool;
     const groupByKey = new Map(stepTemplates.map(t => [t.step_key, t.group_key]));
     for (const row of rows) {
-      const steps = monthlySteps.get(row.school_id) ?? [];
+      const optionalKeys = new Set(stepTemplates.filter(t => t.optional).map(t => t.step_key));
+      const steps = (monthlySteps.get(row.school_id) ?? []).filter(s => !(optionalKeys.has(s.step_key) && s.status === 'open'));
       if (row.report_delivered) { bySchool.set(row.school_id, 'entregue'); continue; }
       if (steps.length === 0) { bySchool.set(row.school_id, 'sem_etapas'); continue; }
       const first = reportGroups.find(g => steps.some(s => s.status === 'open' && (groupByKey.get(s.step_key) === g.key || (g.key === 'receitas' && groupByKey.get(s.step_key) === 'vendas'))));
@@ -466,6 +467,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       const seen = new Set<string>(); const o = new Set<string>();
       for (const s of monthlySteps.get(row.school_id) ?? []) {
         if (s.status === 'not_applicable') continue;
+        if (s.status === 'open' && stepTemplates.some(t => t.optional && t.step_key === s.step_key)) continue;
         const g0 = groupByKey.get(s.step_key); if (!g0) continue;
         const g = g0 === 'vendas' ? 'receitas' : g0;
         seen.add(g);
