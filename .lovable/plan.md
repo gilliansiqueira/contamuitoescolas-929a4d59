@@ -1,13 +1,18 @@
-# Faixa de atrasos: quem vê o quê (conferido, sem alteração)
+# Liberar a Thau para ver as outras carteiras
 
-## Como funciona hoje
-- **Colaboradoras**: a faixa vermelha e a janela de avisos contam só as empresas em que a pessoa é a responsável na carteira. Ninguém vê atrasos de outra carteira.
-- **Gestoras** veem a equipe toda, separada por responsável. Hoje são 4 pessoas: Acy, adm (Bruna), Gisele e Isabelly.
-- Empresas "Sem responsável" aparecem só para essas 4 gestoras.
+## Situação atual
+- A Thau (thau@contamuito.com) é administradora com acesso **somente às empresas da lista dela** (6 empresas). Por isso, ao clicar em outras carteiras, as escolas não aparecem.
 
-## Proposta
-Nenhuma mudança: a regra já está como você pediu. Se quiser tirar alguém da visão da equipe toda (por exemplo, Gisele ou Isabelly), me avise e ajusto.
+## O que muda
+- Trocar o acesso da Thau de "só a lista" para **"todas as empresas"** — o mesmo ajuste que existe na tela de Usuários.
+- Ela passa a abrir e trabalhar nas escolas das outras carteiras.
+
+## O que NÃO muda
+- A carteira dela continua sendo só as 6 empresas em que é responsável.
+- A barra vermelha de atrasos e os avisos do Meu Dia continuam mostrando só a carteira dela.
+- Empresas restritas continuam invisíveis para ela (só super administradoras veem).
+- Ela não ganha poderes de proprietária (gerenciar usuários, permissões).
 
 ## Detalhes técnicos
-- `src/components/TeamDeadlineNotice.tsx`: `scope = portfolio.filter(p => isManager || p.responsible_user_id === user.id)`, com `isManager = canManageCollaborators`. Esse é o caso de super_admin (Acy, adm) e de `user_permissions.collaborators_manage` (Gisele, Isabelly).
-- As outras 15 administradoras não têm essa permissão, então veem só a própria carteira.
+- Executar `set_collaborator_scope('9abbf168-a133-409b-b20a-3036d2a325a2', 'all')` (atualiza `profiles.admin_scope`).
+- Conferir depois que `admin_scope = 'all'`. Ela precisa sair e entrar de novo para atualizar.
