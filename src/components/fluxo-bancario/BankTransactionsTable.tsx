@@ -18,6 +18,7 @@ import { resolveTipoMeta } from '@/lib/tipoMeta';
 import { Download, FileClock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSchoolFeature, useDataSource } from '@/hooks/useBankPilot';
+import { exportPendenciasXlsx } from '@/lib/bankStatements/exportPendencias';
 import { exportMovementsXlsx, type MovementExportRow, type AccountSummaryRow } from '@/lib/bankStatements/exportMovements';
 
 export interface TableFocus { importId: string; from: string; to: string; nonce: number }
@@ -33,6 +34,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const [search, setSearch] = useState('');
   const [minValor, setMinValor] = useState('');
   const [maxValor, setMaxValor] = useState('');
+  const [tipoFilter, setTipoFilter] = useState<'all' | 'entrada' | 'saida'>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noteTx, setNoteTx] = useState<BankTx | null>(null);
   const [delTx, setDelTx] = useState<BankTx | null>(null);
@@ -220,9 +222,19 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     const vMin = parseV(minValor), vMax = parseV(maxValor);
     const inRange = (t: BankTx) => { const v = Math.abs(Number(t.valor)); return (vMin == null || v >= vMin - 0.005) && (vMax == null || v <= vMax + 0.005); };
     return txs
-       .filter(t => inRange(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)))
+       .filter(t => inRange(t) && (tipoFilter === 'all' || t.tipo === tipoFilter) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet, minValor, maxValor]);
+   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet, minValor, maxValor, tipoFilter]);
+
+  const exportPendencias = () => {
+    const pendRows = rows.filter(t => t.recon_status === 'pendente');
+    if (!pendRows.length) { toast.error('Nenhuma pendência no filtro atual'); return; }
+    const conta = accountId === 'all' ? 'Todas as contas' : accName.get(accountId) ?? '';
+    exportPendenciasXlsx(`Pendencias_${conta.replace(/[^\w-]+/g, '_')}_${fmtDate(from).replace(/\//g, '-')}_a_${fmtDate(to).replace(/\//g, '-')}.xlsx`,
+      `Pendências para retorno do cliente · ${conta} · ${fmtDate(from)} a ${fmtDate(to)}`,
+      pendRows.map(t => ({ data: t.data, conta: accName.get(t.account_id) ?? '', descricao: displayDesc(t), tipo: t.tipo === 'entrada' ? 'Entrada' : 'Saída', valor: Math.abs(Number(t.valor)),
+        motivo: t.justification_reason_id ? reasonName.get(t.justification_reason_id) ?? '' : '', observacao: t.justification_note ?? '' })));
+  };
 
   const tipoLabel = (t: BankTx, itemId: string | null | undefined, categoria?: string) => {
     if (isAutoInvest(t)) return 'Aplicação automática';
@@ -334,6 +346,12 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
             <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="pendente">Só pendentes</SelectItem><SelectItem value="conciliado">Conciliados</SelectItem></SelectContent>
           </Select>
         </div>
+        <div className="w-36"><label className="text-xs text-muted-foreground">Tipo</label>
+          <Select value={tipoFilter} onValueChange={v => { setSelected(new Set()); setTipoFilter(v as typeof tipoFilter); }}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="entrada">Entradas (receitas)</SelectItem><SelectItem value="saida">Saídas (despesas)</SelectItem></SelectContent>
+          </Select>
+        </div>
         <div className="w-44"><label className="text-xs text-muted-foreground">Categoria</label>
           <Select value={cat} onValueChange={v => { setSelected(new Set()); setCat(v as typeof cat); }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -358,6 +376,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {importFilter && <Button size="sm" variant="secondary" onClick={() => { setImportFilter(null); setCat('all'); }}>Só deste extrato · limpar filtro ✕</Button>}
           {pairs.length > 0 && <Button size="sm" variant="outline" onClick={() => setShowPairs(true)}><ArrowLeftRight className="mr-1 h-4 w-4" />Transferências sugeridas ({pairs.length})</Button>}
           <Button size="sm" variant="outline" disabled={!rows.length} onClick={exportExcel}><Download className="mr-1 h-4 w-4" />Exportar Excel</Button>
+          <Button size="sm" variant="outline" disabled={!pend.length} onClick={exportPendencias}><Download className="mr-1 h-4 w-4" />Exportar pendências p/ cliente</Button>
           {selRows.length > 0 && <>
           <Button size="sm" disabled={setRecon.isPending} onClick={() => apply([...selected], 'conciliado')}><Check className="mr-1 h-4 w-4" />Conciliar ({selected.size})</Button>
           <Button size="sm" variant="outline" disabled={setJust.isPending} onClick={() => openJustify([...selected])}><Tag className="mr-1 h-4 w-4" />Justificar</Button>
