@@ -2,7 +2,12 @@ import { useMemo, useState } from 'react';
 import type { BacklogRow } from '@/hooks/useManagementPortfolio';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, ArrowRight, Building2, ChevronDown, Clock3, Wallet } from 'lucide-react';
+import { AlertCircle, ArrowRight, Building2, ChevronDown, Clock3, Download, Wallet } from 'lucide-react';
+import { exportPendenciasXlsx, exportTeamBacklogXlsx } from '@/lib/bankStatements/exportPendencias';
+
+const slug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const tipoLabel = (t: string) => (t === 'entrada' ? 'Entrada' : 'Saída');
+const motivoOf = (r: BacklogRow) => r.reason_name ?? (r.data >= '2026-10-01' ? 'Sem justificativa' : '');
 
 interface SchoolInfo { school_id: string; school_name: string; responsible_user_id: string | null; responsibleLabel: string }
 interface Props {
@@ -89,6 +94,7 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
         <Select value={responsible} onValueChange={setResponsible}><SelectTrigger className="h-9 bg-card text-xs sm:w-[220px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as responsáveis</SelectItem>{responsibles.map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent></Select>
         <Select value={age} onValueChange={v => setAge(v as Age)}><SelectTrigger className="h-9 bg-card text-xs sm:w-[200px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Qualquer idade</SelectItem><SelectItem value="1">De ontem (1 dia)</SelectItem><SelectItem value="2-3">2 a 3 dias</SelectItem><SelectItem value="4+">Mais de 3 dias</SelectItem></SelectContent></Select>
         <p className="self-center text-[11px] text-muted-foreground sm:ml-auto">Dias anteriores a hoje, desde 01/09/2026. Conciliou, sai da lista.</p>
+        <Button size="sm" variant="outline" className="h-9 text-xs" disabled={isLoading || !filtered.length} onClick={() => exportTeamBacklogXlsx(`pendencias-equipe-${today}.xlsx`, today, filtered.map(r => { const s = schools.get(r.school_id)!; return { empresa: s.school_name, responsavel: s.responsibleLabel, data: r.data, conta: r.account_name ?? '', descricao: r.descricao, tipo: tipoLabel(r.tipo), valor: r.tipo === 'entrada' ? Math.abs(r.valor) : -Math.abs(r.valor), motivo: motivoOf(r), observacao: r.justification_note ?? '' }; }))}><Download className="mr-1 h-3.5 w-3.5" />Baixar Excel</Button>
       </div>
       {!isLoading && groups.length === 0 && <div className="rounded-lg border bg-card p-10 text-center text-sm text-muted-foreground">Nenhuma pendência de conciliação. Tudo em dia!</div>}
       {groups.map(g => (
@@ -104,7 +110,7 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
                 <span className="flex items-center gap-1 font-semibold">{s.total}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></span>
               </button>
               {isOpen && <div className="border-t bg-muted/10 px-4 py-3">
-                <div className="mb-2 flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">{s.total} lançamentos · {brl(s.value)}</span><Button size="sm" className="h-7 text-xs" onClick={() => onOpenSchool(s.info.school_id)}>Ir conciliar <ArrowRight className="ml-1 h-3 w-3" /></Button></div>
+                <div className="mb-2 flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">{s.total} lançamentos · {brl(s.value)}</span><span className="flex gap-1.5"><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportPendenciasXlsx(`pendencias-${slug(s.info.school_name)}-${today}.xlsx`, `Pendências de conciliação — ${s.info.school_name}`, s.days.flatMap(([, it]) => it).sort((x, y) => x.data.localeCompare(y.data)).map(i => ({ data: i.data, conta: i.account_name ?? '', descricao: i.descricao, tipo: tipoLabel(i.tipo), valor: Math.abs(i.valor), motivo: motivoOf(i), observacao: i.justification_note ?? '' })))}><Download className="mr-1 h-3 w-3" />Excel para o cliente</Button><Button size="sm" className="h-7 text-xs" onClick={() => onOpenSchool(s.info.school_id)}>Ir conciliar <ArrowRight className="ml-1 h-3 w-3" /></Button></span></div>
                 {(() => {
                   const all = s.days.flatMap(([, it]) => it);
                   const byR = new Map<string, number>();
