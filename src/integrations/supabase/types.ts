@@ -4019,6 +4019,35 @@ export type Database = {
           },
         ]
       }
+      report_writing_guidelines: {
+        Row: {
+          content: string
+          school_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          content?: string
+          school_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          content?: string
+          school_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_writing_guidelines_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: true
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sa_icons: {
         Row: {
           created_at: string

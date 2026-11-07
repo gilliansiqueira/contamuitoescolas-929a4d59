@@ -163,3 +163,24 @@ export function unknownNumbers(text: string, facts: string): string[] {
   }
   return [...new Set(out)];
 }
+
+/**
+ * Lucratividade para o texto: valores de computeProfitability (mesmos do Dashboard).
+ * Com receita integral salva, ela é a principal; com operações no mês, mostra os dois cenários.
+ */
+export function profitabilityFacts(p: { operacional: number | null; total: number | null; integral: number | null; receitaIntegral?: number | null }): string[] {
+  const f = (x: number) => `${num(x, 2)}%`;
+  const L: string[] = [];
+  if (p.integral != null) {
+    L.push(`Lucratividade com receita integral (principal, sem o efeito das antecipações${p.receitaIntegral ? `; receita integral ${brl(p.receitaIntegral)}` : ''}): ${f(p.integral)}.`);
+    if (p.operacional != null) L.push(`Lucratividade sobre a receita recebida no mês: ${f(p.operacional)}.`);
+    return L;
+  }
+  if (p.operacional == null) return L;
+  if (p.total != null && Math.abs(p.total - p.operacional) >= 0.01) {
+    L.push(`Dois cenários de lucratividade (cite os dois): operacional, sem empréstimos/antecipações/operações, ${f(p.operacional)}; total, com as operações do mês, ${f(p.total)}.`);
+  } else {
+    L.push(`Lucratividade do mês: ${f(p.operacional)}.`);
+  }
+  return L;
+}

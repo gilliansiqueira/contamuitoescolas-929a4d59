@@ -8,7 +8,11 @@ import { toast } from 'sonner';
 import { CheckCircle2, Circle, Copy, MinusCircle, Sparkles, Loader2 } from 'lucide-react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useTypeClassifications } from '@/hooks/useFinancialData';
-import { buildReportFacts, buildProjectionFacts, unknownNumbers, type KpiSeries } from '@/lib/reportNarrativeFacts';
+import { buildReportFacts, buildProjectionFacts, unknownNumbers, profitabilityFacts, type KpiSeries } from '@/lib/reportNarrativeFacts';
+import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import { buildMonthMovement } from '@/lib/periodMovement';
+import { computeProfitability } from '@/lib/profitability';
+import { useIntegralRevenue } from '@/hooks/useAutoProfitability';
 import type { ChecklistItem, ClosingStepTemplate } from '@/hooks/useClosingSteps';
 import { useSetChecklistStatus } from '@/hooks/useClosingSteps';
 import { isFuturasTooEarly, FUTURAS_VALIDADE_DIAS } from '@/lib/teamDeadlines';
@@ -133,6 +137,38 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
   const [text, setText] = useState('');
   const [generating, setGenerating] = useState(false);
   const [lastFacts, setLastFacts] = useState('');
+  const { ctx, isInModel, isLoading: mvLoading } = usePeriodMovementCtx(schoolId);
+  const { values: integral } = useIntegralRevenue(schoolId);
+  const [guide, setGuide] = useState('');
+
+  const { data: savedGuide } = useQuery({
+    queryKey: ['report-guidelines', schoolId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from('report_writing_guidelines').select('content').eq('school_id', schoolId).maybeSingle();
+      if (error) throw error;
+      return (data?.content as string) ?? '';
+    },
+  });
+  useEffect(() => { if (savedGuide !== undefined) setGuide(savedGuide); }, [savedGuide]);
+  const saveGuide = useMutation({
+    mutationFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const { error } = await (supabase as any).from('report_writing_guidelines').upsert({ school_id: schoolId, content: guide, updated_by: auth.user?.id ?? null, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['report-guidelines', schoolId] }); toast.success('Orientações salvas.'); },
+    onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível salvar.'),
+  });
+
+  // Exemplos de estilo: textos editados e salvos pela equipe (própria empresa primeiro).
+  const { data: examples = [] } = useQuery({
+    queryKey: ['report-examples', schoolId, kind, month],
+    queryFn: async () => {
+      const base = () => supabase.from('monthly_report_analyses').select('content,school_id,month').eq('kind', kind).not('edited_by', 'is', null).neq('content', '').order('updated_at', { ascending: false });
+      const [own, others] = await Promise.all([base().eq('school_id', schoolId).neq('month', month).limit(3), base().neq('school_id', schoolId).limit(3)]);
+      return [...(own.data ?? []), ...(others.data ?? [])].slice(0, 3).map(r => r.content as string);
+    },
+  });
 
   const { data: saved } = useQuery({
     queryKey: ['report-analysis', schoolId, month, kind],
@@ -173,17 +209,23 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
   const facts = useMemo(() => {
     const today = new Date().toLocaleDateString('sv-SE');
     const lines = kind === 'relatorio'
-      ? buildReportFacts({ schoolName, month, entries, classifications, kpis })
+      ? (() => {
+          const mv = mvLoading ? null : buildMonthMovement(month, ctx, { isInModel });
+          const prof = mv && mv.source !== 'vazio' ? computeProfitability(mv, integral[month]) : null;
+          const profLines = prof ? profitabilityFacts({ operacional: prof.lucro_operacional, total: prof.lucro_total, integral: prof.lucro_integral, receitaIntegral: integral[month] }) : [];
+          const kp = profLines.length ? kpis.filter(k => !/lucrativ/i.test(k.name)) : kpis;
+          return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp }), ...profLines];
+        })()
       : buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today });
     return lines.join('\n');
-  }, [kind, entries, classifications, kpis, month, schoolName, saldoInicial]);
+  }, [kind, entries, classifications, kpis, month, schoolName, saldoInicial, ctx, isInModel, mvLoading, integral]);
 
   const warnings = useMemo(() => (text && lastFacts ? unknownNumbers(text, lastFacts) : []), [text, lastFacts]);
 
   const generate = async () => {
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('draft-monthly-analysis', { body: { schoolName, monthLabel, facts, kind } });
+      const { data, error } = await supabase.functions.invoke('draft-monthly-analysis', { body: { schoolName, monthLabel, facts, kind, examples, guidelines: guide } });
       if (error || !data?.text) throw new Error(data?.error === 'credits' ? 'Créditos de IA esgotados.' : data?.error === 'rate_limit' ? 'Muitas solicitações, tente em instantes.' : 'Não foi possível gerar o rascunho.');
       setText(data.text);
       setLastFacts(facts);
@@ -219,6 +261,12 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
         <p className="text-[10px] text-muted-foreground">{text.length} caracteres · Os números vêm do cálculo oficial; a IA só redige. Revise antes de enviar.</p>
         <Button size="sm" className="h-7 text-[11px]" onClick={() => save.mutate(text)} disabled={save.isPending}>Salvar texto</Button>
       </div>
+      <p className="text-[10px] text-muted-foreground">Ao salvar seu texto corrigido, ele vira exemplo de estilo para os próximos rascunhos (os números nunca são reaproveitados).</p>
+      <details className="rounded border border-border bg-background p-2">
+        <summary className="cursor-pointer text-[11px] font-medium">Orientações desta empresa para a IA</summary>
+        <Textarea value={guide} onChange={e => setGuide(e.target.value)} rows={3} className="mt-2 text-xs" placeholder="Ex.: sempre comentar a franqueadora; usar receita integral na lucratividade." />
+        <div className="mt-1 flex justify-end"><Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => saveGuide.mutate()} disabled={saveGuide.isPending}>Salvar orientações</Button></div>
+      </details>
     </div>
   );
 }

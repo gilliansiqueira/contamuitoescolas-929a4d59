@@ -49,7 +49,13 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   try {
     if (!req.headers.get('authorization')) return json({ error: 'unauthorized' }, 401);
-    const { schoolName, monthLabel, facts, kind = 'relatorio' } = await req.json();
+    const { schoolName, monthLabel, facts, kind = 'relatorio', examples, guidelines } = await req.json();
+    const ex = Array.isArray(examples) ? examples.filter((x: unknown) => typeof x === 'string').slice(0, 3).map((x: string) => x.slice(0, 2000)) : [];
+    const guide = typeof guidelines === 'string' ? guidelines.slice(0, 1500).trim() : '';
+    let extra = '';
+    if (ex.length) extra += `\n\nTextos revisados e aprovados pela equipe (imite o estilo, a ordem e o tamanho; IGNORE todos os números deles):\n${ex.map((t: string, i: number) => `--- Exemplo ${i + 1} ---\n${t}`).join('\n')}`;
+    if (guide) extra += `\n\nOrientações da equipe para esta empresa (siga sempre, sem inventar números):\n${guide}`;
+    extra += `\n\nLucratividade: se os fatos trazem "receita integral", use-a como principal; se trazem "Dois cenários", cite os dois explicando a diferença em uma frase.`;
     if (!schoolName || !monthLabel || typeof facts !== 'string' || !PROMPTS[kind]) return json({ error: 'invalid' }, 400);
     const key = Deno.env.get('LOVABLE_API_KEY');
     if (!key) return json({ error: 'no_key' }, 500);
@@ -60,7 +66,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: PROMPTS[kind] },
+          { role: 'system', content: PROMPTS[kind] + extra },
           { role: 'user', content: `Empresa: ${schoolName}\nMês: ${monthLabel}\n\nNúmeros oficiais do sistema:\n${facts.slice(0, 8000)}` },
         ],
         temperature: 0.6,

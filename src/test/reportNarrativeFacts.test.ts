@@ -18,3 +18,21 @@ describe('reportNarrativeFacts', () => {
     expect(unknownNumbers('Receitas de R$ 190.000,00 e lucratividade de 15%', facts)).toEqual(['R$ 190.000,00', '15%']);
   });
 });
+
+import { profitabilityFacts } from '@/lib/reportNarrativeFacts';
+describe('profitabilityFacts', () => {
+  it('com receita integral salva ela é a principal', () => {
+    const l = profitabilityFacts({ operacional: 12.82, total: 10, integral: 20.5, receitaIntegral: 200000 });
+    expect(l[0]).toContain('receita integral');
+    expect(l[0]).toContain('20,50%');
+  });
+  it('com operações mostra os dois cenários', () => {
+    const l = profitabilityFacts({ operacional: 15, total: 8.4, integral: null });
+    expect(l).toHaveLength(1);
+    expect(l[0]).toContain('15,00%');
+    expect(l[0]).toContain('8,40%');
+  });
+  it('sem operações mostra uma só', () => {
+    expect(profitabilityFacts({ operacional: 15, total: 15, integral: null })[0]).toBe('Lucratividade do mês: 15,00%.');
+  });
+});
