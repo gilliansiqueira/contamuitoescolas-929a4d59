@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     let extra = '';
     if (ex.length) extra += `\n\nTextos revisados e aprovados pela equipe (imite o estilo, a ordem e o tamanho; IGNORE todos os números deles):\n${ex.map((t: string, i: number) => `--- Exemplo ${i + 1} ---\n${t}`).join('\n')}`;
     if (guide) extra += `\n\nOrientações da equipe para esta empresa (siga sempre, sem inventar números):\n${guide}`;
-    extra += `\n\nLucratividade: se os fatos trazem "receita integral", use-a como principal; se trazem "Dois cenários", cite os dois explicando a diferença em uma frase.`;
+    extra += `\n\nLucratividade: se os fatos trazem "Receitas (integral)", use esse valor e o resultado correspondente nas três linhas do topo e a lucratividade com receita integral como principal, mencionando a receita recebida só como observação; se trazem "Dois cenários", cite os dois explicando a diferença em uma frase.`;
     if (!schoolName || !monthLabel || typeof facts !== 'string' || !PROMPTS[kind]) return json({ error: 'invalid' }, 400);
     const key = Deno.env.get('LOVABLE_API_KEY');
     if (!key) return json({ error: 'no_key' }, 500);

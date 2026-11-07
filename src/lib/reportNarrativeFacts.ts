@@ -40,12 +40,20 @@ function expenseByCategory(entries: ProjectedEntry[], months: string[], cls: Cls
 }
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-export function buildReportFacts(p: { schoolName: string; month: string; entries: ProjectedEntry[]; classifications: Cls; kpis: KpiSeries[] }): string[] {
+export function buildReportFacts(p: { schoolName: string; month: string; entries: ProjectedEntry[]; classifications: Cls; kpis: KpiSeries[]; receitaIntegral?: number | null }): string[] {
   const { month, entries, classifications: cls } = p;
   const L: string[] = [];
   const t = totalsOf(entries, month, cls, 'realizado');
   L.push(`Título: Relatório ${p.schoolName} - ${monthName(month)}`);
-  L.push(`Mês: receitas ${brl(t.receitas)}, despesas ${brl(t.despesas)}, resultado ${brl(t.resultado)}.`);
+  const ri = p.receitaIntegral != null && p.receitaIntegral > 0 ? p.receitaIntegral : null;
+  if (ri != null) {
+    const resInt = ri - t.despesas;
+    L.push(`Mês (use nas três linhas do topo): Receitas (integral) ${brl(ri)}, despesas ${brl(t.despesas)}, resultado ${brl(resInt)}.`);
+    L.push(`Receita efetivamente recebida no mês: ${brl(t.receitas)} (diferença de ${brl(ri - t.receitas)} para a integral por causa das antecipações).`);
+    L.push(`Lucratividade com receita integral (principal): ${num(Math.round((resInt / ri) * 10000) / 100, 2)}%.`);
+  } else {
+    L.push(`Mês: receitas ${brl(t.receitas)}, despesas ${brl(t.despesas)}, resultado ${brl(t.resultado)}.`);
+  }
 
   const tot = (m: string) => totalsOf(entries, m, cls, 'realizado');
   const last3 = [1, 2, 3].map(i => tot(shiftMonth(month, -i))).filter(x => x.receitas || x.despesas);

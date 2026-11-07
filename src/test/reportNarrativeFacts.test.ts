@@ -36,3 +36,13 @@ describe('profitabilityFacts', () => {
     expect(profitabilityFacts({ operacional: 15, total: 15, integral: null })[0]).toBe('Lucratividade do mês: 15,00%.');
   });
 });
+
+import { buildReportFacts } from '@/lib/reportNarrativeFacts';
+describe('receita integral no topo', () => {
+  it('Sinop: topo usa R$ 152.788,43 e resultado = integral − despesas', () => {
+    const l = buildReportFacts({ schoolName: 'Sinop', month: '2026-10', entries: [], classifications: [], kpis: [], receitaIntegral: 152788.43 }).map(x => x.replace(/\u00a0/g, ' '));
+    expect(l[1]).toContain('Receitas (integral) R$ 152.788,43');
+    expect(l[1]).toContain('resultado R$ 152.788,43');
+    expect(l[3]).toContain('100,00%');
+  });
+});

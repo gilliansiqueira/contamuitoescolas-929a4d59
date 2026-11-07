@@ -212,9 +212,10 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
       ? (() => {
           const mv = mvLoading ? null : buildMonthMovement(month, ctx, { isInModel });
           const prof = mv && mv.source !== 'vazio' ? computeProfitability(mv, integral[month]) : null;
-          const profLines = prof ? profitabilityFacts({ operacional: prof.lucro_operacional, total: prof.lucro_total, integral: prof.lucro_integral, receitaIntegral: integral[month] }) : [];
-          const kp = profLines.length ? kpis.filter(k => !/lucrativ/i.test(k.name)) : kpis;
-          return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp }), ...profLines];
+          const ri = integral[month];
+          const profLines = ri ? [] : prof ? profitabilityFacts({ operacional: prof.lucro_operacional, total: prof.lucro_total, integral: null }) : [];
+          const kp = profLines.length || ri ? kpis.filter(k => !/lucrativ/i.test(k.name)) : kpis;
+          return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp, receitaIntegral: ri }), ...profLines];
         })()
       : buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today });
     return lines.join('\n');
