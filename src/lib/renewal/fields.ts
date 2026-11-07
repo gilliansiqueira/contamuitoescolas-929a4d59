@@ -51,6 +51,7 @@ export const FIELDS: FieldDef[] = [
   { field: 'data_pagamento', title: 'Data pgto', kind: 'manual', type: 'date', aliases: ['data pgmt', 'data pgto', 'data pagamento'] },
   { field: 'data_rematricula', title: 'Data Remat.', kind: 'manual', type: 'date', aliases: ['data remat', 'data rematricula', 'data da rematricula'] },
   { field: 'responsavel', title: 'Responsável', kind: 'manual', type: 'text', aliases: ['responsavel'] },
+  { field: 'responsavel_financeiro', title: 'Responsável financeiro', kind: 'manual', type: 'text', aliases: ['responsavel financeiro', 'responsavelfinanceiro', 'resp financeiro'] },
   { field: 'observacoes', title: 'Observações', kind: 'manual', type: 'text', aliases: ['observacoes', 'obs', 'observacao'] },
 ];
 
@@ -72,7 +73,7 @@ export function columnFromField(field: string, title?: string): RenewalColumn {
   return { id: newColId(), title: title ?? f.title, kind: f.kind, type: f.type, field: f.field, source: f.source, options: f.options && [...f.options], optionColors: f.optionColors && { ...f.optionColors }, renewedOptions: f.renewedOptions && [...f.renewedOptions] };
 }
 
-const DEFAULT_HIDDEN = new Set(['sala', 'data_inicio', 'data_termino', 'fone_residencial', 'fone_celular', 'bolsa', 'email', 'situacao_aluno', 'teacher', 'data_pagamento', 'responsavel']);
+const DEFAULT_HIDDEN = new Set(['sala', 'data_inicio', 'data_termino', 'fone_residencial', 'fone_celular', 'bolsa', 'email', 'situacao_aluno', 'teacher', 'data_pagamento', 'responsavel', 'responsavel_financeiro']);
 export function defaultColumns(): RenewalColumn[] {
   return FIELDS.map(f => ({ ...columnFromField(f.field), ...(DEFAULT_HIDDEN.has(f.field) ? { hidden: true } : {}) }));
 }
