@@ -46,3 +46,13 @@ describe('receita integral no topo', () => {
     expect(l[3]).toContain('100,00%');
   });
 });
+
+describe('totais do mês pela mesma fonte do Dashboard', () => {
+  it('Sinop: despesas vêm dos totais do mês e resultado = integral − despesas', () => {
+    const l = buildReportFacts({ schoolName: 'Sinop', month: '2026-10', entries: [], classifications: [], kpis: [], receitaIntegral: 152788.43,
+      totalsFor: m => m === '2026-10' ? { receitas: 140000, despesas: 118475.31 } : { receitas: 0, despesas: 0 } }).map(x => x.replace(/\u00a0/g, ' '));
+    expect(l[1]).toContain('despesas R$ 118.475,31');
+    expect(l[1]).toContain('resultado R$ 34.313,12');
+    expect(l[2]).toContain('R$ 140.000,00');
+  });
+});

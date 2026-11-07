@@ -215,7 +215,9 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
           const ri = integral[month];
           const profLines = ri ? [] : prof ? profitabilityFacts({ operacional: prof.lucro_operacional, total: prof.lucro_total, integral: null }) : [];
           const kp = profLines.length || ri ? kpis.filter(k => !/lucrativ/i.test(k.name)) : kpis;
-          return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp, receitaIntegral: ri }), ...profLines];
+          if (!mv) return [];
+          const totalsFor = (m: string) => { const x = m === month ? mv : buildMonthMovement(m, ctx, { isInModel }); return x.source === 'vazio' ? { receitas: 0, despesas: 0 } : { receitas: x.receitas, despesas: x.despesas }; };
+          return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp, receitaIntegral: ri, totalsFor }), ...profLines];
         })()
       : buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today });
     return lines.join('\n');
@@ -224,6 +226,11 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
   const warnings = useMemo(() => (text && lastFacts ? unknownNumbers(text, lastFacts) : []), [text, lastFacts]);
 
   const generate = async () => {
+    if (kind === 'relatorio') {
+      if (mvLoading || !facts) { toast.error('Dados do mês ainda carregando, tente em instantes.'); return; }
+      const mv = buildMonthMovement(month, ctx, { isInModel });
+      if (mv.source === 'vazio' || !mv.receitas || !mv.despesas) { toast.error('Receitas ou despesas do mês estão zeradas — confira os lançamentos antes de gerar o texto.'); return; }
+    }
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('draft-monthly-analysis', { body: { schoolName, monthLabel, facts, kind, examples, guidelines: guide } });
@@ -250,7 +257,7 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
           </div>
         </div>
         <div className="flex gap-1.5">
-          <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => void generate()} disabled={generating}>{generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}{kind === 'relatorio' ? 'Gerar texto do Relatório' : 'Gerar texto da Projeção'}</Button>
+          <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => void generate()} disabled={generating || mvLoading}>{generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}{kind === 'relatorio' ? 'Gerar texto do Relatório' : 'Gerar texto da Projeção'}</Button>
           <Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px]" onClick={() => { void navigator.clipboard.writeText(text); toast.success('Texto copiado.'); }} disabled={!text}><Copy className="h-3 w-3" />Copiar</Button>
         </div>
       </div>

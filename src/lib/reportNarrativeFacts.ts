@@ -40,10 +40,14 @@ function expenseByCategory(entries: ProjectedEntry[], months: string[], cls: Cls
 }
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-export function buildReportFacts(p: { schoolName: string; month: string; entries: ProjectedEntry[]; classifications: Cls; kpis: KpiSeries[]; receitaIntegral?: number | null }): string[] {
+export function buildReportFacts(p: { schoolName: string; month: string; entries: ProjectedEntry[]; classifications: Cls; kpis: KpiSeries[]; receitaIntegral?: number | null; totalsFor?: (m: string) => { receitas: number; despesas: number } }): string[] {
   const { month, entries, classifications: cls } = p;
   const L: string[] = [];
-  const t = totalsOf(entries, month, cls, 'realizado');
+  const tot = (m: string) => {
+    if (p.totalsFor) { const x = p.totalsFor(m); return { receitas: x.receitas, despesas: x.despesas, resultado: x.receitas - x.despesas }; }
+    return totalsOf(entries, m, cls, 'realizado');
+  };
+  const t = tot(month);
   L.push(`Título: Relatório ${p.schoolName} - ${monthName(month)}`);
   const ri = p.receitaIntegral != null && p.receitaIntegral > 0 ? p.receitaIntegral : null;
   if (ri != null) {
@@ -55,7 +59,6 @@ export function buildReportFacts(p: { schoolName: string; month: string; entries
     L.push(`Mês: receitas ${brl(t.receitas)}, despesas ${brl(t.despesas)}, resultado ${brl(t.resultado)}.`);
   }
 
-  const tot = (m: string) => totalsOf(entries, m, cls, 'realizado');
   const last3 = [1, 2, 3].map(i => tot(shiftMonth(month, -i))).filter(x => x.receitas || x.despesas);
   const prev3 = [4, 5, 6].map(i => tot(shiftMonth(month, -i))).filter(x => x.receitas || x.despesas);
   if (last3.length) {
