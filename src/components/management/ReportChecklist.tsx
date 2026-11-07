@@ -13,6 +13,8 @@ import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
 import { buildMonthMovement } from '@/lib/periodMovement';
 import { computeProfitability } from '@/lib/profitability';
 import { useIntegralRevenue } from '@/hooks/useAutoProfitability';
+import { fetchBankAccounts } from '@/hooks/useBankPilot';
+import { confirmedBankBalance } from '@/lib/bankStatements/confirmedBalance';
 import type { ChecklistItem, ClosingStepTemplate } from '@/hooks/useClosingSteps';
 import { useSetChecklistStatus } from '@/hooks/useClosingSteps';
 import { isFuturasTooEarly, FUTURAS_VALIDADE_DIAS } from '@/lib/teamDeadlines';
@@ -205,6 +207,23 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
     onError: e => toast.error(e instanceof Error ? e.message : 'Não foi possível salvar.'),
   });
 
+  const { data: projExtra } = useQuery({
+    queryKey: ['report-projection-extra', schoolId],
+    enabled: kind === 'projecao',
+    queryFn: async () => {
+      const db = supabase as any;
+      const { data: source } = await db.from('school_data_sources').select('status, dashboard_source').eq('school_id', schoolId).maybeSingle();
+      const usesBank = source?.status === 'ativo' && source?.dashboard_source === 'fluxo_caixa';
+      const accounts = usesBank ? (await fetchBankAccounts(schoolId)).filter(a => a.ativa) : [];
+      const bankBase = usesBank && accounts.length ? confirmedBankBalance(accounts, { allowStaleSporadic: true }) : null;
+      const { data: prods } = await db.from('simulation_products').select('id,nome').eq('school_id', schoolId);
+      const ids = (prods ?? []).map((x: any) => x.id);
+      const { data: qs } = ids.length ? await db.from('simulation_monthly_quantities').select('product_id,month,quantity').in('product_id', ids) : { data: [] };
+      const simulation = (prods ?? []).map((pr: any) => ({ nome: pr.nome ?? '', quantities: Object.fromEntries((qs ?? []).filter((q: any) => q.product_id === pr.id).map((q: any) => [String(q.month).slice(0, 7), Number(q.quantity) || 0])) }));
+      return { bankBase, simulation };
+    },
+  });
+
   // Fatos oficiais: totais da SSOT (projectionEngine + ledgerEngine), sem recálculo próprio.
   const facts = useMemo(() => {
     const today = new Date().toLocaleDateString('sv-SE');
@@ -219,9 +238,9 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
           const totalsFor = (m: string) => { const x = m === month ? mv : buildMonthMovement(m, ctx, { isInModel }); return x.source === 'vazio' ? { receitas: 0, despesas: 0 } : { receitas: x.receitas, despesas: x.despesas }; };
           return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp, receitaIntegral: ri, totalsFor }), ...profLines];
         })()
-      : buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today });
+      : buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today, bankBase: projExtra?.bankBase, simulation: projExtra?.simulation });
     return lines.join('\n');
-  }, [kind, entries, classifications, kpis, month, schoolName, saldoInicial, ctx, isInModel, mvLoading, integral]);
+  }, [kind, entries, classifications, kpis, month, schoolName, saldoInicial, ctx, isInModel, mvLoading, integral, projExtra]);
 
   const warnings = useMemo(() => (text && lastFacts ? unknownNumbers(text, lastFacts) : []), [text, lastFacts]);
 

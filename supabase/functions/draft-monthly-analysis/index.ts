@@ -40,7 +40,7 @@ Escreva o resumo do relatório mensal. Comece com o título e as três linhas Re
 Exemplo do estilo da equipe (siga o jeito, não copie os números):
 ${EXEMPLO}`,
   projecao: `${BASE}
-Escreva o resumo da projeção, no mesmo estilo do exemplo abaixo. Três partes em parágrafos: como fechou o mês anterior (recebeu/pagou mais ou menos que o previsto e quanto), como fica o mês atual (menor saldo, em que dia, se pode faltar dinheiro e o que recomendamos) e o cenário futuro de matrículas e renovações (se não houver número, mantenha o lembrete entre colchetes). Máximo de 1.000 caracteres.
+Escreva o resumo da projeção olhando para o FUTURO (não reconte o mês passado; no máximo uma frase de contexto). Três parágrafos: 1) caixa do mês atual — menor saldo previsto, em que dia, como termina o mês e se há risco de faltar dinheiro, com a recomendação; 2) próximos meses — o que esperar de receitas, despesas e se algum mês aperta o caixa; 3) quantas matrículas e renovações precisam ser feitas por mês segundo a Simulação, com o total (se não houver, mantenha o lembrete entre colchetes). Máximo de 1.000 caracteres.
 Exemplo do estilo da equipe:
 ${EXEMPLO}`,
 };

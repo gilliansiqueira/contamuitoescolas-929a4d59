@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pctChange, shiftMonth, unknownNumbers } from '@/lib/reportNarrativeFacts';
+import { pctChange, shiftMonth, unknownNumbers, buildProjectionFacts } from '@/lib/reportNarrativeFacts';
 
 describe('reportNarrativeFacts', () => {
   it('queda de receita de 181 mil para 161 mil ≈ 11%', () => {
@@ -54,5 +54,20 @@ describe('totais do mês pela mesma fonte do Dashboard', () => {
     expect(l[1]).toContain('despesas R$ 118.475,31');
     expect(l[1]).toContain('resultado R$ 34.313,12');
     expect(l[2]).toContain('R$ 140.000,00');
+  });
+});
+
+describe('buildProjectionFacts — futuro e simulação', () => {
+  it('lista metas da Simulação a partir do mês atual, com total', () => {
+    const L = buildProjectionFacts({ schoolName: 'X', closedMonth: '2026-10', entries: [], classifications: [], saldoInicial: 0, today: '2026-11-07',
+      simulation: [{ nome: 'Matrículas', quantities: { '2026-10': 99, '2026-11': 10, '2026-12': 15 } }, { nome: 'Renovação', quantities: {} }] });
+    const s = L.join('\n');
+    expect(s).toContain('- Matrículas: 10 em novembro 2026, 15 em dezembro 2026; total 25.');
+    expect(s).not.toContain('99');
+    expect(s).not.toContain('Renovação:');
+  });
+  it('sem Simulação mantém o lembrete', () => {
+    const L = buildProjectionFacts({ schoolName: 'X', closedMonth: '2026-10', entries: [], classifications: [], saldoInicial: 0, today: '2026-11-07' });
+    expect(L.join('\n')).toContain('[completar cenário de matrículas e renovações]');
   });
 });

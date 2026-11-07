@@ -133,28 +133,60 @@ export function projectedDailyBalances(entries: ProjectedEntry[], cls: Cls, sald
   return byDay;
 }
 
-export function buildProjectionFacts(p: { schoolName: string; closedMonth: string; entries: ProjectedEntry[]; classifications: Cls; saldoInicial: number; today: string }): string[] {
+export interface SimulationLine { nome: string; quantities: Record<string, number> }
+
+/** Saldo diário a partir do saldo conferido do banco (mesma base do alerta de caixa) ou do saldo inicial. */
+function futureBalances(entries: ProjectedEntry[], cls: Cls, today: string, untilMonth: string, saldoInicial: number, bank?: { date: string; balance: number } | null) {
+  if (!bank) return projectedDailyBalances(entries, cls, saldoInicial, today, untilMonth);
+  const baseDate = bank.date > today ? today : bank.date;
+  const projected = entries.filter(e => e.tipoRegistro === 'projetado');
+  const realized = entries.filter(e => e.tipoRegistro === 'realizado');
+  const impacts = remainingDayForecast(projected, realized, today, cls)
+    .filter(e => e.dataProjetada.slice(0, 7) <= untilMonth && (e.dataProjetada > baseDate || (baseDate === today && e.dataProjetada === today)))
+    .map(e => ({ d: e.dataProjetada, v: e.impacto })).sort((x, y) => x.d.localeCompare(y.d));
+  const byDay = new Map<string, number>();
+  let s = bank.balance;
+  byDay.set(baseDate, s);
+  for (const i of impacts) { s += i.v || 0; byDay.set(i.d, s); }
+  return byDay;
+}
+
+export function buildProjectionFacts(p: { schoolName: string; closedMonth: string; entries: ProjectedEntry[]; classifications: Cls; saldoInicial: number; today: string; bankBase?: { date: string; balance: number } | null; simulation?: SimulationLine[] }): string[] {
   const { closedMonth, entries, classifications: cls, today } = p;
   const cur = shiftMonth(closedMonth, 1);
-  const L: string[] = [`Empresa: ${p.schoolName}. Mês fechado: ${monthName(closedMonth)}. Mês atual: ${monthName(cur)}.`];
+  const n1 = shiftMonth(cur, 1), n2 = shiftMonth(cur, 2);
+  const L: string[] = [`Empresa: ${p.schoolName}. Hoje: ${today.slice(8, 10)}/${today.slice(5, 7)}. Mês atual: ${monthName(cur)}. O texto deve falar do FUTURO.`];
   const real = totalsOf(entries, closedMonth, cls, 'realizado');
-  const prev = totalsOf(entries, closedMonth, cls, 'projetado');
-  L.push(`${monthName(closedMonth)} realizado: receitas ${brl(real.receitas)}, despesas ${brl(real.despesas)}, resultado ${brl(real.resultado)}.`);
-  if (prev.receitas || prev.despesas) {
-    L.push(`${monthName(closedMonth)} previsto: receitas ${brl(prev.receitas)}, despesas ${brl(prev.despesas)}.`);
-    L.push(`Diferença realizado - previsto: receitas ${brl(real.receitas - prev.receitas)}, despesas ${brl(real.despesas - prev.despesas)}.`);
-  }
-  const next = calculateTotals(entries.filter(e => e.dataProjetada.startsWith(cur) && (e.tipoRegistro === 'projetado' || e.dataProjetada < today)), cls);
-  L.push(`${monthName(cur)} (realizado até ontem + previsto): receitas ${brl(next.receitas)}, despesas ${brl(next.despesas)}, resultado ${brl(next.resultado)}.`);
-  const bal = projectedDailyBalances(entries, cls, p.saldoInicial, today, cur);
-  const days = [...bal.entries()].filter(([d]) => d.startsWith(cur) && d >= today);
+  L.push(`(Contexto, no máximo uma frase) ${monthName(closedMonth)} fechou com resultado ${brl(real.resultado)}.`);
+  const bal = futureBalances(entries, cls, today, n2, p.saldoInicial, p.bankBase);
+  const daysOf = (m: string) => [...bal.entries()].filter(([d]) => d.startsWith(m) && d >= today).sort((x, y) => x[0].localeCompare(y[0]));
+  if (p.bankBase) L.push(`Saldo conferido no banco em ${p.bankBase.date.slice(8, 10)}/${p.bankBase.date.slice(5, 7)}: ${brl(p.bankBase.balance)}.`);
+  const days = daysOf(cur);
   if (days.length) {
     const [minD, minV] = days.reduce((a, x) => (x[1] < a[1] ? x : a));
     const end = days[days.length - 1][1];
-    L.push(`Menor saldo previsto em ${monthName(cur)}: ${brl(minV)} em ${minD.slice(8, 10)}/${minD.slice(5, 7)}. Saldo previsto no fim do mês: ${brl(end)}.`);
-    L.push(minV < 0 ? `Atenção: o saldo previsto fica negativo em ${monthName(cur)}.` : `O saldo previsto não fica negativo em ${monthName(cur)}.`);
+    L.push(`Caixa de ${monthName(cur)}: menor saldo previsto ${brl(minV)} em ${minD.slice(8, 10)}/${minD.slice(5, 7)}; saldo previsto no fim do mês ${brl(end)}.`);
+    const neg = days.find(([, v]) => v < 0);
+    L.push(neg ? `RISCO: o caixa fica negativo a partir de ${neg[0].slice(8, 10)}/${neg[0].slice(5, 7)} (pior momento ${brl(minV)} em ${minD.slice(8, 10)}/${minD.slice(5, 7)}). Recomende antecipar recebimentos, renegociar ou adiar pagamentos.` : `Sem risco de faltar dinheiro em ${monthName(cur)} pelo fluxo diário.`);
   }
-  L.push('Cenário de matrículas/renovações: não há número na plataforma; deixar o lembrete [completar cenário de matrículas e renovações].');
+  const fut = (m: string) => calculateTotals(entries.filter(e => e.dataProjetada.startsWith(m) && (e.tipoRegistro === 'projetado' || (m === cur && e.dataProjetada < today))), cls);
+  const c = fut(cur);
+  L.push(`${monthName(cur)} previsto (realizado até ontem + previsto): receitas ${brl(c.receitas)}, despesas ${brl(c.despesas)}, resultado ${brl(c.resultado)}.`);
+  for (const m of [n1, n2]) {
+    const t = fut(m);
+    if (!t.receitas && !t.despesas) continue;
+    const md = daysOf(m);
+    const mn = md.length ? md.reduce((a, x) => (x[1] < a[1] ? x : a)) : null;
+    L.push(`${monthName(m)} previsto: receitas ${brl(t.receitas)}, despesas ${brl(t.despesas)}, resultado ${brl(t.resultado)}${mn ? `; menor saldo ${brl(mn[1])} em ${mn[0].slice(8, 10)}/${mn[0].slice(5, 7)}${mn[1] < 0 ? ' (caixa negativo)' : ''}` : ''}.`);
+  }
+  const months = Array.from({ length: 8 }, (_, i) => shiftMonth(cur, i));
+  const sim = (p.simulation ?? []).map(l => ({ nome: l.nome.trim(), qs: months.map(m => [m, l.quantities[m] ?? 0] as const).filter(([, q]) => q > 0) })).filter(l => l.nome && l.qs.length);
+  if (sim.length) {
+    L.push('Simulação (metas de matrículas e renovações a fazer, use as quantidades exatas, sem R$):');
+    for (const l of sim) L.push(`- ${l.nome}: ${l.qs.map(([m, q]) => `${q} em ${monthName(m)}`).join(', ')}; total ${l.qs.reduce((a, [, q]) => a + q, 0)}.`);
+  } else {
+    L.push('Cenário de matrículas/renovações: não há Simulação; deixar o lembrete [completar cenário de matrículas e renovações].');
+  }
   return L;
 }
 
