@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertTriangle, Settings, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deadlineParts, todaySP, overdueProjections, PROJ_STEPS, type ProjStep } from '@/lib/teamDeadlines';
+import { deadlineParts, todaySP, overdueProjections, overdueReports, PROJ_STEPS, type ProjStep } from '@/lib/teamDeadlines';
 import { defaultReportMonth } from '@/lib/reportMonth';
 import { useManagementPortfolio } from '@/hooks/useManagementPortfolio';
 
@@ -45,7 +45,10 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
   // Mesmo mês que o Controle de relatórios abre (anterior até o dia 20).
   const projMonth = projDeadline ? defaultReportMonth(today, false) : '';
   const projDue = !!projDeadline && today > projDeadline;
-  const { data: portfolio = [] } = useManagementPortfolio(projMonth, !!isAdmin && projDue);
+  const repDeadline = anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
+    .filter(d => !/proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0] ?? null;
+  const repDue = !!repDeadline && today > repDeadline;
+  const { data: portfolio = [] } = useManagementPortfolio(projMonth || (repDeadline ? defaultReportMonth(today, false) : ''), !!isAdmin && (projDue || repDue));
   const isManager = !!canManageCollaborators;
   const scope = portfolio.filter(p => isManager || p.responsible_user_id === user?.id);
   const scopeIds = scope.map(p => p.school_id);
@@ -63,18 +66,24 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
   });
   const overdueIds = projDue && projDeadline ? overdueProjections(scopeIds, projSteps, projDeadline, today) : [];
   const overdue = scope.filter(p => overdueIds.includes(p.school_id));
+  const overdueRep = overdueReports(scope, repDeadline, today);
   const nextOther = anns.filter(a => a.ativo).flatMap(a => deadlineParts(a.team_announcement_deadlines.filter(d => !/proje/i.test(d.rotulo)), today))
     .sort((x, y) => x.dias - y.dias)[0];
-  const overdueText = overdue.length
-    ? `${overdue.length} projeç${overdue.length > 1 ? 'ões' : 'ão'} em atraso${isManager ? ' na equipe' : ''}.${nextOther ? ` ${nextOther.texto.charAt(0).toUpperCase()}${nextOther.texto.slice(1)}.` : ''}`
+  const countParts = [
+    overdue.length ? `${overdue.length} projeç${overdue.length > 1 ? 'ões' : 'ão'}` : '',
+    overdueRep.length ? `${overdueRep.length} relatório${overdueRep.length > 1 ? 's' : ''}` : '',
+  ].filter(Boolean);
+  const overdueText = countParts.length
+    ? `${countParts.join(' e ')} em atraso${isManager ? ' na equipe' : ''}.${nextOther ? ` ${nextOther.texto.charAt(0).toUpperCase()}${nextOther.texto.slice(1)}.` : ''}`
     : null;
+  const groupOwner = (l: typeof overdue) => Object.entries(l.reduce<Record<string, typeof overdue>>((m, p) => { const k = p.responsible_email ?? 'Sem responsável'; (m[k] ||= []).push(p); return m; }, {}));
   const byOwner = Object.entries(overdue.reduce<Record<string, typeof overdue>>((m, p) => { const k = p.responsible_email ?? 'Sem responsável'; (m[k] ||= []).push(p); return m; }, {}));
 
   useEffect(() => {
-    if (!user?.id || (active.length === 0 && overdue.length === 0)) return;
+    if (!user?.id || (active.length === 0 && overdue.length === 0 && overdueRep.length === 0)) return;
     supabase.from('team_announcement_dismissals').select('dia').eq('user_id', user.id).eq('dia', today).maybeSingle()
       .then(({ data }) => { if (!data) setPopup(true); });
-  }, [user?.id, today, active.length, overdue.length]);
+  }, [user?.id, today, active.length, overdue.length, overdueRep.length]);
 
   useEffect(() => {
     (window as any).__deadlinePopupOpen = popup;
@@ -152,6 +161,30 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
                         {list.map(p => <li key={p.school_id}><button type="button" className="underline" onClick={() => { setPopup(false); onOpenSchool?.(p.school_id); }}>{p.school_name}</button></li>)}
                       </ul>
                     ))}
+                  </div>
+                )}
+                {overdueRep.length > 0 && (
+                  <div className="space-y-2 rounded-md border-2 border-destructive bg-destructive/10 p-3 text-foreground">
+                    <p className="text-lg font-bold text-destructive">{overdueRep.length} relatório{overdueRep.length > 1 ? 's' : ''} em atraso</p>
+                    <div className="divide-y divide-destructive/20 rounded border border-destructive/30 bg-background">
+                      {groupOwner(overdueRep).sort((a, b) => (a[0] === 'Sem responsável' ? 1 : b[0] === 'Sem responsável' ? -1 : b[1].length - a[1].length)).map(([owner, list]) => {
+                        const short = owner === 'Sem responsável' ? owner : owner.split('@')[0].replace(/[._-]?contamuito\d*$/i, '').replace(/^./, c => c.toUpperCase());
+                        const key = 'rep:' + owner; const open = !isManager || openOwner === key;
+                        return (
+                          <div key={key}>
+                            {isManager && <button type="button" className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-destructive/5" onClick={() => setOpenOwner(open ? null : key)}>
+                              <span className="font-medium">{open ? '▾' : '▸'} {short}</span>
+                              <span className="font-bold text-destructive">{list.length}</span>
+                            </button>}
+                            {open && (
+                              <p className="px-6 py-2 text-xs">
+                                {list.map((p, i) => <span key={p.school_id}>{i > 0 && ', '}<button type="button" className="underline" onClick={() => { setPopup(false); onOpenSchool?.(p.school_id); }}>{p.school_name}</button></span>)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
                 {active.map(a => (

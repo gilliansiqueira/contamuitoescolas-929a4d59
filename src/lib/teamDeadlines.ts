@@ -65,3 +65,9 @@ export function projectionReportMonth(deadlines: { rotulo: string; data: string 
   const proj = deadlines.filter(d => /proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0];
   return (other ?? proj ?? '').slice(0, 7);
 }
+
+/** Relatórios atrasados: prazo do relatório já passou e "Envio ao cliente" não marcado. */
+export function overdueReports<T extends { report_delivered: boolean | null }>(portfolio: T[], reportDeadline: string | null, today: string): T[] {
+  if (!reportDeadline || today <= reportDeadline) return [];
+  return portfolio.filter(p => !p.report_delivered);
+}
