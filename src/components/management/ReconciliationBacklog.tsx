@@ -28,6 +28,7 @@ const ageOf = (d: string, today: string) => Math.round((Date.parse(`${today}T12:
 export function ReconciliationBacklog({ rows, schools, today, search, isLoading, focusSchoolId, onOpenSchool }: Props) {
   const [responsible, setResponsible] = useState('all');
   const [age, setAge] = useState<Age>('all');
+  const [direction, setDirection] = useState<'all' | 'entrada' | 'saida'>('all');
   const [openSchool, setOpenSchool] = useState<string | null>(focusSchoolId);
   const [openDays, setOpenDays] = useState<Set<string>>(new Set());
   const [reasonFilter, setReasonFilter] = useState<string | null>(null);
@@ -44,13 +45,15 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
       const s = schools.get(r.school_id);
       if (!s) return false;
       if (responsible !== 'all' && (s.responsible_user_id ?? '__none') !== responsible) return false;
+      if (direction === 'entrada' && r.tipo !== 'entrada') return false;
+      if (direction === 'saida' && r.tipo === 'entrada') return false;
       const a = ageOf(r.data, today);
       if (age === '1' && a > 1) return false;
       if (age === '2-3' && (a < 2 || a > 3)) return false;
       if (age === '4+' && a < 4) return false;
       return !term || s.school_name.toLocaleLowerCase('pt-BR').includes(term) || s.responsibleLabel.toLocaleLowerCase('pt-BR').includes(term);
     });
-  }, [rows, schools, responsible, age, today, search]);
+  }, [rows, schools, responsible, age, direction, today, search]);
 
   const groups = useMemo(() => {
     const byResp = new Map<string, { label: string; schools: Map<string, { info: SchoolInfo; days: Map<string, BacklogRow[]> }> }>();
@@ -93,6 +96,7 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
       <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-2.5 sm:flex-row">
         <Select value={responsible} onValueChange={setResponsible}><SelectTrigger className="h-9 bg-card text-xs sm:w-[220px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas as responsáveis</SelectItem>{responsibles.map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent></Select>
         <Select value={age} onValueChange={v => setAge(v as Age)}><SelectTrigger className="h-9 bg-card text-xs sm:w-[200px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Qualquer idade</SelectItem><SelectItem value="1">De ontem (1 dia)</SelectItem><SelectItem value="2-3">2 a 3 dias</SelectItem><SelectItem value="4+">Mais de 3 dias</SelectItem></SelectContent></Select>
+        <Select value={direction} onValueChange={v => setDirection(v as 'all' | 'entrada' | 'saida')}><SelectTrigger className="h-9 bg-card text-xs sm:w-[200px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Entradas e saídas</SelectItem><SelectItem value="entrada">Só entradas (receitas)</SelectItem><SelectItem value="saida">Só saídas (despesas)</SelectItem></SelectContent></Select>
         <p className="self-center text-[11px] text-muted-foreground sm:ml-auto">Dias anteriores a hoje, desde 01/09/2026. Conciliou, sai da lista.</p>
         <Button size="sm" variant="outline" className="h-9 text-xs" disabled={isLoading || !filtered.length} onClick={() => exportTeamBacklogXlsx(`pendencias-equipe-${today}.xlsx`, today, filtered.map(r => { const s = schools.get(r.school_id)!; return { empresa: s.school_name, responsavel: s.responsibleLabel, data: r.data, conta: r.account_name ?? '', descricao: r.descricao, tipo: tipoLabel(r.tipo), valor: r.tipo === 'entrada' ? Math.abs(r.valor) : -Math.abs(r.valor), motivo: motivoOf(r), observacao: r.justification_note ?? '' }; }))}><Download className="mr-1 h-3.5 w-3.5" />Baixar Excel</Button>
       </div>
@@ -110,7 +114,7 @@ export function ReconciliationBacklog({ rows, schools, today, search, isLoading,
                 <span className="flex items-center gap-1 font-semibold">{s.total}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} /></span>
               </button>
               {isOpen && <div className="border-t bg-muted/10 px-4 py-3">
-                <div className="mb-2 flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">{s.total} lançamentos · {brl(s.value)}</span><span className="flex gap-1.5"><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportPendenciasXlsx(`pendencias-${slug(s.info.school_name)}-${today}.xlsx`, `Pendências de conciliação — ${s.info.school_name}`, s.days.flatMap(([, it]) => it).sort((x, y) => x.data.localeCompare(y.data)).map(i => ({ data: i.data, conta: i.account_name ?? '', descricao: i.descricao, tipo: tipoLabel(i.tipo), valor: Math.abs(i.valor), motivo: motivoOf(i), observacao: i.justification_note ?? '' })))}><Download className="mr-1 h-3 w-3" />Excel para o cliente</Button><Button size="sm" className="h-7 text-xs" onClick={() => onOpenSchool(s.info.school_id)}>Ir conciliar <ArrowRight className="ml-1 h-3 w-3" /></Button></span></div>
+                <div className="mb-2 flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">{s.total} lançamentos · {brl(s.value)}</span><span className="flex gap-1.5"><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportPendenciasXlsx(`pendencias-${slug(s.info.school_name)}-${today}.xlsx`, `Pendências de conciliação — ${s.info.school_name}${direction === 'saida' ? ' — só saídas' : direction === 'entrada' ? ' — só entradas' : ''}`, s.days.flatMap(([, it]) => it).sort((x, y) => x.data.localeCompare(y.data)).map(i => ({ data: i.data, conta: i.account_name ?? '', descricao: i.descricao, tipo: tipoLabel(i.tipo), valor: Math.abs(i.valor), motivo: motivoOf(i), observacao: i.justification_note ?? '' })))}><Download className="mr-1 h-3 w-3" />Excel para o cliente</Button><Button size="sm" className="h-7 text-xs" onClick={() => onOpenSchool(s.info.school_id)}>Ir conciliar <ArrowRight className="ml-1 h-3 w-3" /></Button></span></div>
                 {(() => {
                   const all = s.days.flatMap(([, it]) => it);
                   const byR = new Map<string, number>();
