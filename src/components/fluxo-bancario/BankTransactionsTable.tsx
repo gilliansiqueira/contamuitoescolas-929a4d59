@@ -31,6 +31,8 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   useEffect(() => { setFrom(defaultFrom); setTo(defaultTo); }, [defaultFrom, defaultTo]);
   const lastTx = useMemo(() => txs.reduce((m, t) => (t.data > m ? t.data : m), ''), [txs]);
   const [search, setSearch] = useState('');
+  const [minValor, setMinValor] = useState('');
+  const [maxValor, setMaxValor] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noteTx, setNoteTx] = useState<BankTx | null>(null);
   const [delTx, setDelTx] = useState<BankTx | null>(null);
@@ -214,10 +216,13 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const parseV = (v: string) => { const c = v.replace(/R\$|\s/g, '').replace(/\./g, '').replace(',', '.'); if (!c) return null; const n = Number(c); return Number.isFinite(n) ? n : null; };
+    const vMin = parseV(minValor), vMax = parseV(maxValor);
+    const inRange = (t: BankTx) => { const v = Math.abs(Number(t.valor)); return (vMin == null || v >= vMin - 0.005) && (vMax == null || v <= vMax + 0.005); };
     return txs
-       .filter(t => (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)))
+       .filter(t => inRange(t) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet]);
+   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet, minValor, maxValor]);
 
   const tipoLabel = (t: BankTx, itemId: string | null | undefined, categoria?: string) => {
     if (isAutoInvest(t)) return 'Aplicação automática';
@@ -338,6 +343,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
         <div><label className="text-xs text-muted-foreground">De</label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
         <div><label className="text-xs text-muted-foreground">Até</label><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
         <div className="min-w-40 flex-1"><label className="text-xs text-muted-foreground">Buscar descrição</label><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Ex.: PIX, tarifa…" /></div>
+        <div className="w-28"><label className="text-xs text-muted-foreground">Valor de</label><Input inputMode="decimal" value={minValor} onChange={e => setMinValor(e.target.value)} placeholder="0,00" /></div>
+        <div className="w-28"><label className="text-xs text-muted-foreground">Valor até</label><Input inputMode="decimal" value={maxValor} onChange={e => setMaxValor(e.target.value)} placeholder="0,00" /></div>
+        {(minValor || maxValor) && <Button variant="ghost" size="sm" className="self-end" onClick={() => { setMinValor(''); setMaxValor(''); }} aria-label="Limpar filtro de valor">✕</Button>}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
