@@ -32,7 +32,10 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   a_classificar: { label: 'A classificar', cls: 'bg-warning/15 text-warning' },
   erro: { label: 'Erro', cls: 'bg-destructive/15 text-destructive' },
   simulado: { label: 'Teste', cls: 'bg-muted text-muted-foreground' },
+  ja_existia: { label: 'Já existia na Olist', cls: 'bg-muted text-muted-foreground' },
+  simulado_existia: { label: 'Teste: já existia', cls: 'bg-muted text-muted-foreground' },
 };
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /** Traduz a resposta técnica da Olist num motivo curto e acionável. */
 function friendlyErro(e: string): string {
@@ -67,6 +70,8 @@ export function OlistErpPanel({ schoolId, accounts }: { schoolId: string; accoun
   const [app, setApp] = useState<{ id: string; secret: string } | null>(null);
   const [catalog, setCatalog] = useState<{ categorias: any[]; contas: any[]; items: any[] } | null>(null);
   const [mapDraft, setMapDraft] = useState<Record<string, string>>({});
+  const [cleanup, setCleanup] = useState<{ apagar: any[]; manter: number } | null>(null);
+  const [recon, setRecon] = useState<{ contas: any[] } | null>(null);
   const [linkDraft, setLinkDraft] = useState<Record<string, { conta: string; start: string }>>({});
 
   useEffect(() => {
@@ -115,6 +120,29 @@ export function OlistErpPanel({ schoolId, accounts }: { schoolId: string; accoun
         {conn?.last_push_at && <span className="text-muted-foreground">· último envio {fmtDateTime(conn.last_push_at)}</span>}
       </div>
       {conn?.last_error && <p className="mt-1 text-xs text-destructive">{conn.last_error}</p>}
+      {recon && (
+        <div className="mt-3 rounded-lg border border-border p-3 text-xs">
+          <div className="mb-1 flex justify-between font-semibold">Banco × Olist (movimento desde a data de início)<button className="text-muted-foreground" onClick={() => setRecon(null)}>fechar</button></div>
+          {recon.contas.map((c: any) => (
+            <div key={c.conta} className="mb-2">
+              <p>{c.conta} desde {c.desde.split('-').reverse().join('/')}: banco {brl(c.movBanco)} · Olist {brl(c.movOlist)} · <span className={Math.abs(c.diferenca) > 0.009 ? 'font-semibold text-destructive' : 'font-semibold text-success'}>diferença {brl(c.diferenca)}</span></p>
+              {c.dias.length > 0 && <table className="mt-1 w-full"><thead><tr className="text-muted-foreground"><th className="text-left">Dia</th><th className="text-right">Banco</th><th className="text-right">Olist</th><th className="text-right">Diferença</th></tr></thead>
+                <tbody>{c.dias.map((d: any) => <tr key={d.data}><td>{d.data.split('-').reverse().join('/')}</td><td className="text-right">{brl(d.banco)}</td><td className="text-right">{brl(d.olist)}</td><td className="text-right text-destructive">{brl(d.diferenca)}</td></tr>)}</tbody></table>}
+            </div>
+          ))}
+        </div>
+      )}
+      {cleanup && (
+        <div className="mt-3 rounded-lg border border-destructive/40 p-3 text-xs">
+          <p className="mb-1 font-semibold">{cleanup.apagar.length} lançamento(s) criados pela plataforma já existiam na Olist e serão apagados · {cleanup.manter} faltavam lá e ficam.</p>
+          <div className="max-h-48 overflow-auto">{cleanup.apagar.map((a: any) => <div key={a.olist_id}>{a.data.split('-').reverse().join('/')} · {a.descricao} · {brl(a.valor)} ({a.tipo})</div>)}</div>
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" variant="destructive" disabled={!cleanup.apagar.length || busy === 'clean2'} onClick={async () => { const d = await run('clean2', { action: 'dedup_cleanup', dry_run: false }, d => `${d.apagar.length} duplicado(s) apagado(s) na Olist.`); if (d) setCleanup(null); }}>Apagar estes na Olist</Button>
+            <Button size="sm" variant="outline" onClick={() => setCleanup(null)}>Cancelar</Button>
+          </div>
+        </div>
+      )}
+
 
       <div className="mt-3 flex flex-wrap gap-2">
         {isSuperAdmin && <Button size="sm" variant="outline" onClick={() => setApp({ id: '', secret: '' })}><KeyRound className="mr-1 h-3.5 w-3.5" />Aplicativo Olist</Button>}
@@ -122,7 +150,9 @@ export function OlistErpPanel({ schoolId, accounts }: { schoolId: string; accoun
           <Button size="sm" variant="outline" disabled={busy === 'auth'} onClick={async () => { const d = await run('auth', { action: 'authorize', return_url: window.location.href.split('?')[0] }); if (d?.url) window.location.href = d.url; }}>Autorizar na Olist</Button>
         )}
         {isSuperAdmin && conn?.authorized && <Button size="sm" variant="outline" disabled={busy === 'catalog'} onClick={loadCatalog}><Tags className="mr-1 h-3.5 w-3.5" />Contas e categorias</Button>}
-        {conn?.enabled && <Button size="sm" disabled={busy === 'push'} onClick={() => run('push', { action: 'push' }, d => conn.test_mode ? `Teste: ${d.simulados} lançamento(s) simulados.` : `${d.enviados} enviado(s), ${d.aClassificar} a classificar, ${d.erros} com erro.`)}><RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy === 'push' ? 'animate-spin' : ''}`} />Enviar agora</Button>}
+        {conn?.authorized && <Button size="sm" variant="outline" disabled={busy === 'recon'} onClick={async () => { const d = await run('recon', { action: 'reconcile' }); if (d) setRecon(d); }}>Conferir com a Olist</Button>}
+        {isSuperAdmin && conn?.authorized && <Button size="sm" variant="outline" disabled={busy === 'clean'} onClick={async () => { const d = await run('clean', { action: 'dedup_cleanup', dry_run: true }); if (d) setCleanup(d); }}>Desfazer duplicados</Button>}
+        {conn?.enabled && <Button size="sm" disabled={busy === 'push'} onClick={() => run('push', { action: 'push' }, d => conn.test_mode ? `Teste: ${d.simulados} lançamento(s) simulados.` : `${d.enviados} enviado(s), ${d.aClassificar} a classificar, ${d.jaExistia ?? 0} já existiam, ${d.erros} com erro.`)}><RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy === 'push' ? 'animate-spin' : ''}`} />Enviar agora</Button>}
         {conn?.enabled && logs.some(l => l.status === 'erro') && <Button size="sm" variant="outline" disabled={busy === 'retry'} onClick={() => run('retry', { action: 'push', retry: true }, d => `Reenvio: ${d.enviados + d.aClassificar} ok, ${d.erros} com erro.`)}>Reenviar com erro</Button>}
       </div>
 

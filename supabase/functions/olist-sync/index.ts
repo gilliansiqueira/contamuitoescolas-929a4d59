@@ -4,7 +4,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
-import { suggestCategory, pickOpenBill, isOperation, addDays, toBr, type Tx, type OpenBill, type ModelItem } from './push.ts';
+import { suggestCategory, pickOpenBill, isOperation, addDays, toBr, findExisting, dailyDiff, type Tx, type OpenBill, type ModelItem, type OlistCaixa } from './push.ts';
 
 const API = 'https://api.tiny.com.br/public-api/v3';
 const AUTH = 'https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect';
@@ -60,6 +60,18 @@ async function listAll(token: string, path: string): Promise<any[]> {
   return out;
 }
 
+const isoDate = (d: string) => { const s = String(d ?? '').slice(0, 10); const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : s; };
+/** Lançamentos do Caixa da Olist na conta, num intervalo de datas. */
+async function listCaixa(token: string, contaId: number, from: string, to: string): Promise<OlistCaixa[]> {
+  const rows = await listAll(token, `/caixa?idContaFinanceira=${contaId}&dataInicial=${from}&dataFinal=${to}`);
+  return rows.map(r => ({ id: Number(r.id), data: isoDate(r.data), valor: Math.abs(Number(r.valor)), tipo: String(r.tipo) }))
+    .filter(r => r.data >= from && r.data <= to);
+}
+async function ourIds(connId: string): Promise<Set<number>> {
+  const { data } = await admin.from('erp_push_log').select('olist_id').eq('connection_id', connId).eq('acao', 'caixa').not('olist_id', 'is', null).in('status', ['enviado', 'a_classificar']);
+  return new Set((data ?? []).map(r => Number(r.olist_id)));
+}
+
 // Lançamentos de Caixa e baixas usam o id da "conta financeira" (/contas-financeiras), não o de /contas-bancarias.
 // Corrige vínculos antigos pelo nome quando o id salvo não existe entre as contas financeiras.
 // deno-lint-ignore no-explicit-any
@@ -84,7 +96,7 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
   if (!links?.length) throw new Error('Ligue ao menos uma conta bancária a uma conta da Olist.');
   const { data: maps } = await admin.from('erp_category_map').select('model_item_id, olist_categoria_id').eq('school_id', conn.school_id);
   const catOf = new Map((maps ?? []).filter(m => m.olist_categoria_id).map(m => [m.model_item_id, Number(m.olist_categoria_id)]));
-  let enviados = 0, aClassificar = 0, erros = 0, simulados = 0, reclass = 0;
+  let enviados = 0, aClassificar = 0, erros = 0, simulados = 0, reclass = 0, jaExistia = 0;
 
   // 1) Reclassificação: lançamentos enviados como "A classificar" que a equipe já classificou.
   if (!conn.test_mode) {
@@ -130,7 +142,17 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
       }
     }
 
+    const caixa = await listCaixa(token, Number(link.olist_conta_id), addDays(txs[0].data, -1), addDays(txs[txs.length - 1].data, 1));
+    const ours = await ourIds(conn.id);
+    const usedCx = new Set<number>();
     for (const tx of txs) {
+      const exist = findExisting(tx, caixa, usedCx, ours);
+      if (exist) {
+        usedCx.add(exist);
+        await admin.from('erp_push_log').upsert({ school_id: conn.school_id, connection_id: conn.id, bank_transaction_id: tx.id, data: tx.data, descricao: tx.descricao, valor: tx.valor, tipo: tx.tipo,
+          acao: 'caixa', categoria_origem: 'ja_existia', status: conn.test_mode ? 'simulado_existia' : 'ja_existia', olist_id: exist, erro: null, updated_at: nowIso() }, { onConflict: 'bank_transaction_id' });
+        jaExistia++; continue;
+      }
       const sug = suggestCategory(tx, (hist ?? []) as never);
       const item = sug.modelItemId ? itemMap.get(sug.modelItemId) : undefined;
       const op = isOperation(item);
@@ -170,7 +192,54 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
     }
   }
   await admin.from('erp_connections').update({ last_push_at: nowIso(), ...(erros ? { last_error: `${erros} lançamento(s) com erro no envio` } : { last_error: null, last_ok_at: nowIso() }) }).eq('id', conn.id);
-  return { enviados, aClassificar, erros, simulados, reclass };
+  return { enviados, aClassificar, erros, simulados, reclass, jaExistia };
+}
+
+/** Desfaz duplicados criados por nós: apaga só lançamentos nossos que já existiam na Olist (lançados por outros). */
+// deno-lint-ignore no-explicit-any
+async function dedupCleanup(conn: any, dryRun: boolean) {
+  const token = await accessToken(conn);
+  const { data: logs } = await admin.from('erp_push_log').select('id, bank_transaction_id, data, valor, tipo, descricao, olist_id').eq('connection_id', conn.id).eq('acao', 'caixa').in('status', ['enviado', 'a_classificar']).not('olist_id', 'is', null).order('data');
+  const { data: links } = await admin.from('erp_account_links').select('olist_conta_id').eq('connection_id', conn.id);
+  if (!logs?.length || !links?.length) return { apagar: [], manter: 0 };
+  const ours = new Set(logs.map(l => Number(l.olist_id)));
+  const from = addDays(logs[0].data, -1), to = addDays(logs[logs.length - 1].data, 1);
+  const caixa: OlistCaixa[] = [];
+  for (const l of links) caixa.push(...await listCaixa(token, Number(l.olist_conta_id), from, to));
+  const used = new Set<number>();
+  const apagar: { descricao: string; data: string; valor: number; tipo: string; olist_id: number; existente: number }[] = [];
+  let manter = 0;
+  for (const l of logs) {
+    const ex = findExisting({ data: l.data, valor: Number(l.valor), tipo: l.tipo }, caixa, used, ours);
+    if (!ex) { manter++; continue; }
+    used.add(ex);
+    apagar.push({ descricao: l.descricao, data: l.data, valor: Number(l.valor), tipo: l.tipo, olist_id: Number(l.olist_id), existente: ex });
+    if (!dryRun) {
+      try { await olist(token, 'DELETE', `/caixa/${l.olist_id}`); }
+      catch (e) { if (!/\b404\b/.test(String(e))) throw e; }
+      await admin.from('erp_push_log').update({ status: 'ja_existia', categoria_origem: 'ja_existia', olist_id: ex, erro: null, updated_at: nowIso() }).eq('id', l.id);
+    }
+  }
+  return { apagar, manter };
+}
+
+/** Compara, dia a dia, o extrato do banco com o Caixa da Olist na conta ligada (desde a data de início). */
+// deno-lint-ignore no-explicit-any
+async function reconcile(conn: any) {
+  const token = await accessToken(conn);
+  const { data: links } = await admin.from('erp_account_links').select('*').eq('connection_id', conn.id);
+  const out = [];
+  for (const l of links ?? []) {
+    const to = new Date().toISOString().slice(0, 10);
+    const { data: raw } = await admin.from('bank_transactions').select('data, valor, tipo, manual_pair_id').eq('account_id', l.bank_account_id).eq('is_forecast', false).gte('data', l.start_date).lte('data', to).limit(10000);
+    const bank = (raw ?? []).filter(t => !t.manual_pair_id && (t.tipo === 'entrada' || t.tipo === 'saida')).map(t => ({ data: t.data, valor: Math.abs(Number(t.valor)), tipo: t.tipo as 'entrada' | 'saida' }));
+    const caixa = await listCaixa(token, Number(l.olist_conta_id), l.start_date, to);
+    const sum = (a: number[]) => +a.reduce((x, y) => x + y, 0).toFixed(2);
+    const movBanco = sum(bank.map(b => b.tipo === 'saida' ? -b.valor : b.valor));
+    const movOlist = sum(caixa.filter(c => c.tipo !== 'S').map(c => c.tipo === 'D' ? -c.valor : c.valor));
+    out.push({ conta: l.olist_conta_nome, desde: l.start_date, movBanco, movOlist, diferenca: +(movBanco - movOlist).toFixed(2), dias: dailyDiff(bank, caixa) });
+  }
+  return { contas: out };
 }
 
 const Body = z.discriminatedUnion('action', [
@@ -180,6 +249,8 @@ const Body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('catalog'), school_id: z.string().uuid() }),
   z.object({ action: z.literal('save_link'), school_id: z.string().uuid(), bank_account_id: z.string().uuid(), olist_conta_id: z.number().int().nullable(), olist_conta_nome: z.string().max(200).nullable(), start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
   z.object({ action: z.literal('save_map'), school_id: z.string().uuid(), items: z.array(z.object({ model_item_id: z.string().uuid(), olist_categoria_id: z.number().int().nullable(), olist_categoria_nome: z.string().max(200).nullable() })).max(500) }),
+  z.object({ action: z.literal('dedup_cleanup'), school_id: z.string().uuid(), dry_run: z.boolean() }),
+  z.object({ action: z.literal('reconcile'), school_id: z.string().uuid() }),
   z.object({ action: z.literal('push'), school_id: z.string().uuid(), retry: z.boolean().optional() }),
   z.object({ action: z.literal('cron') }),
 ]);
@@ -232,7 +303,7 @@ Deno.serve(async (req) => {
       userClient.rpc('is_admin'), userClient.rpc('is_super_admin'), userClient.rpc('admin_manages_school', { _school_id: b.school_id }),
     ]);
     if (!isAdmin || !sees) return json({ error: 'Sem acesso a esta empresa' }, 403);
-    const superOnly = ['save_app', 'authorize', 'settings', 'save_link'];
+    const superOnly = ['save_app', 'authorize', 'settings', 'save_link', 'dedup_cleanup'];
     if (superOnly.includes(b.action) && !isSuper) return json({ error: 'Só a administração pode configurar a integração com a Olist.' }, 403);
 
     let { data: conn } = await admin.from('erp_connections').select('*').eq('school_id', b.school_id).maybeSingle();
@@ -287,6 +358,8 @@ Deno.serve(async (req) => {
       if (rows.length) { const { error } = await admin.from('erp_category_map').upsert(rows, { onConflict: 'school_id,model_item_id' }); if (error) throw error; }
       return json({ ok: true });
     }
+    if (b.action === 'dedup_cleanup') return json({ ok: true, ...(await dedupCleanup(conn, b.dry_run)) });
+    if (b.action === 'reconcile') return json({ ok: true, ...(await reconcile(conn)) });
     if (b.action === 'push') {
       if (!conn.enabled) return json({ error: 'A integração com a Olist está desligada.' }, 400);
       return json({ ok: true, ...(await runPush(conn, { retry: b.retry })) });

@@ -53,3 +53,22 @@ export function pickOpenBill(tx: Tx, open: OpenBill[], used: Set<number> = new S
 
 export const addDays = (iso: string, n: number) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export const toBr = (iso: string) => iso.split('-').reverse().join('/');
+
+export type OlistCaixa = { id: number; data: string; valor: number; tipo: string };
+/** Lançamento já existente no Caixa da Olist: mesmo sentido, mesmo valor, data até 1 dia de diferença; cada um usado uma vez; ignora os criados por nós. */
+export function findExisting(tx: Pick<Tx, 'data' | 'valor' | 'tipo'>, caixa: OlistCaixa[], used: Set<number>, ours: Set<number> = new Set()): number | null {
+  const t = tx.tipo === 'saida' ? 'D' : 'C';
+  const c = caixa.filter(e => !used.has(e.id) && !ours.has(e.id) && e.tipo === t && Math.abs(Math.abs(Number(e.valor)) - tx.valor) <= 0.009 && Math.abs(dayDiff(String(e.data).slice(0, 10), tx.data)) <= 1);
+  c.sort((a, b) => Math.abs(dayDiff(String(a.data).slice(0, 10), tx.data)) - Math.abs(dayDiff(String(b.data).slice(0, 10), tx.data)));
+  return c[0]?.id ?? null;
+}
+
+/** Diferença por dia entre o extrato do banco e o Caixa da Olist (entradas − saídas). */
+export function dailyDiff(bank: Pick<Tx, 'data' | 'valor' | 'tipo'>[], caixa: OlistCaixa[]): { data: string; banco: number; olist: number; diferenca: number }[] {
+  const m = new Map<string, { banco: number; olist: number }>();
+  const g = (d: string) => { if (!m.has(d)) m.set(d, { banco: 0, olist: 0 }); return m.get(d)!; };
+  for (const b of bank) g(b.data).banco += b.tipo === 'saida' ? -b.valor : b.valor;
+  for (const e of caixa) if (e.tipo === 'C' || e.tipo === 'D') g(String(e.data).slice(0, 10)).olist += e.tipo === 'D' ? -Math.abs(Number(e.valor)) : Math.abs(Number(e.valor));
+  return [...m].map(([data, v]) => ({ data, banco: +v.banco.toFixed(2), olist: +v.olist.toFixed(2), diferenca: +(v.banco - v.olist).toFixed(2) }))
+    .filter(r => Math.abs(r.diferenca) > 0.009).sort((a, b) => a.data.localeCompare(b.data));
+}

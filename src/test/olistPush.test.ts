@@ -42,3 +42,21 @@ describe('Integração Olist', () => {
     expect(normDesc('Pagto Água 12/10 nº 55')).toBe('PAGTO AGUA N');
   });
 });
+
+import { findExisting, dailyDiff } from '../../supabase/functions/olist-sync/push';
+describe('duplicidade com o Caixa da Olist', () => {
+  const caixa = [{ id: 1, data: '2026-11-06', valor: 50, tipo: 'D' }, { id: 2, data: '2026-11-06', valor: 50, tipo: 'D' }, { id: 9, data: '2026-11-06', valor: 50, tipo: 'D' }];
+  it('acha igual já lançado, cada um uma vez, ignorando os nossos', () => {
+    const used = new Set<number>(); const ours = new Set([9]);
+    expect(findExisting({ data: '2026-11-06', valor: 50, tipo: 'saida' }, caixa, used, ours)).toBe(1); used.add(1);
+    expect(findExisting({ data: '2026-11-06', valor: 50, tipo: 'saida' }, caixa, used, ours)).toBe(2); used.add(2);
+    expect(findExisting({ data: '2026-11-06', valor: 50, tipo: 'saida' }, caixa, used, ours)).toBeNull();
+  });
+  it('não confunde sentido nem data distante', () => {
+    expect(findExisting({ data: '2026-11-06', valor: 50, tipo: 'entrada' }, caixa, new Set())).toBeNull();
+    expect(findExisting({ data: '2026-11-09', valor: 50, tipo: 'saida' }, caixa, new Set())).toBeNull();
+  });
+  it('aponta o dia com diferença', () => {
+    expect(dailyDiff([{ data: '2026-11-06', valor: 50, tipo: 'saida' }], caixa)).toEqual([{ data: '2026-11-06', banco: -50, olist: -150, diferenca: 100 }]);
+  });
+});
