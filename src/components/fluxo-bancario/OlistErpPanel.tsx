@@ -34,6 +34,17 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   simulado: { label: 'Teste', cls: 'bg-muted text-muted-foreground' },
 };
 
+/** Traduz a resposta técnica da Olist num motivo curto e acionável. */
+function friendlyErro(e: string): string {
+  const m = [...e.matchAll(/"campo":"([^"]*)","mensagem":"([^"]+)"/g)];
+  if (/conta\.id|contaOrigem|contaDestino/.test(e) && /inv[aá]lid/i.test(e)) return 'Conta da Olist inválida — escolha de novo em Contas e categorias.';
+  if (/categoria/.test(e) && /inv[aá]lid/i.test(e)) return 'Categoria da Olist inválida — revise o De/Para.';
+  if (/\b401\b/.test(e)) return 'Autorização vencida — clique em Autorizar na Olist.';
+  if (/\b403\b/.test(e)) return 'Sem permissão no aplicativo da Olist (Caixa / Contas).';
+  if (m.length) return m.map(x => x[2]).join('; ');
+  return e.slice(0, 80);
+}
+
 /** Integração Olist ERP: envia para a Olist os lançamentos lidos do banco. */
 export function OlistErpPanel({ schoolId, accounts }: { schoolId: string; accounts: BankAccount[] }) {
   const { isSuperAdmin } = useAuth() as any;
@@ -176,7 +187,7 @@ export function OlistErpPanel({ schoolId, accounts }: { schoolId: string; accoun
                   <td className="max-w-[16rem] truncate">{l.descricao}</td>
                   <td className={`text-right ${l.tipo === 'saida' ? 'text-destructive' : 'text-success'}`}>{fmtBRL(Number(l.valor))}</td>
                   <td>{l.acao === 'baixa' ? 'Baixa em conta existente' : 'Lançamento no Caixa'}</td>
-                  <td><span className={`rounded px-1.5 font-semibold ${STATUS[l.status]?.cls ?? ''}`}>{STATUS[l.status]?.label ?? l.status}</span>{l.erro && <span className="ml-1 text-destructive">{String(l.erro).slice(0, 80)}</span>}</td>
+                  <td><span className={`rounded px-1.5 font-semibold ${STATUS[l.status]?.cls ?? ''}`}>{STATUS[l.status]?.label ?? l.status}</span>{l.erro && <span className="ml-1 text-destructive">{friendlyErro(String(l.erro))}</span>}</td>
                 </tr>
               ))}
             </tbody>

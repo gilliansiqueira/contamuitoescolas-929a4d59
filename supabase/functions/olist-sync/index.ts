@@ -60,12 +60,28 @@ async function listAll(token: string, path: string): Promise<any[]> {
   return out;
 }
 
+// Lançamentos de Caixa e baixas usam o id da "conta financeira" (/contas-financeiras), não o de /contas-bancarias.
+// Corrige vínculos antigos pelo nome quando o id salvo não existe entre as contas financeiras.
+// deno-lint-ignore no-explicit-any
+async function fixLinks(connId: string, contas: any[]) {
+  if (!contas.length) return;
+  const ids = new Set(contas.map(c => Number(c.id)));
+  const norm = (s: string) => (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const { data: links } = await admin.from('erp_account_links').select('id, olist_conta_id, olist_conta_nome').eq('connection_id', connId);
+  for (const l of links ?? []) {
+    if (ids.has(Number(l.olist_conta_id))) continue;
+    const m = contas.filter(c => norm(c.descricao) === norm(l.olist_conta_nome));
+    if (m.length === 1) await admin.from('erp_account_links').update({ olist_conta_id: m[0].id, updated_at: nowIso() }).eq('id', l.id);
+  }
+}
+
 // deno-lint-ignore no-explicit-any
 async function runPush(conn: any, opts: { retry?: boolean } = {}) {
   if (opts.retry) await admin.from('erp_push_log').delete().eq('connection_id', conn.id).eq('status', 'erro');
+  const token = await accessToken(conn);
+  await fixLinks(conn.id, await listAll(token, '/contas-financeiras').catch(() => []));
   const { data: links } = await admin.from('erp_account_links').select('*').eq('connection_id', conn.id);
   if (!links?.length) throw new Error('Ligue ao menos uma conta bancária a uma conta da Olist.');
-  const token = await accessToken(conn);
   const { data: maps } = await admin.from('erp_category_map').select('model_item_id, olist_categoria_id').eq('school_id', conn.school_id);
   const catOf = new Map((maps ?? []).filter(m => m.olist_categoria_id).map(m => [m.model_item_id, Number(m.olist_categoria_id)]));
   let enviados = 0, aClassificar = 0, erros = 0, simulados = 0, reclass = 0;
@@ -251,7 +267,8 @@ Deno.serve(async (req) => {
     }
     if (b.action === 'catalog') {
       const token = await accessToken(conn);
-      const [categorias, contas] = await Promise.all([listAll(token, '/categorias-receita-despesa'), listAll(token, '/contas-bancarias').catch(() => [])]);
+      const [categorias, contas] = await Promise.all([listAll(token, '/categorias-receita-despesa'), listAll(token, '/contas-financeiras').catch(() => [])]);
+      await fixLinks(conn.id, contas);
       const { data: used } = await admin.from('bank_transactions').select('model_item_id').eq('school_id', b.school_id).not('model_item_id', 'is', null).limit(20000);
       const ids = [...new Set((used ?? []).map(x => x.model_item_id))];
       const { data: items } = ids.length ? await admin.from('financial_model_template_items').select('id, name, tipo, entra_no_resultado, impacta_caixa').in('id', ids) : { data: [] };
