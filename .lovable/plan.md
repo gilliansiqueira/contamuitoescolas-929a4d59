@@ -1,35 +1,33 @@
-# WNC × Olist: por que 41 × 34 e por que tudo ficou "A classificar"
+# WNC × Olist: 42 lançamentos, 34 "A classificar"
 
-## O que os dados mostram (novembro, conta Inter)
+## Resposta (conferida nos dados)
 
-- Plataforma: 41 lançamentos de 03/11 a 06/11 — 4 entradas (R$ 31.448,75) e 37 saídas (R$ 110.967,24).
-- Olist (print): 34 lançamentos — entradas R$ 31.448,75 (iguais) e saídas R$ 109.280,27.
-- Diferença: 7 saídas, total de R$ 1.686,97. São exatamente estas, que não aparecem na Olist:
-  - 03/11 Expresso São Miguel R$ 881,92
-  - 03/11 APB Indústria R$ 137,00
-  - 04/11 Copel R$ 375,88 e R$ 111,27
-  - 05/11 Lithium Software R$ 157,00
-  - 06/11 M4 Produtos R$ 15,00
-  - 06/11 Leal Pavan R$ 8,90
-- Os lançamentos do print da Olist têm o texto "| INT2611..." — são os que a própria Olist trouxe do Inter, não os da nossa plataforma. Ou seja, os duplicados já saíram e faltam só esses 7 na Olist.
-- O "42" não aparece nos dados de hoje; vou conferir de novo direto na Olist (passo 1).
+**Por que 42 na Olist e 41 na plataforma**
+- O 42º é o **Aluguel de 01/11 (Leonora Dadas de Oliveira, R$ 3.376,50)**. Ele existe só na Olist (origem "B", extrato importado lá). A leitura do Inter na plataforma não tem nenhum lançamento entre 31/10 e 02/11.
+- Tirando o aluguel, os totais batem certinho: saídas na Olist R$ 114.343,74 − R$ 3.376,50 = **R$ 110.967,24**, igual à plataforma. Entradas: R$ 31.448,75 nos dois.
 
-## Por que ficou tudo "A classificar"
+**Por que só 34 "A classificar" e não 42**
+- 8 já têm categoria na Olist: o Aluguel e 7 saídas que a equipe classificou lá (aparecem com competência 11/2026):
+  - APB Etiquetas R$ 137,00 (Etiquetas)
+  - Expresso São Miguel R$ 881,92 (Frete Produtos)
+  - Copel R$ 375,88 e R$ 111,27
+  - Lithium Software R$ 157,00
+  - M4 Produtos R$ 15,00
+  - Leal Pavan R$ 8,90
+- Os outros 34 vieram "A classificar" porque a tabela De/Para (categoria da plataforma → categoria da Olist) da WNC está vazia. Sem ela, a integração não arrisca categoria.
 
-- Na Olist: a tabela De/Para (categoria da plataforma → categoria da Olist) da WNC está vazia, e não havia envios anteriores para aprender. Sem isso, a regra manda para "A classificar" de propósito, para não chutar categoria.
-- Na plataforma: "Pendente" não quer dizer "sem categoria". Os 41 já têm categoria (ex.: Despesa); "Pendente / Sem justificativa" é a conciliação do dia, que ainda não foi finalizada.
+**Por que na plataforma os 41 aparecem "Pendentes"**
+- Não é falta de categoria: todos têm categoria (ex.: Despesa). "Pendente / Sem justificativa" é a conciliação do dia, que ainda não foi finalizada.
 
-## O que vou fazer
+## O que proponho fazer
 
-1. Conferir direto na Olist quais dos 41 lançamentos criados pela plataforma ainda existem e confirmar que faltam só os 7 acima (sem apagar nada).
-2. Lançar na Olist só os 7 que faltam, com a mesma checagem para não duplicar. Depois rodar "Conferir com a Olist" e mostrar a diferença em R$ 0,00 e o saldo final igual ao do Inter.
-3. No painel Olist, na aba "Contas e categorias", preencher o De/Para já com sugestões pelo nome das categorias da plataforma, para a equipe só confirmar e salvar.
-4. Botão "Atualizar categorias na Olist": troca "A classificar" pela categoria do De/Para nos lançamentos que a plataforma criou. Os lançados pela equipe na Olist ficam como estão.
-5. No painel, mostrar o total do mês dos dois lados (quantidade, entradas, saídas) e listar os lançamentos que existem só de um lado.
+1. Conferir por que o Aluguel de 01/11 não veio na leitura do Inter (dia sem movimento na API, agendamento ou lançamento manual na Olist) e, se for movimento real do banco, trazê-lo para a plataforma.
+2. No painel Olist, preencher o De/Para com sugestões: pelo nome da categoria e pelo que a equipe já classificou na Olist (ex.: Expresso São Miguel → Frete Produtos). A equipe só confirma e salva.
+3. Botão "Atualizar categorias na Olist": troca "A classificar" pela categoria do De/Para só nos lançamentos que a plataforma criou. O que a equipe já classificou na Olist não é tocado.
+4. No painel, resumo do mês dos dois lados (quantidade, entradas, saídas, quantos "A classificar") e lista do que existe só de um lado — assim o caso do Aluguel aparece sozinho.
 
 ## Detalhes técnicos
 
-- Passo 1: GET `/caixa` por conta/período e cruzar com `erp_push_log.olist_id`; marcar como `removido_na_olist` os que sumiram.
-- Passo 2: reenvio só das linhas faltantes usando `findExisting` (mesmo dia ±1, sentido e valor).
-- Passo 4: nova ação `recategorize` em `olist-sync` (PUT no lançamento do Caixa só quando `olist_id` vem do `erp_push_log`); regra pura em `push.ts` com teste em `src/test/olistPush.test.ts`.
+- Passo 2: ler categorias dos lançamentos do Caixa da Olist (GET `/caixa`) e sugerir por descrição normalizada + sentido; gravar em `erp_category_map` só após confirmação.
+- Passo 3: nova ação `recategorize` em `olist-sync`, PUT apenas em `olist_id` presentes em `erp_push_log` com categoria "A classificar"; regra pura em `push.ts` com teste em `src/test/olistPush.test.ts`.
 - Nada altera os números da plataforma.
