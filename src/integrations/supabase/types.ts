@@ -159,6 +159,165 @@ export type Database = {
           },
         ]
       }
+      bank_api_connections: {
+        Row: {
+          bank_account_id: string
+          cert_enc: string | null
+          cert_expires_at: string | null
+          client_id_enc: string | null
+          client_secret_enc: string | null
+          conta_corrente: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          has_credentials: boolean
+          id: string
+          key_enc: string | null
+          last_error: string | null
+          last_ok_at: string | null
+          last_saldo: number | null
+          last_sync_at: string | null
+          provider: string
+          school_id: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          bank_account_id: string
+          cert_enc?: string | null
+          cert_expires_at?: string | null
+          client_id_enc?: string | null
+          client_secret_enc?: string | null
+          conta_corrente?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          has_credentials?: boolean
+          id?: string
+          key_enc?: string | null
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_saldo?: number | null
+          last_sync_at?: string | null
+          provider?: string
+          school_id: string
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          bank_account_id?: string
+          cert_enc?: string | null
+          cert_expires_at?: string | null
+          client_id_enc?: string | null
+          client_secret_enc?: string | null
+          conta_corrente?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          has_credentials?: boolean
+          id?: string
+          key_enc?: string | null
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_saldo?: number | null
+          last_sync_at?: string | null
+          provider?: string
+          school_id?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_api_connections_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: true
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_api_connections_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_api_sync_runs: {
+        Row: {
+          acao: string
+          connection_id: string
+          created_at: string
+          erro: string | null
+          id: string
+          import_id: string | null
+          inseridas: number
+          ja_existiam: number
+          lidas: number
+          ok: boolean
+          origem: string
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          saldo: number | null
+          school_id: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          acao: string
+          connection_id: string
+          created_at?: string
+          erro?: string | null
+          id?: string
+          import_id?: string | null
+          inseridas?: number
+          ja_existiam?: number
+          lidas?: number
+          ok?: boolean
+          origem?: string
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          saldo?: number | null
+          school_id: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          acao?: string
+          connection_id?: string
+          created_at?: string
+          erro?: string | null
+          id?: string
+          import_id?: string | null
+          inseridas?: number
+          ja_existiam?: number
+          lidas?: number
+          ok?: boolean
+          origem?: string
+          periodo_fim?: string | null
+          periodo_inicio?: string | null
+          saldo?: number | null
+          school_id?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_api_sync_runs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "bank_api_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_api_sync_runs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_auto_invest_patterns: {
         Row: {
           created_at: string
@@ -5726,6 +5885,27 @@ export type Database = {
       admin_manages_school: { Args: { _school_id: string }; Returns: boolean }
       archive_access_entry: {
         Args: { _archive: boolean; _id: string }
+        Returns: undefined
+      }
+      bank_api_check_cron: { Args: { _token: string }; Returns: boolean }
+      bank_api_get_credentials: {
+        Args: { _conn: string }
+        Returns: {
+          cert: string
+          client_id: string
+          client_secret: string
+          key: string
+        }[]
+      }
+      bank_api_set_credentials: {
+        Args: {
+          _cert: string
+          _cert_expires: string
+          _client_id: string
+          _client_secret: string
+          _conn: string
+          _key: string
+        }
         Returns: undefined
       }
       can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }

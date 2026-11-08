@@ -8,7 +8,7 @@ import {
 } from '@/hooks/useManagementPortfolio';
 import { defaultReportMonth } from '@/lib/reportMonth';
 import {
-  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS, isTimedTaskOverdue, minutesSaoPaulo, moneyAlerts, onlyMine,
+  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS, isTimedTaskOverdue, minutesSaoPaulo, moneyAlerts, onlyMine, bankApiAlerts,
 } from '@/lib/teamAlerts';
 import { useMyDay } from '@/hooks/useMyDay';
 import { logActivity } from '@/lib/teamActivity';
@@ -58,6 +58,10 @@ export function useTeamAlerts(enabled: boolean) {
     queryKey: ['team_alert_acks', user?.id, today], enabled: enabled && !!user?.id,
     queryFn: async () => { const { data } = await (supabase as any).from('team_alert_acks').select('alert_key').eq('dia', today); return ((data ?? []) as any[]).map(r => r.alert_key as string); },
   });
+  const { data: bankApi = [] } = useQuery({
+    queryKey: ['bank_api_connections', 'alerts'], enabled, refetchInterval: 10 * 60_000,
+    queryFn: async () => { const { data } = await (supabase as any).from('bank_api_connections').select('id,school_id,enabled,last_error,cert_expires_at'); return (data ?? []) as any[]; },
+  });
   const [tick, setTick] = useState(0);
   useEffect(() => { const i = setInterval(() => setTick(t => t + 1), 60_000); return () => clearInterval(i); }, []);
 
@@ -82,6 +86,7 @@ export function useTeamAlerts(enabled: boolean) {
       alerts.unshift(...onlyMine(moneyAlerts({ ...myDay, staleStatements: stale }), mineIdSet));
     }
     const schoolName = new Map(rows.map(r => [r.school_id, r.school_name]));
+    alerts.unshift(...onlyMine(bankApiAlerts(bankApi, schoolName, today), mineIdSet));
     const mins = minutesSaoPaulo();
     for (const t of timed) {
       if (isTimedTaskOverdue(t, mins)) alerts.push({ key: `timed-${t.id}`, tone: 'late', schoolId: t.school_id, text: `${schoolName.get(t.school_id) ?? 'Empresa'}: ${t.label}` });
@@ -104,7 +109,7 @@ export function useTeamAlerts(enabled: boolean) {
     }
     const ackSet = new Set(acks);
     return { alerts: alerts.filter(a => !ackSet.has(a.key)), today };
-  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month, timed, tick, myDay, acks]);
+  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month, timed, tick, myDay, acks, bankApi]);
 }
 
 interface Props { schools: School[]; onOpenSchool: (s: School) => void; onOpenCenter: () => void }

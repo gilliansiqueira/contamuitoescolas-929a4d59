@@ -125,6 +125,25 @@ export function moneyAlerts(d: MoneyAlertInput): MoneyAlert[] {
   return out;
 }
 
+/** Avisos da integração bancária via API: falha na última leitura e certificado vencendo em até 30 dias. */
+export function bankApiAlerts(
+  conns: { id: string; school_id: string; enabled: boolean; last_error: string | null; cert_expires_at: string | null }[],
+  schoolName: Map<string, string>, today: string,
+): MoneyAlert[] {
+  const out: MoneyAlert[] = [];
+  const t0 = new Date(`${today}T12:00:00Z`).getTime();
+  for (const c of conns) {
+    if (!c.enabled) continue;
+    const nome = schoolName.get(c.school_id) ?? 'Empresa';
+    if (c.last_error) out.push({ key: `bankapi-err-${c.id}`, tone: 'late', schoolId: c.school_id, text: `${nome}: leitura automática do Banco Inter falhou — conferir a integração` });
+    if (c.cert_expires_at) {
+      const dias = Math.floor((new Date(c.cert_expires_at).getTime() - t0) / 864e5);
+      if (dias <= 30) out.push({ key: `bankapi-cert-${c.id}`, tone: dias < 0 ? 'late' : 'warn', schoolId: c.school_id, text: dias < 0 ? `${nome}: certificado do Banco Inter vencido — pedir novo ao cliente` : `${nome}: certificado do Banco Inter vence em ${dias} dia(s)` });
+    }
+  }
+  return out;
+}
+
 /** Só as empresas da carteira da pessoa entram nos avisos — evita bagunça entre carteiras. */
 export function onlyMine<T extends { schoolId?: string }>(alerts: T[], mySchoolIds: Iterable<string>): T[] {
   const set = new Set(mySchoolIds);

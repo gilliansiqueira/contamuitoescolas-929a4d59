@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisionHash, sameRefTx, sameBankEntryText, normalizeDesc, buildBankTemplateXlsx, toIsoDate, type BankParseResult } from '@/lib/bankStatements/parsers';
 import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
+import { InterApiPanel } from './InterApiPanel';
 
 const db = supabase as any;
 
@@ -340,6 +341,8 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         )}
         <p className="mt-2 text-xs text-muted-foreground">O saldo inicial é o saldo da conta no fim do dia informado. Lançamentos até essa data já estão contidos nele.</p>
       </section>
+
+      <InterApiPanel schoolId={schoolId} accounts={accounts} onSynced={invalidate} />
 
       <section className="rounded-xl border border-border bg-card p-4">
         <h3 className="mb-1 text-sm font-semibold text-foreground">Descrições de aplicação automática</h3>
