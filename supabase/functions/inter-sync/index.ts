@@ -157,11 +157,9 @@ Deno.serve(async (req) => {
     const [{ data: isAdmin }, { data: isSuper }] = await Promise.all([userClient.rpc('is_admin'), userClient.rpc('is_super_admin')]);
     if (!isAdmin) return json({ error: 'Sem permissão' }, 403);
     const canSee = async (schoolId: string) => {
-      const [{ data: a }, { data: s }] = await Promise.all([
-        userClient.rpc('user_has_school_access', { _user_id: who.id, _school_id: schoolId }),
-        userClient.rpc('can_see_school', { _school_id: schoolId }),
-      ]);
-      return !!a && !!s;
+      // Mesma regra da plataforma: super_admin vê tudo; admin precisa da empresa na carteira (ou escopo 'all') e não restrita.
+      const { data } = await userClient.rpc('admin_manages_school', { _school_id: schoolId });
+      return !!data;
     };
 
     if (b.action === 'save_config') {
