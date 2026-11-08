@@ -60,3 +60,16 @@ describe('duplicidade com o Caixa da Olist', () => {
     expect(dailyDiff([{ data: '2026-11-06', valor: 50, tipo: 'saida' }], caixa)).toEqual([{ data: '2026-11-06', banco: -50, olist: -150, diferenca: 100 }]);
   });
 });
+
+describe('Olist: categoria pelo que a equipe já classificou lá', () => {
+  it('usa a categoria da mesma contraparte e sentido, ignorando "A classificar"', async () => {
+    const { suggestOlistCategory } = await import('../../supabase/functions/olist-sync/push');
+    const caixa = [
+      { id: 1, data: '2026-10-03', valor: 700, tipo: 'D', historico: 'Pagamento EXPRESSO SAO MIGUEL S A | INT261003-25', categoriaId: 55 },
+      { id: 2, data: '2026-11-03', valor: 10, tipo: 'D', historico: 'Pix para Urbano Agroindustrial Ltda | INT1', categoriaId: 9 },
+    ];
+    expect(suggestOlistCategory({ descricao: 'Pagamento de Título - EXPRESSO SAO MIGUEL S A', tipo: 'saida' }, caixa, 9)).toBe(55);
+    expect(suggestOlistCategory({ descricao: 'Pix enviado - Urbano Agroindustrial Ltda', tipo: 'saida' }, caixa, 9)).toBeNull();
+    expect(suggestOlistCategory({ descricao: 'Pagamento de Título - EXPRESSO SAO MIGUEL S A', tipo: 'entrada' }, caixa, 9)).toBeNull();
+  });
+});

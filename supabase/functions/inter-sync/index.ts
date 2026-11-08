@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { X509Certificate } from 'npm:@peculiar/x509@1.12.3';
 import { z } from 'npm:zod@3.23.8';
-import { mapInterTx, splitNew, syncWindow, type InterTx } from './mapping.ts';
+import { mapInterTx, splitNew, syncWindow, gapStart, type InterTx } from './mapping.ts';
 
 const BASE = 'https://cdpj.partners.bancointer.com.br';
 const SCOPE = 'extrato.read';
@@ -55,7 +55,15 @@ async function runSync(conn: any, origem: 'noturna' | 'comercial' | 'manual', ac
   if (ce || !creds) { await log({ ok: false, erro: 'Credenciais não cadastradas' }); throw new Error('Credenciais não cadastradas'); }
   const client = interClient(creds);
   const today = spToday();
-  const win = syncWindow(today, conn.start_date, origem);
+  // Último lançamento real da conta antes da janela normal (OFX, PDF ou leitura anterior) — fecha buracos entre extratos.
+  // Se já houve leitura pela API, o buraco possível fica antes da leitura mais antiga.
+  const { data: firstApi } = await admin.from('bank_statement_imports').select('periodo_inicio').eq('account_id', conn.bank_account_id)
+    .eq('formato', 'api_inter').order('periodo_inicio', { ascending: true }).limit(1).maybeSingle();
+  const { data: lastTx } = await admin.from('bank_transactions').select('data').eq('account_id', conn.bank_account_id)
+    .eq('is_forecast', false).lt('data', firstApi?.periodo_inicio ?? today).order('data', { ascending: false }).limit(1).maybeSingle();
+  const { data: lastAny } = await admin.from('bank_transactions').select('data').eq('account_id', conn.bank_account_id)
+    .eq('is_forecast', false).lt('data', today).order('data', { ascending: false }).limit(1).maybeSingle();
+  const win = syncWindow(today, conn.start_date, origem, gapStart(lastTx?.data ?? null, firstApi?.periodo_inicio ?? null, lastAny?.data ?? null));
   try {
     const token = await interToken(creds, client);
     const saldoResp = await interGet(`/banking/v2/saldo?dataSaldo=${today}`, token, client, conn.conta_corrente);

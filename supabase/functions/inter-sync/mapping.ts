@@ -47,9 +47,25 @@ export function splitNew(mapped: MappedTx[], existing: ExistingRow[]): { novos: 
 }
 
 /** Janela de leitura: madrugada relê 7 dias; horário comercial relê 2. Nunca antes da data de início. */
-export function syncWindow(today: string, startDate: string, origem: 'noturna' | 'comercial' | 'manual'): { inicio: string; fim: string } {
-  const d = new Date(`${today}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - (origem === 'comercial' ? 1 : 6));
-  const inicio = d.toISOString().slice(0, 10);
+/** Último dia com lançamento antes de um buraco ainda não lido.
+ *  Buraco antigo: entre o último extrato anterior à primeira leitura pela API e o início dessa leitura.
+ *  Sem buraco antigo, usa o último lançamento da conta (cobre a API parada por vários dias). */
+export function gapStart(lastBeforeApi: string | null, firstApiInicio: string | null, lastAny: string | null): string | null {
+  if (!firstApiInicio) return lastAny;
+  if (lastBeforeApi) {
+    const next = new Date(Date.parse(`${lastBeforeApi}T12:00:00Z`) + 864e5).toISOString().slice(0, 10);
+    if (next < firstApiInicio) return lastBeforeApi;
+  }
+  return lastAny;
+}
+
+/** Período da leitura: a janela normal (1 ou 7 dias) e, se houver buraco, desde o dia seguinte ao último lançamento da conta.
+ *  Nunca antes da data de início; no máximo 90 dias. */
+export function syncWindow(today: string, startDate: string, origem: 'noturna' | 'comercial' | 'manual', lastDate?: string | null): { inicio: string; fim: string } {
+  const shift = (iso: string, n: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+  let inicio = shift(today, origem === 'comercial' ? -1 : -6);
+  if (lastDate) { const gap = shift(lastDate, 1); if (gap < inicio) inicio = gap; }
+  const min90 = shift(today, -89);
+  if (inicio < min90) inicio = min90;
   return { inicio: inicio < startDate ? startDate : inicio, fim: today };
 }

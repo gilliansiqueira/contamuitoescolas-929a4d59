@@ -29,3 +29,21 @@ describe('Integração Banco Inter', () => {
     expect(syncWindow('2026-11-03', '2026-11-01', 'noturna').inicio).toBe('2026-11-01');
   });
 });
+
+describe('Inter: leitura fecha buracos entre extratos', () => {
+  it('OFX até 30/10 e primeira leitura 02/11–08/11: relê a partir de 31/10', async () => {
+    const { gapStart } = await import('../../supabase/functions/inter-sync/mapping');
+    const last = gapStart('2026-10-30', '2026-11-02', '2026-11-06');
+    expect(last).toBe('2026-10-30');
+    expect(syncWindow('2026-11-08', '2026-10-01', 'comercial', last)).toEqual({ inicio: '2026-10-31', fim: '2026-11-08' });
+  });
+  it('depois que o buraco foi lido, volta à janela normal', async () => {
+    const { gapStart } = await import('../../supabase/functions/inter-sync/mapping');
+    const last = gapStart('2026-10-30', '2026-10-31', '2026-11-06');
+    expect(syncWindow('2026-11-08', '2026-10-01', 'comercial', last).inicio).toBe('2026-11-07');
+  });
+  it('nunca antes da data de início nem mais de 90 dias', () => {
+    expect(syncWindow('2026-11-08', '2026-11-01', 'noturna', '2026-10-20').inicio).toBe('2026-11-01');
+    expect(syncWindow('2026-11-08', '2025-01-01', 'noturna', '2026-01-01').inicio).toBe('2026-08-11');
+  });
+});

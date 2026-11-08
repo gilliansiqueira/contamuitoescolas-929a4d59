@@ -54,7 +54,35 @@ export function pickOpenBill(tx: Tx, open: OpenBill[], used: Set<number> = new S
 export const addDays = (iso: string, n: number) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export const toBr = (iso: string) => iso.split('-').reverse().join('/');
 
-export type OlistCaixa = { id: number; data: string; valor: number; tipo: string };
+export type OlistCaixa = { id: number; data: string; valor: number; tipo: string; historico?: string; categoriaId?: number | null };
+
+/** Nome da contraparte, igual no extrato ("Pix enviado - X", "Pagamento de Título - X") e na Olist ("Pix para X | INT...", "Pagamento X | INT..."). */
+export function counterpartKey(s: string): string {
+  const base = String(s ?? '').split('|')[0].replace(/\(extrato [^)]*\)/i, '');
+  return normDesc(base)
+    .replace(/^(PIX (ENVIADO|RECEBIDO|PARA|DE)( DE| PARA)?|PAGAMENTO( DE TITULO| DE BOLETO)?|TED (ENVIADA|RECEBIDA)|TRANSFERENCIA (ENVIADA|RECEBIDA))\b/, '')
+    .replace(/^(CP )/, '')
+    .replace(/\b(LTDA|S A|SA|ME|EIRELI|EPP)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** Categoria da Olist pelo que a equipe já classificou lá em lançamentos da mesma contraparte e sentido (≥ 60%). Ignora "A classificar". */
+export function suggestOlistCategory(tx: Pick<Tx, 'descricao' | 'tipo'>, caixa: OlistCaixa[], ignoreCat: number | null = null): number | null {
+  const key = counterpartKey(tx.descricao);
+  if (!key) return null;
+  const t = tx.tipo === 'saida' ? 'D' : 'C';
+  const counts = new Map<number, number>();
+  let total = 0;
+  for (const e of caixa) {
+    if (e.tipo !== t || !e.categoriaId || e.categoriaId === ignoreCat) continue;
+    if (counterpartKey(e.historico ?? '') !== key) continue;
+    counts.set(e.categoriaId, (counts.get(e.categoriaId) ?? 0) + 1);
+    total++;
+  }
+  let best: number | null = null, n = 0;
+  for (const [k, v] of counts) if (v > n) { best = k; n = v; }
+  return best && n / total >= 0.6 ? best : null;
+}
 /** Lançamento já existente no Caixa da Olist: mesmo sentido, mesmo valor, data até 1 dia de diferença; cada um usado uma vez; ignora os criados por nós. */
 export function findExisting(tx: Pick<Tx, 'data' | 'valor' | 'tipo'>, caixa: OlistCaixa[], used: Set<number>, ours: Set<number> = new Set()): number | null {
   const t = tx.tipo === 'saida' ? 'D' : 'C';

@@ -4,7 +4,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
-import { suggestCategory, pickOpenBill, isOperation, addDays, toBr, findExisting, dailyDiff, type Tx, type OpenBill, type ModelItem, type OlistCaixa } from './push.ts';
+import { suggestCategory, suggestOlistCategory, pickOpenBill, isOperation, addDays, toBr, findExisting, dailyDiff, type Tx, type OpenBill, type ModelItem, type OlistCaixa } from './push.ts';
 
 const API = 'https://api.tiny.com.br/public-api/v3';
 const AUTH = 'https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect';
@@ -64,7 +64,8 @@ const isoDate = (d: string) => { const s = String(d ?? '').slice(0, 10); const m
 /** Lançamentos do Caixa da Olist na conta, num intervalo de datas. */
 async function listCaixa(token: string, contaId: number, from: string, to: string): Promise<OlistCaixa[]> {
   const rows = await listAll(token, `/caixa?idContaFinanceira=${contaId}&dataInicial=${from}&dataFinal=${to}`);
-  return rows.map(r => ({ id: Number(r.id), data: isoDate(r.data), valor: Math.abs(Number(r.valor)), tipo: String(r.tipo) }))
+  return rows.map(r => ({ id: Number(r.id), data: isoDate(r.data), valor: Math.abs(Number(r.valor)), tipo: String(r.tipo),
+    historico: String(r.historico ?? ''), categoriaId: r.categoria?.id ? Number(r.categoria.id) : null }))
     .filter(r => r.data >= from && r.data <= to);
 }
 async function ourIds(connId: string): Promise<Set<number>> {
@@ -145,6 +146,10 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
     const caixa = await listCaixa(token, Number(link.olist_conta_id), addDays(txs[0].data, -1), addDays(txs[txs.length - 1].data, 1));
     const ours = await ourIds(conn.id);
     const usedCx = new Set<number>();
+    // Histórico de categorias que a equipe já usou na Olist (últimos 180 dias), para sugerir sem De/Para.
+    const pendCat = conn.pending_categoria_id ? Number(conn.pending_categoria_id) : null;
+    const catHist = await listCaixa(token, Number(link.olist_conta_id), addDays(txs[0].data, -180), addDays(txs[txs.length - 1].data, 1))
+      .then(r => r.filter(e => !ours.has(e.id))).catch(() => [] as OlistCaixa[]);
     for (const tx of txs) {
       const exist = findExisting(tx, caixa, usedCx, ours);
       if (exist) {
@@ -157,12 +162,14 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
       const item = sug.modelItemId ? itemMap.get(sug.modelItemId) : undefined;
       const op = isOperation(item);
       let cat = sug.modelItemId ? catOf.get(sug.modelItemId) : undefined;
+      let fromOlist = false;
+      if (!op && !cat) { const c = suggestOlistCategory(tx, catHist, pendCat); if (c) { cat = c; fromOlist = true; } }
       const unclassified = !op && !cat;
       if (unclassified && conn.pending_categoria_id) cat = Number(conn.pending_categoria_id);
       const billId = op ? null : pickOpenBill(tx, open[tx.tipo], used);
       if (billId) used.add(billId);
       const base = { school_id: conn.school_id, connection_id: conn.id, bank_transaction_id: tx.id, data: tx.data, descricao: tx.descricao, valor: tx.valor, tipo: tx.tipo,
-        acao: billId ? 'baixa' : 'caixa', categoria_origem: op ? 'operacao' : (unclassified ? 'a_classificar' : sug.origem), model_item_id: sug.modelItemId, olist_categoria_id: cat ?? null };
+        acao: billId ? 'baixa' : 'caixa', categoria_origem: op ? 'operacao' : (unclassified ? 'a_classificar' : fromOlist ? 'historico_olist' : sug.origem), model_item_id: sug.modelItemId, olist_categoria_id: cat ?? null };
       if (conn.test_mode) {
         await admin.from('erp_push_log').upsert({ ...base, status: 'simulado', olist_id: billId }, { onConflict: 'bank_transaction_id' });
         simulados++; continue;
