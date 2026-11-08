@@ -1,0 +1,55 @@
+// Regras puras da integração Olist ERP (testadas em src/test/olistPush.test.ts).
+// Nada aqui decide receita/despesa pelo sinal: o sentido vem do banco (tipo) e a natureza do item do modelo.
+
+export type Tx = { id: string; data: string; descricao: string; valor: number; tipo: 'entrada' | 'saida'; model_item_id: string | null };
+export type HistoryRow = { descricao: string; tipo: string; model_item_id: string };
+export type OpenBill = { id: number; valor: number; saldo?: number | null; dataVencimento: string | null };
+export type ModelItem = { id: string; entra_no_resultado: boolean; impacta_caixa: boolean };
+
+export function normDesc(s: string): string {
+  return (s ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\d{2}\/\d{2}(\/\d{2,4})?/g, ' ')
+    .replace(/[0-9]+/g, ' ')
+    .replace(/[^A-Z ]+/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** Categoria do lançamento: a já escolhida pela equipe; senão a mais frequente em lançamentos parecidos (≥ 60%). */
+export function suggestCategory(tx: Tx, history: HistoryRow[]): { modelItemId: string | null; origem: 'item' | 'historico' | 'a_classificar' } {
+  if (tx.model_item_id) return { modelItemId: tx.model_item_id, origem: 'item' };
+  const key = normDesc(tx.descricao);
+  if (!key) return { modelItemId: null, origem: 'a_classificar' };
+  const counts = new Map<string, number>();
+  let total = 0;
+  for (const h of history) {
+    if (h.tipo !== tx.tipo || normDesc(h.descricao) !== key) continue;
+    counts.set(h.model_item_id, (counts.get(h.model_item_id) ?? 0) + 1);
+    total++;
+  }
+  let best: string | null = null, n = 0;
+  for (const [k, v] of counts) if (v > n) { best = k; n = v; }
+  if (best && n / total >= 0.6) return { modelItemId: best, origem: 'historico' };
+  return { modelItemId: null, origem: 'a_classificar' };
+}
+
+/** Operação (transferência, aplicação, aporte): impacta só o Caixa, nunca o Resultado. */
+export const isOperation = (item: ModelItem | undefined) => !!item && item.impacta_caixa && !item.entra_no_resultado;
+
+const dayDiff = (a: string, b: string) => Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 864e5);
+
+/** Conta em aberto da Olist a baixar: mesmo valor e vencimento até 7 dias depois / 3 dias antes do pagamento. Só com candidato único. */
+export function pickOpenBill(tx: Tx, open: OpenBill[], used: Set<number> = new Set()): number | null {
+  const c = open.filter(b => {
+    if (used.has(b.id) || !b.dataVencimento) return false;
+    const v = Number(b.saldo ?? b.valor);
+    if (Math.abs(v - tx.valor) > 0.009) return false;
+    const d = dayDiff(b.dataVencimento.slice(0, 10), tx.data);
+    return d >= -3 && d <= 7;
+  });
+  return c.length === 1 ? c[0].id : null;
+}
+
+export const addDays = (iso: string, n: number) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+export const toBr = (iso: string) => iso.split('-').reverse().join('/');

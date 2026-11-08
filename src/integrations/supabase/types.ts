@@ -1808,6 +1808,268 @@ export type Database = {
           },
         ]
       }
+      erp_account_links: {
+        Row: {
+          bank_account_id: string
+          connection_id: string
+          created_at: string
+          id: string
+          olist_conta_id: number
+          olist_conta_nome: string | null
+          school_id: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          bank_account_id: string
+          connection_id: string
+          created_at?: string
+          id?: string
+          olist_conta_id: number
+          olist_conta_nome?: string | null
+          school_id: string
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          bank_account_id?: string
+          connection_id?: string
+          created_at?: string
+          id?: string
+          olist_conta_id?: number
+          olist_conta_nome?: string | null
+          school_id?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_account_links_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: true
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_account_links_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "erp_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_account_links_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_category_map: {
+        Row: {
+          id: string
+          model_item_id: string
+          olist_categoria_id: number | null
+          olist_categoria_nome: string | null
+          school_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          model_item_id: string
+          olist_categoria_id?: number | null
+          olist_categoria_nome?: string | null
+          school_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          model_item_id?: string
+          olist_categoria_id?: number | null
+          olist_categoria_nome?: string | null
+          school_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_category_map_model_item_id_fkey"
+            columns: ["model_item_id"]
+            isOneToOne: false
+            referencedRelation: "financial_model_template_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_category_map_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_connections: {
+        Row: {
+          authorized: boolean
+          client_id_enc: string | null
+          client_secret_enc: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          has_credentials: boolean
+          id: string
+          last_error: string | null
+          last_ok_at: string | null
+          last_push_at: string | null
+          oauth_return_url: string | null
+          oauth_state: string | null
+          pending_categoria_id: number | null
+          pending_categoria_nome: string | null
+          provider: string
+          refresh_token_enc: string | null
+          school_id: string
+          test_mode: boolean
+          updated_at: string
+        }
+        Insert: {
+          authorized?: boolean
+          client_id_enc?: string | null
+          client_secret_enc?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          has_credentials?: boolean
+          id?: string
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_push_at?: string | null
+          oauth_return_url?: string | null
+          oauth_state?: string | null
+          pending_categoria_id?: number | null
+          pending_categoria_nome?: string | null
+          provider?: string
+          refresh_token_enc?: string | null
+          school_id: string
+          test_mode?: boolean
+          updated_at?: string
+        }
+        Update: {
+          authorized?: boolean
+          client_id_enc?: string | null
+          client_secret_enc?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          has_credentials?: boolean
+          id?: string
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_push_at?: string | null
+          oauth_return_url?: string | null
+          oauth_state?: string | null
+          pending_categoria_id?: number | null
+          pending_categoria_nome?: string | null
+          provider?: string
+          refresh_token_enc?: string | null
+          school_id?: string
+          test_mode?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_connections_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: true
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_push_log: {
+        Row: {
+          acao: string
+          bank_transaction_id: string
+          categoria_origem: string | null
+          connection_id: string
+          created_at: string
+          data: string | null
+          descricao: string | null
+          erro: string | null
+          id: string
+          model_item_id: string | null
+          olist_categoria_id: number | null
+          olist_id: number | null
+          school_id: string
+          status: string
+          tipo: string | null
+          updated_at: string
+          valor: number | null
+        }
+        Insert: {
+          acao: string
+          bank_transaction_id: string
+          categoria_origem?: string | null
+          connection_id: string
+          created_at?: string
+          data?: string | null
+          descricao?: string | null
+          erro?: string | null
+          id?: string
+          model_item_id?: string | null
+          olist_categoria_id?: number | null
+          olist_id?: number | null
+          school_id: string
+          status: string
+          tipo?: string | null
+          updated_at?: string
+          valor?: number | null
+        }
+        Update: {
+          acao?: string
+          bank_transaction_id?: string
+          categoria_origem?: string | null
+          connection_id?: string
+          created_at?: string
+          data?: string | null
+          descricao?: string | null
+          erro?: string | null
+          id?: string
+          model_item_id?: string | null
+          olist_categoria_id?: number | null
+          olist_id?: number | null
+          school_id?: string
+          status?: string
+          tipo?: string | null
+          updated_at?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_push_log_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_push_log_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "erp_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_push_log_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exclusion_rules: {
         Row: {
           acao: string
@@ -5970,6 +6232,18 @@ export type Database = {
           tipo_valor: string
           valor: number
         }[]
+      }
+      erp_get_secrets: {
+        Args: { _conn: string }
+        Returns: {
+          client_id: string
+          client_secret: string
+          refresh_token: string
+        }[]
+      }
+      erp_set_secret: {
+        Args: { _conn: string; _field: string; _value: string }
+        Returns: undefined
       }
       get_available_financial_months: {
         Args: { _school_id: string }

@@ -17,6 +17,7 @@ import { parseBankFile, fileHash, computeDedupHashes, parseBRNumber, refCollisio
 import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, type BankAccount, type BankTx, type MovementKind } from '@/lib/bankStatements/bankCashflowEngine';
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 import { InterApiPanel } from './InterApiPanel';
+import { OlistErpPanel } from './OlistErpPanel';
 
 const db = supabase as any;
 
@@ -343,6 +344,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       </section>
 
       <InterApiPanel schoolId={schoolId} accounts={accounts} onSynced={invalidate} />
+      <OlistErpPanel schoolId={schoolId} accounts={accounts} />
 
       <section className="rounded-xl border border-border bg-card p-4">
         <h3 className="mb-1 text-sm font-semibold text-foreground">Descrições de aplicação automática</h3>

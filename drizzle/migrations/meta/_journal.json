@@ -771,6 +771,13 @@
       "when": 1794140251264,
       "tag": "0109_bank_api_admin_read",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1794150158875,
+      "tag": "0110_olist_erp_integration",
+      "breakpoints": true
     }
   ]
 }
