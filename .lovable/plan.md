@@ -26,8 +26,15 @@
 3. Botão "Atualizar categorias na Olist": troca "A classificar" pela categoria do De/Para só nos lançamentos que a plataforma criou. O que a equipe já classificou na Olist não é tocado.
 4. No painel, resumo do mês dos dois lados (quantidade, entradas, saídas, quantos "A classificar") e lista do que existe só de um lado — assim o caso do Aluguel aparece sozinho.
 
+5. **Volta da Olist → plataforma (novo):** em cada envio e de 2 em 2 horas, a plataforma lê a categoria de cada lançamento na Olist.
+   - Lançamento com categoria (não "A classificar") e com essa categoria no De/Para: a plataforma aplica o item do modelo correspondente e marca como **Conciliado** (origem "Olist").
+   - Se a equipe trocar a categoria na Olist depois, a plataforma atualiza o item aqui, mas só enquanto o mês não estiver fechado e a conciliação não tiver sido feita à mão na plataforma (o que a equipe faz aqui vale mais).
+   - Categoria da Olist sem par no De/Para: continua Pendente, com o aviso "Categoria da Olist sem De/Para".
+   - Nunca altera valor, data nem saldo, só a classificação e a conciliação.
+
 ## Detalhes técnicos
 
 - Passo 2: ler categorias dos lançamentos do Caixa da Olist (GET `/caixa`) e sugerir por descrição normalizada + sentido; gravar em `erp_category_map` só após confirmação.
 - Passo 3: nova ação `recategorize` em `olist-sync`, PUT apenas em `olist_id` presentes em `erp_push_log` com categoria "A classificar"; regra pura em `push.ts` com teste em `src/test/olistPush.test.ts`.
-- Nada altera os números da plataforma.
+- Passo 5: nova ação `pull_categories` em `olist-sync` (também no cron), que cruza o `olist_id`/lançamento correspondente e usa o De/Para invertido → `model_item_id`. Grava `recon_source='olist'` e marca conciliado. Respeita `is_month_closed` e não sobrescreve conciliação manual. Fica registrado em `erp_push_log` (categoria da Olist e quando foi lida).
+- Passos 1–4 não alteram números. O passo 5 só muda a classificação, que passa pela SSOT (`tipoMeta`/`ledgerEngine`) como qualquer classificação manual.
