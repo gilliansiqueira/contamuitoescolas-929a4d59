@@ -112,7 +112,9 @@ export function InterApiPanel({ schoolId, accounts, onSynced }: { schoolId: stri
             <div><Label>Número da conta corrente (opcional)</Label><Input value={cfg.conta} onChange={e => setCfg({ ...cfg, conta: e.target.value })} placeholder="Só se o cliente tiver mais de uma conta no Inter" /></div>
             <label className="flex items-center gap-2 text-sm"><Switch checked={cfg.enabled} onCheckedChange={v => setCfg({ ...cfg, enabled: v })} />Leitura automática ligada</label>
           </div>}
-          <DialogFooter><Button disabled={!!busy} onClick={async () => { if (!cfg) return; await run('cfg', { action: 'save_config', school_id: schoolId, bank_account_id: cfg.accountId, start_date: cfg.start, conta_corrente: cfg.conta.trim() || null, enabled: cfg.enabled }, () => 'Integração salva'); setCfg(null); }}>Salvar</Button></DialogFooter>
+          <DialogFooter><Button disabled={!!busy} onClick={async () => { if (!cfg) return; await run('cfg', { action: 'save_config', school_id: schoolId, bank_account_id: cfg.accountId, start_date: cfg.start, conta_corrente: cfg.conta.trim() || null, enabled: cfg.enabled }, () => 'Integração salva'); const prev = conns.find(x => x.bank_account_id === cfg.accountId); setCfg(null);
+              const { data: row } = await db.from('bank_api_connections').select('id,has_credentials').eq('bank_account_id', cfg.accountId).maybeSingle();
+              if (row && !row.has_credentials && !prev?.has_credentials) setCred({ connId: row.id, clientId: '', secret: '', cert: '', key: '' }); }}>Salvar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
