@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Trash2, UserPlus, Shield, User as UserIcon, Building2, Plus, X, ChevronDown, ChevronUp, KeyRound } from 'lucide-react';
+import { Trash2, UserPlus, Shield, User as UserIcon, Building2, Plus, X, ChevronDown, ChevronUp, KeyRound, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UserRow {
@@ -39,6 +39,7 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [extraToAdd, setExtraToAdd] = useState<Record<string, string>>({});
+  const [editUser, setEditUser] = useState<{ id: string; email: string } | null>(null);
   const [newPasswords, setNewPasswords] = useState<Record<string, string>>({});
 
   const { data: users = [], isLoading } = useQuery({
@@ -204,6 +205,22 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const updateEmail = useMutation({
+    mutationFn: async ({ userId, email }: { userId: string; email: string }) => {
+      const clean = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) throw new Error('E-mail inválido');
+      const { data, error } = await supabase.functions.invoke('update-user', { body: { user_id: userId, email: clean } });
+      if (error) throw new Error(error.message ?? 'Erro ao alterar e-mail');
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast.success('E-mail alterado. O usuário já entra com o novo e-mail.');
+      setEditUser(null);
+      qc.invalidateQueries({ queryKey: ['app_users'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (!isAdmin) {
     return (
       <div className="p-8 text-center text-muted-foreground">
@@ -335,6 +352,15 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
                         className="text-muted-foreground hover:text-foreground"
                       >
                         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditUser({ id: u.user_id, email: u.email })}
+                        title="Editar usuário"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Pencil className="w-4 h-4" />
                       </Button>
                       {isSuperAdmin && !isSelf && <Button
                         variant="ghost"
@@ -514,6 +540,26 @@ export function UsersConfig({ schoolFilterId }: { schoolFilterId?: string } = {}
             >
               Remover
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!editUser} onOpenChange={(o) => { if (!o) setEditUser(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Editar usuário</AlertDialogTitle>
+            <AlertDialogDescription>
+              O usuário passa a entrar com o novo e-mail, com a mesma senha, empresas e permissões.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label>E-mail</Label>
+            <Input type="email" value={editUser?.email ?? ''} onChange={e => setEditUser(prev => prev ? { ...prev, email: e.target.value } : prev)} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button disabled={updateEmail.isPending} onClick={() => editUser && updateEmail.mutate({ userId: editUser.id, email: editUser.email })}>
+              {updateEmail.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
