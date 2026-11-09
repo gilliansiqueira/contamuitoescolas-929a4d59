@@ -1,0 +1,1 @@
+- Acquirer connectors (`acquirer_*` tables, this function, pure rules in `normalize.ts`): read-only GET on the provider, write only to `acquirer_*`, never to `bank_transactions`, ERP tables or ledger rules; token encrypted (RPC service_role only); channel is never guessed — sales explain bank deposits, never create revenue, avoiding double counting.
