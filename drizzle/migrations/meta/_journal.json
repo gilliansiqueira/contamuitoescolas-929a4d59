@@ -778,6 +778,13 @@
       "when": 1794150158875,
       "tag": "0110_olist_erp_integration",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1794238090016,
+      "tag": "0111_acquirer_connectors_mercadopago",
+      "breakpoints": true
     }
   ]
 }

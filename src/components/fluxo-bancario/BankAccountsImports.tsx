@@ -18,6 +18,7 @@ import { detectMovementKind, detectOwnTransfer, DEFAULT_AUTO_INVEST_PATTERNS, ty
 import { fmtBRL, fmtDate, fmtDateTime } from './shared';
 import { InterApiPanel } from './InterApiPanel';
 import { OlistErpPanel } from './OlistErpPanel';
+import { MercadoPagoPanel } from './MercadoPagoPanel';
 
 const db = supabase as any;
 
@@ -345,6 +346,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
 
       <InterApiPanel schoolId={schoolId} accounts={accounts} onSynced={invalidate} />
       <OlistErpPanel schoolId={schoolId} accounts={accounts} />
+      <MercadoPagoPanel schoolId={schoolId} />
 
       <section className="rounded-xl border border-border bg-card p-4">
         <h3 className="mb-1 text-sm font-semibold text-foreground">Descrições de aplicação automática</h3>

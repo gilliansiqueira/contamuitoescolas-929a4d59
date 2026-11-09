@@ -13,3 +13,6 @@
 - [ ] Baixa automática no Omni/Sponte por relatório (aguarda relatório de baixas de exemplo)
 - [ ] Leitores de repasse Getnet/Rede/Sicredi (aguarda arquivos de exemplo)
 - [ ] WhatsApp por exportação de conversa de grupo (etapa seguinte)
+- [x] Mercado Pago WNC: conector somente leitura (tabelas, função, painel, testes, auditoria Olist por leitura)
+- [ ] Mercado Pago WNC: cadastrar token de produção e validar prévia (aguarda credencial da WNC)
+- [ ] Mercado Pago: autorização OAuth por cliente e leitura agendada (após validar o piloto)

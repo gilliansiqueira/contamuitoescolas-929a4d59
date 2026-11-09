@@ -14,6 +14,314 @@ export type Database = {
   }
   public: {
     Tables: {
+      acquirer_connections: {
+        Row: {
+          account_email: string | null
+          account_id: string | null
+          account_nickname: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          has_token: boolean
+          id: string
+          last_error: string | null
+          last_ok_at: string | null
+          last_sync_at: string | null
+          last_test_at: string | null
+          provider: string
+          school_id: string
+          start_date: string | null
+          token_enc: string | null
+          token_kind: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_email?: string | null
+          account_id?: string | null
+          account_nickname?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          has_token?: boolean
+          id?: string
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_sync_at?: string | null
+          last_test_at?: string | null
+          provider?: string
+          school_id: string
+          start_date?: string | null
+          token_enc?: string | null
+          token_kind?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_email?: string | null
+          account_id?: string | null
+          account_nickname?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          has_token?: boolean
+          id?: string
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_sync_at?: string | null
+          last_test_at?: string | null
+          provider?: string
+          school_id?: string
+          start_date?: string | null
+          token_enc?: string | null
+          token_kind?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acquirer_connections_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      acquirer_raw_events: {
+        Row: {
+          connection_id: string
+          external_id: string
+          first_seen_at: string
+          id: string
+          last_run_id: string | null
+          payload: Json
+          payload_hash: string
+          provider: string
+          school_id: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          external_id: string
+          first_seen_at?: string
+          id?: string
+          last_run_id?: string | null
+          payload: Json
+          payload_hash: string
+          provider: string
+          school_id: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          external_id?: string
+          first_seen_at?: string
+          id?: string
+          last_run_id?: string | null
+          payload?: Json
+          payload_hash?: string
+          provider?: string
+          school_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acquirer_raw_events_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "acquirer_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acquirer_raw_events_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      acquirer_sales: {
+        Row: {
+          canal: string
+          canal_evidencia: string | null
+          connection_id: string
+          created_at: string
+          currency: string | null
+          date_approved: string | null
+          date_created: string | null
+          date_last_updated: string | null
+          descricao: string | null
+          external_id: string
+          external_reference: string | null
+          fee_details: Json | null
+          id: string
+          installments: number | null
+          last_run_id: string | null
+          money_release_date: string | null
+          money_release_status: string | null
+          order_id: string | null
+          payment_method: string | null
+          payment_type: string | null
+          provider: string
+          school_id: string
+          status: string | null
+          status_detail: string | null
+          taxas: number
+          updated_at: string
+          valor_bruto: number
+          valor_estornado: number
+          valor_liquido: number | null
+        }
+        Insert: {
+          canal?: string
+          canal_evidencia?: string | null
+          connection_id: string
+          created_at?: string
+          currency?: string | null
+          date_approved?: string | null
+          date_created?: string | null
+          date_last_updated?: string | null
+          descricao?: string | null
+          external_id: string
+          external_reference?: string | null
+          fee_details?: Json | null
+          id?: string
+          installments?: number | null
+          last_run_id?: string | null
+          money_release_date?: string | null
+          money_release_status?: string | null
+          order_id?: string | null
+          payment_method?: string | null
+          payment_type?: string | null
+          provider: string
+          school_id: string
+          status?: string | null
+          status_detail?: string | null
+          taxas?: number
+          updated_at?: string
+          valor_bruto?: number
+          valor_estornado?: number
+          valor_liquido?: number | null
+        }
+        Update: {
+          canal?: string
+          canal_evidencia?: string | null
+          connection_id?: string
+          created_at?: string
+          currency?: string | null
+          date_approved?: string | null
+          date_created?: string | null
+          date_last_updated?: string | null
+          descricao?: string | null
+          external_id?: string
+          external_reference?: string | null
+          fee_details?: Json | null
+          id?: string
+          installments?: number | null
+          last_run_id?: string | null
+          money_release_date?: string | null
+          money_release_status?: string | null
+          order_id?: string | null
+          payment_method?: string | null
+          payment_type?: string | null
+          provider?: string
+          school_id?: string
+          status?: string | null
+          status_detail?: string | null
+          taxas?: number
+          updated_at?: string
+          valor_bruto?: number
+          valor_estornado?: number
+          valor_liquido?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acquirer_sales_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "acquirer_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acquirer_sales_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      acquirer_sync_runs: {
+        Row: {
+          action: string
+          connection_id: string
+          created_by: string | null
+          date_from: string | null
+          date_to: string | null
+          error: string | null
+          fetched: number
+          finished_at: string | null
+          id: string
+          inserted: number
+          school_id: string
+          started_at: string
+          status: string
+          summary: Json | null
+          unchanged: number
+          updated: number
+        }
+        Insert: {
+          action: string
+          connection_id: string
+          created_by?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          error?: string | null
+          fetched?: number
+          finished_at?: string | null
+          id?: string
+          inserted?: number
+          school_id: string
+          started_at?: string
+          status?: string
+          summary?: Json | null
+          unchanged?: number
+          updated?: number
+        }
+        Update: {
+          action?: string
+          connection_id?: string
+          created_by?: string | null
+          date_from?: string | null
+          date_to?: string | null
+          error?: string | null
+          fetched?: number
+          finished_at?: string | null
+          id?: string
+          inserted?: number
+          school_id?: string
+          started_at?: string
+          status?: string
+          summary?: Json | null
+          unchanged?: number
+          updated?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acquirer_sync_runs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "acquirer_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acquirer_sync_runs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -6143,6 +6451,11 @@ export type Database = {
       _refresh_report_progress: {
         Args: { _month: string; _school_id: string }
         Returns: number
+      }
+      acquirer_get_token: { Args: { _conn: string }; Returns: string }
+      acquirer_set_token: {
+        Args: { _conn: string; _kind: string; _token: string }
+        Returns: undefined
       }
       admin_manages_school: { Args: { _school_id: string }; Returns: boolean }
       archive_access_entry: {
