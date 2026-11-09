@@ -231,3 +231,21 @@ describe('telefone nas turmas', () => {
     expect([...rows.values()][0].fone_celular).toBe('(41) 99567-5929');
   });
 });
+
+import { isModuleInstallment } from '@/lib/renewal/mergeEngine';
+describe('categorias numeradas do Sponte (Floripa)', () => {
+  const st = { include_material: false, module_categories: ['Parcela Regular'], separate_modalities: [] } as any;
+  const ok = (c: string) => isModuleInstallment({ Categoria: c, Situacao: 'Aberta' }, st);
+  it('curso conta', () => {
+    expect(ok('2. PARCELA DO CURSO TURMAS')).toBe(true);
+    expect(ok('3. PACELA DO CURSO PERSONAL')).toBe(true);
+    expect(ok('4. PARCELA DO CURSO VIP')).toBe(true);
+  });
+  it('material, taxa, reposição e avulsos ficam fora', () => {
+    for (const c of ['5. MATERIAL DIDÁTICO', '6. TAXA DE MATRÍCULA', '8. REPOSIÇÃO DE AULAS', '8. REPOSIÇÕES DE AULA', '7. MAKE-UP TEST', '9.4 BILHETERIA & CONSUMO DE EVENTOS/ ATIVIDADES', '9.3 VENDA DE PRODUTOS', '9.1 APLICAÇÃO  TOEIC E TOEFL', '9.2 JUROS/ MULTAS', '9.7 OUTRAS RECEITAS'])
+      expect(ok(c)).toBe(false);
+  });
+  it('material conta só se a escola marcar', () => {
+    expect(isModuleInstallment({ Categoria: '5. MATERIAL DIDÁTICO' }, { ...st, include_material: true })).toBe(true);
+  });
+});

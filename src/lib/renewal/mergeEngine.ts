@@ -22,15 +22,17 @@ const isMaterial = (c: string) => norm(c).startsWith('material');
 const isCancelled = (p: Record<string, any>) => /cancel|estorn/i.test(String(p.Situacao ?? '')) || /cancel/i.test(String(p.SituacaoParcela ?? ''));
 
 /** Cobranças avulsas que nunca são parcela do curso. */
-const NOT_MODULE = /^(taxa|reposicao|venda|multa|juros)|rescis/;
+const NOT_MODULE = /^(taxa|reposic|venda|multa|juros|make.?up|aplicacao\s+toeic|outras receitas)|rescis|bilheteria|evento|toeic|toefl/;
+/** Sponte numera categorias ("5. MATERIAL DIDÁTICO", "9.4 BILHETERIA..."): a numeração não faz parte do nome. */
+const catName = (c: unknown) => norm(c).replace(/^\d+([ .]\d+)*\.?\s*/, '');
 const isPaid = (p: Record<string, any>) => /quitad|pag[oa]|baixad|recebid/i.test(String(p.Situacao ?? ''));
 
 /** Toda parcela não cancelada conta como módulo (Regular, Personal, VIP...). Ficam fora: material (regra da escola) e cobranças avulsas (taxa, reposição, venda, rescisão), salvo se a escola listar a categoria. */
 export function isModuleInstallment(p: Record<string, any>, s: RenewalSettings): boolean {
   if (isCancelled(p)) return false;
-  const cat = norm(p.Categoria);
+  const cat = catName(p.Categoria);
   if (isMaterial(cat)) return s.include_material;
-  if (s.module_categories.some(m => norm(m) === cat)) return true;
+  if (s.module_categories.some(m => catName(m) === cat)) return true;
   return !NOT_MODULE.test(cat);
 }
 
