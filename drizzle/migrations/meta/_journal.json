@@ -785,6 +785,13 @@
       "when": 1794238090016,
       "tag": "0111_acquirer_connectors_mercadopago",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1794253080302,
+      "tag": "0112_fix_report_texts_permissions",
+      "breakpoints": true
     }
   ]
 }
