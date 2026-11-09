@@ -232,7 +232,6 @@ describe('telefone nas turmas', () => {
   });
 });
 
-import { isModuleInstallment } from '@/lib/renewal/mergeEngine';
 describe('categorias numeradas do Sponte (Floripa)', () => {
   const st = { include_material: false, module_categories: ['Parcela Regular'], separate_modalities: [] } as any;
   const ok = (c: string) => isModuleInstallment({ Categoria: c, Situacao: 'Aberta' }, st);
