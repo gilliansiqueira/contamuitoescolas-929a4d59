@@ -71,3 +71,17 @@ describe('buildProjectionFacts — futuro e simulação', () => {
     expect(L.join('\n')).toContain('[completar cenário de matrículas e renovações]');
   });
 });
+
+describe('texto da projeção usa os números do Fluxo Diário', () => {
+  it('receitas, despesas, menor saldo e fim do mês vêm do fluxo, não da soma bruta', () => {
+    const flow = {
+      '2026-11': { entrada: 150000, saida: 120000, days: [['2026-11-08', 900], ['2026-11-09', 5000], ['2026-11-13', 1200.5], ['2026-11-30', 31000]] as [string, number][] },
+      '2026-12': { entrada: 0, saida: 0, days: [] },
+      '2027-01': { entrada: 0, saida: 0, days: [] },
+    };
+    const f = buildProjectionFacts({ schoolName: 'X', closedMonth: '2026-10', entries: [], classifications: [], saldoInicial: 0, today: '2026-11-09', flow }).join('\n').replace(/\u00a0/g, ' ');
+    expect(f).toContain('receitas R$ 150.000,00, despesas R$ 120.000,00, resultado R$ 30.000,00');
+    expect(f).toContain('menor saldo previsto R$ 1.200,50 em 13/11');
+    expect(f).toContain('fim do mês R$ 31.000,00');
+  });
+});

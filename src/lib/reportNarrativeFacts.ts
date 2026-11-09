@@ -4,6 +4,8 @@ import { calculateTotals } from '@/lib/classificationUtils';
 import { resolveEntryLedgerRule } from '@/lib/ledgerEngine';
 import { remainingDayForecast } from '@/lib/currentDayForecast';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
+import { buildDailyRows, closingEstimate } from '@/lib/dailyFlow';
+import { getAllDaysInMonths } from '@/lib/dateUtils';
 import type { TypeClassification } from '@/types/financial';
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -151,7 +153,27 @@ function futureBalances(entries: ProjectedEntry[], cls: Cls, today: string, unti
   return byDay;
 }
 
-export function buildProjectionFacts(p: { schoolName: string; closedMonth: string; entries: ProjectedEntry[]; classifications: Cls; saldoInicial: number; today: string; bankBase?: { date: string; balance: number } | null; simulation?: SimulationLine[] }): string[] {
+/** Números por mês exatamente como o Fluxo Diário mostra (mesmo `buildDailyRows`/`closingEstimate`). */
+export interface FlowMonth { entrada: number; saida: number; days: [string, number][] }
+export function dailyFlowByMonth(p: {
+  months: string[]; projectedEntries: ProjectedEntry[]; realized: ProjectedEntry[]; classifications: Cls;
+  historicalRows: any[]; modelItems: any; sourceOf: (m: string) => string; saldoInicialOf: (m: string) => number; today: string;
+}): Record<string, FlowMonth> {
+  const out: Record<string, FlowMonth> = {};
+  for (const m of p.months) {
+    const src = p.sourceOf(m);
+    const projected = p.projectedEntries.filter(e => !((e.origem === 'fluxo' && e.tipoRegistro !== 'projetado') || e.impacto === 0) && e.dataProjetada.startsWith(m) && !!src && src !== 'vazio');
+    const rows = buildDailyRows({
+      allDays: getAllDaysInMonths([m]), priorSaldo: p.saldoInicialOf(m), projected, realized: p.realized.filter(e => e.data.startsWith(m)),
+      classifications: p.classifications, historicalRows: p.historicalRows, monthSources: { [m]: src }, modelItems: p.modelItems, todayStr: p.today,
+    });
+    const t = closingEstimate(rows);
+    out[m] = { entrada: t.entrada, saida: t.saida, days: rows.map(r => [r.data, r.saldoFinalProjecao]) };
+  }
+  return out;
+}
+
+export function buildProjectionFacts(p: { schoolName: string; closedMonth: string; entries: ProjectedEntry[]; classifications: Cls; saldoInicial: number; today: string; bankBase?: { date: string; balance: number } | null; simulation?: SimulationLine[]; flow?: Record<string, FlowMonth> }): string[] {
   const { closedMonth, entries, classifications: cls, today } = p;
   const cur = shiftMonth(closedMonth, 1);
   const n1 = shiftMonth(cur, 1), n2 = shiftMonth(cur, 2);
@@ -159,7 +181,7 @@ export function buildProjectionFacts(p: { schoolName: string; closedMonth: strin
   const real = totalsOf(entries, closedMonth, cls, 'realizado');
   L.push(`(Contexto, no máximo uma frase) ${monthName(closedMonth)} fechou com resultado ${brl(real.resultado)}.`);
   const bal = futureBalances(entries, cls, today, n2, p.saldoInicial, p.bankBase);
-  const daysOf = (m: string) => [...bal.entries()].filter(([d]) => d.startsWith(m) && d >= today).sort((x, y) => x[0].localeCompare(y[0]));
+  const daysOf = (m: string): [string, number][] => p.flow ? (p.flow[m]?.days ?? []).filter(([d]) => d >= today) : [...bal.entries()].filter(([d]) => d.startsWith(m) && d >= today).sort((x, y) => x[0].localeCompare(y[0]));
   if (p.bankBase) L.push(`Saldo conferido no banco em ${p.bankBase.date.slice(8, 10)}/${p.bankBase.date.slice(5, 7)}: ${brl(p.bankBase.balance)}.`);
   const days = daysOf(cur);
   if (days.length) {
@@ -169,7 +191,7 @@ export function buildProjectionFacts(p: { schoolName: string; closedMonth: strin
     const neg = days.find(([, v]) => v < 0);
     L.push(neg ? `RISCO: o caixa fica negativo a partir de ${neg[0].slice(8, 10)}/${neg[0].slice(5, 7)} (pior momento ${brl(minV)} em ${minD.slice(8, 10)}/${minD.slice(5, 7)}). Recomende antecipar recebimentos, renegociar ou adiar pagamentos.` : `Sem risco de faltar dinheiro em ${monthName(cur)} pelo fluxo diário.`);
   }
-  const fut = (m: string) => calculateTotals(entries.filter(e => e.dataProjetada.startsWith(m) && (e.tipoRegistro === 'projetado' || (m === cur && e.dataProjetada < today))), cls);
+  const fut = (m: string) => p.flow ? (() => { const f = p.flow![m]; const r = f?.entrada ?? 0, d = f?.saida ?? 0; return { receitas: r, despesas: d, resultado: r - d }; })() : calculateTotals(entries.filter(e => e.dataProjetada.startsWith(m) && (e.tipoRegistro === 'projetado' || (m === cur && e.dataProjetada < today))), cls);
   const c = fut(cur);
   L.push(`${monthName(cur)} previsto (realizado até ontem + previsto): receitas ${brl(c.receitas)}, despesas ${brl(c.despesas)}, resultado ${brl(c.resultado)}.`);
   for (const m of [n1, n2]) {

@@ -10,7 +10,13 @@ import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useTypeClassifications } from '@/hooks/useFinancialData';
 import { buildReportFacts, buildProjectionFacts, unknownNumbers, profitabilityFacts, type KpiSeries } from '@/lib/reportNarrativeFacts';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
-import { buildMonthMovement } from '@/lib/periodMovement';
+import { buildMonthMovement, resolveMonthSource, computeSaldoInicial } from '@/lib/periodMovement';
+import { dailyFlowByMonth } from '@/lib/reportNarrativeFacts';
+import { getSaldoImpact } from '@/lib/classificationUtils';
+import { useEntries } from '@/hooks/useFinancialData';
+import type { ProjectedEntry } from '@/lib/projectionEngine';
+
+const shiftMonthKey = (m: string, n: number) => { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 import { computeProfitability } from '@/lib/profitability';
 import { useIntegralRevenue } from '@/hooks/useAutoProfitability';
 import { fetchBankAccounts } from '@/hooks/useBankPilot';
@@ -135,6 +141,7 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
   const qc = useQueryClient();
   const { entries, saldoInicial } = useProjectedEntries(schoolId);
   const { data: classifications = [] } = useTypeClassifications(schoolId);
+  const { data: rawEntries = [] } = useEntries(schoolId);
   const [kind, setKind] = useState<'relatorio' | 'projecao'>('relatorio');
   const [text, setText] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -238,9 +245,22 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
           const totalsFor = (m: string) => { const x = m === month ? mv : buildMonthMovement(m, ctx, { isInModel }); return x.source === 'vazio' ? { receitas: 0, despesas: 0 } : { receitas: x.receitas, despesas: x.despesas }; };
           return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp, receitaIntegral: ri, totalsFor }), ...profLines];
         })()
-      : buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today, bankBase: projExtra?.bankBase, simulation: projExtra?.simulation });
+      : (() => {
+          // Mesmos números do Fluxo Diário (realizado até o último dia com movimento + previsto depois).
+          const cur = shiftMonthKey(month, 1);
+          const realized = rawEntries
+            .filter(e => e.origem === 'fluxo' && e.tipoRegistro !== 'projetado')
+            .map(e => ({ ...e, dataProjetada: e.data, impacto: getSaldoImpact(e, classifications) }) as ProjectedEntry)
+            .filter(e => e.impacto !== 0);
+          const flow = mvLoading ? undefined : dailyFlowByMonth({
+            months: [cur, shiftMonthKey(cur, 1), shiftMonthKey(cur, 2)], projectedEntries: entries, realized, classifications,
+            historicalRows: ctx.historicalRows as any, modelItems: ctx.modelItems, today,
+            sourceOf: m => resolveMonthSource(m, ctx), saldoInicialOf: m => computeSaldoInicial(m, ctx, { isInModel }),
+          });
+          return buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today, bankBase: projExtra?.bankBase, simulation: projExtra?.simulation, flow });
+        })();
     return lines.join('\n');
-  }, [kind, entries, classifications, kpis, month, schoolName, saldoInicial, ctx, isInModel, mvLoading, integral, projExtra]);
+  }, [kind, entries, rawEntries, classifications, kpis, month, schoolName, saldoInicial, ctx, isInModel, mvLoading, integral, projExtra]);
 
   const warnings = useMemo(() => (text && lastFacts ? unknownNumbers(text, lastFacts) : []), [text, lastFacts]);
 
