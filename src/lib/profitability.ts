@@ -19,6 +19,9 @@ export interface MonthTotals {
   despesas: number;
   operacoesIn: number;
   operacoesOut: number;
+  /** Aplicações/resgates dentro das operações — ficam fora da Lucratividade total. */
+  investimentosIn?: number;
+  investimentosOut?: number;
 }
 
 const pct = (num: number, den: number) =>
@@ -29,7 +32,7 @@ export function computeProfitability(t: MonthTotals, receitaIntegral?: number | 
   const integral = receitaIntegral != null && receitaIntegral > 0 ? receitaIntegral : null;
   return {
     lucro_operacional: pct(resultado, t.receitas),
-    lucro_total: pct(resultado + t.operacoesIn - t.operacoesOut, t.receitas),
+    lucro_total: pct(resultado + (t.operacoesIn - (t.investimentosIn ?? 0)) - (t.operacoesOut - (t.investimentosOut ?? 0)), t.receitas),
     lucro_integral: integral == null ? null : pct(integral - t.despesas, integral),
   };
 }

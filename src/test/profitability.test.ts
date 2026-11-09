@@ -1,3 +1,4 @@
+import { isInvestmentMovementLabel } from '@/lib/ledgerEngine';
 import { describe, it, expect } from 'vitest';
 import { computeProfitability, integralClosing, isAutoProfitMonth } from '@/lib/profitability';
 
@@ -6,6 +7,15 @@ const base = { receitas: 100000, despesas: 70000, operacoesIn: 0, operacoesOut: 
 describe('lucratividade automática', () => {
   it('operacional deixa operações de fora', () => {
     expect(computeProfitability(base).lucro_operacional).toBe(30);
+  });
+  it('total ignora aplicação e resgate (dinheiro guardado para render)', () => {
+    const t = { ...base, operacoesIn: 5000, operacoesOut: 50000, investimentosIn: 5000, investimentosOut: 40000 };
+    expect(computeProfitability(t).lucro_total).toBe(20);
+  });
+  it('reconhece rótulos de aplicação/resgate', () => {
+    expect(isInvestmentMovementLabel('Operação (banco): Aplicação RDC')).toBe(true);
+    expect(isInvestmentMovementLabel('Resgate automático')).toBe(true);
+    expect(isInvestmentMovementLabel('Pró-labore')).toBe(false);
   });
   it('total considera as operações (ex.: parcela de empréstimo)', () => {
     expect(computeProfitability(base).lucro_total).toBe(20);

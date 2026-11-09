@@ -36,7 +36,7 @@ import type { FinancialEntry, TypeClassification } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
 import type { PeriodClosureSnapshot, SnapshotPorTipo } from '@/hooks/usePeriodSnapshots';
 import type { ModelItemRule } from '@/lib/ledgerEngine';
-import { resolveNativeOperationRule } from '@/lib/ledgerEngine';
+import { resolveNativeOperationRule, isInvestmentMovementLabel } from '@/lib/ledgerEngine';
 import {
   resolveEntryLedgerRule,
   resolveEntryTipoKey,
@@ -73,6 +73,9 @@ export interface MonthMovement {
   despesas: number; // >= 0
   operacoesIn: number; // >= 0
   operacoesOut: number; // >= 0
+  /** Parte das operações que é aplicação/resgate (fora da Lucratividade total). */
+  investimentosIn: number;
+  investimentosOut: number;
   operacoesImpacto: number; // com sinal (+in, -out)
   saldoMovimento: number; // receitas - despesas + operacoesImpacto
   porTipo: PorTipoAgg[];
@@ -234,6 +237,8 @@ function emptyMovement(month: string, source: MovementSource): MonthMovement {
     despesas: 0,
     operacoesIn: 0,
     operacoesOut: 0,
+    investimentosIn: 0,
+    investimentosOut: 0,
     operacoesImpacto: 0,
     saldoMovimento: 0,
     porTipo: [],
@@ -246,7 +251,7 @@ function emptyMovement(month: string, source: MovementSource): MonthMovement {
 }
 
 function fromSnapshot(snap: PeriodClosureSnapshot, isInModel?: (l: string) => boolean): MonthMovement {
-  let receitas = 0, despesas = 0, operacoesIn = 0, operacoesOut = 0;
+  let receitas = 0, despesas = 0, operacoesIn = 0, operacoesOut = 0, investimentosIn = 0, investimentosOut = 0;
   const porTipo: PorTipoAgg[] = [];
   for (const t of snap.por_tipo as SnapshotPorTipo[]) {
     if (t.classificacao === 'ignorar') continue;
@@ -257,6 +262,9 @@ function fromSnapshot(snap: PeriodClosureSnapshot, isInModel?: (l: string) => bo
     else if (t.classificacao === 'operacao') {
       if (t.sinal === 'somar') operacoesIn += v;
       else operacoesOut += v;
+      if (isInvestmentMovementLabel(t.label, t.tipo)) {
+        if (t.sinal === 'somar') investimentosIn += v; else investimentosOut += v;
+      }
     }
     porTipo.push({
       key: normalizeTipo(t.tipo),
@@ -274,7 +282,7 @@ function fromSnapshot(snap: PeriodClosureSnapshot, isInModel?: (l: string) => bo
   return {
     month: snap.month,
     source: 'snapshot',
-    receitas, despesas, operacoesIn, operacoesOut, operacoesImpacto,
+    receitas, despesas, operacoesIn, operacoesOut, investimentosIn, investimentosOut, operacoesImpacto,
     saldoMovimento,
     porTipo,
     entriesConsiderados: [],
@@ -356,6 +364,9 @@ export function buildMonthMovement(
       else if (meta.classificacao === 'operacao') {
         if (meta.sinal === 'somar') mov.operacoesIn += v;
         else mov.operacoesOut += v;
+        if (isInvestmentMovementLabel(meta.label, r.tipo_valor)) {
+          if (meta.sinal === 'somar') mov.investimentosIn += v; else mov.investimentosOut += v;
+        }
       }
       if (meta.impactaCaixa) {
         const delta = meta.sinal === 'somar' ? v : -v;
@@ -415,6 +426,9 @@ export function buildMonthMovement(
     else if (cls === 'operacao') {
       if (rule.operacaoSinal === 'somar') mov.operacoesIn += valor;
       else mov.operacoesOut += valor;
+      if (isInvestmentMovementLabel(label, tipoKey)) {
+        if (rule.operacaoSinal === 'somar') mov.investimentosIn += valor; else mov.investimentosOut += valor;
+      }
     }
     if (rule.impactaCaixa) {
       const delta = rule.operacaoSinal === 'somar' ? valor : -valor;

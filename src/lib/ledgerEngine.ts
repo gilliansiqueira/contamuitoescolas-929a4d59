@@ -369,3 +369,15 @@ export function processLedger(
     saldoMovimento,
   };
 }
+
+
+/**
+ * Aplicações e resgates financeiros: dinheiro guardado para render, não sai da
+ * empresa. Seguem como Operação no Caixa, mas ficam fora da Lucratividade total.
+ */
+export function isInvestmentMovementLabel(...labels: Array<string | null | undefined>): boolean {
+  return labels.some(l => {
+    const n = String(l ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return /\baplica(cao|coes)\b/.test(n) || /\bresgate/.test(n);
+  });
+}
