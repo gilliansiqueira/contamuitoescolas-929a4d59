@@ -3,7 +3,7 @@
 export type Row = Record<string, unknown>;
 export const SITS = ["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando", "em_andamento"] as const;
 export const MAX_FUNCS = 500, MAX_DIAS_PERIODO = 62, MAX_MARCACOES = 12;
-const ISO = /^\d{4}-\d{2}-\d{2}$/, HM = /^\d{1,3}:\d{2}$/, MARC = /^([01]\d|2[0-3]):[0-5]\d$/;
+const ISO = /^\d{4}-\d{2}-\d{2}$/, HM = /^\d{1,3}:[0-5]\d$/, MARC = /^([01]\d|2[0-3]):[0-5]\d$/;
 const FORBIDDEN_KEYS = /^(cpf|pis|pispasep|pis_pasep|nis|nit|rg|documento)$/i;
 // Esquema permitido: qualquer chave fora destas listas bloqueia (evita documentos escondidos em campos novos).
 const TOP_KEYS = new Set(["action", "arquivo", "periodoInicio", "periodoFim", "funcionarios", "attempt_id"]);
@@ -51,6 +51,7 @@ function dur(v: unknown, label: string, errs: string[]): string | null {
 
 export function validateReport(body: Row, nowIso = new Date().toISOString()): ValidationResult {
   const errs: string[] = [];
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, errors: ["Corpo da requisição inválido."] };
   checkKeys(body, TOP_KEYS, "relatorio", errs);
   if (!(typeof body.attempt_id === "string" && UUID.test(body.attempt_id))) errs.push("Identificador da tentativa (attempt_id) ausente ou inválido.");
   if (Array.isArray(body.funcionarios)) for (const [i, f] of (body.funcionarios as Row[]).entries()) {
@@ -82,6 +83,7 @@ export function validateReport(body: Row, nowIso = new Date().toISOString()): Va
     employees.push({ external_id: ext, matricula: text(f.matricula, 20, `${who} matrícula`, errs), nome: nome ?? "", cargo: text(f.funcao, 120, `${who} função`, errs), departamento: text(f.departamento, 120, `${who} departamento`, errs) });
 
     if (!Array.isArray(f.dias)) { errs.push(`${who}: lista de dias ausente.`); continue; }
+    if (!f.dias.length) { errs.push(`${who}: nenhum dia lido no relatório.`); continue; }
     const seenDia = new Set<string>(); const soma = { trabalhadas: 0, extras: 0, faltas: 0 };
     for (const d of f.dias as Row[]) {
       const dia = d?.dia;
@@ -102,7 +104,9 @@ export function validateReport(body: Row, nowIso = new Date().toISOString()): Va
       const jornada = text(d.jornada, 60, `${L} jornada`, errs), obs = text(d.observacao, 120, `${L} observação`, errs);
       const trab = dur(d.trabalhadas, `${L} trabalhadas`, errs), ext2 = dur(d.extras, `${L} extras`, errs), falt = dur(d.faltas, `${L} faltas`, errs);
       if (trab) soma.trabalhadas += toMin(trab); if (ext2) soma.extras += toMin(ext2); if (falt) soma.faltas += toMin(falt);
-      if (!jornada && !marc.length && !obs) continue; // folga sem registro: não grava e preserva o que já existir
+      // Dia realmente vazio (sem jornada, batidas, observação nem horas): não grava e NÃO apaga o que já existir.
+      // Dia com horas mas sem batidas/jornada é preservado (gravado), nunca descartado.
+      if (!jornada && !marc.length && !obs && !trab && !ext2 && !falt) continue;
       daily.push({ employee_external_id: ext, dia, horario_previsto: jornada, primeira_marcacao: marc[0] ?? null, ultima_marcacao: marc.length > 1 ? marc[marc.length - 1] : null, marcacoes: marc, horas_trabalhadas: trab, horas_extras: ext2, situacao: sit, ocorrencia: sit === "em_andamento" ? null : obs ?? (falt ? `Faltas ${falt} (relatório)` : null) });
       if (obs && sit !== "em_andamento") occurrences.push({ external_key: `relatorio_pdf|${ext}|${dia}|${norm(obs)}`, employee_external_id: ext, dia, tipo: obs });
     }

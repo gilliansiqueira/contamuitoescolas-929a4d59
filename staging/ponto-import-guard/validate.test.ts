@@ -23,6 +23,12 @@ describe("validateReport", () => {
   it("aceita código numérico longo (não confunde com documento)", () => expect(validateReport(base({}, { codigo: "90000000001" })).ok).toBe(true));
   it("rejeita campo fora do esquema", () => expect(errs(base({}, { extra: "x" }))).toMatch(/não permitido/));
   it("rejeita campo proibido dentro do dia", () => expect(errs(base({}, { dias: [dia("2030-01-01", { pis: "x" }), dia("2030-01-02")] }))).toMatch(/proibido/));
+  it("rejeita duração com minutos 99", () => expect(errs(base({}, { dias: [dia("2030-01-01", { trabalhadas: "08:99" }), dia("2030-01-02")] }))).toMatch(/duração inválida/));
+  it("rejeita total com minutos 99 (equivalente a 17:39)", () => expect(errs(base({}, { totais: { trabalhadas: "16:99", extras: "00:00", faltas: "00:00" } }))).toMatch(/total de trabalhadas ausente ou inválido/));
+  it("rejeita lista de dias vazia mesmo com totais zero", () => expect(errs(base({}, { dias: [], totais: { trabalhadas: "00:00", extras: "00:00", faltas: "00:00" } }))).toMatch(/nenhum dia/));
+  it("body null não lança", () => expect(errs(null)).toMatch(/Corpo/));
+  it("body array não lança", () => expect(errs([])).toMatch(/Corpo/));
+  it("dia só com horas (sem batidas) é preservado", () => { const r = validateReport(base({}, { dias: [dia("2030-01-01"), { dia: "2030-01-02", marcacoes: [], trabalhadas: "08:00", situacao: "regular" }] })); expect(r.ok && r.plan.daily.find(d => d.dia === "2030-01-02")?.horas_trabalhadas).toBe("08:00"); });
   it("exige attempt_id", () => expect(errs(base({ attempt_id: undefined }))).toMatch(/attempt_id/));
   it("rejeita código repetido", () => { const b = base(); (b.funcionarios as any[]).push({ ...(b.funcionarios as any[])[0] }); expect(errs(b)).toMatch(/repetido/); });
   it("rejeita texto longo em vez de truncar", () => expect(errs(base({}, { nome: "x".repeat(121) }))).toMatch(/acima de 120/));
