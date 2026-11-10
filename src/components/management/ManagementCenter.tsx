@@ -648,7 +648,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myDaySchools, rows, dailyBySchool, backlogBySchool, dailyTasksBySchool, dueDate, dueInfo, month, today, bankStartMonths]);
   // ─── Gerência (proprietária e admins com visão de todas) ───
-  const showManager = isSuperAdmin || (profile?.role === 'admin' && profile?.admin_scope === 'all');
+  const showManager = isSuperAdmin || (profile?.role === 'admin' && !!profile?.permissions?.includes('team_oversight'));
   const managerTeam = useMemo<ManagerTeamPerson[]>(() => {
     const map = new Map<string, ManagerTeamPerson>();
     for (const row of rows) {

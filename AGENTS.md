@@ -36,3 +36,4 @@
 - Integração Banco Inter (somente leitura): credenciais criptografadas em `bank_api_connections` (colunas `*_enc` sem SELECT; só a Edge Function `inter-sync` lê via RPC service_role); cada leitura grava um `bank_statement_imports` (`formato='api_inter'`) e lançamentos com `bank_ref='inter:<id>'`, deduplicados contra OFX/PDF por dia/sentido/valor; agendada por pg_cron com token em `private.bank_api_cron` — para reaproveitar o caminho do extrato sem expor segredos.
 - Integração Olist ERP: ver supabase/functions/olist-sync/AGENTS.md.
 - Acquirer connectors: see supabase/functions/mercadopago-sync/AGENTS.md.
+- Visão de outras carteiras (pendências, atrasos, gerência) só para super_admin ou `user_permissions.team_oversight` via `can_oversee_team()` nas RPCs da Central; `admin_scope='all'` só libera entrar nas empresas — para a equipe ajudar sem ver números das colegas.

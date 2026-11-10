@@ -6485,6 +6485,7 @@ export type Database = {
       }
       can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }
       can_manage_collaborators: { Args: never; Returns: boolean }
+      can_oversee_team: { Args: never; Returns: boolean }
       can_see_school: { Args: { _school_id: string }; Returns: boolean }
       can_view_client_logins: { Args: never; Returns: boolean }
       can_view_team_time: { Args: never; Returns: boolean }
