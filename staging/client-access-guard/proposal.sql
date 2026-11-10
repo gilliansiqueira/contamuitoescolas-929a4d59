@@ -13,7 +13,7 @@ CREATE FUNCTION public._acc_meta_ok(m jsonb) RETURNS boolean LANGUAGE sql IMMUTA
    AND coalesce(m->>'codigo_operador','0') ~ '^[0-9]{1,12}$'
    AND coalesce(m->>'celular_token','+0000000000') ~ '^\+?[0-9]{10,13}$' $$;
 ALTER TABLE public.client_access_entries ADD CONSTRAINT meta_ok CHECK (public._acc_meta_ok(meta)),
-  ADD CONSTRAINT secret2_tipo_ok CHECK (secret2_tipo IS NULL OR secret2_tipo IN ('senha_transacao','senha_app','frase_recuperacao'));
+  ADD CONSTRAINT secret2_tipo_ok CHECK (secret2_tipo IS NULL OR secret2_tipo IN ('senha_app'));
 
 CREATE FUNCTION public._acc_perm(p text) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
   SELECT EXISTS (SELECT 1 FROM public.user_permissions WHERE user_id=auth.uid() AND permission=p) $$;
@@ -122,8 +122,8 @@ BEGIN
   IF NOT public._acc_item(r.school_id, r.restrito OR h.restrito, 'edit') THEN RAISE EXCEPTION 'sem permissão' USING ERRCODE='42501'; END IF;
   PERFORM public._acc_snapshot(r, 'restaurado');
   UPDATE public.client_access_entries SET servico=h.servico,url=h.url,login=h.login,secret_enc=h.secret_enc,meta=coalesce(h.meta,'{}'),
-    secret2_enc=h.secret2_enc,secret2_tipo=h.secret2_tipo,grupo=coalesce(h.grupo,grupo),updated_by=auth.uid(),updated_at=now()
-  WHERE id=r.id;  -- restrito do item é mantido (restaurar não remove restrição)
+    secret2_enc=h.secret2_enc,secret2_tipo=h.secret2_tipo,grupo=coalesce(h.grupo,grupo),restrito=(r.restrito OR h.restrito),updated_by=auth.uid(),updated_at=now()
+  WHERE id=r.id;  -- restaurar nunca remove restrição; snapshot restrito torna o item restrito
 END $$;
 
 CREATE FUNCTION public.archive_access_entry(_id uuid, _archive boolean)
@@ -153,9 +153,12 @@ CREATE FUNCTION public.get_access_audit(_school uuid) RETURNS TABLE(quem text, e
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
 BEGIN
   IF NOT public._acc_admin(_school) THEN RAISE EXCEPTION 'sem permissão' USING ERRCODE='42501'; END IF;
-  RETURN QUERY SELECT coalesce(p.email, v.user_id::text), s.nome, v.servico, v.viewed_at, v.acao
-    FROM public.client_access_views v JOIN public.schools s ON s.id=v.school_id LEFT JOIN public.profiles p ON p.user_id=v.user_id
-    WHERE v.school_id=_school ORDER BY v.viewed_at DESC;
+  -- usos (ver/copiar) + mudanças (histórico), sem senhas nem valores antigos
+  RETURN QUERY SELECT coalesce(p.email, x.uid::text), s.nome, x.servico, x.at, x.acao FROM (
+      SELECT v.user_id uid, v.school_id sid, v.servico, v.viewed_at at, v.acao FROM public.client_access_views v WHERE v.school_id=_school
+      UNION ALL
+      SELECT h.changed_by, h.school_id, h.servico, h.changed_at, h.acao FROM public.client_access_history h WHERE h.school_id=_school) x
+    JOIN public.schools s ON s.id=x.sid LEFT JOIN public.profiles p ON p.user_id=x.uid ORDER BY x.at DESC;
 END $$;
 
 DO $$ DECLARE f text; BEGIN

@@ -11,7 +11,7 @@
 INSERT INTO public.user_permissions VALUES ('00000000-0000-0000-0000-000000000013','access_use'),('00000000-0000-0000-0000-000000000015','access_admin'),('00000000-0000-0000-0000-000000000017','access_use');
 \set F 'proposta'
 -- criação
-SELECT t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'banco','Banco Ficticio',NULL,'usuario.teste','Fict1cia!',true,'{"tipo_login":"compartilhado","codigo_operador":"12345"}','Tok3n#2','senha_transacao',true)::text$q$,:A)) AS e1 \gset
+SELECT t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'banco','Banco Ficticio',NULL,'usuario.teste','Fict1cia!',true,'{"tipo_login":"compartilhado","codigo_operador":"12345"}','Tok3n#2','senha_app',true)::text$q$,:A)) AS e1 \gset
 SELECT t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'sistema','Sistema Restrito',NULL,'adm.teste','R3strita!',true,'{}')::text$q$,:A)) AS e2 \gset
 SELECT t.try(:SU,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'banco','Banco C',NULL,'c.teste','Cc0nf!',true,'{}')::text$q$,:C)) AS e3 \gset
 SELECT t.chk(:'F','gestora cria comum', :'e1','PERMITIDO');
@@ -47,6 +47,17 @@ SELECT t.chk(:'F','restauração mantém item restrito', (SELECT restrito::text 
 SELECT t.chk(:'F','gestora segue sem revelar após restauração', t.try(:GA,'authenticated',format('SELECT public.reveal_access_secret(%L)',:'e2')),'NEGADO');
 -- versão antiga criada ANTES da restrição continua protegida pelo item atual
 SELECT t.chk(:'F','versão antiga (pré-restrição) protegida', t.try(:GA,'authenticated',format('SELECT public.reveal_access_history_secret(%L)',:'h2c')),'NEGADO');
+-- snapshot restrito restaurado em item desmarcado continua restrito
+SELECT t.chk(:'F','admin remove restrição', t.try(:AM,'authenticated',format('SELECT public.set_access_restricted(%L,false)::text',:'e2')),'PERMITIDO');
+SELECT id AS h2x FROM public.client_access_history WHERE entry_id=:'e2' AND acao='restrição removida' \gset
+SELECT t.chk(:'F','snapshot da remoção guardou restrito=true', (SELECT restrito::text FROM public.client_access_history WHERE id=:'h2x'),'true');
+SELECT t.chk(:'F','item desmarcado: apoio passa a revelar', t.try(:AP,'authenticated',format('SELECT public.reveal_access_secret(%L)',:'e2')),'PERMITIDO');
+SELECT t.chk(:'F','apoio NÃO restaura snapshot restrito', t.try(:AP,'authenticated',format('SELECT public.restore_access_version(%L)::text',:'h2x')),'NEGADO');
+SELECT t.chk(:'F','gestora NÃO restaura snapshot restrito em item desmarcado', t.try(:GA,'authenticated',format('SELECT public.restore_access_version(%L)::text',:'h2x')),'NEGADO');
+SELECT t.chk(:'F','admin restaura snapshot restrito', t.try(:AM,'authenticated',format('SELECT public.restore_access_version(%L)::text',:'h2x')),'PERMITIDO');
+SELECT t.chk(:'F','item volta a restrito após restaurar snapshot restrito', (SELECT restrito::text FROM public.client_access_entries WHERE id=:'e2'),'true');
+SELECT t.chk(:'F','apoio bloqueado após restauração', t.try(:AP,'authenticated',format('SELECT public.reveal_access_secret(%L)',:'e2')),'NEGADO');
+SELECT t.chk(:'F','apoio não lista item após restauração', t.try(:AP,'authenticated',format('SELECT count(*)::text FROM public.client_access_entries WHERE id=%L',:'e2')),'0');
 -- contorno direto
 SELECT t.chk(:'F','UPDATE direto restrito=false bloqueado', t.try(:GA,'authenticated',format('UPDATE public.client_access_entries SET restrito=false WHERE id=%L RETURNING 1',:'e2')),'NEGADO');
 SELECT t.chk(:'F','DELETE direto bloqueado', t.try(:GA,'authenticated',format('DELETE FROM public.client_access_entries WHERE id=%L RETURNING 1',:'e1')),'NEGADO');
@@ -59,11 +70,16 @@ SELECT t.chk(:'F','observação/extras não expostos', t.try(:GA,'authenticated'
 -- metadados estruturados
 SELECT t.chk(:'F','metadado livre recusado', t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'b','Z',NULL,NULL,NULL,false,'{"obs":"senha: abc"}')::text$q$,:A)),'NEGADO');
 SELECT t.chk(:'F','código operador com letras recusado', t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'b','Z',NULL,NULL,NULL,false,'{"codigo_operador":"Senha123"}')::text$q$,:A)),'NEGADO');
+SELECT t.chk(:'F','senha_transacao recusada como 2ª senha', t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'b','Z',NULL,NULL,NULL,false,'{}','x','senha_transacao',true)::text$q$,:A)),'NEGADO');
+SELECT t.chk(:'F','frase_recuperacao recusada como 2ª senha', t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'b','Z',NULL,NULL,NULL,false,'{}','x','frase_recuperacao',true)::text$q$,:A)),'NEGADO');
 SELECT t.chk(:'F','tipo de 2ª senha fora da lista recusado', t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(NULL,%L,'b','Z',NULL,NULL,NULL,false,'{}','x','qualquer',true)::text$q$,:A)),'NEGADO');
 -- gestor e ações normais
 SELECT t.chk(:'F','gestora edita item comum', t.try(:GA,'authenticated',format($q$SELECT public.save_access_entry(%L,%L,NULL,'Banco Ficticio',NULL,'usuario.teste','N0va!',true,'{"tipo_login":"individual"}')::text$q$,:'e1',:A)),'PERMITIDO');
 SELECT t.chk(:'F','gestora vê senha antiga do item comum', t.try(:GA,'authenticated',format('SELECT public.reveal_access_history_secret((SELECT id FROM public.client_access_history WHERE entry_id=%L AND acao=%L))',:'e1','senha alterada')),'Fict1cia!');
-SELECT t.chk(:'F','gestora arquiva item comum', t.try(:GA,'authenticated',format('SELECT public.archive_access_entry(%L,false)::text',:'e1')),'PERMITIDO');
+SELECT t.chk(:'F','gestora arquiva item comum', t.try(:GA,'authenticated',format('SELECT public.archive_access_entry(%L,true)::text',:'e1')),'PERMITIDO');
+SELECT t.chk(:'F','arquivar preenche archived_at', (SELECT (archived_at IS NOT NULL)::text FROM public.client_access_entries WHERE id=:'e1'),'true');
+SELECT t.chk(:'F','gestora desarquiva item comum', t.try(:GA,'authenticated',format('SELECT public.archive_access_entry(%L,false)::text',:'e1')),'PERMITIDO');
+SELECT t.chk(:'F','desarquivar limpa archived_at', (SELECT (archived_at IS NULL)::text FROM public.client_access_entries WHERE id=:'e1'),'true');
 SELECT t.chk(:'F','fora do grupo NÃO usa A', t.try(:FG,'authenticated',format('SELECT public.reveal_access_secret(%L)',:'e1')),'NEGADO');
 SELECT t.chk(:'F','fora do grupo não lista A', t.try(:FG,'authenticated',format('SELECT count(*)::text FROM public.client_access_entries WHERE school_id=%L',:A)),'0');
 -- externo, anônimo, desligada
@@ -86,4 +102,8 @@ SELECT t.chk(:'F','apoio: user_has_school_access(A) segue falso', t.try(:AP,'aut
 SELECT t.chk(:'F','administrar do módulo: admin_manages_school(A) segue falso', t.try(:AM,'authenticated',format('SELECT public.admin_manages_school(%L)::text',:A)),'false');
 -- auditoria
 SELECT t.chk(:'F','auditoria registra nome/serviço/ação', t.try(:AM,'authenticated',format($q$SELECT quem||'|'||empresa||'|'||servico||'|'||acao FROM public.get_access_audit(%L) WHERE quem='apoio@exemplo.test' AND acao='copiar'$q$,:A)),'apoio@exemplo.test|Escola Teste A|Banco Ficticio|copiar');
+SELECT t.chk(:'F','auditoria inclui mudanças (criar/editar/arquivar/restaurar/restringir/remover)', t.try(:AM,'authenticated',format($q$SELECT string_agg(DISTINCT acao,',' ORDER BY acao) FROM public.get_access_audit(%L) WHERE acao IN ('criado','senha alterada','arquivado','restaurado do arquivo','restaurado','marcado restrito','restrição removida')$q$,:A)),'arquivado,criado,marcado restrito,restaurado,restaurado do arquivo,restrição removida,senha alterada');
+SELECT t.chk(:'F','auditoria de mudança traz ator/empresa/serviço/horário', t.try(:AM,'authenticated',format($q$SELECT quem||'|'||empresa||'|'||servico||'|'||(quando IS NOT NULL) FROM public.get_access_audit(%L) WHERE acao='marcado restrito'$q$,:A)),'gestora.a@exemplo.test|Escola Teste A|Sistema Restrito|true');
+SELECT t.chk(:'F','auditoria não devolve colunas de segredo', (SELECT string_agg(parameter_name,',' ORDER BY ordinal_position) FROM information_schema.parameters WHERE specific_name LIKE 'get_access_audit%' AND parameter_mode='OUT'),'quem,empresa,servico,quando,acao');
+SELECT t.chk(:'F','gestora NÃO vê auditoria', t.try(:GA,'authenticated',format('SELECT count(*)::text FROM public.get_access_audit(%L)',:A)),'NEGADO');
 SELECT t.chk(:'F','tentativas negadas não geram registro de revelação', (SELECT count(*)::text FROM public.client_access_views WHERE user_id IN ('00000000-0000-0000-0000-000000000014','00000000-0000-0000-0000-000000000016','00000000-0000-0000-0000-000000000017')),'0');
