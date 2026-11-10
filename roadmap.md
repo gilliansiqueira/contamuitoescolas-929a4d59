@@ -16,3 +16,5 @@
 - [x] Mercado Pago WNC: conector somente leitura (tabelas, função, painel, testes, auditoria Olist por leitura)
 - [ ] Mercado Pago WNC: cadastrar token de produção e validar prévia (aguarda credencial da WNC)
 - [ ] Mercado Pago: autorização OAuth por cliente e leitura agendada (após validar o piloto)
+- [x] Acessos e senhas: testes isolados da proposta (staging/client-access-guard, banco descartável)
+- [ ] Acessos e senhas: promoção (aguarda aprovação da Bruna)
