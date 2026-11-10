@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Simplificar proteção bancária e restaurar transição da tela antiga; ativação completa só após publicação
 - [x] Proteção de identidade/destino na importação bancária, cadastro autorizado e testes sintéticos (sem publicação; PDF/OCR bloqueado até leitor independente)
 - [x] Manter previsão pendente do dia atual no Fluxo Diário, fechamento e avisos de saldo (23 testes financeiros)
 - [ ] Conferir Fluxo Diário do Champagnat com login (sessão não disponível; aguarda login na prévia)

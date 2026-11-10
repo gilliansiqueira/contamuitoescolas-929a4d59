@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { headerIdentity, normalizeAccount, validateStatementIdentity, ImportGeneration } from '../lib/bankStatements/identity';
+import { headerIdentity, normalizeAccount, validateStatementIdentity, ImportGeneration, resolveBankCode, BANK_ALIASES, decodeBankText } from '../lib/bankStatements/identity';
 import { headerIdentity as serverIdentity } from '../../supabase/functions/_shared/bankIdentity';
 import { parseOFX } from '../lib/bankStatements/parsers';
 
@@ -20,7 +20,23 @@ describe('Identidade bancária: fixtures exclusivamente fictícias', () => {
   it('documento de pagador OFX não é titular', () => expect(headerIdentity(ofx(), true).holderDocument).toBeUndefined());
   it('documento de pagador CSV não é titular', () => expect(headerIdentity('Banco;237\nAgência;0123\nConta;0012345-6\nData;Descrição;Valor\n10/11/2026;CNPJ: 11111111111111;10').holderDocument).toBeUndefined());
   it('metadados ausentes bloqueiam', () => expect(() => validateStatementIdentity({}, account, 'empresa-a')).toThrow('não identifica'));
-  it('cadastro não conferido bloqueia', () => expect(() => validateStatementIdentity(identity, { ...account, identity_verified: false }, 'empresa-a')).toThrow('cadastro'));
+  it('cadastro completo dispensa checkbox', () => expect(() => validateStatementIdentity(identity, { ...account, identity_verified: false }, 'empresa-a')).not.toThrow());
+  it('cadastro antigo com alias exato dispensa código novo', () => expect(() => validateStatementIdentity(identity, { ...account, banco: 'Bradesco', bank_code: null, identity_verified: false }, 'empresa-a')).not.toThrow());
+  it.each(Object.entries(BANK_ALIASES))('alias exato %s resolve %s', (alias, code) => expect(resolveBankCode(alias)).toBe(code));
+  it('banco desconhecido exige complemento', () => expect(resolveBankCode('Banco inventado')).toBe(''));
+  it('alias parcial não resolve', () => expect(resolveBankCode('Bradesco Sicredi')).toBe(''));
+  it('código incompatível com alias bloqueia', () => expect(resolveBankCode('Sicredi', '237')).toBe(''));
+  it.each(['BANKID','BRANCHID','ACCTID','CNPJ'])('tags %s contraditórias no mesmo bloco bloqueiam', tag => {
+    const text = ofx().replace('</BANKACCTFROM>', `<${tag}>11111111111111\n<${tag}>22222222222222\n</BANKACCTFROM>`);
+    expect(() => validateStatementIdentity(headerIdentity(text, true), account, 'empresa-a')).toThrow();
+  });
+  it('tags equivalentes não são contraditórias', () => expect(headerIdentity(ofx().replace('</BANKACCTFROM>', '<ACCTID>00.12345-6\n</BANKACCTFROM>'), true).ambiguous).toBe(false));
+  it.each(['utf8','bom','cp1252'])('cabeçalho Agência em %s', encoding => {
+    const text = 'Banco;237\nAgência;0123\nConta;00123456\nData;Descrição;Valor';
+    const bytes = encoding === 'cp1252' ? Uint8Array.from([...text].map(c => c.charCodeAt(0))) : new TextEncoder().encode((encoding === 'bom' ? '\uFEFF' : '') + text);
+    expect(headerIdentity(decodeBankText(bytes)).branch).toBe('0123');
+    expect(() => validateStatementIdentity(headerIdentity(decodeBankText(bytes)), account, 'empresa-a')).not.toThrow();
+  });
   it('cadastro sem agência bloqueia', () => expect(() => validateStatementIdentity(identity, { ...account, agencia: null }, 'empresa-a')).toThrow('cadastro'));
   it('OFX multi-conta bloqueia', () => expect(() => validateStatementIdentity(headerIdentity(ofx() + ofx('748'), true), account, 'empresa-a')).toThrow());
   it('cabeçalho com contas contraditórias bloqueia', () => expect(() => validateStatementIdentity(headerIdentity('Banco;237\nAgência;0123\nConta;00123456\nConta;00123457\nData;Descrição;Valor'), account, 'empresa-a')).toThrow());

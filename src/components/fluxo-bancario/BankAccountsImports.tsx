@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ImportGeneration, validateStatementIdentity, normalizeAccount, normalizeBank } from '@/lib/bankStatements/identity';
+import { ImportGeneration, validateStatementIdentity, normalizeAccount, resolveBankCode } from '@/lib/bankStatements/identity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,7 +30,7 @@ interface Preview {
 }
 
 const lastDayPrevMonth = (() => { const d = new Date(); const x = new Date(d.getFullYear(), d.getMonth(), 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; })();
-const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', bankCode: '', holderDocument: '', verified: false, saldo: '', saldoData: lastDayPrevMonth, auto: false, autoSaldo: '', autoData: lastDayPrevMonth, esporadico: false };
+const emptyForm = { id: '', nome: '', banco: '', agencia: '', conta: '', bankCode: '', holderDocument: '', holderEntityId: '', saldo: '', saldoData: lastDayPrevMonth, auto: false, autoSaldo: '', autoData: lastDayPrevMonth, esporadico: false };
 
 export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }: Props) {
   const autoByImport = new Map<string, number>();
@@ -56,6 +56,26 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       throw new Error(message ?? 'Servidor não confirmou o destino. Nada pode ser confirmado; confira o histórico se houve demora.');
     }
     return data;
+  };
+  const [entities, setEntities] = useState<{ id: string; nome: string; cnpj: string }[]>([]);
+  const [enforced, setEnforced] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    db.from('company_entities').select('id,nome,cnpj').eq('school_id', schoolId).then(({ data }: any) => { if (active) setEntities(data ?? []); });
+    db.rpc('bank_import_guard_enforced').then(({ data }: any) => { if (active) setEnforced(data === true); });
+    return () => { active = false; };
+  }, [schoolId]);
+  const registered = (a: BankAccount) => {
+    const entity = a.holder_entity_id ? entities.find(e => e.id === a.holder_entity_id) : undefined;
+    if (a.holder_entity_id && !entity) throw new Error('Confira o vínculo do titular específico da conta.');
+    if (entity && a.holder_document && normalizeAccount(entity.cnpj) !== normalizeAccount(a.holder_document)) throw new Error('Documento diverge do titular específico cadastrado.');
+    return { ...a, holder_document: entity?.cnpj ?? a.holder_document };
+  };
+  const activateGuard = async () => {
+    if (!window.confirm('Ative somente após publicar e conferir esta versão na URL pública. A tela antiga deixará de importar. Continuar?')) return;
+    const { error } = await db.rpc('set_bank_import_guard_enforced', { _enabled: true });
+    if (error) return toast.error('Não foi possível ativar a proteção.');
+    setEnforced(true); toast.success('Proteção completa ativada no servidor.');
   };
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const accName = new Map(accounts.map(a => [a.id, a.nome]));
@@ -86,10 +106,10 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
 
   const saveAccount = async () => {
     if (!form?.nome.trim()) return toast.error('Informe o nome da conta');
-    if (form.verified && (!normalizeBank(form.bankCode) || !normalizeAccount(form.agencia) || !normalizeAccount(form.conta))) return toast.error('Informe código do banco, agência e conta completa com dígito.');
+    if (!resolveBankCode(form.banco, form.bankCode) || !normalizeAccount(form.agencia) || !normalizeAccount(form.conta)) return toast.error('Informe código do banco, agência e conta completa com dígito.');
     if (form.holderDocument && !/^(?:\d{11}|\d{14})$/.test(normalizeAccount(form.holderDocument))) return toast.error('CPF/CNPJ do titular inválido.');
     const row = {
-      bank_code: normalizeBank(form.bankCode) || null, holder_document: normalizeAccount(form.holderDocument) || null, identity_verified: form.verified,
+      bank_code: resolveBankCode(form.banco, form.bankCode) || null, holder_document: normalizeAccount(form.holderDocument) || null, holder_entity_id: form.holderEntityId || null,
       school_id: schoolId, nome: form.nome.trim(), banco: form.banco.trim(), agencia: form.agencia.trim() || null, conta: form.conta.trim() || null,
       saldo_inicial: parseBRNumber(form.saldo), saldo_inicial_data: form.saldoData || null,
       has_auto_invest: form.auto, auto_invest_saldo_inicial: form.auto ? parseBRNumber(form.autoSaldo) : 0,
@@ -139,7 +159,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       const result = await parseBankFile(file);
       const selected = accounts.find(a => a.id === accountId);
       if (!selected) throw new Error('Conta não vinculada à empresa selecionada.');
-      try { validateStatementIdentity(result.identity, selected, schoolId); }
+      try { validateStatementIdentity(result.identity, registered(selected), schoolId); }
       catch (e) { throw new Error(`Destino: ${selected.nome} (empresa selecionada). ${e instanceof Error ? e.message : 'Identidade incompatível.'}`); }
       await serverValidate(file, hash, 'validate', { schoolId, accountId });
       if (!generation.current.current(run)) return;
@@ -269,7 +289,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         result.saldoFinalInformado = saldoCalc;
       }
       if (acc?.has_auto_invest && result.formato === 'ofx' && result.saldoComAplicacaoInformado === undefined && !isBradesco) {
-        result.avisos = [...(result.avisos ?? []), 'Este arquivo não traz o valor aplicado: os lançamentos entram, mas o saldo oficial da conta só atualiza com o PDF do banco (que traz a aplicação). Envie também o PDF do mesmo período.'];
+        result.avisos = [...(result.avisos ?? []), 'Este OFX não traz saldo aplicado. PDF/OCR está bloqueado; use API quando disponível ou informe o saldo aplicado pela opção autorizada no histórico.'];
       }
       if (!generation.current.current(run) || destination.current.schoolId !== schoolId || destination.current.accountId !== accountId) return;
       setPreview({ schoolId, accountId, generation: run, file, hash, result, hashes, existing, kinds, linkRefs, saldoAplicado: '', saldoCalc });
@@ -290,7 +310,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
     try {
       const selected = accounts.find(a => a.id === preview.accountId);
       if (!selected) throw new Error('Conta selecionada não encontrada.');
-      validateStatementIdentity(result.identity, selected, preview.schoolId);
+      validateStatementIdentity(result.identity, registered(selected), preview.schoolId);
       if (await fileHash(file) !== hash) throw new Error('Arquivo mudou. Faça nova conferência.');
       const entradas = result.transactions.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
       const saidas = result.transactions.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
@@ -350,7 +370,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
                   <td className="py-2 font-medium">{a.nome}{a.extrato_esporadico && <span className="ml-1 rounded bg-warning/15 px-1.5 text-[10px] font-semibold text-warning-foreground">Extrato esporádico</span>}{a.has_auto_invest && <span className="ml-1 rounded bg-info/15 px-1.5 text-[10px] font-semibold text-info">Aplicação automática · {fmtBRL(Number(a.auto_invest_saldo_inicial ?? 0))}</span>}</td><td>{a.banco}</td><td>{[a.agencia, a.conta].filter(Boolean).join(' / ')}</td>
                   <td className="text-right tabular-nums">{fmtBRL(Number(a.saldo_inicial))}</td><td>{fmtDate(a.saldo_inicial_data)}</td>
                   <td className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setForm({ id: a.id, nome: a.nome, banco: a.banco, agencia: a.agencia ?? '', conta: a.conta ?? '', bankCode: a.bank_code ?? '', holderDocument: a.holder_document ?? '', verified: !!a.identity_verified, saldo: String(a.saldo_inicial).replace('.', ','), saldoData: a.saldo_inicial_data ?? '', auto: !!a.has_auto_invest, autoSaldo: String(a.auto_invest_saldo_inicial ?? 0).replace('.', ','), autoData: a.auto_invest_saldo_data ?? '', esporadico: !!a.extrato_esporadico })}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => setForm({ id: a.id, nome: a.nome, banco: a.banco, agencia: a.agencia ?? '', conta: a.conta ?? '', bankCode: a.bank_code ?? '', holderDocument: a.holder_document ?? '', holderEntityId: a.holder_entity_id ?? '', saldo: String(a.saldo_inicial).replace('.', ','), saldoData: a.saldo_inicial_data ?? '', auto: !!a.has_auto_invest, autoSaldo: String(a.auto_invest_saldo_inicial ?? 0).replace('.', ','), autoData: a.auto_invest_saldo_data ?? '', esporadico: !!a.extrato_esporadico })}><Pencil className="h-4 w-4" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => toggleActive(a)}>{a.ativa ? 'Desativar' : 'Ativar'}</Button>
                   </td>
                 </tr>
@@ -361,6 +381,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         <p className="mt-2 text-xs text-muted-foreground">O saldo inicial é o saldo da conta no fim do dia informado. Lançamentos até essa data já estão contidos nele.</p>
       </section>
 
+      {isSuperAdmin && enforced !== null && <div className="flex flex-wrap items-center gap-2 text-sm"><span>{enforced ? 'Proteção completa ativa' : 'Transição: a tela antiga permanece disponível'}</span>{!enforced && <Button size="sm" variant="outline" onClick={activateGuard}>Ativar proteção após publicação</Button>}</div>}
       <InterApiPanel schoolId={schoolId} accounts={accounts} onSynced={invalidate} />
       <OlistErpPanel schoolId={schoolId} accounts={accounts} />
       <AcquirerPanels schoolId={schoolId} />
@@ -401,12 +422,16 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
             <input type="file" className="hidden" accept=".ofx,.csv,.txt,.xlsx,.xls,.pdf" onChange={e => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
           </label>
           <Button variant="outline" size="sm" onClick={() => {
-            const blob = new Blob([buildBankTemplateXlsx()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const selected = accounts.find(a => a.id === accountId);
+            if (!selected) return toast.error('Selecione uma conta antes de baixar o modelo.');
+            let buffer: ArrayBuffer;
+            try { buffer = buildBankTemplateXlsx(registered(selected)); } catch (e) { return toast.error(e instanceof Error ? e.message : 'Complete o cadastro da conta.'); }
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'modelo-extrato.xlsx'; a.click(); URL.revokeObjectURL(a.href);
           }}><Download className="mr-1 h-4 w-4" />Baixar modelo Excel</Button>
           {isSuperAdmin && <Button variant="outline" size="sm" disabled={!accountId || busy} onClick={informManualBalance}>Informar saldo da conta numa data</Button>}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Importação exige cadastro conferido e banco, agência e conta no cabeçalho do arquivo. PDF/OCR está bloqueado até validação independente no servidor; prefira OFX original. Planilhas sem identidade também são bloqueadas. Use "Informar saldo" apenas como último recurso: o valor serve só como saldo conferido e não cria lançamentos.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Importação usa o cadastro existente completo e banco, agência e conta no cabeçalho do arquivo. PDF/OCR está bloqueado até validação independente no servidor; prefira OFX original. Planilhas sem identidade também são bloqueadas. Use "Informar saldo" apenas como último recurso: o valor serve só como saldo conferido e não cria lançamentos.</p>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-4">
@@ -455,9 +480,9 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2"><Label>Nome</Label><Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Sicredi principal" /></div>
               <div className="col-span-2"><Label>Banco</Label><Input value={form.banco} onChange={e => setForm({ ...form, banco: e.target.value })} placeholder="Ex.: Stone, Banco do Brasil" /></div>
-              <div><Label>Código do banco (3 dígitos)</Label><Input maxLength={3} value={form.bankCode} onChange={e => setForm({ ...form, bankCode: e.target.value })} placeholder="237" /></div>
+              <div><Label>Código do banco (automático para banco conhecido)</Label><Input maxLength={3} value={form.bankCode} onChange={e => setForm({ ...form, bankCode: e.target.value })} placeholder="237" /></div>
               <div><Label>CPF/CNPJ autorizado do titular (opcional)</Label><Input value={form.holderDocument} onChange={e => setForm({ ...form, holderDocument: e.target.value })} /></div>
-              <label className="col-span-2 flex items-center gap-2 text-sm"><Checkbox checked={form.verified} onCheckedChange={v => setForm({ ...form, verified: !!v })} />Conferi banco, agência, conta com dígito e vínculo desta conta com esta empresa.</label>
+              {entities.length > 0 && <div className="col-span-2"><Label>Titular específico desta conta (opcional)</Label><Select value={form.holderEntityId || 'none'} onValueChange={v => setForm({ ...form, holderEntityId: v === 'none' ? '' : v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Usar documento específico da conta</SelectItem>{entities.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent></Select></div>}
               <div><Label>Agência</Label><Input value={form.agencia} onChange={e => setForm({ ...form, agencia: e.target.value })} /></div>
               <div><Label>Conta</Label><Input value={form.conta} onChange={e => setForm({ ...form, conta: e.target.value })} /></div>
               <div><Label>Saldo inicial</Label><Input value={form.saldo} onChange={e => setForm({ ...form, saldo: e.target.value })} placeholder="1.500,50" /></div>
@@ -515,7 +540,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               {accounts.find(a => a.id === accountId)?.has_auto_invest && (
                 p.saldoComAplicacaoInformado !== undefined
                   ? <p className="text-xs text-success">Saldo com aplicação lido do arquivo: {fmtBRL(p.saldoComAplicacaoInformado)} — nada para digitar.</p>
-                  : <p className="text-xs text-muted-foreground">Este arquivo não traz o saldo com aplicação. Suba também o PDF do banco para o sistema ler o saldo automaticamente.</p>
+                  : <p className="text-xs text-muted-foreground">Este arquivo não traz o saldo com aplicação. PDF/OCR está bloqueado. Use API quando disponível ou informe saldo aplicado pela opção autorizada no histórico.</p>
               )}
               {preview.existing.size > 0 && <p className="text-xs text-muted-foreground">{preview.existing.size} lançamento(s) já existem nesta conta e serão ignorados.</p>}
               {p.avisos.map(a => <p key={a} className="flex items-center gap-1 rounded-md bg-warning/15 p-2 text-xs text-warning"><AlertTriangle className="h-4 w-4" />{a}</p>)}

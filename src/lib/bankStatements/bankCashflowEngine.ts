@@ -8,6 +8,7 @@ export interface BankAccount {
   school_id?: string;
   bank_code?: string | null;
   holder_document?: string | null;
+  holder_entity_id?: string | null;
   identity_verified?: boolean;
   id: string;
   nome: string;

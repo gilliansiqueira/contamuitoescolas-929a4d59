@@ -415,6 +415,7 @@ export type Database = {
           extrato_esporadico: boolean
           has_auto_invest: boolean
           holder_document: string | null
+          holder_entity_id: string | null
           id: string
           identity_verified: boolean
           is_virtual: boolean
@@ -436,6 +437,7 @@ export type Database = {
           extrato_esporadico?: boolean
           has_auto_invest?: boolean
           holder_document?: string | null
+          holder_entity_id?: string | null
           id?: string
           identity_verified?: boolean
           is_virtual?: boolean
@@ -457,6 +459,7 @@ export type Database = {
           extrato_esporadico?: boolean
           has_auto_invest?: boolean
           holder_document?: string | null
+          holder_entity_id?: string | null
           id?: string
           identity_verified?: boolean
           is_virtual?: boolean
@@ -467,6 +470,13 @@ export type Database = {
           sort_order?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "bank_accounts_holder_entity_id_fkey"
+            columns: ["holder_entity_id"]
+            isOneToOne: false
+            referencedRelation: "company_entities"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bank_accounts_school_id_fkey"
             columns: ["school_id"]
@@ -787,6 +797,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      bank_import_guard_settings: {
+        Row: {
+          enforced: boolean
+          singleton: boolean
+        }
+        Insert: {
+          enforced?: boolean
+          singleton?: boolean
+        }
+        Update: {
+          enforced?: boolean
+          singleton?: boolean
+        }
+        Relationships: []
       }
       bank_own_transfer_names: {
         Row: {
@@ -6500,6 +6525,11 @@ export type Database = {
         Args: { _account: string; _school: string }
         Returns: boolean
       }
+      bank_import_guard_enforced: { Args: never; Returns: boolean }
+      bank_registered_code: {
+        Args: { _bank: string; _code?: string }
+        Returns: string
+      }
       can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }
       can_manage_collaborators: { Args: never; Returns: boolean }
       can_oversee_team: { Args: never; Returns: boolean }
@@ -6743,6 +6773,10 @@ export type Database = {
           _url: string
         }
         Returns: string
+      }
+      set_bank_import_guard_enforced: {
+        Args: { _enabled: boolean }
+        Returns: boolean
       }
       set_bank_split_model_item: {
         Args: { _item_id: string; _split_id: string }

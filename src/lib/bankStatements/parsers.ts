@@ -5,7 +5,9 @@ import { openPdfDocument } from '@/lib/pdfPassword';
  * Valores sempre positivos; o sentido vem de `tipo`.
  */
 import * as XLSX from 'xlsx';
-import { headerIdentity, type StatementIdentity } from './identity';
+import { headerIdentity, resolveBankCode, normalizeAccount, type RegisteredIdentity, type StatementIdentity } from './identity';
+export { decodeBankText } from './identity';
+import { decodeBankText } from './identity';
 
 export interface ParsedBankTx {
   data: string; // YYYY-MM-DD
@@ -358,8 +360,12 @@ export function parseCSV(content: string): BankParseResult {
 export const TEMPLATE_HEADER = ['Data', 'Descrição', 'Entrada', 'Saída', 'Saldo do dia'];
 
 /** Gera o modelo de planilha de extrato (quando o PDF do banco não pode ser lido). */
-export function buildBankTemplateXlsx(): ArrayBuffer {
+export function buildBankTemplateXlsx(account: RegisteredIdentity): ArrayBuffer {
+  const code = resolveBankCode(account.banco, account.bank_code);
+  if (!account.school_id || !code || !normalizeAccount(account.agencia) || !normalizeAccount(account.conta)) throw new Error('Complete banco, agência, conta e vínculo antes de baixar o modelo.');
   const ws = XLSX.utils.aoa_to_sheet([
+    ['Banco', code], ['Agência', account.agencia], ['Conta', account.conta],
+    ...(account.holder_document ? [['CPF/CNPJ do titular', account.holder_document]] : []),
     TEMPLATE_HEADER,
     ['Saldo anterior', '', '', '', 0],
     ['01/09/2026', 'Exemplo: tarifa (apague esta linha)', '', 75, -75],
@@ -424,7 +430,7 @@ export function parseXLSX(buffer: ArrayBuffer): BankParseResult {
   const tpl = parseBankTemplate(XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' }));
   const cf = parseCashFlowSheet(XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' }));
   if (cf) return cf;
-  if (tpl) { tpl.avisos = [`Modelo de planilha do sistema: ${tpl.transactions.length} lançamento(s), conferidos pelo saldo.`, ...(tpl.divergencias ?? [])]; return tpl; }
+  if (tpl) { tpl.identity = headerIdentity(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]], { FS: ';' })); tpl.avisos = [`Modelo de planilha do sistema: ${tpl.transactions.length} lançamento(s), conferidos pelo saldo.`, ...(tpl.divergencias ?? [])]; return tpl; }
   const bb = parseBancoDoBrasilXLSX(rows);
   if (bb) return finish('xlsx', bb, { banco: 'Banco do Brasil' });
   const txs = rowsToTx(rows);
@@ -1062,12 +1068,6 @@ async function readPdfImageText(buf: ArrayBuffer): Promise<string> {
   return parts.join('\n');
 }
 
-/** Bancos brasileiros costumam gerar OFX/CSV em Windows-1252; UTF-8 é usado só quando o arquivo é UTF-8 válido. */
-export function decodeBankText(buf: ArrayBuffer): string {
-  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
-  catch { return new TextDecoder('windows-1252').decode(buf); }
-}
-
 /** BB "Extrato de Conta Corrente" (Dia/Lote/Documento/Histórico/Valor) com sentido "(+)"/"(-)" após o valor. */
 export function isBBContaCorrentePdf(lines: string[]): boolean {
   const all = stripAccents(lines.join('\n'));
@@ -1281,7 +1281,7 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
       const recognized = await readPdfImageText(buffer);
       const plain = stripAccents(recognized).toLowerCase();
       const result = plain.includes('caixa') && plain.includes('saldo dia') ? parseCaixaImageText(recognized) : parseItauImageText(recognized);
-      return { ...result, identity: headerIdentity(recognized), bloqueiaImportacao: true, avisos: [...result.avisos, 'OCR não comprova identidade no servidor. Envie OFX ou PDF original com texto identificável.'] };
+      return { ...result, identity: headerIdentity(recognized), bloqueiaImportacao: true, avisos: [...result.avisos, 'PDF/OCR bloqueado nesta versão. Use OFX/API ou saldo manual autorizado.'] };
     }
     if (isC6Pdf(lines)) return withIdentity(parseC6PdfLines(lines));
     if (isBradescoPdf(lines)) return withIdentity(parseBradescoPdfLines(lines));

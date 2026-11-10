@@ -813,6 +813,20 @@
       "when": 1794350112961,
       "tag": "0115_bank_identity_unique_and_storage_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1794350595357,
+      "tag": "0116_bank_identity_controlled_transition",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1794350755427,
+      "tag": "0117_bank_guard_activation_fail_closed",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
-import { headerIdentity, validateStatementIdentity } from '../_shared/bankIdentity.ts';
+import { headerIdentity, validateStatementIdentity, decodeBankText } from '../_shared/bankIdentity.ts';
 
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 const schema = z.object({ schoolId: z.string().uuid(), accountId: z.string().uuid(), action: z.enum(['validate', 'confirm']), hash: z.string().regex(/^[a-f0-9]{64}$/), metadata: z.record(z.unknown()).optional(), rows: z.array(z.record(z.unknown())).max(20000).optional(), links: z.array(z.object({ id: z.string().uuid(), bankRef: z.string().max(255), replace: z.boolean().optional() })).max(20000).optional() });
@@ -23,12 +23,18 @@ Deno.serve(async req => {
     if (permError || !allowed) return response({ error: 'Sem autorização para importar nesta empresa/conta.' }, 403);
     const { data: account, error: accountError } = await caller.from('bank_accounts').select('*').eq('id', input.accountId).eq('school_id', input.schoolId).single();
     if (accountError || !account) return response({ error: 'Conta não vinculada à empresa selecionada.' }, 403);
+    if (account.holder_entity_id) {
+      const { data: entity, error } = await caller.from('company_entities').select('cnpj').eq('id', account.holder_entity_id).eq('school_id', input.schoolId).single();
+      if (error || !entity) return response({ error: 'Vínculo do titular específico inválido.' }, 422);
+      if (account.holder_document && account.holder_document.replace(/[ .\-/]/g, '') !== entity.cnpj.replace(/[ .\-/]/g, '')) return response({ error: 'Documento diverge do titular específico cadastrado.' }, 422);
+      account.holder_document = entity.cnpj;
+    }
     const bytes = new Uint8Array(await file.arrayBuffer());
     const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(x => x.toString(16).padStart(2, '0')).join('');
     if (digest !== input.hash) return response({ error: 'Arquivo mudou após a conferência. Selecione novamente.' }, 409);
     const ext = file.name.split('.').pop()?.toLowerCase();
     let text: string;
-    if (ext === 'ofx' || ext === 'csv' || ext === 'txt') text = new TextDecoder('windows-1252').decode(bytes);
+    if (ext === 'ofx' || ext === 'csv' || ext === 'txt') text = decodeBankText(bytes);
     else if (ext === 'xlsx' || ext === 'xls') {
       const XLSX = await import('npm:xlsx@0.18.5');
       const wb = XLSX.read(bytes, { type: 'array' });
