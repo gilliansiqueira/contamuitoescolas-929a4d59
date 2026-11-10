@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; form-action 'none'">
+<title>PROTÓTIPO — Acessos e senhas (dados fictícios)</title>
+<link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="banner" role="alert">PROTÓTIPO — DADOS FICTÍCIOS — NÃO CONECTADO</div>
+<header>
+  <label>Papel fictício
+    <select id="role" aria-label="Papel fictício">
+      <option value="operacional">Operacional</option>
+      <option value="editor">Editor vinculado (Escola Alfa)</option>
+      <option value="admin">Administrador</option>
+    </select></label>
+  <label>Empresa fictícia <select id="company" aria-label="Empresa fictícia"></select></label>
+  <span class="note">Controles de tela são só ilustrativos: o backend precisa impor as mesmas regras.</span>
+</header>
+<main><section id="cards" aria-label="Serviços"></section>
+<section id="audit" hidden><h2>Histórico (sem segredos)</h2><table><thead><tr><th>Quando</th><th>Quem</th><th>Empresa</th><th>Serviço</th><th>Ação</th></tr></thead><tbody id="auditBody"></tbody></table></section></main>
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="editDlg" aria-label="Editar acesso"><form method="dialog" id="editForm">
+  <h2>Editar acesso</h2>
+  <label>Serviço <input id="fName" required maxlength="60"></label>
+  <label>Endereço (fictício) <input id="fUrl" required maxlength="120"></label>
+  <label>Usuário <input id="fUser" required maxlength="60"></label>
+  <label>Nova senha fictícia (opcional) <input id="fPass" maxlength="40" autocomplete="off"></label>
+  <p class="note">Sem campo de texto livre: credenciais críticas (senha de transação, frase de recuperação) não são aceitas.</p>
+  <menu><button value="cancel" type="button" id="cancelEdit">Cancelar</button><button id="saveEdit" type="submit">Salvar</button></menu>
+</form></dialog>
+<script src="app.js"></script></body></html>

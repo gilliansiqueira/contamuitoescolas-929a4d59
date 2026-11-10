@@ -1,0 +1,48 @@
+# Teste offline do protótipo: file://, toda requisição de rede é bloqueada e contada.
+import asyncio, pathlib
+from playwright.async_api import async_playwright
+URL = (pathlib.Path(__file__).parent / "prototype/index.html").resolve().as_uri()
+res = []
+def ok(name, cond): res.append((name, bool(cond))); print(("PASS " if cond else "FAIL ") + name)
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch(headless=True)
+        ctx = await b.new_context(viewport={"width":1280,"height":1800}, offline=True)
+        net = []
+        async def block(route):
+            if not route.request.url.startswith("file://"): net.append(route.request.url); await route.abort()
+            else: await route.continue_()
+        await ctx.route("**/*", block)
+        pg = await ctx.new_page()
+        await pg.goto(URL)
+        ok("banner visível", await pg.get_by_text("PROTÓTIPO — DADOS FICTÍCIOS — NÃO CONECTADO").is_visible())
+        sel = lambda: pg.eval_on_selector_all("#company option", "o=>o.map(x=>x.value)")
+        ok("operacional vê A e B, não restrita", await sel() == ["A","B"])
+        ok("operacional: restrito indisponível", await pg.locator('[data-item="3"]').get_by_text("Indisponível").count() == 1)
+        ok("operacional: sem Editar", await pg.get_by_role("button", name="Editar").count() == 0)
+        ok("operacional: sem histórico", await pg.locator("#audit").is_hidden())
+        await pg.locator('[data-item="1"]').get_by_role("button", name="Mostrar (10s)").click()
+        ok("mostrar revela senha fictícia", "FICTICIA-alfa-123" in await pg.locator('[data-item="1"] .secret').inner_text())
+        await pg.wait_for_timeout(10500)
+        ok("timer oculta após 10s", "FICTICIA" not in await pg.locator('[data-item="1"] .secret').inner_text())
+        await pg.select_option("#company", "B")
+        ok("operacional usa comum de B", await pg.locator('[data-item="4"]').get_by_role("button", name="Copiar senha").count() == 1)
+        await pg.select_option("#role", "editor"); await pg.select_option("#company", "A")
+        ok("editor: Editar só em comuns de A", await pg.get_by_role("button", name="Editar").count() == 2)
+        await pg.select_option("#company", "B")
+        ok("editor: sem Editar em B", await pg.get_by_role("button", name="Editar").count() == 0)
+        await pg.select_option("#role", "admin")
+        ok("admin vê empresa restrita", "R" in await sel())
+        await pg.select_option("#company", "A")
+        await pg.locator('[data-item="2"]').get_by_role("button", name="Editar").click()
+        await pg.fill("#fPass", "FICTICIA-nova-999"); await pg.click("#saveEdit")
+        await pg.locator('[data-item="3"]').get_by_role("button", name="Mostrar (10s)").click()
+        ok("admin usa restrito", "FICTICIA-banco-789" in await pg.locator('[data-item="3"] .secret').inner_text())
+        audit = await pg.locator("#audit").inner_text()
+        ok("histórico com ações", "alterar senha" in audit and "ver senha" in audit)
+        ok("histórico sem segredos", "FICTICIA" not in audit)
+        await pg.screenshot(path="/tmp/browser/cag_admin.png")
+        ok("nenhuma requisição de rede", net == [])
+        await b.close()
+    f = sum(not c for _, c in res); print(f"{len(res)-f}/{len(res)} passaram"); raise SystemExit(1 if f else 0)
+asyncio.run(main())

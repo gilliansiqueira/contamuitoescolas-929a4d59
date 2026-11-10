@@ -28,3 +28,8 @@ Cria um PostgreSQL 17 descartável em `mktemp -d /tmp/acc-pg.XXXXXX` (só socket
 - Tela (ocultação visual, novo formulário), API HTTP e JWT reais.
 - Migração dos dados existentes de `extras`/`observacao` (seria preciso revisar antes de apagar).
 - Concorrência e desempenho.
+
+## Protótipo de interface (offline, dados fictícios)
+- Abrir `prototype/index.html` direto no navegador (sem servidor, sem rede; CSP bloqueia conexões).
+- Teste: `python3 staging/client-access-guard/ui_check.py` (Playwright já existente, contexto offline, 15 verificações).
+- Esconder botões na tela não é segurança; o backend deve impor as mesmas regras. Ver `INTEGRATION_PLAN.md`.
