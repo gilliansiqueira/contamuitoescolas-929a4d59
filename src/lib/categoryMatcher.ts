@@ -185,3 +185,32 @@ export function matchCategory({ raw, memory, knownCategories }: MatchInput): Mat
 
 /** Limiar acima do qual o match é confiável o suficiente para auto-aplicar sem confirmação. */
 export const AUTO_APPLY_THRESHOLD = 0.95;
+
+/**
+ * Omni exporta a descrição como "Categoria - Fornecedor". Quando a linha cai em
+ * DL (ou fica sem categoria), tenta a categoria do começo da descrição.
+ * Gastos pessoais ("... - PF") continuam como estão.
+ */
+export function categoryFromDescriptionPrefix(
+  descricao: string,
+  memory: Map<string, string>,
+  knownCategories: string[],
+): string | null {
+  const d = (descricao || '').trim();
+  if (!d || /-\s*PF\s*$/i.test(d)) return null;
+  const tries = [d.split(' - ')[0].trim(), d];
+  for (const t of tries) {
+    if (!t) continue;
+    const r = matchCategory({ raw: t, memory, knownCategories });
+    if (r.target && r.score >= AUTO_APPLY_THRESHOLD && normalizeCategory(r.target) !== 'dl') return r.target;
+  }
+  return null;
+}
+
+/** Linha só com o nome que repete (mesmo dia e valor) uma linha "Categoria - nome". */
+export function findNameOnlyDuplicates<T extends { data: string; valor: number; descricao: string }>(rows: T[]): T[] {
+  const keyed = new Set(rows.filter(r => r.descricao.includes(' - ')).map(r =>
+    `${r.data}|${Math.abs(r.valor).toFixed(2)}|${normalizeCategory(r.descricao.split(' - ').slice(1).join(' - '))}`));
+  return rows.filter(r => !r.descricao.includes(' - ') && r.descricao.trim() &&
+    keyed.has(`${r.data}|${Math.abs(r.valor).toFixed(2)}|${normalizeCategory(r.descricao)}`));
+}

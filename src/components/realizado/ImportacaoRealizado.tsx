@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
 import { loadSchoolModelItems } from '@/lib/modelValidation';
-import { matchCategory, normalizeCategory, AUTO_APPLY_THRESHOLD, type MatchResult } from '@/lib/categoryMatcher';
+import { matchCategory, normalizeCategory, AUTO_APPLY_THRESHOLD, categoryFromDescriptionPrefix, findNameOnlyDuplicates, type MatchResult } from '@/lib/categoryMatcher';
 import { parseSpreadsheetDate } from '@/lib/dateUtils';
 import { CategoryPicker } from './CategoryPicker';
 
@@ -276,6 +276,12 @@ export function ImportacaoRealizado({ schoolId }: Props) {
     const newSuggestions: Record<string, MatchResult> = {};
     const autoFromCascade: Record<string, string> = {};
     const finalRows = parsedWithRules.map(r => {
+      // Omni: linha em DL/sem categoria cuja descrição começa por uma categoria conhecida
+      const catNorm = normalizeCategory(r.categoria);
+      if ((catNorm === 'dl' || !catNorm) && r.descricao) {
+        const fromDesc = categoryFromDescriptionPrefix(r.descricao, rulesByNorm, knownCategoryNames);
+        if (fromDesc) return { ...r, categoria: fromDesc, _autoMapped: true, _matchMethod: 'descricao', _originalCategoria: r.categoria };
+      }
       if ((r as any)._autoMapped) return r;
       const norm = normalizeStr(r.categoria);
       if (knownNorm.has(norm)) return r; // já é categoria oficial
@@ -303,6 +309,10 @@ export function ImportacaoRealizado({ schoolId }: Props) {
       }
     });
 
+    const dupNames = findNameOnlyDuplicates(finalRows);
+    if (dupNames.length > 0) {
+      toast.warning(`${dupNames.length} linha(s) só com o nome repetem um pagamento "Categoria - nome" no mesmo dia e valor: ${dupNames.slice(0, 5).map(d => d.descricao).join(', ')}. Confira antes de importar.`, { duration: 15000 });
+    }
     setPreview(finalRows); setInvalidCount(invalid);
     setUnmapped(unmappedCats); setCategoryMappings({}); setNewCatMappings({});
     setSuggestions(newSuggestions);
