@@ -1,0 +1,83 @@
+{
+"20260409165732_ae1b7491-392a-4488-aaf8-7fba3ac8a48d.sql": [
+"INSERT"
+],
+"20260410165754_2feb3763-fb6a-4449-82e9-4d86b418097c.sql": [
+"INSERT",
+"INSERT"
+],
+"20260417185433_03fe7c0a-ee3f-4dc3-926c-3cb6574e1e9a.sql": [
+"INSERT"
+],
+"20260424181146_bd9c4ae2-7334-4652-8c69-62a4e28bc8a4.sql": [
+"INSERT",
+"INSERT",
+"INSERT"
+],
+"20260529234310_9ab4f12f-626b-471e-8773-2a06ae94773b.sql": [
+"DELETE",
+"UPDATE"
+],
+"20260603122932_deb66355-e4b9-42c3-97aa-be263582a4db.sql": [
+"UPDATE"
+],
+"20260715201930_5a3bf248-f1b6-4824-a3e2-e8f2d6f701d2.sql": [
+"DELETE",
+"DELETE"
+],
+"20260803021527_9214676c-43ea-4931-97c5-b942c70a9c9c.sql": [
+"UPDATE"
+]
+}
+{
+"0019_bank_cashflow_integration_structure.sql": [
+"INSERT"
+],
+"0023_cashflow_opening_balance.sql": [
+"UPDATE"
+],
+"0035_auto_enable_bank_cashflow_new_schools.sql": [
+"INSERT",
+"INSERT"
+],
+"0039_team_time_pontofopag.sql": [
+"INSERT"
+],
+"0045_recon_justifications.sql": [
+"INSERT"
+],
+"0052_central_excluir_demo.sql": [
+"INSERT"
+],
+"0078_product_sales_ranking.sql": [
+"INSERT"
+],
+"0082_fix_bb_brasilia_sinal_outubro.sql": [
+"INSERT",
+"UPDATE",
+"INSERT"
+],
+"0083_fix_uberlandia_centro_renewal_rows.sql": [
+"DELETE",
+"DELETE",
+"UPDATE"
+],
+"0088_migration.sql": [
+"INSERT"
+],
+"0091_team_time_ignored_punches.sql": [
+"INSERT"
+],
+"0096_client_access_vault.sql": [
+"INSERT"
+],
+"0106_optional_closing_steps.sql": [
+"UPDATE"
+],
+"0108_migration.sql": [
+"INSERT"
+],
+"0113_migration.sql": [
+"INSERT"
+]
+}

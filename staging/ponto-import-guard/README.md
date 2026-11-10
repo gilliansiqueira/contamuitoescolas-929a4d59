@@ -34,3 +34,25 @@ staging/ponto-import-guard/integration.sh
 - A lista de códigos determinísticos depende do cliente do backend repassar o SQLSTATE; conferir na promoção. Códigos determinísticos fora da lista viram "incerto" (seguro, porém menos informativo).
 - O cliente importa `validate.ts`; na promoção o mesmo arquivo precisa existir no app e na função (contrato de hash idêntico).
 - Retry com outro `attempt_id` reaplica por upsert sem duplicar dias, mas gera outro registro de execução.
+
+## Homologação com app integrado e schema completo (sem servidor real) — pasta fullschema/
+Ambiente: Node 22, Deno 2.8, PostgreSQL 17 local, Playwright/Chromium. **Ausentes:** Docker/Podman (sem `supabase start`, Auth, PostgREST, Edge Runtime local).
+Cópia do código em `mktemp -d /tmp/ponto-homolog.XXXX` (sem .git, sem .env, sem PDFs/planilhas/fixtures reais, sem backup_demo_entries.json e scripts de dados), com env fictício
+`VITE_SUPABASE_URL=http://127.0.0.1:9`; o bundle gerado não contém o identificador do projeto real. Patches aplicados SÓ na cópia: `patches/app-integration.diff` + `patches/NEW-FILES.md`.
+
+Resultados na cópia integrada (comparados com a mesma cópia antes do patch):
+- `vite build`: OK antes e depois.
+- `tsc -p tsconfig.app.json`: 15 erros antes e depois, os mesmos (14 por fixtures reais excluídas da cópia + 1 em descricaoParser.ts). Nenhum novo.
+- `deno check` da função: 8 erros no original, 5 na integrada, todos o mesmo tipo pré-existente (cliente admin passado a `call`). Nenhum novo.
+- `eslint` nos 3 arquivos tocados: 8 erros antes e depois (todos `any` pré-existentes). Nenhum novo.
+- Testes do ponto existentes: 21/21 (cartaoPonto.test.ts não roda: fixture real excluída).
+- Testes da pasta staging: 64/64.
+
+Schema completo: `bash staging/ponto-import-guard/fullschema/run.sh <copia-em-/tmp>`
+- `strip.py` remove das migrations todo INSERT/UPDATE/DELETE/COPY/TRUNCATE de nível superior e `select cron./net.` (lista em `removed-data-statements.json`, só nomes de arquivo); corpos de funções ficam.
+- `prelude.sql` cria stubs mínimos de auth/storage/papéis. 162 de 165 migrations aplicadas; não aplicadas: 0082 (correção de dados de uma escola, depende de linhas reais), 0108 (exige pg_cron) e 0109 (depende da 0108). Nenhuma das três toca team_time_*.
+- `tests.sql` (schema completo + rpc.sql): 19/19, incluindo RLS real (`is_super_admin` via user_roles), justificativas e batidas ignoradas reais.
+- `e2e.test.ts`: leitor do PDF (tokens sintéticos) → mapeamento da tela → importClient → importGuard → RPC no banco: 7/7 (sessão expirada, sem permissão, gravação, duplicação, correção, timeout após commit, total divergente).
+
+Limites: o schema vem dos arquivos do repositório, não do banco real — não se afirma equivalência (mudanças feitas fora dos arquivos não aparecem). Sem Auth/PostgREST/Edge Runtime, não foi testado: a função rodando de fato, o
+`supabase.functions.invoke` real (formato do erro/status), o código SQLSTATE repassado pelo PostgREST, nem a tela no navegador.

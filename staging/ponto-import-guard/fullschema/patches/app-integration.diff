@@ -1,0 +1,117 @@
+--- a/src/hooks/useTeamTime.ts
++++ b/src/hooks/useTeamTime.ts
+@@ -1,3 +1,4 @@
++import { runImport, type ClientDeps } from '@/lib/teamTime/importGuard/importClient';
+ import { beforeTermination } from '@/lib/teamTime/termination';
+ import { applyScheduleOverride, applyIgnoredPunches } from '@/lib/teamTime/schedule';
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+@@ -121,10 +122,23 @@
+   const qc = useQueryClient();
+   return useMutation({
+     mutationFn: async (payload: { arquivo: string; periodoInicio: string; periodoFim: string; funcionarios: unknown[] }) => {
+-      const { data, error } = await supabase.functions.invoke('pontofopag-sync', { body: { action: 'import_report', ...payload } });
+-      if (error) throw error;
+-      if (data?.status !== 'success') throw new Error(data?.message ?? data?.error ?? 'Erro ao gravar');
+-      return data as { counts: { funcionarios: number; dias: number; ocorrencias: number } };
++      const deps: ClientDeps = {
++        invoke: async (body) => {
++          const { data, error } = await supabase.functions.invoke('pontofopag-sync', { body });
++          if (!error) return { status: 200, body: (data ?? {}) as Record<string, unknown> };
++          const ctx = (error as { context?: { status?: number; json(): Promise<Record<string, unknown>> } }).context;
++          if (!ctx || typeof ctx.status !== 'number') throw error; // rede/timeout: o cliente consulta a mesma tentativa
++          return { status: ctx.status, body: await ctx.json().catch(() => ({})) };
++        },
++        newId: () => crypto.randomUUID(),
++        sleep: (ms) => new Promise(r => setTimeout(r, ms)),
++      };
++      const out = await runImport(payload as Record<string, unknown>, deps);
++      if (out.kind === 'success') return { counts: out.counts as { funcionarios: number; dias: number; ocorrencias: number } };
++      if (out.kind === 'blocked') throw new Error(`Importação bloqueada: ${out.errors.slice(0, 3).join('; ')}`);
++      if (out.kind === 'rejected') throw new Error(out.message);
++      if (out.kind === 'conflict') throw new Error('Esta tentativa já foi gravada com outro conteúdo. Recarregue a tela e confira antes de importar de novo.');
++      throw new Error('Não foi possível confirmar se a importação foi gravada. Recarregue a tela e confira os dias antes de importar de novo.');
+     },
+     onSettled: () => qc.invalidateQueries({ queryKey: ['team-time'] }),
+   });
+--- a/src/components/team/ImportCartaoPonto.tsx
++++ b/src/components/team/ImportCartaoPonto.tsx
+@@ -31,7 +31,7 @@
+     if (!rep?.periodoInicio || !rep.periodoFim) return;
+     try {
+       const r = await save.mutateAsync({ arquivo: file, periodoInicio: rep.periodoInicio, periodoFim: rep.periodoFim,
+-        funcionarios: rep.funcionarios.map(({ codigo, nome, matricula, departamento, funcao, dias }) => ({ codigo, nome, matricula, departamento, funcao, dias })) });
++        funcionarios: rep.funcionarios.map(({ codigo, nome, matricula, departamento, funcao, dias, totais }) => ({ codigo, nome, matricula, departamento, funcao, dias, totais })) });
+       toast.success(`Ponto importado: ${r.counts.funcionarios} pessoas, período ${fmt(rep.periodoInicio)} a ${fmt(rep.periodoFim)} (${r.counts.dias} dias-pessoa registrados).`); setRep(null);
+     } catch (e: any) { toast.error(e.message ?? 'Erro ao gravar'); }
+   };
+--- a/supabase/functions/pontofopag-sync/index.ts
++++ b/supabase/functions/pontofopag-sync/index.ts
+@@ -3,6 +3,7 @@
+ // Nenhuma chamada de escrita (POST de cadastro, DELETE) é feita ao PontoFopag.
+ // Os endpoints "Relatorio*" usam POST apenas porque a API recebe os filtros no corpo; eles não alteram dados.
+ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
++import { importReport as guardedImport, importStatus, type AdminPort } from "./importGuard.ts";
+ 
+ const cors = {
+   "Access-Control-Allow-Origin": "*",
+@@ -70,7 +71,17 @@
+   if (!isSuper) return json({ error: "Acesso restrito." }, 403);
+ 
+   const body = await req.json().catch(() => ({})) as Row;
+-  if (body.action === "import_report") return importReport(body, admin, u.user.id);
++  if (body.action === "import_report" || body.action === "import_status") {
++    // Gravação atômica via RPC service_role; sessão e super_admin já conferidos acima.
++    const port: AdminPort = {
++      rpcImport: (p) => admin.rpc("team_time_import_report", { p }) as never,
++      findAttempt: (id) => admin.from("team_time_sync_runs").select("content_hash,counts").eq("attempt_id", id).eq("status", "success").maybeSingle() as never,
++      logRun: (row) => admin.from("team_time_sync_runs").insert(row) as never,
++    };
++    const { action: _a, ...rest } = body;
++    const r = body.action === "import_report" ? await guardedImport(rest, port, u.user.id) : await importStatus(body, port);
++    return json(r.body, r.status);
++  }
+   if (body.action === "link_user") {
+     const ext = typeof body.external_id === "string" ? body.external_id.slice(0, 100) : "";
+     const uid = body.user_id === null ? null : (typeof body.user_id === "string" && /^[0-9a-f-]{36}$/i.test(body.user_id) ? body.user_id : undefined);
+@@ -169,41 +180,3 @@
+ const SITS = new Set(["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando", "em_andamento"]);
+ const str = (v: unknown, max = 120) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+ const hm = (v: unknown) => typeof v === "string" && HM.test(v) ? v : null;
+-async function importReport(body: Row, admin: ReturnType<typeof createClient>, userId: string) {
+-  const ini = String(body.periodoInicio ?? ""), fim = String(body.periodoFim ?? "");
+-  const funcs = Array.isArray(body.funcionarios) ? body.funcionarios as Row[] : [];
+-  if (!ISO.test(ini) || !ISO.test(fim) || ini > fim || !funcs.length || funcs.length > 500) return json({ error: "Relatório inválido." }, 400);
+-  const now = new Date().toISOString();
+-  const employees: Row[] = [], daily: Row[] = [], occ: Row[] = [];
+-  for (const f of funcs) {
+-    const codigo = str(f.codigo, 20); if (!codigo || !/^\d+$/.test(codigo)) return json({ error: "Código de funcionário inválido." }, 400);
+-    const ext = `pf-${codigo}`;
+-    employees.push({ external_id: ext, matricula: str(f.matricula, 20), nome: str(f.nome) ?? "Sem nome", cargo: str(f.funcao), departamento: str(f.departamento), ativo: true, synced_at: now });
+-    for (const d of (Array.isArray(f.dias) ? f.dias as Row[] : [])) {
+-      const dia = String(d.dia ?? ""); if (!ISO.test(dia) || dia < ini || dia > fim) continue;
+-      const marc = (Array.isArray(d.marcacoes) ? d.marcacoes : []).filter((m: unknown) => hm(m)).slice(0, 12) as string[];
+-      const obs = str(d.observacao);
+-      const sit = SITS.has(String(d.situacao)) ? String(d.situacao) : "aguardando";
+-      if (!str(d.jornada) && !marc.length && !obs) continue; // folga sem registro
+-      const faltas = hm(d.faltas);
+-      daily.push({ employee_external_id: ext, dia, horario_previsto: str(d.jornada, 60), primeira_marcacao: marc[0] ?? null, ultima_marcacao: marc.length > 1 ? marc[marc.length - 1] : null, marcacoes: marc, horas_trabalhadas: hm(d.trabalhadas), horas_extras: hm(d.extras), situacao: sit, ocorrencia: sit === "em_andamento" ? null : obs ?? (faltas ? `Faltas ${faltas} (relatório)` : null), synced_at: now });
+-      if (obs && sit !== "em_andamento") occ.push({ external_key: `relatorio_pdf|${ext}|${dia}|${norm(obs)}`, employee_external_id: ext, dia, tipo: obs, descricao: null, origem: "relatorio_pdf", synced_at: now });
+-    }
+-  }
+-  const { data: run } = await admin.from("team_time_sync_runs").insert({ trigger: "relatorio_pdf", status: "running", requested_by: userId, reference_date: fim, message: str(body.arquivo, 200) }).select("id").single();
+-  try {
+-    const ids = employees.map(e => e.external_id as string);
+-    let r = await admin.from("team_time_employees").upsert(employees, { onConflict: "external_id" }); if (r.error) throw r.error;
+-    r = await admin.from("team_time_daily").delete().in("employee_external_id", ids).gte("dia", ini).lte("dia", fim); if (r.error) throw r.error;
+-    r = await admin.from("team_time_occurrences").delete().eq("origem", "relatorio_pdf").in("employee_external_id", ids).gte("dia", ini).lte("dia", fim); if (r.error) throw r.error;
+-    for (let i = 0; i < daily.length; i += 500) { r = await admin.from("team_time_daily").insert(daily.slice(i, i + 500)); if (r.error) throw r.error; }
+-    if (occ.length) { r = await admin.from("team_time_occurrences").insert(occ); if (r.error) throw r.error; }
+-    const counts = { funcionarios: employees.length, dias: daily.length, ocorrencias: occ.length };
+-    await admin.from("team_time_sync_runs").update({ status: "success", finished_at: new Date().toISOString(), counts }).eq("id", run!.id);
+-    return json({ status: "success", counts });
+-  } catch (e) {
+-    const message = (e as { message?: string })?.message ?? "Erro ao gravar";
+-    await admin.from("team_time_sync_runs").update({ status: "error", finished_at: new Date().toISOString(), message }).eq("id", run!.id);
+-    return json({ status: "error", message }, 200);
+-  }
+-}

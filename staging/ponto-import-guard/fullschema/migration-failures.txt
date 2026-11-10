@@ -1,0 +1,3 @@
+0082_fix_bb_brasilia_sinal_outubro.sql: psql:/tmp/ponto-homolog.DchZ/schema-run/b/0082_fix_bb_brasilia_sinal_outubro.sql:17: ERROR:  Mapeamento BB Brasília inesperado: 0 linhas
+0108_migration.sql: psql:/tmp/ponto-homolog.DchZ/schema-run/b/0108_migration.sql:1: ERROR:  extension "pg_cron" is not available
+0109_bank_api_admin_read.sql: psql:/tmp/ponto-homolog.DchZ/schema-run/b/0109_bank_api_admin_read.sql:3: ERROR:  relation "public.bank_api_connections" does not exist
