@@ -1,0 +1,1 @@
+- Conector Asaas: mesmo contrato dos conectores de recebimento (ver ../mercadopago-sync/AGENTS.md) — só GET no Asaas, grava só em `acquirer_*` com provider='asaas', chave criptografada via `acquirer_set_token`; nunca cria cobranças, lançamentos ou baixas — repasses explicam entradas do banco, nunca viram receita.
