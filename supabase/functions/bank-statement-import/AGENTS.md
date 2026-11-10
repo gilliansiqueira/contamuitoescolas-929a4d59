@@ -1,4 +1,4 @@
-- Statement identity is independently extracted from file headers; never accept client identity or transaction-party documents as proof of ownership.
-- Commit through the service-only transactional RPC; preserve existing service integrations and never infer or backfill account identity from historical statements.
-- PDF/OCR imports fail closed until an independent server header reader is validated; do not bypass through another format without identity.
+- Owner rule: never block existing routines. Only a concrete divergence between a trusted header field (bank, branch, account, explicit holder document) and the destination registration, or a wrong company/account/permission, blocks; missing, unreadable, partial or ambiguous identity is a non-blocking warning stored as `identity_status='inconclusive'`.
+- Identity is extracted independently from the file header on the server (PDF via first-page text, OCR never trusted); client identity, filenames, history and transaction-party documents are never proof. All formats (OFX, CSV, Excel, PDF, OCR) keep their previous routes and pre-existing balance/reading controls.
+- Commit through the service-only transactional RPC, which mirrors the same comparison rules; preserve existing service integrations and never infer or backfill account identity from historical statements.
 - Unknown RPC outcomes require readback; never report rollback or delete a potentially committed file on an unavailable status read.

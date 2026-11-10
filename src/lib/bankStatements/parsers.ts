@@ -361,11 +361,12 @@ export const TEMPLATE_HEADER = ['Data', 'Descrição', 'Entrada', 'Saída', 'Sal
 
 /** Gera o modelo de planilha de extrato (quando o PDF do banco não pode ser lido). */
 export function buildBankTemplateXlsx(account: RegisteredIdentity): ArrayBuffer {
+  // Cadastro completo: o modelo já sai com a identidade da conta. Incompleto: modelo como antes, sem bloquear.
   const code = resolveBankCode(account.banco, account.bank_code);
-  if (!account.school_id || !code || !normalizeAccount(account.agencia) || !normalizeAccount(account.conta)) throw new Error('Complete banco, agência, conta e vínculo antes de baixar o modelo.');
+  const complete = !!code && !!normalizeAccount(account.agencia) && !!normalizeAccount(account.conta);
   const ws = XLSX.utils.aoa_to_sheet([
-    ['Banco', code], ['Agência', account.agencia], ['Conta', account.conta],
-    ...(account.holder_document ? [['CPF/CNPJ do titular', account.holder_document]] : []),
+    ...(complete ? [['Banco', code], ['Agência', account.agencia], ['Conta', account.conta]] : []),
+    ...(complete && account.holder_document ? [['CPF/CNPJ do titular', account.holder_document]] : []),
     TEMPLATE_HEADER,
     ['Saldo anterior', '', '', '', 0],
     ['01/09/2026', 'Exemplo: tarifa (apague esta linha)', '', 75, -75],
@@ -1281,7 +1282,9 @@ export async function parseBankFile(file: File): Promise<BankParseResult> {
       const recognized = await readPdfImageText(buffer);
       const plain = stripAccents(recognized).toLowerCase();
       const result = plain.includes('caixa') && plain.includes('saldo dia') ? parseCaixaImageText(recognized) : parseItauImageText(recognized);
-      return { ...result, identity: headerIdentity(recognized), bloqueiaImportacao: true, avisos: [...result.avisos, 'PDF/OCR bloqueado nesta versão. Use OFX/API ou saldo manual autorizado.'] };
+      // OCR pode trocar dígitos: não é campo confiável para provar outra conta. Segue o fluxo anterior
+      // (inclusive o bloqueio quando a leitura não fecha com os saldos impressos), só com aviso.
+      return { ...result, identity: undefined, avisos: [...result.avisos, 'Leitura por imagem (OCR): banco, agência e conta não foram conferidos pelo arquivo. Confira se escolheu a conta certa.'] };
     }
     if (isC6Pdf(lines)) return withIdentity(parseC6PdfLines(lines));
     if (isBradescoPdf(lines)) return withIdentity(parseBradescoPdfLines(lines));
