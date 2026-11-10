@@ -4,7 +4,7 @@ import { z } from 'npm:zod@3.23.8';
 import { headerIdentity, validateStatementIdentity, decodeBankText } from '../_shared/bankIdentity.ts';
 
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-const schema = z.object({ schoolId: z.string().uuid(), accountId: z.string().uuid(), action: z.enum(['validate', 'confirm']), hash: z.string().regex(/^[a-f0-9]{64}$/), metadata: z.record(z.unknown()).optional(), rows: z.array(z.record(z.unknown())).max(20000).optional(), links: z.array(z.object({ id: z.string().uuid(), bankRef: z.string().max(255), replace: z.boolean().optional() })).max(20000).optional() });
+const schema = z.object({ schoolId: z.string().uuid(), accountId: z.string().uuid(), action: z.enum(['validate', 'confirm']), hash: z.string().regex(/^[a-f0-9]{64}$/), metadata: z.record(z.unknown()).optional(), rows: z.array(z.record(z.unknown())).max(20000).optional(), links: z.array(z.object({ id: z.string().uuid(), bankRef: z.string().max(255), replace: z.boolean().optional(), expectedBankRef: z.string().max(255).optional() })).max(20000).optional() });
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   let uploaded: string | undefined;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { validateAccountRegistration } from '@/lib/bankStatements/accountRegistration';
 import { ImportGeneration, validateStatementIdentity, normalizeAccount, resolveBankCode } from '@/lib/bankStatements/identity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +27,7 @@ const db = supabase as any;
 interface Props { schoolId: string; accounts: BankAccount[]; txs?: BankTx[]; onViewAuto?: (importId: string, from: string, to: string) => void }
 
 interface Preview {
-  schoolId: string; accountId: string; generation: number; file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; linkRefs?: { id: string; bankRef: string; replace?: boolean }[]; saldoAplicado: string; saldoCalc?: number;
+  schoolId: string; accountId: string; generation: number; file: File; hash: string; result: BankParseResult; hashes: string[]; existing: Set<string>; kinds: MovementKind[]; linkRefs?: { id: string; bankRef: string; replace?: boolean; expectedBankRef?: string }[]; saldoAplicado: string; saldoCalc?: number;
 }
 
 const lastDayPrevMonth = (() => { const d = new Date(); const x = new Date(d.getFullYear(), d.getMonth(), 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; })();
@@ -106,8 +107,8 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
 
   const saveAccount = async () => {
     if (!form?.nome.trim()) return toast.error('Informe o nome da conta');
-    if (!resolveBankCode(form.banco, form.bankCode) || !normalizeAccount(form.agencia) || !normalizeAccount(form.conta)) return toast.error('Informe código do banco, agência e conta completa com dígito.');
-    if (form.holderDocument && !/^(?:\d{11}|\d{14})$/.test(normalizeAccount(form.holderDocument))) return toast.error('CPF/CNPJ do titular inválido.');
+    try { validateAccountRegistration(form, entities); }
+    catch (e) { return toast.error(e instanceof Error ? e.message : 'Confira o cadastro.'); }
     const row = {
       bank_code: resolveBankCode(form.banco, form.bankCode) || null, holder_document: normalizeAccount(form.holderDocument) || null, holder_entity_id: form.holderEntityId || null,
       school_id: schoolId, nome: form.nome.trim(), banco: form.banco.trim(), agencia: form.agencia.trim() || null, conta: form.conta.trim() || null,
@@ -208,7 +209,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       // OFX/CSV com identificador do banco: o mesmo lançamento pode já ter entrado por um PDF (sem identificador).
       // Casa por data + valor + sentido com linhas sem bank_ref, uma correspondência por vez, e guarda o vínculo
       // para gravar o identificador na linha antiga ao confirmar.
-      const linkRefs: { id: string; bankRef: string; replace?: boolean }[] = [];
+      const linkRefs: { id: string; bankRef: string; replace?: boolean; expectedBankRef?: string }[] = [];
       // Mesmo número do banco já gravado na conta (ex.: linha vinda do PDF que recebeu o identificador depois) = já existe.
       {
         const comRef = result.transactions.map((t, i) => ({ t, i })).filter(x => x.t.bankRef && !existing.has(hashes[x.i]));
@@ -243,9 +244,9 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           // Mesmo dia + sentido + valor; a descrição pode mudar entre PDF e OFX (hífen, "TRANSF.AUTORIZ.ENTRE C/C" × "TRANSF CC PARA CC",
           // "RESG AUTOMATICO" × "RESG/VENCTO CDB"): casa pelas palavras-chave, nunca juntando pessoas diferentes.
           const linked = new Set(linkRefs.map(l => l.id));
-          const pool = new Map<string, { id: string; descricao: string }[]>();
+          const pool = new Map<string, { id: string; descricao: string; bankRef: string }[]>();
           (comRefRows ?? []).filter((r: any) => !claimed.has(r.id) && !linked.has(r.id)).forEach((r: any) => {
-            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), { id: r.id, descricao: r.descricao ?? '' }]);
+            const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), { id: r.id, descricao: r.descricao ?? '', bankRef: r.bank_ref }]);
           });
           let renumerados = 0;
           // Primeiro os textos idênticos, depois os parecidos — para não "roubar" a linha certa de outro lançamento igual.
@@ -255,8 +256,8 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
             if (!ids?.length) return;
             const pos = ids.findIndex(r => strict ? normalizeDesc(r.descricao) === normalizeDesc(t.descricao) : sameBankEntryText(r.descricao, t.descricao));
             if (pos < 0) return;
-            const [{ id }] = ids.splice(pos, 1); claimed.add(id); existing.add(hashes[i]); renumerados++;
-            if (t.bankRef) linkRefs.push({ id, bankRef: t.bankRef, replace: true });
+            const [{ id, bankRef }] = ids.splice(pos, 1); claimed.add(id); existing.add(hashes[i]); renumerados++;
+            if (t.bankRef) linkRefs.push({ id, bankRef: t.bankRef, replace: true, expectedBankRef: bankRef });
           });
           tryMatch(true); tryMatch(false);
           if (renumerados) result.avisos = [...(result.avisos ?? []), `${renumerados} lançamento(s) já existiam com código diferente do banco (o banco renumera a cada download) e não serão gravados de novo.`];
@@ -324,9 +325,10 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         links: preview.linkRefs ?? [],
       });
       try { const np = await autoPairTransfers(schoolId); if (np) toast.info(`${np} transferência(s) entre contas pareadas com a outra ponta`); } catch { /* pareamento é opcional */ }
+      const { data: counts } = await db.from('bank_statement_imports').select('inseridas,duplicadas').eq('id', imp.id).eq('account_id', preview.accountId).eq('school_id', preview.schoolId).maybeSingle();
       { const autoN = novos.filter(n => n.k === 'auto_aplicacao' || n.k === 'auto_resgate').length;
         const trN = novos.filter(n => n.k === 'transferencia').length; if (trN) toast.info(`${trN} lançamento(s) pré-marcados como transferência entre contas`);
-        toast.success(`${novos.length} lançamentos importados · ${result.transactions.length - novos.length} já existiam${autoN ? ` · ${autoN} pré-marcados como aplicação automática` : ''}`,
+        toast.success(counts ? `${counts.inseridas} lançamentos importados · ${counts.duplicadas} já existiam` : 'Importação confirmada. Confira as quantidades no histórico.',
           autoN && onViewAuto ? { duration: 10000, action: { label: 'Ver', onClick: () => onViewAuto(imp.id, result.transactions.reduce((m, t) => t.data < m ? t.data : m, '9999-12-31'), result.transactions.reduce((m, t) => t.data > m ? t.data : m, '0000-01-01')) } } : undefined); }
       setPreview(null); invalidate();
     } catch (e: any) {
@@ -485,6 +487,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               {entities.length > 0 && <div className="col-span-2"><Label>Titular específico desta conta (opcional)</Label><Select value={form.holderEntityId || 'none'} onValueChange={v => setForm({ ...form, holderEntityId: v === 'none' ? '' : v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Usar documento específico da conta</SelectItem>{entities.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent></Select></div>}
               <div><Label>Agência</Label><Input value={form.agencia} onChange={e => setForm({ ...form, agencia: e.target.value })} /></div>
               <div><Label>Conta</Label><Input value={form.conta} onChange={e => setForm({ ...form, conta: e.target.value })} /></div>
+              {(!resolveBankCode(form.banco, form.bankCode) || !normalizeAccount(form.agencia) || !normalizeAccount(form.conta)) && <p className="col-span-2 text-xs text-muted-foreground">Caixa e saldos podem ser salvos normalmente. Para importar extratos, complete banco, agência e conta.</p>}
               <div><Label>Saldo inicial</Label><Input value={form.saldo} onChange={e => setForm({ ...form, saldo: e.target.value })} placeholder="1.500,50" /></div>
               <div><Label>Data do saldo (fim do dia)</Label><Input type="date" value={form.saldoData} onChange={e => setForm({ ...form, saldoData: e.target.value })} /></div>
               <p className="col-span-2 -mt-1 text-xs text-muted-foreground">Use o "Saldo anterior" do extrato com a data do dia anterior ao primeiro lançamento (ex.: 31/08 para extrato que começa em 01/09).</p>

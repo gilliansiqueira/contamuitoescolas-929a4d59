@@ -17,6 +17,10 @@ Rollback controlado, se necessário: solicitar ao agente `set_bank_import_guard_
 Normalização remove apenas pontuação/espaços, preserva zeros e dígitos. Uma identidade confirmada não pode existir em dois cadastros. Divergências não exibem números completos.
 
 ## Limites deliberados
+- Revisão 0118: salvar caixa/manual incompleto continua permitido; só importar exige identidade completa. Alias/código explicitamente incompatíveis e documento inválido/incompatível continuam recusados. Sem novo checkbox.
+- Commit de arquivos agora usa um único INSERT em lote, preservando triggers por linha e por statement. `ROW_COUNT` determina inseridas e `total_linhas - inseridas` determina duplicadas, incluindo conflitos concorrentes. A mensagem final consulta os números gravados, não a prévia.
+- Locks: linha da conta serializa importações dessa conta e impede mudança do cadastro durante commit; lock compartilhado da identidade impede criação concorrente de vínculo ambíguo, sem lock global durante o lote; mudança de identidade usa locks exclusivos das chaves anterior/nova em ordem estável. Titular específico fica sob `FOR SHARE`. APIs continuam em suas rotas existentes.
+- Referências: atualização única em lote, restrita à conta/empresa. Preencher referência vazia permanece compatível; substituição exige valor anterior esperado igual ao atual. IDs repetidos no lote de vínculos não são atualizados. Cliente antigo sem valor esperado não sobrescreve referência existente.
 - PDF/OCR: bloqueados no servidor até existir leitor de cabeçalho independente homologado. Não se aceita identidade enviada apenas pelo navegador.
 - CSV/Excel: somente cabeçalho anterior à tabela, com Banco (código), Agência, Conta e opcional CPF/CNPJ do titular; cabeçalhos não suportados ou ausentes bloqueiam na nova rota. O botão gera modelo com identidade da conta selecionada; cadastro incompleto não entrega modelo inválido.
 - Arquivo e gravação no banco não compartilham transação. A identidade é conferida antes do upload e novamente na transação; rejeição determinística tenta apagar o arquivo. Falha de limpeza é informada; resultado de transporte incerto preserva arquivo para conferência, sem afirmar rollback.
@@ -24,7 +28,13 @@ Normalização remove apenas pontuação/espaços, preserva zeros e dígitos. Um
 - Não houve teste de importação na tela com sessão real, nem gravação de fixtures no backend ativo. Testes de RPC usam PostgreSQL descartável com tabelas mínimas e predicados de autorização simulados, não equivalência completa de RLS de produção.
 
 ## Verificação reproduzível
-- `bash src/test/bankIdentity.integration.sh`: 26 verificações SQL (14 lote/destino, 9 aliases/titular/ativação, 3 política de armazenamento) e concorrência em duas sessões. Banco UTF-8, socket local sem TCP, cluster encerrado e removido. Predicados de autorização simulados; política de armazenamento real das migrations aplicada às roles locais.
+- `bash src/test/bankIdentity.integration.sh`: 38 verificações SQL (26 anteriores + 12 lote/edição/referências), mais 4 verificações concorrentes: identidade duplicada, contagem sobreposta, identidade independente não bloqueada e mudança de conta bloqueada. Inclui lote de 2.000 linhas com um único disparo do trigger INSERT por statement e rollback de lote inválido. Banco UTF-8, socket local sem TCP, cluster encerrado e removido. Schema mínimo e predicados de autorização simulados; triggers de destino e política de armazenamento reais, contador de statement sintético — não testa o cálculo real de relatório/SSOT em schema completo.
+- Testes puros com configuração Node sem setup, sem fixtures reais:
+  ```sh
+  printf "export default {test:{environment:'node',include:['/dev-server/src/test/bankIdentity.test.ts','/dev-server/src/test/bankAccountRegistration.test.ts','/dev-server/src/test/bankTemplate.test.ts','/dev-server/src/test/bankCashflow.test.ts','/dev-server/src/test/bankAutoInvest.test.ts','/dev-server/src/test/bankFuturos.test.ts']}}" > /tmp/bank-focused.config.mjs
+  bunx vitest run --config /tmp/bank-focused.config.mjs
+  ```
+- Revisão final: 102 testes Vitest (96 anteriores + 6 cadastro), Deno check aprovado e build automático OK. Edição/importação na UI autenticada real não executada para não gravar fixtures ou movimentos no banco ativo.
 - Vitest em ambiente node, sem setup jsdom: bankIdentity (70), bankTemplate (5), bankCashflow (8), bankAutoInvest (11), bankFuturos (2). Total 96; fixtures exclusivamente fictícias nesta rodada.
 - `deno check --node-modules-dir=auto supabase/functions/bank-statement-import/index.ts`.
 - Compilação do frontend verificada no build automático da plataforma; não publicado.

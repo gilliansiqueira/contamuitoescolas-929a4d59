@@ -20,6 +20,11 @@ CREATE TABLE company_entities(id uuid PRIMARY KEY, school_id uuid, cnpj text);
 \ir ../../drizzle/migrations/0115_bank_identity_unique_and_storage_gate.sql
 \ir ../../drizzle/migrations/0116_bank_identity_controlled_transition.sql
 \ir ../../drizzle/migrations/0117_bank_guard_activation_fail_closed.sql
+\ir ../../drizzle/migrations/0118_bank_file_import_batch_commit.sql
+-- Candidate DDL can be supplied to the local runner before applying a real migration.
+\if :{?batch_migration}
+\i :batch_migration
+\endif
 SELECT set_config('test.role','service_role',false),set_config('test.uid','00000000-0000-0000-0000-000000000001',false);
 INSERT INTO schools VALUES('10000000-0000-0000-0000-000000000001',false),('10000000-0000-0000-0000-000000000002',true);
 INSERT INTO bank_accounts(id,school_id,nome,banco,agencia,conta,bank_code,identity_verified,holder_document) VALUES('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','Fictícia','Banco fictício','0123','0012345-6','237',true,'00000000000000');
