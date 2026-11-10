@@ -1,0 +1,3 @@
+CREATE UNIQUE INDEX bank_account_verified_identity_unique ON public.bank_accounts(bank_code,public.bank_identity_norm(agencia),public.bank_identity_norm(conta)) WHERE identity_verified;
+CREATE POLICY bank_statement_server_upload_only ON storage.objects AS RESTRICTIVE FOR INSERT TO authenticated WITH CHECK (bucket_id <> 'bank-statements');
+COMMENT ON INDEX public.bank_account_verified_identity_unique IS 'One explicitly confirmed bank identity across companies; no historical auto-enablement.';

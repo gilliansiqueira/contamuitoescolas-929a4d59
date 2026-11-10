@@ -5,6 +5,7 @@ import { openPdfDocument } from '@/lib/pdfPassword';
  * Valores sempre positivos; o sentido vem de `tipo`.
  */
 import * as XLSX from 'xlsx';
+import { headerIdentity, type StatementIdentity } from './identity';
 
 export interface ParsedBankTx {
   data: string; // YYYY-MM-DD
@@ -16,6 +17,7 @@ export interface ParsedBankTx {
 }
 
 export interface BankParseResult {
+  identity?: StatementIdentity;
   formato: 'ofx' | 'csv' | 'xlsx' | 'pdf';
   banco?: string;
   periodoInicio?: string;
@@ -132,7 +134,7 @@ export function parseOFX(content: string): BankParseResult {
     saldoFinal = Math.round((saldoFinal + soma) * 100) / 100;
     avisosExtra.push(`${chequesComp.length} cheque(s) recebido(s) em ${lastDate.split('-').reverse().join('/')} ainda em compensação (R$ ${soma.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). O saldo do extrato foi somado a eles: o banco mostra só o disponível.`);
   }
-  const r = finish('ofx', txs, { banco: bank, saldoFinalInformado: saldoFinal, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
+  const r = finish('ofx', txs, { identity: headerIdentity(content, true), banco: bank, saldoFinalInformado: saldoFinal, saldoDisponivelInformado: avail ? parseBRNumber(avail) : undefined });
   // Período do próprio arquivo (DTSTART/DTEND): vale mesmo sem lançamentos e estende o fim até a data do extrato.
   const dtStart = toIsoDate(content.match(/<DTSTART>([^<\r\n]+)/i)?.[1] ?? '');
   const dtEnd = toIsoDate(content.match(/<DTEND>([^<\r\n]+)/i)?.[1] ?? '');
@@ -1259,26 +1261,35 @@ export function parseC6PdfLines(lines: string[]): BankParseResult {
 export async function parseBankFile(file: File): Promise<BankParseResult> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.ofx')) return parseOFX(decodeBankText(await file.arrayBuffer()));
-  if (name.endsWith('.csv') || name.endsWith('.txt')) return parseCSV(decodeBankText(await file.arrayBuffer()));
-  if (name.endsWith('.xlsx') || name.endsWith('.xls')) return parseXLSX(await file.arrayBuffer());
+  if (name.endsWith('.csv') || name.endsWith('.txt')) {
+    const text = decodeBankText(await file.arrayBuffer());
+    return { ...parseCSV(text), identity: headerIdentity(text) };
+  }
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const text = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]], { FS: ';' });
+    return { ...parseXLSX(buffer), identity: headerIdentity(text) };
+  }
   if (name.endsWith('.pdf')) {
     const buffer = await file.arrayBuffer();
     const lines = await readPdfLines(buffer.slice(0));
+    const withIdentity = (result: BankParseResult) => ({ ...result, identity: headerIdentity(lines.join('\n')) });
     // PDF "print da tela"/foto não tem camada de texto: nada é legível e a conferência
     // ficaria vazia sem explicação. Avisamos o que enviar no lugar.
     if (lines.join('').replace(/\s+/g, '').length < 40) {
       const recognized = await readPdfImageText(buffer);
       const plain = stripAccents(recognized).toLowerCase();
-      if (plain.includes('caixa') && plain.includes('saldo dia')) return parseCaixaImageText(recognized);
-      return parseItauImageText(recognized);
+      const result = plain.includes('caixa') && plain.includes('saldo dia') ? parseCaixaImageText(recognized) : parseItauImageText(recognized);
+      return { ...result, identity: headerIdentity(recognized), bloqueiaImportacao: true, avisos: [...result.avisos, 'OCR não comprova identidade no servidor. Envie OFX ou PDF original com texto identificável.'] };
     }
-    if (isC6Pdf(lines)) return parseC6PdfLines(lines);
-    if (isBradescoPdf(lines)) return parseBradescoPdfLines(lines);
-    if (isNiboContasPdf(lines)) return parseNiboContasPdfLines(lines);
-    if (isBBContaCorrentePdf(lines)) return parseBBContaCorrentePdfLines(lines);
-    if (isNubankPjPdf(lines)) return parseNubankPjPdfLines(lines);
-    if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return parsePicPayLines(lines);
-    return dropPagBankAReceber(lines, parsePdfLines(lines));
+    if (isC6Pdf(lines)) return withIdentity(parseC6PdfLines(lines));
+    if (isBradescoPdf(lines)) return withIdentity(parseBradescoPdfLines(lines));
+    if (isNiboContasPdf(lines)) return withIdentity(parseNiboContasPdfLines(lines));
+    if (isBBContaCorrentePdf(lines)) return withIdentity(parseBBContaCorrentePdfLines(lines));
+    if (isNubankPjPdf(lines)) return withIdentity(parseNubankPjPdfLines(lines));
+    if (/picpay servi/i.test(stripAccents(lines.join(' '))) && /saldo ao final do dia/i.test(lines.join(' '))) return withIdentity(parsePicPayLines(lines));
+    return withIdentity(dropPagBankAReceber(lines, parsePdfLines(lines)));
   }
   throw new Error('Formato não suportado. Use OFX, CSV, Excel ou PDF.');
 }

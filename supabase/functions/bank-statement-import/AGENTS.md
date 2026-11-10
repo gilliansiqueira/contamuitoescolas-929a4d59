@@ -1,0 +1,4 @@
+- Statement identity is independently extracted from file headers; never accept client identity or transaction-party documents as proof of ownership.
+- Commit through the service-only transactional RPC; preserve existing service integrations and never infer or backfill account identity from historical statements.
+- PDF/OCR imports fail closed until an independent server header reader is validated; do not bypass through another format without identity.
+- Unknown RPC outcomes require readback; never report rollback or delete a potentially committed file on an unavailable status read.

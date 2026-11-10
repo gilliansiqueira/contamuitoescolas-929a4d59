@@ -5,6 +5,10 @@
 export type ReconStatus = 'pendente' | 'conciliado' | 'nao_se_aplica';
 
 export interface BankAccount {
+  school_id?: string;
+  bank_code?: string | null;
+  holder_document?: string | null;
+  identity_verified?: boolean;
   id: string;
   nome: string;
   banco: string;

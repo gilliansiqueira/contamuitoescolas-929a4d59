@@ -1,4 +1,5 @@
 - PDFs bancários sem camada de texto usam OCR local apenas como fallback e só podem ser importados quando os lançamentos fecham com os saldos impressos — para impedir gravação de leitura visual incerta.
+- File-based bank imports require independent header identity validation in bank-statement-import and atomic commit_verified_bank_import; explicit account confirmation is never backfilled from history, and unsupported identity readers fail closed without affecting trusted API/manual routes.
 - Empresa inativa = `schools.ativo=false` (trigger espelha em `school_management_settings.is_active`); `user_has_school_access` bloqueia clientes de empresas inativas — para encerrar clientes sem apagar histórico.
 - Pendências de conciliação com data >= 2026-10-01 exigem motivo da lista `recon_justification_reasons` (só super_admin edita); `close_recon_day` bloqueia o fechamento do dia no servidor — para cobrar explicação sem travar setembro.
 - Na sincronização bancária, `categoria=operacao` e `movement_kind=operacao` geram `tipo_nome='Operação'` mesmo sem item do modelo — para afetar somente o Caixa e nunca bloquear a ativação como “A classificar”.

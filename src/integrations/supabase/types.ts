@@ -409,11 +409,14 @@ export type Database = {
           auto_invest_saldo_data: string | null
           auto_invest_saldo_inicial: number
           banco: string
+          bank_code: string | null
           conta: string | null
           created_at: string
           extrato_esporadico: boolean
           has_auto_invest: boolean
+          holder_document: string | null
           id: string
+          identity_verified: boolean
           is_virtual: boolean
           nome: string
           saldo_inicial: number
@@ -427,11 +430,14 @@ export type Database = {
           auto_invest_saldo_data?: string | null
           auto_invest_saldo_inicial?: number
           banco?: string
+          bank_code?: string | null
           conta?: string | null
           created_at?: string
           extrato_esporadico?: boolean
           has_auto_invest?: boolean
+          holder_document?: string | null
           id?: string
+          identity_verified?: boolean
           is_virtual?: boolean
           nome: string
           saldo_inicial?: number
@@ -445,11 +451,14 @@ export type Database = {
           auto_invest_saldo_data?: string | null
           auto_invest_saldo_inicial?: number
           banco?: string
+          bank_code?: string | null
           conta?: string | null
           created_at?: string
           extrato_esporadico?: boolean
           has_auto_invest?: boolean
+          holder_document?: string | null
           id?: string
+          identity_verified?: boolean
           is_virtual?: boolean
           nome?: string
           saldo_inicial?: number
@@ -904,6 +913,7 @@ export type Database = {
           file_path: string | null
           formato: string
           id: string
+          identity_checked: boolean
           imported_by: string | null
           inseridas: number
           periodo_fim: string | null
@@ -925,6 +935,7 @@ export type Database = {
           file_path?: string | null
           formato: string
           id?: string
+          identity_checked?: boolean
           imported_by?: string | null
           inseridas?: number
           periodo_fim?: string | null
@@ -946,6 +957,7 @@ export type Database = {
           file_path?: string | null
           formato?: string
           id?: string
+          identity_checked?: boolean
           imported_by?: string | null
           inseridas?: number
           periodo_fim?: string | null
@@ -6483,6 +6495,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      bank_identity_norm: { Args: { v: string }; Returns: string }
+      bank_import_allowed: {
+        Args: { _account: string; _school: string }
+        Returns: boolean
+      }
       can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }
       can_manage_collaborators: { Args: never; Returns: boolean }
       can_oversee_team: { Args: never; Returns: boolean }
@@ -6500,6 +6517,18 @@ export type Database = {
           transaction_id: string
           valor: number
         }[]
+      }
+      commit_verified_bank_import: {
+        Args: {
+          _account: string
+          _identity: Json
+          _links: Json
+          _meta: Json
+          _rows: Json
+          _school: string
+          _user: string
+        }
+        Returns: string
       }
       create_partner_cheque_pair: {
         Args: {
