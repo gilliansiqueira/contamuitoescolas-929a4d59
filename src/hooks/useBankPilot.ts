@@ -43,11 +43,17 @@ export async function fetchBankAccounts(schoolId: string): Promise<BankAccount[]
       const spDay = (ts: string) => new Date(new Date(ts).getTime() - 3 * 3600_000).toISOString().slice(0, 10);
       const sameDay = ((imps ?? []) as any[]).filter(i => i.periodo_fim && spDay(i.created_at) === i.periodo_fim);
       const shifted = new Set<string>();
-      await Promise.all(sameDay.map(async i => {
-        const { count } = await db.from('bank_transactions').select('id', { count: 'exact', head: true })
-          .eq('import_id', i.id).eq('data', i.periodo_fim);
-        if ((count ?? 0) === 0) shifted.add(i.id);
-      }));
+      // Uma consulta só (em lotes) em vez de uma por extrato — cada leitura do Inter cria um extrato.
+      const withTx = new Set<string>();
+      for (let k = 0; k < sameDay.length; k += 100) {
+        const chunk = sameDay.slice(k, k + 100);
+        const days = [...new Set(chunk.map(i => i.periodo_fim))];
+        const { data: rows, error: e3 } = await db.from('bank_transactions').select('import_id, data')
+          .in('import_id', chunk.map(i => i.id)).in('data', days);
+        if (e3) throw e3;
+        for (const r of (rows ?? []) as any[]) withTx.add(`${r.import_id}|${r.data}`);
+      }
+      for (const i of sameDay) if (!withTx.has(`${i.id}|${i.periodo_fim}`)) shifted.add(i.id);
       const prevDay = (d: string) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10); };
       // Saldo informado no próprio extrato = saldo oficial da conta no último dia do arquivo (automático).
       return ((data ?? []) as BankAccount[]).map(a => {
