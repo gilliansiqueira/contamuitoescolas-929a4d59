@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { validateAccountRegistration } from '@/lib/bankStatements/accountRegistration';
-import { ImportGeneration, validateStatementIdentity, normalizeAccount, resolveBankCode } from '@/lib/bankStatements/identity';
+import { ImportGeneration, checkStatementIdentity, resolveHolder, normalizeAccount, resolveBankCode } from '@/lib/bankStatements/identity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,12 +66,8 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
     db.rpc('bank_import_guard_enforced').then(({ data }: any) => { if (active) setEnforced(data === true); });
     return () => { active = false; };
   }, [schoolId]);
-  const registered = (a: BankAccount) => {
-    const entity = a.holder_entity_id ? entities.find(e => e.id === a.holder_entity_id) : undefined;
-    if (a.holder_entity_id && !entity) throw new Error('Confira o vínculo do titular específico da conta.');
-    if (entity && a.holder_document && normalizeAccount(entity.cnpj) !== normalizeAccount(a.holder_document)) throw new Error('Documento diverge do titular específico cadastrado.');
-    return { ...a, holder_document: entity?.cnpj ?? a.holder_document };
-  };
+  // Cadastro inconsistente vira aviso (titular não conferido), nunca bloqueio.
+  const registered = (a: BankAccount) => resolveHolder(a, a.holder_entity_id ? (entities.find(e => e.id === a.holder_entity_id)?.cnpj ?? null) : undefined);
   const activateGuard = async () => {
     if (!window.confirm('Ative somente após publicar e conferir esta versão na URL pública. A tela antiga deixará de importar. Continuar?')) return;
     const { error } = await db.rpc('set_bank_import_guard_enforced', { _enabled: true });
@@ -160,10 +156,14 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       const result = await parseBankFile(file);
       const selected = accounts.find(a => a.id === accountId);
       if (!selected) throw new Error('Conta não vinculada à empresa selecionada.');
-      try { validateStatementIdentity(result.identity, registered(selected), schoolId); }
+      // Só bloqueia divergência comprovada no cabeçalho; falta de identificação vira aviso simples.
+      let localCheck;
+      try { localCheck = checkStatementIdentity(result.identity, registered(selected), schoolId); }
       catch (e) { throw new Error(`Destino: ${selected.nome} (empresa selecionada). ${e instanceof Error ? e.message : 'Identidade incompatível.'}`); }
-      await serverValidate(file, hash, 'validate', { schoolId, accountId });
+      const server = await serverValidate(file, hash, 'validate', { schoolId, accountId });
       if (!generation.current.current(run)) return;
+      const identityWarnings: string[] = Array.isArray(server?.warnings) ? server.warnings : localCheck.warnings;
+      result.avisos = [...result.avisos, ...identityWarnings.filter(w => !result.avisos.includes(w))];
       if (!result.transactions.length && !result.periodoFim) { toast.error('Nenhum lançamento reconhecido no arquivo. Prefira o OFX do banco (leitura exata); PDF de tela impressa não é legível.'); return; }
       if (!result.transactions.length) result.avisos = [...result.avisos, `Sem movimentação no período (${result.periodoInicio?.split('-').reverse().join('/') ?? '?'} a ${result.periodoFim.split('-').reverse().join('/')}). O extrato fica registrado e a conta passa a valer até essa data.`];
       const hashes = await computeDedupHashes(accountId, result.transactions);
@@ -290,7 +290,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         result.saldoFinalInformado = saldoCalc;
       }
       if (acc?.has_auto_invest && result.formato === 'ofx' && result.saldoComAplicacaoInformado === undefined && !isBradesco) {
-        result.avisos = [...(result.avisos ?? []), 'Este OFX não traz saldo aplicado. PDF/OCR está bloqueado; use API quando disponível ou informe o saldo aplicado pela opção autorizada no histórico.'];
+        result.avisos = [...(result.avisos ?? []), 'Este OFX não traz saldo aplicado. Para registrar o aplicado, envie também o PDF do extrato ou informe o saldo pela opção autorizada no histórico.'];
       }
       if (!generation.current.current(run) || destination.current.schoolId !== schoolId || destination.current.accountId !== accountId) return;
       setPreview({ schoolId, accountId, generation: run, file, hash, result, hashes, existing, kinds, linkRefs, saldoAplicado: '', saldoCalc });
@@ -311,7 +311,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
     try {
       const selected = accounts.find(a => a.id === preview.accountId);
       if (!selected) throw new Error('Conta selecionada não encontrada.');
-      validateStatementIdentity(result.identity, registered(selected), preview.schoolId);
+      checkStatementIdentity(result.identity, registered(selected), preview.schoolId);
       if (await fileHash(file) !== hash) throw new Error('Arquivo mudou. Faça nova conferência.');
       const entradas = result.transactions.filter(t => t.tipo === 'entrada').reduce((s, t) => s + t.valor, 0);
       const saidas = result.transactions.filter(t => t.tipo === 'saida').reduce((s, t) => s + t.valor, 0);
@@ -426,14 +426,13 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
           <Button variant="outline" size="sm" onClick={() => {
             const selected = accounts.find(a => a.id === accountId);
             if (!selected) return toast.error('Selecione uma conta antes de baixar o modelo.');
-            let buffer: ArrayBuffer;
-            try { buffer = buildBankTemplateXlsx(registered(selected)); } catch (e) { return toast.error(e instanceof Error ? e.message : 'Complete o cadastro da conta.'); }
+            const buffer = buildBankTemplateXlsx(registered(selected));
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'modelo-extrato.xlsx'; a.click(); URL.revokeObjectURL(a.href);
           }}><Download className="mr-1 h-4 w-4" />Baixar modelo Excel</Button>
           {isSuperAdmin && <Button variant="outline" size="sm" disabled={!accountId || busy} onClick={informManualBalance}>Informar saldo da conta numa data</Button>}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Importação usa o cadastro existente completo e banco, agência e conta no cabeçalho do arquivo. PDF/OCR está bloqueado até validação independente no servidor; prefira OFX original. Planilhas sem identidade também são bloqueadas. Use "Informar saldo" apenas como último recurso: o valor serve só como saldo conferido e não cria lançamentos.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Aceita OFX, CSV, Excel e PDF (inclusive com senha ou por imagem), como antes. Quando o arquivo mostra banco, agência ou conta diferentes da conta escolhida, a importação é impedida; se não der para conferir, aparece só um aviso. Use "Informar saldo" apenas como último recurso: o valor serve só como saldo conferido e não cria lançamentos.</p>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-4">
@@ -543,7 +542,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               {accounts.find(a => a.id === accountId)?.has_auto_invest && (
                 p.saldoComAplicacaoInformado !== undefined
                   ? <p className="text-xs text-success">Saldo com aplicação lido do arquivo: {fmtBRL(p.saldoComAplicacaoInformado)} — nada para digitar.</p>
-                  : <p className="text-xs text-muted-foreground">Este arquivo não traz o saldo com aplicação. PDF/OCR está bloqueado. Use API quando disponível ou informe saldo aplicado pela opção autorizada no histórico.</p>
+                  : <p className="text-xs text-muted-foreground">Este arquivo não traz o saldo com aplicação. Suba também o PDF do banco para o sistema ler o saldo automaticamente.</p>
               )}
               {preview.existing.size > 0 && <p className="text-xs text-muted-foreground">{preview.existing.size} lançamento(s) já existem nesta conta e serão ignorados.</p>}
               {p.avisos.map(a => <p key={a} className="flex items-center gap-1 rounded-md bg-warning/15 p-2 text-xs text-warning"><AlertTriangle className="h-4 w-4" />{a}</p>)}

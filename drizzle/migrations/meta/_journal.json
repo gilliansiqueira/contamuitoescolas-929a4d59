@@ -834,6 +834,13 @@
       "when": 1794351349589,
       "tag": "0118_bank_file_import_batch_commit",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1794352370769,
+      "tag": "0119_bank_identity_warn_not_block",
+      "breakpoints": true
     }
   ]
 }

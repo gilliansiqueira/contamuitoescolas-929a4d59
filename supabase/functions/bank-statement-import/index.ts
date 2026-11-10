@@ -1,36 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
-import { headerIdentity, checkStatementIdentity, decodeBankText, resolveHolder, pdfItemsToLines, IdentityMismatchError, type StatementIdentity } from '../_shared/bankIdentity.ts';
+import { checkStatementIdentity, resolveHolder, IdentityMismatchError } from '../_shared/bankIdentity.ts';
+import { readIdentity } from './header.ts';
 
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 const schema = z.object({ schoolId: z.string().uuid(), accountId: z.string().uuid(), action: z.enum(['validate', 'confirm']), hash: z.string().regex(/^[a-f0-9]{64}$/), metadata: z.record(z.unknown()).optional(), rows: z.array(z.record(z.unknown())).max(20000).optional(), links: z.array(z.object({ id: z.string().uuid(), bankRef: z.string().max(255), replace: z.boolean().optional(), expectedBankRef: z.string().max(255).optional() })).max(20000).optional() });
-
-/** Independent server reading of the PDF header (first page only). Any failure = inconclusive, never a block. */
-async function pdfHeaderText(bytes: Uint8Array): Promise<string | undefined> {
-  const read = (async () => {
-    const { getDocumentProxy } = await import('npm:unpdf@1.4.0');
-    const pdf = await getDocumentProxy(bytes.slice());
-    const page = await pdf.getPage(1);
-    const content = await page.getTextContent();
-    const lines = pdfItemsToLines(content.items as { str?: string; transform?: number[] }[]);
-    return lines.join('').replace(/\s+/g, '').length < 40 ? undefined : lines.join('\n');
-  })();
-  const timeout = new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 6000));
-  try { return await Promise.race([read, timeout]); } catch { return undefined; }
-}
-async function readIdentity(ext: string, bytes: Uint8Array): Promise<StatementIdentity | undefined> {
-  try {
-    if (ext === 'ofx' || ext === 'csv' || ext === 'txt') return headerIdentity(decodeBankText(bytes), ext === 'ofx');
-    if (ext === 'xlsx' || ext === 'xls') {
-      const XLSX = await import('npm:xlsx@0.18.5');
-      const wb = XLSX.read(bytes, { type: 'array' });
-      return headerIdentity(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]], { FS: ';' }));
-    }
-    if (ext === 'pdf') { const text = await pdfHeaderText(bytes); return text ? headerIdentity(text) : undefined; }
-  } catch { /* unreadable header = inconclusive */ }
-  return undefined;
-}
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -69,7 +44,7 @@ Deno.serve(async req => {
       if (error instanceof IdentityMismatchError) return response({ error: `Destino: ${account.nome} (empresa selecionada). ${error.message}` }, 422);
       throw error;
     }
-    if (!identity && ext === 'pdf') check.warnings = ['O servidor não conseguiu ler banco, agência e conta deste PDF (imagem, senha ou layout). A importação segue normalmente; confira se escolheu a conta certa.'];
+    if (!identity && ext === 'pdf') check.warnings = [...check.warnings.filter(w => !w.startsWith('Não deu para confirmar')), 'O servidor não conseguiu ler banco, agência e conta deste PDF (imagem, senha ou layout). A importação segue normalmente; confira se escolheu a conta certa.'];
     const identityStatus = check.verified ? 'verified' : 'inconclusive';
     if (input.action === 'validate') return response({ ok: true, identityStatus, warnings: check.warnings });
     const formato = ext === 'txt' ? 'csv' : ext === 'xls' ? 'xlsx' : ext;

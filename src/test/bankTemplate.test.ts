@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseBankTemplate, TEMPLATE_HEADER, buildBankTemplateXlsx, parseXLSX } from '@/lib/bankStatements/parsers';
 import * as XLSX from 'xlsx';
-import { validateStatementIdentity } from '@/lib/bankStatements/identity';
+import { checkStatementIdentity } from '@/lib/bankStatements/identity';
 
 describe('modelo de planilha de extrato', () => {
   const base = [TEMPLATE_HEADER, ['Saldo anterior', '', '', '', 1127.61]];
@@ -28,8 +28,11 @@ describe('modelo de planilha de extrato', () => {
     expect(result.transactions.map(t => t.valor)).toEqual([100,20]);
     expect(result.saldoFinalInformado).toBe(1080);
     expect(result.bloqueiaImportacao).toBe(false);
-    expect(() => validateStatementIdentity(result.identity, account, 'ficticia')).not.toThrow();
+    expect(checkStatementIdentity(result.identity, account, 'ficticia').verified).toBe(true);
   });
-  it('modelo não é entregue com cadastro incompleto', () => expect(() => buildBankTemplateXlsx({ ...account, agencia: null })).toThrow('Complete'));
-  it('modelo não é entregue com banco desconhecido', () => expect(() => buildBankTemplateXlsx({ ...account, banco: 'Banco fictício' })).toThrow('Complete'));
+  it.each([['cadastro incompleto', { agencia: null }], ['banco desconhecido', { banco: 'Banco fictício' }]])('%s: modelo continua sendo entregue, sem identidade', (_l, change) => {
+    const wb = XLSX.read(buildBankTemplateXlsx({ ...account, ...change }), { type: 'array' });
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets.Extrato, { header: 1 });
+    expect(rows[0]).toEqual(TEMPLATE_HEADER);
+  });
 });

@@ -20,18 +20,11 @@ if [ "${BANK_BATCH_TEST:-1}" = 1 ]; then
   "${P[@]}" -f "$ROOT/src/test/bankBatch.sql" > "$T/batch" 2>&1 || { tail -20 "$T/batch"; exit 1; }
   grep 'assertions passed' "$T/batch"
 fi
-echo 'Concurrency: two independent sessions, same complete identity, different companies'
-Q="INSERT INTO bank_accounts(school_id,nome,banco,agencia,conta) VALUES('10000000-0000-0000-0000-000000000001','Fictícia concorrente','Sicredi','0001','0009876-5');"
-"${P[@]}" -c "BEGIN; $Q SELECT pg_sleep(1); COMMIT;" > "$T/session1" 2>&1 & PID=$!
-for i in $(seq 1 30); do
-  if [ "$("${P[@]}" -Atc "select count(*) from pg_locks where locktype='advisory' and granted")" != 0 ]; then break; fi
-  if ! kill -0 "$PID" 2>/dev/null; then break; fi
-done
-if "${P[@]}" -c "INSERT INTO bank_accounts(school_id,nome,banco,agencia,conta) VALUES('10000000-0000-0000-0000-000000000002','Outra fictícia','Banco Sicredi','00.01','00098765');" > "$T/session2" 2>&1; then echo 'FAILED: concurrent duplicate accepted'; exit 1; fi
-wait "$PID"
-grep -q 'duplicado ou ambíguo' "$T/session2"
-[ "$("${P[@]}" -Atc "select count(*) from bank_accounts where banco in ('Sicredi','Banco Sicredi')")" = 1 ]
-echo 'Concurrency passed: overlapping sessions cannot bind the same registered identity twice'
+echo 'Duplicate registrations only warn now (owner rule 2026-11-10): saving a second account is allowed'
+"${P[@]}" -c "INSERT INTO bank_accounts(school_id,nome,banco,agencia,conta) VALUES('10000000-0000-0000-0000-000000000003','Fictícia repetida','Sicredi','0001','0009876-5'),('10000000-0000-0000-0000-000000000001','Outra fictícia','Banco Sicredi','00.01','00098765');" >/dev/null
+[ "$("${P[@]}" -Atc "select count(*) from bank_accounts where banco in ('Sicredi','Banco Sicredi')")" = 2 ]
+"${P[@]}" -c "DELETE FROM bank_accounts WHERE banco in ('Sicredi','Banco Sicredi')" >/dev/null
+echo 'Duplicate registration check passed'
 if [ "${BANK_BATCH_TEST:-1}" = 1 ]; then
   echo 'Concurrency: overlapping imports of the same account'
   ROWS='[{"data":"2026-11-10","descricao":"Concorrente fictício","valor":1,"tipo":"entrada","dedup_hash":"overlap-shared"}]'

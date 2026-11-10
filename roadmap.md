@@ -21,3 +21,5 @@
 - [ ] Mercado Pago: autorização OAuth por cliente e leitura agendada (após validar o piloto)
 - [x] Acessos e senhas: testes isolados da proposta (staging/client-access-guard, banco descartável)
 - [ ] Acessos e senhas: promoção (aguarda aprovação da Bruna)
+- [x] Extratos: proteção só bloqueia conta comprovadamente errada; PDF/OCR e cadastros incompletos voltam a importar com aviso
+- [ ] Extratos: publicar a tela nova (aguarda revisão e publicação pela Bruna)

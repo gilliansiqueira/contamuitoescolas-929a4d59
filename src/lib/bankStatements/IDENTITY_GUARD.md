@@ -1,43 +1,34 @@
 # Proteção de destino de extratos
 
-## Ativação
-O frontend não foi publicado. As migrations 0116 e 0117 corrigem a ativação parcial de 0114/0115. A função atualizada foi implantada. Nenhuma identidade foi preenchida a partir de histórico; nenhum movimento foi atualizado ou reimportado.
+## Regra atual (instrução explícita da proprietária, 10/11/2026)
+"Não quero que bloqueie o que já usamos hoje… só bloqueia se ver que tá errado."
+Substitui a exigência anterior de identidade completa (fail-closed).
 
-**Transição atual:** `bank_import_guard_enforced()` é false quando não há configuração. As permissões RLS anteriores continuam necessárias; a tela antiga pode novamente guardar arquivo/importação/lote. Consistência empresa/conta permanece obrigatória. A proteção completa de identidade só cobre a nova rota durante a transição; não se afirma que a tela antiga valida o conteúdo do arquivo.
+**Bloqueia** (sem botão "importar mesmo assim"):
+- banco, agência, conta ou documento do titular **lidos do cabeçalho** que comprovadamente não conferem com o cadastro da conta escolhida — cada campo é comparado mesmo que os outros faltem;
+- conta que não pertence à empresa selecionada, conta inativa/virtual ou usuário sem permissão (RLS, empresa restrita).
 
-Cadastro existente completo e inequívoco é referência, sem checkbox e sem salvar todas as contas novamente. Banco conhecido resolve por alias exato ou código válido; agência, conta e zeros/dígitos são preservados. Complemento só é solicitado para cadastro incompleto/desconhecido ou conflito. Se houver documento no arquivo, exige documento específico da conta ou `holder_entity_id` explicitamente vinculado a uma `company_entities` da mesma empresa. A lista de CNPJs da empresa não autoriza qualquer titular automaticamente.
+**Não bloqueia** (aviso simples na prévia, sem diálogo): identificação ausente, incompleta, ilegível ou ambígua; cadastro incompleto (caixa/manual) ou com banco desconhecido; dígito presente só de um lado; código de banco fora da lista conhecida; documento no arquivo sem titular cadastrado; titular específico inconsistente; cadastro duplicado de mesma conta. Nada disso grava `identity_checked=true`; a importação fica `identity_status='inconclusive'`.
 
-### Ativar depois da publicação
-1. Bruna publica o frontend e abre a URL pública com sua sessão super_admin, recarregando a página.
-2. Confere que a nova tela mostra o modelo preenchido e a conferência normal sem checkbox. A função atualizada já está implantada.
-3. Em Fluxo Bancário → Contas/Extratos, clica **Ativar proteção após publicação** e confirma. A ação chama `set_bank_import_guard_enforced({_enabled:true})`, restrita a super_admin, uma única vez para a plataforma, não por conta/sincronização.
-4. Confere o indicador **Proteção completa ativa**. Upload direto da tela antiga é recusado; Inter/API e pares manuais seguem seus caminhos fixos.
-Rollback controlado, se necessário: solicitar ao agente `set_bank_import_guard_enforced({_enabled:false})` com sessão super_admin. Nenhum rollback de movimentos. Não foi feita ativação nesta rodada.
+Todos os formatos e rotinas anteriores continuam: OFX, CSV, Excel, PDF de texto, PDF com senha (senha pedida só pelo leitor do navegador, como antes), PDF por imagem (OCR), API e lançamentos manuais. Os controles anteriores de saldo/qualidade de leitura (`bloqueiaImportacao` quando a leitura não fecha com os saldos impressos) continuam valendo.
 
-Normalização remove apenas pontuação/espaços, preserva zeros e dígitos. Uma identidade confirmada não pode existir em dois cadastros. Divergências não exibem números completos.
+## Como compara
+- Banco: código do arquivo (zeros à esquerda são formatação). Só prova divergência se o código do arquivo estiver na lista de bancos conhecidos (`KNOWN_BANK_CODES`, mesma lista na SQL).
+- Agência/conta: só pontuação e zeros à esquerda são ignorados. Iguais = confere. Um número contido no outro (dígito faltando, prefixo de agência/operação) = inconclusivo. Números que não podem ser o mesmo = divergência.
+- Titular: só rótulos explícitos (`CPF/CNPJ do titular`, tags CNPJ/CPF do bloco BANKACCTFROM do OFX). CNPJ genérico do cabeçalho (que pode ser do próprio banco) e documentos de pagadores no corpo são ignorados. Empresas multi-CNPJ: vale o `holder_entity_id` da própria conta, nunca qualquer CNPJ da empresa.
+- OCR nunca prova divergência (pode trocar dígitos). Nome do arquivo e histórico nunca participam.
 
-## Limites deliberados
-- Revisão 0118: salvar caixa/manual incompleto continua permitido; só importar exige identidade completa. Alias/código explicitamente incompatíveis e documento inválido/incompatível continuam recusados. Sem novo checkbox.
-- Commit de arquivos agora usa um único INSERT em lote, preservando triggers por linha e por statement. `ROW_COUNT` determina inseridas e `total_linhas - inseridas` determina duplicadas, incluindo conflitos concorrentes. A mensagem final consulta os números gravados, não a prévia.
-- Locks: linha da conta serializa importações dessa conta e impede mudança do cadastro durante commit; lock compartilhado da identidade impede criação concorrente de vínculo ambíguo, sem lock global durante o lote; mudança de identidade usa locks exclusivos das chaves anterior/nova em ordem estável. Titular específico fica sob `FOR SHARE`. APIs continuam em suas rotas existentes.
-- Referências: atualização única em lote, restrita à conta/empresa. Preencher referência vazia permanece compatível; substituição exige valor anterior esperado igual ao atual. IDs repetidos no lote de vínculos não são atualizados. Cliente antigo sem valor esperado não sobrescreve referência existente.
-- PDF/OCR: bloqueados no servidor até existir leitor de cabeçalho independente homologado. Não se aceita identidade enviada apenas pelo navegador.
-- CSV/Excel: somente cabeçalho anterior à tabela, com Banco (código), Agência, Conta e opcional CPF/CNPJ do titular; cabeçalhos não suportados ou ausentes bloqueiam na nova rota. O botão gera modelo com identidade da conta selecionada; cadastro incompleto não entrega modelo inválido.
-- Arquivo e gravação no banco não compartilham transação. A identidade é conferida antes do upload e novamente na transação; rejeição determinística tenta apagar o arquivo. Falha de limpeza é informada; resultado de transporte incerto preserva arquivo para conferência, sem afirmar rollback.
-- O servidor verifica identidade, destino e autorização; as regras de leitura de movimentos/deduplicação continuam no frontend existente. Não se afirma validação integral independente dos valores do arquivo nesta etapa.
-- Não houve teste de importação na tela com sessão real, nem gravação de fixtures no backend ativo. Testes de RPC usam PostgreSQL descartável com tabelas mínimas e predicados de autorização simulados, não equivalência completa de RLS de produção.
+## Onde
+- Regra compartilhada: `supabase/functions/_shared/bankIdentity.ts` (navegador + função).
+- Função `bank-statement-import`: lê o cabeçalho de forma independente (`header.ts`; PDF pela 1ª página com leitor de texto; qualquer falha, senha ou imagem = inconclusivo). Identidade enviada pelo navegador nunca é prova.
+- SQL `commit_verified_bank_import` (migration 0119): mesma regra, gravação atômica em lote, dedup, contagens reais, previsão, `bank_ref`; aceita `pdf`; marca `identity_status`. `bank_account_identity_shared` (só serviço) avisa cadastro duplicado. Cadastrar conta repetida não é mais impedido.
+- Flag `bank_import_guard_enforced` (já ativa) apenas faz uploads passarem pelo servidor; não exige identidade.
 
-## Verificação reproduzível
-- `bash src/test/bankIdentity.integration.sh`: 38 verificações SQL (26 anteriores + 12 lote/edição/referências), mais 4 verificações concorrentes: identidade duplicada, contagem sobreposta, identidade independente não bloqueada e mudança de conta bloqueada. Inclui lote de 2.000 linhas com um único disparo do trigger INSERT por statement e rollback de lote inválido. Banco UTF-8, socket local sem TCP, cluster encerrado e removido. Schema mínimo e predicados de autorização simulados; triggers de destino e política de armazenamento reais, contador de statement sintético — não testa o cálculo real de relatório/SSOT em schema completo.
-- Testes puros com configuração Node sem setup, sem fixtures reais:
-  ```sh
-  printf "export default {test:{environment:'node',include:['/dev-server/src/test/bankIdentity.test.ts','/dev-server/src/test/bankAccountRegistration.test.ts','/dev-server/src/test/bankTemplate.test.ts','/dev-server/src/test/bankCashflow.test.ts','/dev-server/src/test/bankAutoInvest.test.ts','/dev-server/src/test/bankFuturos.test.ts']}}" > /tmp/bank-focused.config.mjs
-  bunx vitest run --config /tmp/bank-focused.config.mjs
-  ```
-- Revisão final: 102 testes Vitest (96 anteriores + 6 cadastro), Deno check aprovado e build automático OK. Edição/importação na UI autenticada real não executada para não gravar fixtures ou movimentos no banco ativo.
-- Vitest em ambiente node, sem setup jsdom: bankIdentity (70), bankTemplate (5), bankCashflow (8), bankAutoInvest (11), bankFuturos (2). Total 96; fixtures exclusivamente fictícias nesta rodada.
-- `deno check --node-modules-dir=auto supabase/functions/bank-statement-import/index.ts`.
-- Compilação do frontend verificada no build automático da plataforma; não publicado.
-- A primeira execução da suíte padrão encontrou canvas.node ausente. Reexecução dos testes puros em Node passou. A suíte preexistente ofxRepeatedFitid foi executada uma vez e leu seus três arquivos reais; não gravou dados. Ela foi excluída da execução final exclusivamente sintética. Essa execução incidental não prova validação de destino de dados reais.
+## Verificação reproduzível (somente dados fictícios)
+- `bash src/test/bankIdentity.integration.sh` — PostgreSQL descartável por socket local: 29 verificações de regra + 12 de lote + cadastro duplicado permitido + 3 de concorrência. Schema mínimo e predicados de autorização simulados.
+- `deno test -A --node-modules-dir=auto supabase/functions/bank-statement-import/header_test.ts` — 5 testes do leitor do servidor com PDFs gerados no teste (texto, outra conta, imagem/corrompido, com senha via qpdf, CSV sem cabeçalho).
+- Vitest focado (ambiente node): bankIdentity, bankAccountRegistration, bankTemplate, bankCashflow, bankAutoInvest, bankFuturos.
 
-Nenhuma compra. Contagem de créditos da conversa indisponível.
+## Limites
+- Não houve importação real pela tela com sessão autenticada; o leitor de PDF foi validado em Deno local, não no runtime publicado — se falhar lá, o resultado é inconclusivo (aviso), nunca bloqueio.
+- A tela publicada antes desta revisão ainda aplica a regra antiga no navegador até a nova publicação.

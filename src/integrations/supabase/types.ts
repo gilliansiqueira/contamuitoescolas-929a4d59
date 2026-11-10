@@ -939,6 +939,7 @@ export type Database = {
           formato: string
           id: string
           identity_checked: boolean
+          identity_status: string | null
           imported_by: string | null
           inseridas: number
           periodo_fim: string | null
@@ -961,6 +962,7 @@ export type Database = {
           formato: string
           id?: string
           identity_checked?: boolean
+          identity_status?: string | null
           imported_by?: string | null
           inseridas?: number
           periodo_fim?: string | null
@@ -983,6 +985,7 @@ export type Database = {
           formato?: string
           id?: string
           identity_checked?: boolean
+          identity_status?: string | null
           imported_by?: string | null
           inseridas?: number
           periodo_fim?: string | null
@@ -6499,6 +6502,10 @@ export type Database = {
         Args: { _archive: boolean; _id: string }
         Returns: undefined
       }
+      bank_account_identity_shared: {
+        Args: { _account: string }
+        Returns: boolean
+      }
       bank_api_check_cron: { Args: { _token: string }; Returns: boolean }
       bank_api_get_credentials: {
         Args: { _conn: string }
@@ -6520,6 +6527,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      bank_identity_cmp_bank: {
+        Args: { _file: string; _reg: string }
+        Returns: string
+      }
+      bank_identity_cmp_num: {
+        Args: { _file: string; _reg: string }
+        Returns: string
+      }
+      bank_identity_file_code: { Args: { _v: string }; Returns: string }
       bank_identity_norm: { Args: { v: string }; Returns: string }
       bank_import_allowed: {
         Args: { _account: string; _school: string }
