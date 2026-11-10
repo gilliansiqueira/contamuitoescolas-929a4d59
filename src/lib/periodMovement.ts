@@ -165,7 +165,20 @@ export function resolveMonthSource(
  * + previsão de todos os dias seguintes), pois é ele que será herdado como
  * saldo inicial do mês seguinte.
  */
+// Cache por contexto: o corte depende só de (entries, mês, hoje). Sem ele, chamar
+// por lançamento virava uma varredura completa a cada linha e travava a tela.
+const fluxoCutoffCache = new WeakMap<PeriodMovementCtx, Map<string, string | undefined>>();
+
 export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): string | undefined {
+  let byMonth = fluxoCutoffCache.get(ctx);
+  if (!byMonth) { byMonth = new Map(); fluxoCutoffCache.set(ctx, byMonth); }
+  if (byMonth.has(month)) return byMonth.get(month);
+  const r = computeFluxoCutoffUncached(month, ctx);
+  byMonth.set(month, r);
+  return r;
+}
+
+function computeFluxoCutoffUncached(month: string, ctx: PeriodMovementCtx): string | undefined {
   let cutoff: string | undefined;
   for (const e of ctx.entries) {
     if (e.origem !== 'fluxo' || e.tipoRegistro === 'projetado') continue;

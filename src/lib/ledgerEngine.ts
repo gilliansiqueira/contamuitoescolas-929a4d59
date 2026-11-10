@@ -12,8 +12,21 @@ export interface LedgerRule {
 /**
  * Normalização canônica de tipo (lowercase, sem acentos, trim).
  */
+const normalizeTipoCache = new Map<string, string>();
 export function normalizeTipo(s: string): string {
   if (!s) return '';
+  if (typeof s === 'string') {
+    const hit = normalizeTipoCache.get(s);
+    if (hit !== undefined) return hit;
+    if (normalizeTipoCache.size > 20000) normalizeTipoCache.clear();
+    const out = normalizeTipoRaw(s);
+    normalizeTipoCache.set(s, out);
+    return out;
+  }
+  return normalizeTipoRaw(s);
+}
+
+function normalizeTipoRaw(s: string): string {
   return s
     .toString()
     .normalize('NFD')
