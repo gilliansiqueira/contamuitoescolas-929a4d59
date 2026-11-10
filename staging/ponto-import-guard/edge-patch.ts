@@ -11,9 +11,11 @@ export interface AdminPort {
 }
 export interface AuthPort { userId(): Promise<string | null>; isSuperAdmin(): Promise<boolean> }
 
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-/** Erro com SQLSTATE veio do banco: a transação terminou com erro, logo foi desfeita. Sem SQLSTATE: transporte/timeout => incerto. */
-export const isDbError = (e: DbErr | null | undefined) => !!e?.code && SQLSTATE.test(e.code);
+/** Lista CONSERVADORA de rejeições determinísticas (a instrução falhou antes do commit):
+ *  22xxx dados inválidos, 23xxx restrição, 42xxx sintaxe/permissão, P0001 RAISE da própria função.
+ *  Qualquer outro código (classe 08 conexão, 08007, 40003, 57xxx cancelamento, desconhecidos) => incerto: consulta a tentativa. */
+const DETERMINISTIC = /^(22[0-9A-Z]{3}|23[0-9A-Z]{3}|42[0-9A-Z]{3}|P0001)$/;
+export const isDeterministicRejection = (e: DbErr | null | undefined) => !!e?.code && DETERMINISTIC.test(e.code);
 
 async function confirm(admin: AdminPort, attemptId: string, hash: string): Promise<Resp> {
   try {
@@ -37,8 +39,8 @@ export async function importReport(body: Row, admin: AdminPort, userId: string):
   try { res = await admin.rpcImport(payload); }
   catch { return confirm(admin, attemptId, hash); } // exceção lançada (rede/timeout): pode ter commitado
   if (!res.error && res.data?.status === "success") return { status: 200, body: { ...res.data, attempt_id: attemptId } };
-  if (!isDbError(res.error)) return confirm(admin, attemptId, hash);
-  // Erro do banco => transação desfeita. Registra só o código.
+  if (!isDeterministicRejection(res.error)) return confirm(admin, attemptId, hash);
+  // Rejeição determinística => transação desfeita. Registra só o código.
   const code = res.error!.code!;
   let logFailed = false;
   try { const l = await admin.logRun({ trigger: "relatorio_pdf", status: "error", requested_by: userId, reference_date: v.plan.periodoFim, finished_at: new Date().toISOString(), message: `rpc_error:${code}` }); logFailed = !!l.error; }

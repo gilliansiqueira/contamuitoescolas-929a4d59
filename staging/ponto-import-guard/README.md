@@ -18,17 +18,19 @@ staging/ponto-import-guard/integration.sh
 `integration.sh`: cria pasta exclusiva com `mktemp -d`, porta aleatória, só socket local, zera variáveis PG*, confere `ponto_descartavel|socket` antes do SQL e remove apenas a própria pasta (inclusive se initdb/start falharem). Como root, roda o banco com o usuário `lovable` via `setpriv`.
 
 ## Contagens (última execução)
-- Unitários: 49 (validação 27, servidor com mocks 15, cliente com mocks 7).
+- Unitários: 64 (validação 27, servidor com mocks 28, cliente com mocks 9).
 - Integração: 18 cenários SQL + 2 de concorrência (mesma tentativa; intervalos diferentes sobrepostos).
 
 ## Regras de comportamento
 - Dia totalmente vazio (sem jornada, batidas, observação e horas): ignorado; o que já existir no banco é mantido.
 - Dia só com horas (sem batidas): gravado, nunca descartado.
 - Marcações mantidas na ordem do relatório (jornada noturna).
-- Erro com código do banco = transação desfeita (registra só `rpc_error:<código>`). Erro de transporte/exceção = consulta a tentativa; se não confirmar, responde "incerto" (nunca afirma que nada foi gravado).
+- Só códigos determinísticos (22xxx, 23xxx, 42xxx, P0001) contam como desfeito (registra só `rpc_error:<código>`). Classe 08, 08007, 40003, 57xxx, 40001 e qualquer código desconhecido, transporte ou exceção = consulta a tentativa; sem confirmação responde "incerto" (nunca `rolled_back`).
+- O cliente só aceita sucesso de `import_status` se `content_hash` for igual ao hash esperado do próprio payload (mesma validação do servidor); diferente ou ausente = `conflict`.
 
 ## Limites (não verificado)
 - Testes usam schema mínimo; não comparado de novo com o banco real (RLS, gatilhos, `is_super_admin` reais).
 - Servidor e cliente testados só com mocks; sem teste de runtime real da função, de interface nem do build do app.
-- A classificação "erro com código = desfeito" depende do cliente do backend repassar o código do banco; conferir na promoção.
+- A lista de códigos determinísticos depende do cliente do backend repassar o SQLSTATE; conferir na promoção. Códigos determinísticos fora da lista viram "incerto" (seguro, porém menos informativo).
+- O cliente importa `validate.ts`; na promoção o mesmo arquivo precisa existir no app e na função (contrato de hash idêntico).
 - Retry com outro `attempt_id` reaplica por upsert sem duplicar dias, mas gera outro registro de execução.

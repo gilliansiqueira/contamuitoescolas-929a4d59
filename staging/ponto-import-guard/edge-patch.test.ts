@@ -61,6 +61,27 @@ describe("importReport (invólucro do servidor)", () => {
   });
 });
 
+describe("classificação de códigos do banco", () => {
+  for (const code of ["08007", "08006", "08000", "40003", "57014", "40001", "XX000", "ZZ999"]) {
+    it(`${code} => incerto: consulta a tentativa, sem rolled_back`, async () => {
+      const p = port({ rpcImport: vi.fn(async () => ({ data: null, error: { code, message: SECRET } })) });
+      const r = await importReport(body, p, "u");
+      expect(r.status).toBe(202); expect(r.body.status).toBe("uncertain"); expect(r.body.rolled_back).toBeUndefined();
+      expect(p.findAttempt).toHaveBeenCalled(); expect(p.logRun).not.toHaveBeenCalled(); expect(JSON.stringify(r.body)).not.toContain(SECRET);
+    });
+  }
+  it("08007 com tentativa confirmada => sucesso", async () => {
+    const h = await hash(); const p = port({ rpcImport: vi.fn(async () => ({ data: null, error: { code: "08007" } })), findAttempt: vi.fn(async () => ({ data: { content_hash: h, counts: {} }, error: null })) });
+    expect((await importReport(body, p, "u")).body).toMatchObject({ status: "success", confirmed_after_error: true });
+  });
+  for (const code of ["22007", "23505", "42501", "P0001"]) {
+    it(`${code} => rejeição determinística (rolled_back)`, async () => {
+      const r = await importReport(body, port({ rpcImport: vi.fn(async () => ({ data: null, error: { code } })) }), "u");
+      expect(r.status).toBe(422); expect(r.body.rolled_back).toBe(true);
+    });
+  }
+});
+
 describe("handle (sessão/permissão)", () => {
   it("sem sessão => 401 e não toca o banco", async () => { const p = port(); const r = await handle({ action: "import_report", ...body }, { userId: async () => null, isSuperAdmin: async () => true }, p); expect(r.status).toBe(401); expect(p.rpcImport).not.toHaveBeenCalled(); });
   it("não super_admin => 403 e não toca o banco", async () => { const p = port(); const r = await handle({ action: "import_report", ...body }, { userId: async () => "u", isSuperAdmin: async () => false }, p); expect(r.status).toBe(403); expect(p.rpcImport).not.toHaveBeenCalled(); expect(p.findAttempt).not.toHaveBeenCalled(); });

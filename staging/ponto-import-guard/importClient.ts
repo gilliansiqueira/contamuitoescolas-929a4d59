@@ -1,6 +1,8 @@
 // Cliente da importação (PROMOÇÃO FUTURA para src/hooks/useTeamTime.ts — não aplicado).
 // Mantém o MESMO attempt_id em toda a tentativa: após timeout/incerteza consulta import_status e,
 // se ainda não encontrado, reenvia com o mesmo attempt_id (o servidor reaplica ou devolve o já gravado).
+// Sucesso vindo de import_status só vale se content_hash == hash esperado, calculado com o MESMO contrato do servidor.
+import { validateReport, contentHash } from "./validate.ts";
 export interface InvokeResult { status: number; body: Record<string, unknown> }
 export interface ClientDeps {
   invoke(body: Record<string, unknown>): Promise<InvokeResult>; // lança em erro de rede/timeout
@@ -11,11 +13,19 @@ export type ImportOutcome =
   | { kind: "success"; attemptId: string; counts: unknown; replay: boolean }
   | { kind: "blocked"; attemptId: string; errors: string[] }
   | { kind: "rejected"; attemptId: string; message: string }
+  | { kind: "conflict"; attemptId: string }
   | { kind: "uncertain"; attemptId: string };
+
+/** Hash esperado do payload (mesma validação/normalização do servidor). null se o payload não valida. */
+export async function expectedHash(payload: Record<string, unknown>, attemptId: string): Promise<string | null> {
+  const v = validateReport({ ...payload, attempt_id: attemptId });
+  return v.ok ? contentHash(v.plan) : null;
+}
 
 export async function runImport(payload: Record<string, unknown>, deps: ClientDeps, opts: { attemptId?: string; polls?: number; resends?: number; delayMs?: number } = {}): Promise<ImportOutcome> {
   const attemptId = opts.attemptId ?? deps.newId();
   const polls = opts.polls ?? 3, resends = opts.resends ?? 1, delay = opts.delayMs ?? 1500;
+  const expected = await expectedHash(payload, attemptId);
   const send = async (): Promise<InvokeResult | null> => { try { return await deps.invoke({ action: "import_report", ...payload, attempt_id: attemptId }); } catch { return null; } };
   const status = async (): Promise<InvokeResult | null> => { try { return await deps.invoke({ action: "import_status", attempt_id: attemptId }); } catch { return null; } };
 
@@ -28,7 +38,11 @@ export async function runImport(payload: Record<string, unknown>, deps: ClientDe
     for (let i = 0; i < polls; i++) {
       await deps.sleep(delay);
       const s = await status();
-      if (s?.body.status === "success") return { kind: "success", attemptId, counts: s.body.counts, replay: true };
+      if (s?.body.status === "success") {
+        // Sem hash esperado (payload inválido) ou hash diferente: nunca conclui sucesso deste conteúdo.
+        if (expected && s.body.content_hash === expected) return { kind: "success", attemptId, counts: s.body.counts, replay: true };
+        return { kind: "conflict", attemptId };
+      }
     }
   }
   return { kind: "uncertain", attemptId };
