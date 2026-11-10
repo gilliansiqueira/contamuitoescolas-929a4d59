@@ -16,9 +16,14 @@ P="$P -d ponto_descartavel"
 $P -f $D/schema-stub.sql >/dev/null
 $P -f $D/rpc.sql >/dev/null
 $P -f $D/integration.sql
-# Concorrência: duas sessões com o mesmo conteúdo ao mesmo tempo => 1 gravação + 1 replay.
-Q="SET ROLE service_role; SELECT team_time_import_report(jsonb_build_object('idempotency_key',repeat('e',64),'periodoInicio','2030-02-01','periodoFim','2030-02-01','employees','[{\"external_id\":\"pf-2\",\"nome\":\"Pessoa Dois\"}]'::jsonb,'daily','[{\"employee_external_id\":\"pf-2\",\"dia\":\"2030-02-01\",\"marcacoes\":[\"08:00\"],\"situacao\":\"incompleta\"}]'::jsonb,'occurrences','[]'::jsonb))->>'replay', pg_sleep(1);"
-$P -Atc "$Q" > $T/c1 & $P -Atc "$Q" > $T/c2 & wait
+# Concorrência 1: mesma tentativa em duas sessões => 1 gravação + 1 replay.
+mk(){ echo "SET ROLE service_role; SELECT team_time_import_report(jsonb_build_object('attempt_id',md5('$1')::uuid,'content_hash',repeat('$2',64),'periodoInicio','$3','periodoFim','$4','employees','[{\"external_id\":\"pf-2\",\"nome\":\"Pessoa Dois\"}]'::jsonb,'daily',(SELECT jsonb_agg(jsonb_build_object('employee_external_id','pf-2','dia',g::date,'marcacoes','[\"08:00\"]'::jsonb,'situacao','$5')) FROM generate_series('$3'::date,'$4'::date,'1 day') g),'occurrences','[]'::jsonb))->>'replay', pg_sleep(1);"; }
+$P -Atc "$(mk c1 e 2030-02-01 2030-02-01 incompleta)" > $T/c1 & $P -Atc "$(mk c1 e 2030-02-01 2030-02-01 incompleta)" > $T/c2 & wait
 R=$(cat $T/c1 $T/c2 | cut -d'|' -f1 | sort | tr '\n' ',')
 N=$($P -Atc "select count(*) from team_time_daily where employee_external_id='pf-2'")
-[ "$R" = "false,true," ] && [ "$N" = "1" ] && echo "concorrência: OK" || { echo "concorrência: FALHOU ($R $N)"; exit 1; }
+[ "$R" = "false,true," ] && [ "$N" = "1" ] && echo "concorrência mesma tentativa: OK" || { echo "concorrência mesma tentativa: FALHOU ($R $N)"; exit 1; }
+# Concorrência 2: intervalos DIFERENTES sobrepostos (03/01–03/03 e 03/02–03/04) ao mesmo tempo.
+$P -Atc "$(mk o1 1 2030-03-01 2030-03-03 regular)" > $T/o1 & $P -Atc "$(mk o2 2 2030-03-02 2030-03-04 falta)" > $T/o2 & wait
+N=$($P -Atc "select count(*)||'|'||count(distinct dia) from team_time_daily where employee_external_id='pf-2' and dia between '2030-03-01' and '2030-03-04'")
+S=$($P -Atc "select count(*) from team_time_sync_runs where status='success' and reference_date in ('2030-03-03','2030-03-04')")
+[ "$N" = "4|4" ] && [ "$S" = "2" ] && echo "concorrência intervalos sobrepostos: OK (4 dias, sem duplicar, 2 execuções)" || { echo "sobrepostos: FALHOU ($N $S)"; exit 1; }

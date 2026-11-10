@@ -1,12 +1,12 @@
 // Substituto de useTeamTimeImportReport em src/hooks/useTeamTime.ts (PROMOÇÃO FUTURA).
 // Envia também os totais impressos (o servidor confere). Em falha de rede/timeout, NÃO reenvia:
-// a gravação é idempotente pelo conteúdo, então uma nova tentativa manual do mesmo arquivo nunca duplica.
+// após timeout, consultar a ação import_status com o mesmo attempt_id; uma nova importação manual usa novo attempt_id e reaplica por upsert (sem duplicar).
 // Em ImportCartaoPonto.tsx incluir `totais` no map: ({ codigo, nome, matricula, departamento, funcao, dias, totais }).
 /*
 export function useTeamTimeImportReport() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { arquivo: string; periodoInicio: string; periodoFim: string; funcionarios: unknown[] }) => {
+    mutationFn: async (payload: { attempt_id: string; arquivo: string; periodoInicio: string; periodoFim: string; funcionarios: unknown[] }) => {
       const { data, error } = await supabase.functions.invoke('pontofopag-sync', { body: { action: 'import_report', ...payload } });
       if (error) {
         const ctx = (error as any).context; let b: any = null; try { b = await ctx?.json?.(); } catch { }

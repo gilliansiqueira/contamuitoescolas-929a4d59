@@ -6,7 +6,7 @@
 CREATE TEMP TABLE r(name text, ok boolean);
 GRANT ALL ON r TO PUBLIC;
 CREATE FUNCTION pl(k text, ini text, fim text, days jsonb, occ jsonb DEFAULT '[]') RETURNS jsonb LANGUAGE sql AS $$
-  SELECT jsonb_build_object('idempotency_key',k,'periodoInicio',ini,'periodoFim',fim,'arquivo','sintetico.pdf',
+  SELECT jsonb_build_object('attempt_id',md5(k)::uuid,'content_hash',encode(sha256(convert_to(ini||fim||days::text||occ::text,'UTF8')),'hex'),'periodoInicio',ini,'periodoFim',fim,'arquivo','sintetico.pdf',
    'employees','[{"external_id":"pf-1","matricula":"10","nome":"Pessoa Um","cargo":"Aux","departamento":"Adm"}]'::jsonb,'daily',days,'occurrences',occ) $$;
 CREATE FUNCTION d(dia text, sit text DEFAULT 'regular', oc text DEFAULT NULL) RETURNS jsonb LANGUAGE sql AS $$
   SELECT jsonb_build_object('employee_external_id','pf-1','dia',dia,'horario_previsto','08-17','primeira_marcacao','08:00','ultima_marcacao','17:00','marcacoes',jsonb_build_array('08:00','17:00'),'horas_trabalhadas','08:00','horas_extras',null,'situacao',sit,'ocorrencia',oc) $$;
@@ -44,7 +44,7 @@ INSERT INTO r SELECT 'ocorrência PDF antiga do dia trocada', NOT EXISTS (SELECT
 
 -- 4) Repetição idêntica (timeout após commit) => replay, sem duplicar
 SET ROLE service_role;
-SELECT team_time_import_report(pl(:K1,'2030-01-01','2030-01-03','[]')) ->> 'replay' AS rep \gset
+SELECT team_time_import_report(pl(:K1,'2030-01-01','2030-01-03',jsonb_build_array(d('2030-01-01'),d('2030-01-02','falta','Falta')),'[{"external_key":"relatorio_pdf|pf-1|2030-01-02|falta","employee_external_id":"pf-1","dia":"2030-01-02","tipo":"Falta"}]')) ->> 'replay' AS rep \gset
 RESET ROLE;
 INSERT INTO r SELECT 'repetição é replay', :'rep'='true' AND (SELECT count(*) FROM team_time_sync_runs WHERE status='success')=1;
 
@@ -61,7 +61,14 @@ INSERT INTO r SELECT 'dia relido atualizado e ocorrência PDF removida', (SELECT
 SET ROLE service_role;
 DO $$ BEGIN BEGIN PERFORM team_time_import_report(pl(repeat('c',64),'2030-01-01','2030-01-02',jsonb_build_array(d('2030-01-09')))); INSERT INTO r VALUES ('rejeita dia fora',false); EXCEPTION WHEN others THEN INSERT INTO r VALUES ('rejeita dia fora',true); END; END $$;
 DO $$ BEGIN BEGIN PERFORM team_time_import_report(pl(repeat('c',64),'2030-01-01','2030-01-02',jsonb_build_array(d('2030-01-01'),d('2030-01-01')))); INSERT INTO r VALUES ('rejeita dia repetido',false); EXCEPTION WHEN others THEN INSERT INTO r VALUES ('rejeita dia repetido',true); END; END $$;
-DO $$ BEGIN BEGIN PERFORM team_time_import_report(pl(repeat('c',64),'2030-01-01','2030-01-02','[]') || '{"cpf":"x"}'); INSERT INTO r VALUES ('rejeita campo cpf',false); EXCEPTION WHEN others THEN INSERT INTO r VALUES ('rejeita campo cpf',true); END; END $$;
+DO $$ BEGIN BEGIN PERFORM team_time_import_report(pl('cpf','2030-01-01','2030-01-02','[]') || '{"cpf":"x"}'); INSERT INTO r VALUES ('rejeita campo cpf',false); EXCEPTION WHEN others THEN INSERT INTO r VALUES ('rejeita campo cpf',true); END; END $$;
+-- 7) Mesma tentativa com conteúdo diferente => rejeitada
+DO $$ BEGIN BEGIN PERFORM team_time_import_report(pl(repeat('a',64),'2030-01-01','2030-01-03',jsonb_build_array(d('2030-01-01','falta','X')))); INSERT INTO r VALUES ('mesma tentativa, conteúdo diferente: rejeita',false); EXCEPTION WHEN others THEN INSERT INTO r VALUES ('mesma tentativa, conteúdo diferente: rejeita', SQLERRM LIKE '%conteúdo diferente%'); END; END $$;
+-- 8) A -> B -> A (tentativas novas) => a última reaplicação vale
+SELECT team_time_import_report(pl('A1','2030-01-10','2030-01-10',jsonb_build_array(d('2030-01-10','regular'))));
+SELECT team_time_import_report(pl('B1','2030-01-10','2030-01-10',jsonb_build_array(d('2030-01-10','falta'))));
+SELECT team_time_import_report(pl('A2','2030-01-10','2030-01-10',jsonb_build_array(d('2030-01-10','regular')))) ->> 'replay' AS aba \gset
 RESET ROLE;
+INSERT INTO r SELECT 'A->B->A reaplica A', :'aba'='false' AND (SELECT situacao FROM team_time_daily WHERE dia='2030-01-10')='regular' AND (SELECT count(*) FROM team_time_daily WHERE dia='2030-01-10')=1;
 SELECT name, CASE WHEN ok THEN 'OK' ELSE 'FALHOU' END FROM r;
 SELECT CASE WHEN bool_and(ok) THEN 'TODOS OK' ELSE 'HÁ FALHAS' END AS resultado FROM r;

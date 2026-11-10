@@ -1,23 +1,34 @@
 -- PROMOÇÃO FUTURA (não aplicado). Aditivo: coluna nova + função. Nada é apagado.
-ALTER TABLE public.team_time_sync_runs ADD COLUMN IF NOT EXISTS idempotency_key text;
-CREATE UNIQUE INDEX IF NOT EXISTS team_time_sync_runs_idem_success
-  ON public.team_time_sync_runs (idempotency_key) WHERE status = 'success' AND idempotency_key IS NOT NULL;
+-- attempt_id: um por clique de importação, reaproveitado só em retry. content_hash: confere o conteúdo do retry.
+ALTER TABLE public.team_time_sync_runs ADD COLUMN IF NOT EXISTS attempt_id uuid;
+ALTER TABLE public.team_time_sync_runs ADD COLUMN IF NOT EXISTS content_hash text;
+CREATE UNIQUE INDEX IF NOT EXISTS team_time_sync_runs_attempt_success
+  ON public.team_time_sync_runs (attempt_id) WHERE status = 'success' AND attempt_id IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION public.team_time_import_report(p jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_key text := p->>'idempotency_key';
+  v_attempt uuid;
+  v_hash text := p->>'content_hash';
   v_ini date := (p->>'periodoInicio')::date;
   v_fim date := (p->>'periodoFim')::date;
   v_prev public.team_time_sync_runs;
   v_counts jsonb; v_run uuid; v_now timestamptz := now();
 BEGIN
-  IF v_key IS NULL OR v_key !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'idempotency_key inválida'; END IF;
+  IF COALESCE(p->>'attempt_id','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN RAISE EXCEPTION 'attempt_id inválido'; END IF;
+  v_attempt := (p->>'attempt_id')::uuid;
+  IF v_hash IS NULL OR v_hash !~ '^[0-9a-f]{64}$' THEN RAISE EXCEPTION 'content_hash inválido'; END IF;
   IF v_ini IS NULL OR v_fim IS NULL OR v_ini > v_fim THEN RAISE EXCEPTION 'período inválido'; END IF;
-  IF p::text ~* '"(cpf|pis|pispasep|nis)"\s*:' THEN RAISE EXCEPTION 'campo proibido'; END IF;
-  -- Importações do ponto são serializadas (concorrência).
+  -- Esquema permitido por chave (sem varrer números: códigos legítimos podem ter 11 dígitos).
+  IF EXISTS (SELECT 1 FROM jsonb_object_keys(p) k WHERE k NOT IN ('attempt_id','content_hash','requested_by','arquivo','periodoInicio','periodoFim','employees','daily','occurrences'))
+     OR EXISTS (SELECT 1 FROM jsonb_array_elements(p->'employees') e, jsonb_object_keys(e) k WHERE k NOT IN ('external_id','matricula','nome','cargo','departamento'))
+     OR EXISTS (SELECT 1 FROM jsonb_array_elements(p->'daily') d, jsonb_object_keys(d) k WHERE k NOT IN ('employee_external_id','dia','horario_previsto','primeira_marcacao','ultima_marcacao','marcacoes','horas_trabalhadas','horas_extras','situacao','ocorrencia'))
+     OR EXISTS (SELECT 1 FROM jsonb_array_elements(p->'occurrences') x, jsonb_object_keys(x) k WHERE k NOT IN ('external_key','employee_external_id','dia','tipo'))
+  THEN RAISE EXCEPTION 'campo não permitido'; END IF;
+  -- Lock GLOBAL da importação de ponto: protege também intervalos diferentes que se sobrepõem.
   PERFORM pg_advisory_xact_lock(hashtext('team_time_import_report'));
-  SELECT * INTO v_prev FROM public.team_time_sync_runs WHERE idempotency_key = v_key AND status = 'success' LIMIT 1;
+  SELECT * INTO v_prev FROM public.team_time_sync_runs WHERE attempt_id = v_attempt AND status = 'success' LIMIT 1;
+  IF FOUND AND v_prev.content_hash IS DISTINCT FROM v_hash THEN RAISE EXCEPTION 'attempt_id já usado com conteúdo diferente'; END IF;
   IF FOUND THEN RETURN jsonb_build_object('status','success','replay',true,'run_id',v_prev.id,'counts',v_prev.counts); END IF;
 
   -- Rechecagem defensiva (a Edge Function já valida).
@@ -50,8 +61,8 @@ BEGIN
     WHERE public.team_time_occurrences.origem = 'relatorio_pdf';
 
   v_counts := jsonb_build_object('funcionarios', jsonb_array_length(p->'employees'), 'dias', jsonb_array_length(p->'daily'), 'ocorrencias', jsonb_array_length(p->'occurrences'));
-  INSERT INTO public.team_time_sync_runs (trigger, status, requested_by, reference_date, finished_at, counts, message, idempotency_key)
-  VALUES ('relatorio_pdf', 'success', NULLIF(p->>'requested_by','')::uuid, v_fim, now(), v_counts, left(p->>'arquivo', 200), v_key)
+  INSERT INTO public.team_time_sync_runs (trigger, status, requested_by, reference_date, finished_at, counts, message, attempt_id, content_hash)
+  VALUES ('relatorio_pdf', 'success', NULLIF(p->>'requested_by','')::uuid, v_fim, now(), v_counts, left(p->>'arquivo', 200), v_attempt, v_hash)
   RETURNING id INTO v_run;
   RETURN jsonb_build_object('status','success','replay',false,'run_id',v_run,'counts',v_counts);
 END $$;

@@ -4,11 +4,16 @@ export type Row = Record<string, unknown>;
 export const SITS = ["regular", "sem_marcacao", "incompleta", "falta", "hora_extra", "aguardando", "em_andamento"] as const;
 export const MAX_FUNCS = 500, MAX_DIAS_PERIODO = 62, MAX_MARCACOES = 12;
 const ISO = /^\d{4}-\d{2}-\d{2}$/, HM = /^\d{1,3}:\d{2}$/, MARC = /^([01]\d|2[0-3]):[0-5]\d$/;
-const FORBIDDEN_KEYS = /^(cpf|pis|pispasep|nis|rg)$/i;
-const DOC_LIKE = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b|\b\d{11}\b/;
+const FORBIDDEN_KEYS = /^(cpf|pis|pispasep|pis_pasep|nis|nit|rg|documento)$/i;
+// Esquema permitido: qualquer chave fora destas listas bloqueia (evita documentos escondidos em campos novos).
+const TOP_KEYS = new Set(["action", "arquivo", "periodoInicio", "periodoFim", "funcionarios", "attempt_id"]);
+const FUNC_KEYS = new Set(["codigo", "nome", "matricula", "departamento", "funcao", "dias", "totais"]);
+const DIA_KEYS = new Set(["dia", "jornada", "marcacoes", "trabalhadas", "extras", "faltas", "situacao", "observacao"]);
+const TOT_KEYS = new Set(["trabalhadas", "extras", "faltas"]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ImportPlan {
-  periodoInicio: string; periodoFim: string; arquivo: string | null;
+  attemptId: string; periodoInicio: string; periodoFim: string; arquivo: string | null;
   employees: Row[]; daily: Row[]; occurrences: Row[];
   counts: { funcionarios: number; dias: number; ocorrencias: number };
 }
@@ -22,12 +27,12 @@ export function isRealDate(s: unknown): s is string {
 export const toMin = (v: string) => { const [h, m] = v.split(":").map(Number); return h * 60 + m; };
 const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
-function scanForbidden(v: unknown, path: string, errs: string[]) {
-  if (Array.isArray(v)) v.forEach((x, i) => scanForbidden(x, `${path}[${i}]`, errs));
-  else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) {
+function checkKeys(o: unknown, allowed: Set<string>, path: string, errs: string[]) {
+  if (!o || typeof o !== "object" || Array.isArray(o)) return;
+  for (const k of Object.keys(o)) {
     if (FORBIDDEN_KEYS.test(k)) errs.push(`Campo proibido (${k}) em ${path}. CPF/PIS não podem ser enviados.`);
-    scanForbidden(x, `${path}.${k}`, errs);
-  } else if (typeof v === "string" && DOC_LIKE.test(v) && !/^\d{1,3}:\d{2}$/.test(v)) errs.push(`Valor com formato de documento em ${path}.`);
+    else if (!allowed.has(k)) errs.push(`Campo não permitido (${k}) em ${path}.`);
+  }
 }
 
 /** Texto opcional: null se vazio; erro se não for texto ou exceder o limite (sem truncar). */
@@ -46,7 +51,12 @@ function dur(v: unknown, label: string, errs: string[]): string | null {
 
 export function validateReport(body: Row, nowIso = new Date().toISOString()): ValidationResult {
   const errs: string[] = [];
-  scanForbidden(body, "relatorio", errs);
+  checkKeys(body, TOP_KEYS, "relatorio", errs);
+  if (!(typeof body.attempt_id === "string" && UUID.test(body.attempt_id))) errs.push("Identificador da tentativa (attempt_id) ausente ou inválido.");
+  if (Array.isArray(body.funcionarios)) for (const [i, f] of (body.funcionarios as Row[]).entries()) {
+    checkKeys(f, FUNC_KEYS, `funcionario #${i + 1}`, errs); checkKeys(f?.totais, TOT_KEYS, `funcionario #${i + 1}.totais`, errs);
+    if (Array.isArray(f?.dias)) (f.dias as Row[]).forEach((d, j) => checkKeys(d, DIA_KEYS, `funcionario #${i + 1}.dias[${j}]`, errs));
+  }
   const ini = body.periodoInicio, fim = body.periodoFim;
   if (!isRealDate(ini) || !isRealDate(fim)) errs.push("Período com data inválida.");
   else if (ini > fim) errs.push("Início do período depois do fim.");
@@ -85,7 +95,7 @@ export function validateReport(body: Row, nowIso = new Date().toISOString()): Va
       const bad = rawM.filter(m => typeof m !== "string" || !MARC.test(m));
       if (bad.length) { errs.push(`${who} ${dia}: marcação inválida (${bad.map(String).join(", ")}).`); continue; }
       const marc = rawM as string[];
-      for (let k = 1; k < marc.length; k++) if (marc[k] <= marc[k - 1]) { errs.push(`${who} ${dia}: marcações fora de ordem.`); break; }
+      // Ordem preservada como veio do relatório (jornada noturna pode virar o dia: 22:00, 02:00). Sem reordenar nem rejeitar.
       const sit = d.situacao == null ? "aguardando" : String(d.situacao);
       if (!(SITS as readonly string[]).includes(sit)) { errs.push(`${who} ${dia}: situação inválida (${sit}).`); continue; }
       const L = `${who} ${dia}`;
@@ -106,14 +116,14 @@ export function validateReport(body: Row, nowIso = new Date().toISOString()): Va
   }
   if (errs.length) return { ok: false, errors: errs };
   void nowIso;
-  return { ok: true, plan: { periodoInicio: ini as string, periodoFim: fim as string, arquivo, employees, daily, occurrences, counts: { funcionarios: employees.length, dias: daily.length, ocorrencias: occurrences.length } } };
+  return { ok: true, plan: { attemptId: body.attempt_id as string, periodoInicio: ini as string, periodoFim: fim as string, arquivo, employees, daily, occurrences, counts: { funcionarios: employees.length, dias: daily.length, ocorrencias: occurrences.length } } };
 }
 
-/** Chave de idempotência: mesmo conteúdo => mesma chave (repetição após timeout não regrava). */
+/** Hash do conteúdo: confere que a repetição de uma tentativa traz o MESMO conteúdo (não serve para deduplicar para sempre). */
 export function canonicalPlan(p: ImportPlan): string {
   return JSON.stringify({ i: p.periodoInicio, f: p.periodoFim, e: p.employees, d: p.daily, o: p.occurrences });
 }
-export async function idempotencyKey(p: ImportPlan): Promise<string> {
+export async function contentHash(p: ImportPlan): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalPlan(p)));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
