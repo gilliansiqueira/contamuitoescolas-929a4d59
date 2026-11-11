@@ -1,0 +1,1 @@
+- Sponte card rows (not yet charged) and maquininha rows (already charged) are different students and always coexist; `sponteCardGuard.ts` only flags same-value/same-month suspects and each upload replaces only its own origin — to never drop real receivables.

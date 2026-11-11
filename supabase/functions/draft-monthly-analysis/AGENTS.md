@@ -1,0 +1,1 @@
+- Rascunho da análise mensal (`draft-monthly-analysis`) recebe só fatos da SSOT montados em `src/lib/reportNarrativeFacts.ts` (tipos `relatorio`/`projecao`, salvos por `kind`); a IA apenas redige e números fora dos fatos geram aviso — para nenhum número vir da IA.
