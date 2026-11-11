@@ -85,3 +85,24 @@ describe('texto da projeção usa os números do Fluxo Diário', () => {
     expect(f).toContain('fim do mês R$ 31.000,00');
   });
 });
+
+import { commercialFacts, paymentMethodFacts } from '@/lib/reportNarrativeFacts';
+describe('commercialFacts', () => {
+  it('Joinville Norte setembro: 47 → 10 (21,3%) e compara com histórico', () => {
+    const conv = [{ month: '2026-09', tipo: 'receptivo', contatos: 47, matriculas: 10 }, { month: '2026-09', tipo: 'ativo', contatos: 1, matriculas: 0 }];
+    const hist = [{ year: 2025, month: 9, metric: 'matriculas', value: 10 }, { year: 2025, month: 9, metric: 'contatos_receptivos', value: 61 }];
+    const l = commercialFacts('2026-09', conv, hist).join('\n');
+    expect(l).toContain('47 contatos → 10 matrículas (21,3% de conversão)');
+    expect(l).toContain('1 contatos → 0 matrículas (sem conversão)'.replace('sem conversão', '0,0% de conversão'));
+    expect(l).toContain('mesmo mês do ano anterior: 61 contatos e 10 matrículas (igual');
+  });
+  it('sem lançamento no mês não gera fatos', () => {
+    expect(commercialFacts('2026-09', [])).toEqual([]);
+  });
+});
+describe('paymentMethodFacts', () => {
+  it('percentuais por forma', () => {
+    const l = paymentMethodFacts('2026-09', [{ month: '2026-09', method_key: 'boleto', value: 75 }, { month: '2026-09', method_key: 'pix', value: 25 }], [{ method_key: 'boleto', label: 'Boleto' }, { method_key: 'pix', label: 'PIX' }]);
+    expect(l[0]).toContain('Boleto 75,00%; PIX 25,00%');
+  });
+});

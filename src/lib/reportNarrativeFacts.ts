@@ -249,3 +249,60 @@ export function profitabilityFacts(p: { operacional: number | null; total: numbe
   }
   return L;
 }
+
+export interface ConversionRow { month: string; tipo: string; contatos: number; matriculas: number }
+export interface CommercialHistoryRow { year: number; month: number; metric: string; value: number }
+
+/** Comercial do mês (receptivo/ativo) + comparação com o ano anterior (plataforma ou histórico importado). */
+export function commercialFacts(month: string, conv: ConversionRow[], hist: CommercialHistoryRow[] = []): string[] {
+  const L: string[] = [];
+  const rowsOf = (m: string) => conv.filter(r => String(r.month).slice(0, 7) === m);
+  const cur = rowsOf(month);
+  if (!cur.length) return L;
+  const conv1 = (c: number, m: number) => (c ? `${num(Math.round((m / c) * 1000) / 10, 1)}% de conversão` : 'sem conversão');
+  for (const tipo of ['receptivo', 'ativo']) {
+    const r = cur.find(x => x.tipo === tipo);
+    if (!r) continue;
+    L.push(`Comercial ${tipo === 'receptivo' ? 'Receptivo' : 'Ativo'}: ${r.contatos} contatos → ${r.matriculas} matrículas (${conv1(Number(r.contatos), Number(r.matriculas))}).`);
+  }
+  const totM = cur.reduce((a, r) => a + Number(r.matriculas || 0), 0);
+  const totC = cur.reduce((a, r) => a + Number(r.contatos || 0), 0);
+  L.push(`Comercial total do mês: ${totC} contatos e ${totM} matrículas.`);
+  // Ano anterior: plataforma se houver lançamento; senão histórico importado.
+  const yearTotals = (year: number, upTo: number) => {
+    let c = 0, m = 0, found = false;
+    const yConv = conv.filter(r => String(r.month).startsWith(`${year}-`));
+    if (yConv.length) {
+      for (const r of yConv) if (Number(String(r.month).slice(5, 7)) <= upTo) { c += Number(r.contatos || 0); m += Number(r.matriculas || 0); found = true; }
+    } else {
+      for (const h of hist) if (h.year === year && h.month <= upTo) {
+        if (h.metric === 'matriculas') m += Number(h.value); else c += Number(h.value);
+        found = true;
+      }
+    }
+    return found ? { c, m } : null;
+  };
+  const y = Number(month.slice(0, 4)), mo = Number(month.slice(5, 7));
+  const sameLy = (() => {
+    const lyRows = rowsOf(`${y - 1}-${month.slice(5, 7)}`);
+    if (lyRows.length) return { c: lyRows.reduce((a, r) => a + Number(r.contatos || 0), 0), m: lyRows.reduce((a, r) => a + Number(r.matriculas || 0), 0) };
+    const hs = hist.filter(h => h.year === y - 1 && h.month === mo);
+    if (!hs.length) return null;
+    return { c: hs.filter(h => h.metric !== 'matriculas').reduce((a, h) => a + Number(h.value), 0), m: hs.filter(h => h.metric === 'matriculas').reduce((a, h) => a + Number(h.value), 0) };
+  })();
+  if (sameLy) L.push(`Comercial no mesmo mês do ano anterior: ${sameLy.c} contatos e ${sameLy.m} matrículas (${totM > sameLy.m ? 'acima' : totM < sameLy.m ? 'abaixo' : 'igual'} em matrículas).`);
+  const a = yearTotals(y, mo), b = yearTotals(y - 1, mo);
+  if (a && b) L.push(`Comercial acumulado do ano: ${a.m} matrículas e ${a.c} contatos; mesmo período do ano anterior: ${b.m} matrículas e ${b.c} contatos (${a.m > b.m ? 'acima' : a.m < b.m ? 'abaixo' : 'igual'} do ano anterior em matrículas).`);
+  return L;
+}
+
+/** Participação de cada forma de pagamento nas vendas do mês (tela Vendas). */
+export function paymentMethodFacts(month: string, sales: { month: string; method_key: string; value: number }[], methods: { method_key: string; label: string }[]): string[] {
+  const by = new Map<string, number>();
+  for (const s of sales) if (String(s.month).slice(0, 7) === month) by.set(s.method_key, (by.get(s.method_key) ?? 0) + Number(s.value || 0));
+  const total = [...by.values()].reduce((a, b) => a + b, 0);
+  if (!total) return [];
+  const parts = [...by.entries()].filter(([, v]) => v).sort((x, y) => y[1] - x[1])
+    .map(([k, v]) => `${methods.find(m => m.method_key === k)?.label ?? k} ${num(Math.round((v / total) * 10000) / 100, 2)}%`);
+  return [`Forma de pagamento (participação nas vendas do mês): ${parts.join('; ')}.`];
+}

@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { CheckCircle2, Circle, Copy, MinusCircle, Sparkles, Loader2 } from 'lucide-react';
 import { useProjectedEntries } from '@/hooks/useProjectedEntries';
 import { useTypeClassifications } from '@/hooks/useFinancialData';
-import { buildReportFacts, buildProjectionFacts, unknownNumbers, profitabilityFacts, type KpiSeries } from '@/lib/reportNarrativeFacts';
+import { buildReportFacts, buildProjectionFacts, unknownNumbers, profitabilityFacts, commercialFacts, paymentMethodFacts, type KpiSeries } from '@/lib/reportNarrativeFacts';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
 import { buildMonthMovement, resolveMonthSource, computeSaldoInicial } from '@/lib/periodMovement';
 import { dailyFlowByMonth } from '@/lib/reportNarrativeFacts';
@@ -204,6 +204,21 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
     },
   });
 
+  const { data: extraFacts } = useQuery({
+    queryKey: ['report-analysis-commercial', schoolId],
+    enabled: kind === 'relatorio',
+    queryFn: async () => {
+      const db = supabase as any;
+      const [conv, hist, sales, methods] = await Promise.all([
+        db.from('conversion_data').select('month, tipo, contatos, matriculas').eq('school_id', schoolId),
+        db.from('commercial_history_monthly').select('year, month, metric, value').eq('school_id', schoolId),
+        db.from('sales_data').select('month, method_key, value').eq('school_id', schoolId),
+        db.from('sales_payment_methods').select('method_key, label').eq('school_id', schoolId),
+      ]);
+      return { conv: conv.data ?? [], hist: hist.data ?? [], sales: sales.data ?? [], methods: methods.data ?? [] };
+    },
+  });
+
   const save = useMutation({
     mutationFn: async (content: string) => {
       const { data: auth } = await supabase.auth.getUser();
@@ -243,7 +258,10 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
           const kp = profLines.length || ri ? kpis.filter(k => !/lucrativ/i.test(k.name)) : kpis;
           if (!mv) return [];
           const totalsFor = (m: string) => { const x = m === month ? mv : buildMonthMovement(m, ctx, { isInModel }); return x.source === 'vazio' ? { receitas: 0, despesas: 0 } : { receitas: x.receitas, despesas: x.despesas }; };
-          return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp, receitaIntegral: ri, totalsFor }), ...profLines];
+          return [...buildReportFacts({ schoolName, month, entries, classifications, kpis: kp, receitaIntegral: ri, totalsFor }), ...profLines,
+            ...(extraFacts ? commercialFacts(month, extraFacts.conv, extraFacts.hist) : []),
+            // Forma de pagamento no texto só nas Joinville (pedido da equipe).
+            ...(extraFacts && /joinville/i.test(schoolName) ? paymentMethodFacts(month, extraFacts.sales, extraFacts.methods) : [])];
         })()
       : (() => {
           // Mesmos números do Fluxo Diário (realizado até o último dia com movimento + previsto depois).
@@ -260,7 +278,7 @@ export function ReportAnalysis({ schoolId, schoolName, month, monthLabel }: { sc
           return buildProjectionFacts({ schoolName, closedMonth: month, entries, classifications, saldoInicial, today, bankBase: projExtra?.bankBase, simulation: projExtra?.simulation, flow });
         })();
     return lines.join('\n');
-  }, [kind, entries, rawEntries, classifications, kpis, month, schoolName, saldoInicial, ctx, isInModel, mvLoading, integral, projExtra]);
+  }, [kind, entries, rawEntries, classifications, kpis, month, schoolName, saldoInicial, ctx, isInModel, mvLoading, integral, projExtra, extraFacts]);
 
   const warnings = useMemo(() => (text && lastFacts ? unknownNumbers(text, lastFacts) : []), [text, lastFacts]);
 
