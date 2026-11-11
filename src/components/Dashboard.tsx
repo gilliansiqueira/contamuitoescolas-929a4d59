@@ -84,6 +84,22 @@ function applyDelays(entries: FinancialEntry[], rules: { formaCobranca: string; 
 
 // resolveTipoMeta agora vem de @/lib/tipoMeta (SSOT).
 
+/** Recebimento por categoria e Produtos mais vendidos: mesmos dados das telas, sem recálculo financeiro. */
+async function loadReportExtras(schoolId: string, months: string[], refMonth: string) {
+  const sel = months.length ? months : refMonth ? [refMonth] : [];
+  if (!sel.length) return { receivableCategories: [], topProducts: [], topProductsMonth: refMonth };
+  const [cats, vals, prods] = await Promise.all([
+    supabase.from('receivable_categories').select('id, name').eq('school_id', schoolId).eq('active', true).order('sort_order').order('created_at'),
+    supabase.from('receivable_category_values').select('category_id, value').eq('school_id', schoolId).in('month', sel),
+    supabase.from('product_sales_monthly').select('produto, valor, quantidade, ranking').eq('school_id', schoolId).eq('month', refMonth),
+  ]);
+  const totals = new Map<string, number>();
+  (vals.data ?? []).forEach((v: any) => totals.set(v.category_id, (totals.get(v.category_id) ?? 0) + Number(v.value)));
+  const receivableCategories = (cats.data ?? []).map((c: any) => ({ name: c.name as string, value: totals.get(c.id) ?? 0 })).filter(c => c.value !== 0);
+  const topProducts = (prods.data ?? []).map((r: any) => ({ produto: r.produto as string, valor: Number(r.valor), quantidade: Number(r.quantidade), ranking: r.ranking as 'valor' | 'quantidade' }));
+  return { receivableCategories, topProducts, topProductsMonth: refMonth };
+}
+
 export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { isPresentationMode } = usePresentation();
   useAutoProfitability(schoolId);
@@ -1030,6 +1046,7 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       currentYear,
       previousYear,
       referenceMonth: finalSelectedMonth,
+      ...(await loadReportExtras(schoolId, selectedMonths, finalSelectedMonth)),
       sources: Array.from(new Set(monthly.map(row => row.source))),
       fileName: `relatorio-geral-${selectedMonths[0] || 'periodo'}-${selectedMonths[selectedMonths.length - 1] || 'completo'}`,
     };

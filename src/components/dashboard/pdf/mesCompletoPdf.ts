@@ -63,6 +63,9 @@ export interface MesCompletoData {
   conversionThresholds: ConversionThresholdReportRow[]; enrollmentsYoY: { label: string; current: number; previous: number }[];
   annualEnrollments: AnnualFinancialRow[]; annualContacts: AnnualFinancialRow[]; currentYear: string; previousYear: string; referenceMonth: string;
   sources: string[]; fileName?: string;
+  receivableCategories?: { name: string; value: number }[];
+  topProducts?: { produto: string; valor: number; quantidade: number; ranking: 'valor' | 'quantidade' }[];
+  topProductsMonth?: string;
 }
 
 export function sumAnnualThroughReference(row: AnnualFinancialRow, referenceMonth: string): number {
@@ -399,6 +402,37 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
       text(group.tipo.toUpperCase(), x, 48, 14, ORANGE, 'bold');
       metric(x, 57, 44, 'Contatos', fmtNumber(contacts), TEAL); metric(x + 49, 57, 44, 'Matrículas', fmtNumber(enrollments), ORANGE); metric(x + 98, 57, 44, 'Conversão', `${fmtNumber(rate, 1)}%`, GREEN);
       lineChart([{ values: group.rows.map(row => row.contatos), color: TEAL }, { values: group.rows.map(row => row.matriculas), color: ORANGE }], group.rows.map(row => row.label), x, 103, 142, 45, true);
+    });
+  }
+
+  const cats = (data.receivableCategories ?? []).slice().sort((x, y) => y.value - x.value);
+  if (cats.length) {
+    const total = cats.reduce((sum, c) => sum + c.value, 0);
+    addPage('Recebimento por categoria', `${data.periodoLabel} · total ${fmtBRL(total)}`);
+    let y = 48;
+    cats.slice(0, 22).forEach(c => {
+      text(c.name, MX, y, 9, WHITE);
+      text(total ? `${fmtNumber(c.value / total * 100, 1)}%` : '—', PAGE_W - MX - 50, y, 9, MUTED, 'normal', { align: 'right' });
+      text(fmtBRL(c.value), PAGE_W - MX, y, 9, WHITE, 'bold', { align: 'right' });
+      y += 6;
+    });
+    text('Total', MX, y + 2, 9.5, ORANGE, 'bold'); text(fmtBRL(total), PAGE_W - MX, y + 2, 9.5, ORANGE, 'bold', { align: 'right' });
+  }
+  const prods = data.topProducts ?? [];
+  if (prods.length) {
+    const ref = data.topProductsMonth ?? data.referenceMonth;
+    addPage('Produtos mais vendidos', `${MONTHS[Number(ref.slice(5, 7)) - 1] ?? ''}/${ref.slice(0, 4)}`);
+    const half = (PAGE_W - MX * 2) / 2;
+    (['valor', 'quantidade'] as const).forEach((rk, i) => {
+      const x = MX + i * half; const w = half - 8;
+      const rows = prods.filter(p => p.ranking === rk).sort((a, b) => rk === 'valor' ? b.valor - a.valor : b.quantidade - a.quantidade).slice(0, 15);
+      text(rk === 'valor' ? 'Por valor' : 'Por quantidade', x, 46, 12, rk === 'valor' ? ORANGE : TEAL, 'bold');
+      if (!rows.length) { text('Sem dados neste mês', x, 55, 9, MUTED); return; }
+      rows.forEach((p, idx) => {
+        const y = 55 + idx * 6;
+        text(`${idx + 1}. ${p.produto}`, x, y, 8.5, WHITE, 'normal', { maxWidth: w - 45 });
+        text(rk === 'valor' ? fmtBRL(p.valor) : `${fmtNumber(p.quantidade)} un.`, x + w, y, 8.5, WHITE, 'bold', { align: 'right' });
+      });
     });
   }
 

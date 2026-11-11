@@ -50,7 +50,7 @@ export function ExportMesCompletoPdf({ buildData, ready = true }: Props) {
         <AlertDialogHeader>
           <AlertDialogTitle>Gerar relatório geral?</AlertDialogTitle>
           <AlertDialogDescription>
-            O PDF usará o período selecionado e incluirá resumo financeiro, evolução do saldo, despesas detalhadas, indicadores, conversão, matrículas e anexos.
+            O PDF usará o período selecionado e incluirá resumo financeiro, evolução do saldo, despesas detalhadas, indicadores, conversão, matrículas, recebimento por categoria e produtos mais vendidos (quando houver) e anexos.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
