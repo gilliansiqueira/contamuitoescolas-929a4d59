@@ -1,4 +1,8 @@
 import { isQuintal } from '@/lib/quintal';
+import { useIntegralRevenue } from '@/hooks/useAutoProfitability';
+import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
+import { buildMonthMovement } from '@/lib/periodMovement';
+import { resolveFaturamentoMes, type FaturamentoOrigem } from '@/lib/faturamentoSugerido';
 import { RelatorioRealizadoQuintal } from './RelatorioRealizado.quintal';
 import { useRealizedEntries } from '@/hooks/useRealizedEntries';
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
@@ -385,11 +389,25 @@ function RelatorioRealizadoBase({ schoolId }: Props) {
     });
   }, [entries, effectiveMonths.join(',')]);
 
-  const currentRevenue = useMemo(() => {
-    return revenues
-      .filter(r => effectiveMonths.includes(r.month))
-      .reduce((s, r) => s + (r.value || 0), 0);
-  }, [revenues, effectiveMonths.join(',')]);
+  const { values: integralRevenue } = useIntegralRevenue(schoolId);
+  const { ctx: mvCtx, isInModel: mvInModel, isLoading: mvLoading } = usePeriodMovementCtx(schoolId);
+  const { currentRevenue, revenueOrigem } = useMemo(() => {
+    let total = 0;
+    const origens = new Set<FaturamentoOrigem>();
+    for (const m of effectiveMonths) {
+      const salvo = revenues.filter(r => r.month === m).reduce((s, r) => s + (r.value || 0), 0);
+      let plataforma = 0;
+      if (!(salvo > 0) && !(integralRevenue[m] > 0) && !mvLoading) {
+        const mv = buildMonthMovement(m, mvCtx, { isInModel: mvInModel });
+        if (mv.source !== 'vazio') plataforma = mv.receitasRealizadas ?? mv.receitas;
+      }
+      const r = resolveFaturamentoMes(salvo, integralRevenue[m], plataforma);
+      total += r.valor;
+      if (r.origem !== 'vazio') origens.add(r.origem);
+    }
+    const origem: FaturamentoOrigem = origens.has('plataforma') ? 'plataforma' : origens.has('integral') ? 'integral' : origens.has('salvo') ? 'salvo' : 'vazio';
+    return { currentRevenue: total, revenueOrigem: origem };
+  }, [revenues, integralRevenue, mvCtx, mvInModel, mvLoading, effectiveMonths.join(',')]);
 
   useMemo(() => {
     if (currentRevenue > 0 && !editingFat) {
@@ -721,6 +739,11 @@ function RelatorioRealizadoBase({ schoolId }: Props) {
                 <div>
                   <p className="text-xs text-muted-foreground font-medium">Faturamento do mês</p>
                   <p className="text-xs text-muted-foreground/70">{activeMes ? formatMonth(activeMes) : '—'}</p>
+                  {!editingFat && (revenueOrigem === 'integral' || revenueOrigem === 'plataforma') && (
+                    <p className="text-[10px] font-medium text-primary">
+                      {revenueOrigem === 'integral' ? 'Receita integral' : 'Receita do mês (plataforma)'}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-1 max-w-xs">
