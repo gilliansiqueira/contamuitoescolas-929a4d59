@@ -1,4 +1,5 @@
 import { buildCommercialHistory } from '@/lib/commercialHistory';
+import { fillRevenueWithHistory } from '@/lib/revenueHistory';
 import { useHistoricalRows } from '@/hooks/useHistoricalRows';
 import { isQuintal } from '@/lib/quintal';
 import { SaldosBancosCard } from '@/components/dashboard/SaldosBancosCard';
@@ -1015,7 +1016,11 @@ export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
       contasPagar: Object.values(pagMap).filter(p => p.valor > 0).slice(0, 60),
       anterior,
       monthly,
-      annualRevenue: buildAnnual('receitas'),
+      ...(await (async () => {
+        const { data: rh } = await supabase.from('revenue_history_monthly').select('month, value').eq('school_id', schoolId);
+        const filled = fillRevenueWithHistory(buildAnnual('receitas'), (rh ?? []) as any[], finalSelectedMonth);
+        return { annualRevenue: filled.rows, revenueHistoryMonths: filled.historyMonths };
+      })()),
       annualExpenses: buildAnnual('despesas'),
       annualResult: buildAnnual('resultado'),
 

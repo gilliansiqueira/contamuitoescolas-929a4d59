@@ -4864,6 +4864,47 @@ export type Database = {
           },
         ]
       }
+      revenue_history_monthly: {
+        Row: {
+          id: string
+          imported_at: string
+          month: string
+          school_id: string
+          source_file: string | null
+          source_kind: string
+          updated_by: string | null
+          value: number
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          month: string
+          school_id: string
+          source_file?: string | null
+          source_kind?: string
+          updated_by?: string | null
+          value: number
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          month?: string
+          school_id?: string
+          source_file?: string | null
+          source_kind?: string
+          updated_by?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_history_monthly_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sa_icons: {
         Row: {
           created_at: string

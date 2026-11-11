@@ -38,4 +38,4 @@
 - Integração Olist ERP: ver supabase/functions/olist-sync/AGENTS.md.
 - Acquirer connectors: see supabase/functions/mercadopago-sync/AGENTS.md.
 - Visão de outras carteiras (pendências, atrasos, gerência) só para super_admin ou `user_permissions.team_oversight` via `can_oversee_team()` nas RPCs da Central; `admin_scope='all'` só libera entrar nas empresas — para a equipe ajudar sem ver números das colegas.
-- Histórico comercial: anos antigos em `commercial_history_monthly`; anos com `conversion_data` usam a plataforma (`commercialHistory.ts`) — sem sobrepor lançados.
+- Histórico comercial: anos antigos em `commercial_history_monthly` (receitas antigas em `revenue_history_monthly`, só em meses sem movimento); anos com `conversion_data` usam a plataforma (`commercialHistory.ts`) — sem sobrepor lançados.

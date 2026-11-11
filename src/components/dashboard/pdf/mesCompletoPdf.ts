@@ -66,6 +66,7 @@ export interface MesCompletoData {
   receivableCategories?: { name: string; value: number }[];
   topProducts?: { produto: string; valor: number; quantidade: number; ranking: 'valor' | 'quantidade' }[];
   topProductsMonth?: string;
+  revenueHistoryMonths?: string[];
   commercialHistory?: { metric: string; year: string; months: (number | null)[] }[];
 }
 
@@ -299,6 +300,10 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
   text(topExpense ? `${topExpense.mae} concentra ${fmtBRL(topExpense.valor)} no período.` : 'Não há despesas detalhadas conciliadas para o período.', MX, 150, 13, WHITE, 'bold');
 
   annualComparisonPage('Evolução de receitas', data.annualRevenue);
+  if (data.revenueHistoryMonths?.length) {
+    const names = data.revenueHistoryMonths.map(m => MONTHS[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4)).join(', ');
+    text(`Meses vindos de relatórios anteriores à plataforma: ${names}`, MX, PAGE_H - 14, 6.5, MUTED);
+  }
   annualComparisonPage('Evolução de despesas', data.annualExpenses);
   if (data.annualResult?.length) annualComparisonPage('Evolução do resultado', data.annualResult);
 
