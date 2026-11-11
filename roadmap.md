@@ -23,3 +23,8 @@
 - [ ] Acessos e senhas: promoção (aguarda aprovação da Bruna)
 - [x] Extratos: proteção só bloqueia conta comprovadamente errada; PDF/OCR e cadastros incompletos voltam a importar com aviso
 - [ ] Extratos: publicar a tela nova (aguarda revisão e publicação pela Bruna)
+
+## Ather (plano aprovado 11/11)
+- [x] Lançar despesas e obras de set/out (Conta Azul, data de pagamento)
+- [ ] Novas páginas do relatório (resultado por obra, rankings, evolução, obra x estrutura, atrasos)
+- [ ] Conta Azul ler/enviar — aguardando app e chaves do Conta Azul
