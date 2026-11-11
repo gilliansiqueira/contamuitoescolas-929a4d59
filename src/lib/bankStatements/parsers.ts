@@ -95,7 +95,7 @@ function finish(formato: BankParseResult['formato'], txs: ParsedBankTx[], extra:
 
 export function parseOFX(content: string): BankParseResult {
   const txs: ParsedBankTx[] = [];
-  let bloqN = 0, bloqT = 0;
+  let bloqN = 0, bloqT = 0, saldoN = 0;
   const bank = content.match(/<BANKID>([^<\r\n]+)/i)?.[1]?.trim();
   const bradSeen = new Set<string>(); let bradDup = 0;
   for (const s of content.matchAll(/<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>)|(?=<\/BANKTRANLIST>))/gi)) {
@@ -112,6 +112,8 @@ export function parseOFX(content: string): BankParseResult {
       if (bradSeen.has(k)) { bradDup++; continue; }
       bradSeen.add(k);
     }
+    // Relatórios "Entradas e Saídas" (ex.: Itaú) trazem linhas de saldo como transação: nunca são movimento.
+    if (/^saldo\b/i.test(memo)) { saldoN++; continue; }
     if (valor > 0 && BLOCKED_DEPOSIT_RE.test(memo)) { bloqN++; bloqT += valor; continue; }
     txs.push({ data, descricao: memo || 'Transação', valor: Math.abs(valor), tipo: valor < 0 ? 'saida' : 'entrada', bankRef: fitid || undefined });
   }
@@ -131,6 +133,7 @@ export function parseOFX(content: string): BankParseResult {
   const fileEnd = toIsoDate(content.match(/<DTEND>([^<\r\n]+)/i)?.[1] ?? '');
   const chequeAindaRetido = !fileEnd || fileEnd <= lastDate;
   const chequesComp = chequeAindaRetido ? txs.filter(t => t.data === lastDate && t.tipo === 'entrada' && /^cheque recebido/i.test(t.descricao)) : [];
+  if (saldoN) avisosExtra.push(`${saldoN} linha(s) de saldo ignorada(s): não são lançamentos.`);
   if (saldoFinal !== undefined && chequesComp.length) {
     const soma = Math.round(chequesComp.reduce((s, t) => s + t.valor, 0) * 100) / 100;
     saldoFinal = Math.round((saldoFinal + soma) * 100) / 100;
