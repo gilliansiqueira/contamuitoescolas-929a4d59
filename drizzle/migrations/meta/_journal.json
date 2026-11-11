@@ -841,6 +841,13 @@
       "when": 1794352370769,
       "tag": "0119_bank_identity_warn_not_block",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1794406522279,
+      "tag": "0120_commercial_history_monthly",
+      "breakpoints": true
     }
   ]
 }

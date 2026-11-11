@@ -66,6 +66,7 @@ export interface MesCompletoData {
   receivableCategories?: { name: string; value: number }[];
   topProducts?: { produto: string; valor: number; quantidade: number; ranking: 'valor' | 'quantidade' }[];
   topProductsMonth?: string;
+  commercialHistory?: { metric: string; year: string; months: (number | null)[] }[];
 }
 
 export function sumAnnualThroughReference(row: AnnualFinancialRow, referenceMonth: string): number {
@@ -438,6 +439,22 @@ export async function generateMesCompletoPdf(data: MesCompletoData) {
 
   annualComparisonPage('Matrículas por ano', data.annualEnrollments, 'count');
   annualComparisonPage('Contatos por ano', data.annualContacts, 'count');
+
+  const historyTitles: [string, string][] = [['contatos_receptivos', 'Contatos receptivos'], ['contatos_ativos', 'Contatos ativos'], ['matriculas', 'Matrículas']];
+  const yearPalette: RGB[] = [[230, 57, 70], [244, 196, 48], [82, 183, 136], [67, 139, 246], [42, 157, 143], [244, 132, 54], [255, 255, 255]];
+  historyTitles.forEach(([metric, title]) => {
+    const rows = (data.commercialHistory ?? []).filter(r => r.metric === metric && r.months.some(v => v !== null)).sort((a, b) => a.year.localeCompare(b.year)).slice(-7);
+    if (rows.length < 2) return;
+    addPage(`${title} · histórico`, `${rows[0].year} a ${rows[rows.length - 1].year} · um traço por ano`);
+    const colors = rows.map((_, i) => yearPalette[(yearPalette.length - rows.length + i) % yearPalette.length]);
+    lineChart(rows.map((r, i) => ({ values: r.months, color: colors[i] })), MONTHS, MX + 8, 52, PAGE_W - MX * 2 - 70, 100, true);
+    text('TOTAL NO ANO', PAGE_W - MX - 40, 52, 8, MUTED, 'bold');
+    rows.forEach((r, i) => {
+      const y = 62 + i * 9;
+      pdf.setFillColor(...colors[i]); pdf.circle(PAGE_W - MX - 38, y - 1.2, 1.6, 'F');
+      text(`${r.year}: ${fmtNumber(r.months.reduce<number>((s, v) => s + (v ?? 0), 0))}`, PAGE_W - MX - 34, y, 9, WHITE, 'bold');
+    });
+  });
 
   const totalPages = pdf.getNumberOfPages();
   for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {

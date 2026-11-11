@@ -1767,6 +1767,53 @@ export type Database = {
         }
         Relationships: []
       }
+      commercial_history_monthly: {
+        Row: {
+          id: string
+          imported_at: string
+          metric: string
+          month: number
+          school_id: string
+          source_file: string | null
+          source_kind: string
+          updated_by: string | null
+          value: number
+          year: number
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          metric: string
+          month: number
+          school_id: string
+          source_file?: string | null
+          source_kind?: string
+          updated_by?: string | null
+          value: number
+          year: number
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          metric?: string
+          month?: number
+          school_id?: string
+          source_file?: string | null
+          source_kind?: string
+          updated_by?: string | null
+          value?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_history_monthly_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_entities: {
         Row: {
           cnpj: string
