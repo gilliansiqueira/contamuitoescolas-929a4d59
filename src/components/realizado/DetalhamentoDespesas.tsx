@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { SingleMonthPicker } from '@/components/SingleMonthPicker';
 import { useMonthSync, useRangeSync } from './SharedMonthContext';
 import { ImportarHistoricoCentros } from './ImportarHistoricoCentros';
+import { AnaliseObras } from './AnaliseObras';
 import { useExpenseDetail, useExpenseDetailConfig, type DetailItem, type DetailTipo } from '@/hooks/useExpenseDetail';
 
 interface Props {
@@ -294,6 +295,7 @@ function DetalhamentoDespesasBase({ schoolId }: Props) {
   const pushShared = useMonthSync(selectedList.length === 1 ? selectedList[0] : null, m => setMesFilter(m));
   useRangeSync(mesFilter, r => setMesFilter(r));
 
+  const [showAnalise, setShowAnalise] = useState(false);
   const filtered = useMemo(() => {
     const set = new Set(effectiveMonths);
     return items.filter(i => set.has(i.data?.slice(0, 7)));
@@ -553,6 +555,9 @@ function DetalhamentoDespesasBase({ schoolId }: Props) {
             </div>
           ) : (
             <>
+              <Button size="sm" variant={showAnalise ? 'default' : 'outline'} className="rounded-xl gap-2" onClick={() => setShowAnalise(v => !v)}>
+                <Layers className="w-4 h-4" /> Análise por obra
+              </Button>
               <ImportarHistoricoCentros schoolId={schoolId} groups={groups} items={items} />
               <Button size="sm" variant="outline" className="rounded-xl gap-2" onClick={openSheet}>
                 <Table2 className="w-4 h-4" /> Planilha
@@ -567,6 +572,8 @@ function DetalhamentoDespesasBase({ schoolId }: Props) {
           )}
         </div>
       </div>
+
+      {showAnalise && <AnaliseObras items={filtered} allItems={items} groups={groups} meses={effectiveMonths} />}
 
       {/* Colar do Excel / lista */}
       {showPaste && (

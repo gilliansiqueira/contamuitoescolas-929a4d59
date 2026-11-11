@@ -26,5 +26,6 @@
 
 ## Ather (plano aprovado 11/11)
 - [x] Lançar despesas e obras de set/out (Conta Azul, data de pagamento)
-- [ ] Novas páginas do relatório (resultado por obra, rankings, evolução, obra x estrutura, atrasos)
-- [ ] Conta Azul ler/enviar — aguardando app e chaves do Conta Azul
+- [x] Análise por obra na tela e no PDF (resultado, rankings, evolução, obra x estrutura, destaques)
+- [ ] Contas em atraso — depende do Conta Azul
+- [ ] Conta Azul ler/enviar (Ather + Wizard IC/Leme/SF) — aguardando app e chaves do Conta Azul

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { topObras, topFornecedores, obraVsEstrutura, obrasEmDestaque, evolucaoCategorias } from '@/lib/costCenterAnalytics';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -450,6 +451,38 @@ export async function generateFechamentoPdf({ schoolId, selectedMonth, selectedY
         margin: { left: MARGIN_X, right: MARGIN_X },
       });
       y = (pdf as any).lastAutoTable.finalY + 8;
+      {
+        const ccItems = monthItems.map((i: any) => ({ ...i, valor: Number(i.valor || 0), tipo: i.tipo === 'receita' ? 'receita' : 'despesa' }));
+        const allCc = detailItems.map((i: any) => ({ ...i, valor: Number(i.valor || 0), tipo: i.tipo === 'receita' ? 'receita' : 'despesa' }));
+        const pc = (v: number | null) => (v == null ? '—' : `${(v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`);
+        const tbl = (title: string, head: string[], body: string[][]) => {
+          if (!body.length) return;
+          ensureSpace(30);
+          pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10); pdf.setTextColor(...TEXT);
+          pdf.text(title, MARGIN_X, y); y += 3;
+          autoTable(pdf, {
+            startY: y, head: [head], body, theme: 'striped',
+            headStyles: { fillColor: PRIMARY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+            bodyStyles: { fontSize: 8, textColor: TEXT },
+            columnStyles: Object.fromEntries(head.slice(1).map((_, k) => [k + 1, { halign: 'right' }])),
+            margin: { left: MARGIN_X, right: MARGIN_X },
+          });
+          y = (pdf as any).lastAutoTable.finalY + 6;
+        };
+        const ove = obraVsEstrutura(ccItems, detailGroups);
+        tbl('Obra x estrutura', ['Destino', 'Despesas', '%'], [
+          ['Obras', fmtBRL(ove.obras), pc(ove.pctObras)],
+          ['Estrutura (ATHER ENGENHARIA)', fmtBRL(ove.estrutura), pc(ove.pctEstrutura)],
+        ]);
+        tbl('Top 10 obras por gasto', ['Obra', 'Despesas', '%'], topObras(ccItems, detailGroups).map(r => [r.nome, fmtBRL(r.valor), pc(r.pct)]));
+        tbl('Top 10 fornecedores', ['Fornecedor', 'Despesas', '%'], topFornecedores(ccItems).map(r => [r.nome, fmtBRL(r.valor), pc(r.pct)]));
+        const prev = previousMonth(selectedYear, selectedMonth);
+        tbl('Maiores categorias (mês x anterior)', ['Categoria', 'Anterior', 'Mês', 'Var.'],
+          evolucaoCategorias(allCc.filter((i: any) => [prev, monthStr].some(m => String(i.data).startsWith(m))), [prev, monthStr])
+            .map(e => [e.categoria, fmtBRL(e.valores[0]), fmtBRL(e.valores[1]), pc(e.variacao)]));
+        tbl('Obras em destaque (+30% sobre a média anterior)', ['Obra', 'Mês', 'Média anterior', 'Var.'],
+          obrasEmDestaque(allCc, detailGroups, monthStr).slice(0, 10).map(d => [d.nome, fmtBRL(d.atual), fmtBRL(d.media), `+${pc(d.variacao)}`]));
+      }
       for (const r of resumo) {
         const grouped = groupCostCenterPdfItems(r.its);
         const totalMovements = r.rec + r.desp;
