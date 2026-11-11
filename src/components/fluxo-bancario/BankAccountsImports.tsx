@@ -193,6 +193,23 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       }
       // PDF sem identificador do banco: não regravar o que já veio por outro arquivo (ex.: OFX)
       // com mesma data, valor e sentido — contando ocorrências, para não descartar lançamentos iguais legítimos.
+      // Demais formatos sem identificador: a linha antiga pode ter outra "impressão digital" (leitura/encoding
+      // diferente do mesmo extrato). Mesmo dia + sentido + valor + texto equivalente = já existe, uma por vez.
+      if (result.formato !== 'pdf') {
+        const efet = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && !x.t.bankRef && !existing.has(hashes[x.i]));
+        if (efet.length) {
+          const datas = efet.map(x => x.t.data).sort();
+          const { data: prev } = await db.from('bank_transactions').select('id, data, valor, tipo, descricao').eq('account_id', accountId)
+            .eq('is_forecast', false).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const pool = new Map<string, { id: string; descricao: string }[]>();
+          (prev ?? []).forEach((r: any) => { if (claimed.has(r.id)) return; const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r]); });
+          efet.forEach(({ t, i }) => {
+            const ids = pool.get(`${t.data}|${t.tipo}|${t.valor.toFixed(2)}`);
+            const pos = ids?.findIndex(r => sameBankEntryText(r.descricao ?? '', t.descricao)) ?? -1;
+            if (ids && pos >= 0) { const [r] = ids.splice(pos, 1); claimed.add(r.id); existing.add(hashes[i]); }
+          });
+        }
+      }
       if (result.formato === 'pdf') {
         const efet = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && !x.t.bankRef && !existing.has(hashes[x.i]));
         if (efet.length) {
