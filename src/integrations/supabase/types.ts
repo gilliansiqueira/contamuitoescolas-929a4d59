@@ -6634,6 +6634,18 @@ export type Database = {
         Args: { _bank: string; _code?: string }
         Returns: string
       }
+      bank_tx_auto_recon_eligible: {
+        Args: {
+          _desc: string
+          _forecast: boolean
+          _item: string
+          _mk: string
+          _pair: string
+          _school: string
+          _tipo: string
+        }
+        Returns: boolean
+      }
       can_manage_collaborator: { Args: { _user_id: string }; Returns: boolean }
       can_manage_collaborators: { Args: never; Returns: boolean }
       can_oversee_team: { Args: never; Returns: boolean }

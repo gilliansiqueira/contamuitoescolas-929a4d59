@@ -855,6 +855,13 @@
       "when": 1794406958298,
       "tag": "0121_revenue_history_monthly",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1794498185751,
+      "tag": "0122_joinville_auto_recon_pix_ted_despesas",
+      "breakpoints": true
     }
   ]
 }

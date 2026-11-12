@@ -34,3 +34,4 @@
 - Acquirer connectors: see supabase/functions/mercadopago-sync/AGENTS.md.
 - Visão de outras carteiras (pendências, atrasos, gerência) só para super_admin ou `user_permissions.team_oversight` via `can_oversee_team()` nas RPCs da Central; `admin_scope='all'` só libera entrar nas empresas — para a equipe ajudar sem ver números das colegas.
 - Histórico: anos antigos em `commercial_history_monthly`, receitas antigas em `revenue_history_monthly`; nunca sobrepõem dados da plataforma.
+- Auto-conciliação bancária por empresa via `school_features.auto_recon_pix_ted_despesas` (trigger `bank_tx_force_pending`/`bank_tx_auto_recon_on_item`): só PIX/TED/saídas com item do modelo, movimento normal e sem par — para poupar trabalho sem conciliar algo sem classificação.
