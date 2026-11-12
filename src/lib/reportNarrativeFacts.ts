@@ -40,6 +40,17 @@ function expenseByCategory(entries: ProjectedEntry[], months: string[], cls: Cls
   }
   return map;
 }
+/** Maiores aumentos e reduções por categoria (base = valores de comparação). */
+export function expenseChanges(cur: Map<string, number>, base: Map<string, number>, n = 3) {
+  const keys = new Set([...cur.keys(), ...base.keys()]);
+  const diffs = [...keys].map(k => ({ k, atual: cur.get(k) ?? 0, base: base.get(k) ?? 0 }))
+    .map(x => ({ ...x, diff: Math.round((x.atual - x.base) * 100) / 100 }))
+    .filter(x => Math.abs(x.diff) >= 1);
+  return {
+    aumentos: diffs.filter(x => x.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, n),
+    reducoes: diffs.filter(x => x.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, n),
+  };
+}
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 export function buildReportFacts(p: { schoolName: string; month: string; entries: ProjectedEntry[]; classifications: Cls; kpis: KpiSeries[]; receitaIntegral?: number | null; totalsFor?: (m: string) => { receitas: number; despesas: number } }): string[] {
@@ -100,6 +111,19 @@ export function buildReportFacts(p: { schoolName: string; month: string; entries
     const ch = pctChange(v, media);
     return `${k} ${brl(v)}${ch != null ? ` (${ch > 0 ? '+' : ''}${ch}% vs média dos 3 meses anteriores)` : ''}`;
   }).join('; ')}.`);
+
+  const describeCh = (label: string, base: Map<string, number>) => {
+    const { aumentos, reducoes } = expenseChanges(catMonth, base);
+    const f = (x: { k: string; atual: number; base: number; diff: number }) => {
+      const ch = pctChange(x.atual, x.base);
+      return `${x.k} ${brl(x.base)} → ${brl(x.atual)} (${x.diff > 0 ? '+' : '-'}${brl(Math.abs(x.diff))}${ch != null ? `, ${ch > 0 ? '+' : ''}${ch}%` : ''})`;
+    };
+    if (aumentos.length) L.push(`Despesas que mais aumentaram ${label}: ${aumentos.map(f).join('; ')}.`);
+    if (reducoes.length) L.push(`Despesas que mais reduziram ${label}: ${reducoes.map(f).join('; ')}.`);
+  };
+  const catLy = expenseByCategory(entries, [shiftMonth(month, -12)], cls);
+  if (catLy.size) describeCh('vs mesmo mês do ano anterior', catLy);
+  if (catPrev.size) describeCh('vs média dos 3 meses anteriores', new Map([...catPrev].map(([k, v]) => [k, v / 3])));
 
   // KPIs
   for (const k of p.kpis) {

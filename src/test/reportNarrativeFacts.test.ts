@@ -106,3 +106,14 @@ describe('paymentMethodFacts', () => {
     expect(l[0]).toContain('Boleto 75,00%; PIX 25,00%');
   });
 });
+
+import { expenseChanges } from '@/lib/reportNarrativeFacts';
+describe('expenseChanges', () => {
+  it('ordena aumentos e reduções pelo valor', () => {
+    const cur = new Map([['Folha', 80000], ['Aluguel', 20000], ['Franquia', 5000], ['Rescisão', 9000]]);
+    const base = new Map([['Folha', 70000], ['Aluguel', 20000], ['Franquia', 8000]]);
+    const r = expenseChanges(cur, base);
+    expect(r.aumentos.map(x => [x.k, x.diff])).toEqual([['Folha', 10000], ['Rescisão', 9000]]);
+    expect(r.reducoes.map(x => [x.k, x.diff])).toEqual([['Franquia', -3000]]);
+  });
+});
