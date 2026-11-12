@@ -24,7 +24,7 @@ Em compensação, Materiais Didáticos caíram R$ 6,4 mil, e Pró-labore e Vale-
 
 Sobre os KPIs:
 
-Lucratividade fechou em -2,79%, sendo nosso principal ponto de atenção pelo resultado negativo
+Lucratividade fechou em -2,79% no mês, mas o ano segue saudável: no acumulado temos resultado de R$ 435.383,95 e lucratividade de 20,86%, acima do mesmo período de 2025 (por volta de 17%), já que as receitas crescem 12% e as despesas 7% 🎉
 
 Inadimplência subiu para 3,50%, acima do mês anterior (1,10%) e da média do ano (2,71%)
 
@@ -43,5 +43,7 @@ Ficamos abaixo do mesmo mês do ano anterior, que teve 22 matrículas com 37 con
 Para os próximos passos, vamos acompanhar de perto o imposto e os gastos com marketing, e reforçar as ações comerciais para voltarmos ao resultado positivo.
 
 ---
+
+Conta usada: acumulado = R$ 2.087.253,31 - R$ 1.651.869,36. Os cerca de 17% de 2025 foram estimados a partir dos +12% e +7%.
 
 Ponto para conferir: o Simples de outubro/2025 (R$ 5,4 mil) parece baixo. Talvez tenha sido pago em outro mês.
