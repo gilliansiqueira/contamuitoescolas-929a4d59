@@ -7,36 +7,49 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-const EXEMPLO = `Relatório Sinop - Setembro 2026
+const EXEMPLO = `Relatório São Braz - outubro 2026
 
-Receitas: R$ 181.042,28
+Receitas: R$ 181.405,51
 
-Despesas: R$ 118.475,31
+Despesas: R$ 186.466,32
 
-Resultado: R$ 62.566,97
+Resultado: -R$ 5.060,81
 
-Se compararmos a evolução das receitas vemos que a escola teve uma queda de 11%, aproximadamente 20 mil a menos por mês. Já as despesas no primeiro semestre subiram, mas nos últimos 3 meses já reduziram e conseguimos melhorar o resultado da operação da escola 🎉
+Nas receitas, tivemos uma leve redução de 3% em relação a outubro do ano anterior (R$ 187.772,06) e ficamos abaixo da média dos últimos 3 meses (R$ 228.972,90). No acumulado do ano o faturamento segue forte, com alta de 12%, somando R$ 2.087.253,31.
 
-Nas despesas já vimos que esse ano o que mais tem prejudicado a escola são os valores de rescisão, infelizmente em setembro tivemos mais valores altos nessa categoria. Na franqueadora no primeiro semestre também foram compras altas, mas agora nos últimos meses isso também reduziu 🙏🏼
+Nas despesas, o mês fechou 14% acima de outubro de 2025 (R$ 164.027,00). O que mais aumentou foi:
+- Impostos: o Simples Nacional passou de R$ 5,4 mil para R$ 15,3 mil.
+- Marketing: Propaganda (R$ 7,4 mil), Presentes/Mimos (R$ 3,9 mil) e Panfletagem (R$ 700), gastos que não tivemos em outubro do ano passado.
+- Pessoal: subiram Salário dos Professores (R$ 26,4 mil, R$ 1,3 mil a mais), Vale-refeição (R$ 5,3 mil, R$ 2,1 mil a mais) e Rescisões (R$ 2,5 mil).
+
+Em compensação, Materiais Didáticos caíram R$ 6,4 mil.
 
 Sobre os KPIs:
 
-Lucratividade continua muito boa apesar da queda esse mês pra 12,82%, a média está em 17%. Já melhoramos nos últimos 3 meses, mas na média anual estamos 10% abaixo de 2025
+Lucratividade fechou em -2,79% no mês, mas o ano segue saudável: no acumulado temos resultado de R$ 435.383,95 e lucratividade de 20,86% 🎉
 
-Inadimplência caiu pra 5,5%
+Inadimplência subiu para 3,50%, acima do mês anterior (1,10%) e da média do ano (2,71%)
 
-Média de alunos por turma muito boa em 5,13
+Média de alunos por turma ficou em 4,32, abaixo dos 6,34 do mês anterior e da média do ano de 5,67
 
-Evasão ótima em 2,1%
+Evasão foi ótima em 0,60%, bem abaixo da média do ano de 2,07% 🙏🏼
 
-Média de desconto também ótima em 12,4%`;
+Média de desconto muito boa em 16,10%, menor que os 17,90% do mês anterior e abaixo da média anual de 18,48%
+
+Comercial:
+
+Receptivo: 46 contatos → 15 matrículas (32,6% de conversão)
+
+Ficamos abaixo do mesmo mês do ano anterior, que teve 22 matrículas com 37 contatos. No acumulado também estamos abaixo, com 239 matrículas contra 259 em 2025.
+
+Para os próximos passos, vamos acompanhar de perto o imposto e os gastos com marketing, e reforçar as ações comerciais para voltarmos ao resultado positivo.`;
 
 const BASE = `Você faz parte da equipe de um BPO financeiro que acompanha escolas e empresas, e escreve para o dono. Português do Brasil, tom próximo, leve e humano, como se a analista tivesse olhado os números com carinho — nada de texto quadrado, títulos numerados, listas com marcadores ou markdown (sem ** nem #). Frases curtas, parágrafos curtos. Use 1 ou 2 emojis só quando a notícia for boa ou de esperança (ex.: 🎉 🙏🏼). Seja honesta com notícias ruins, sem alarmismo.
 REGRA DE OURO: use SOMENTE os números fornecidos, exatamente como estão (formato brasileiro). Pode arredondar em palavras ("aproximadamente 20 mil"), mas nunca crie valores ou percentuais novos. Se um dado não foi fornecido, não fale dele.`;
 
 const PROMPTS: Record<string, string> = {
   relatorio: `${BASE}
-Escreva o resumo do relatório mensal. Comece com o título e as três linhas Receitas / Despesas / Resultado. Depois: evolução de receitas e despesas (tendência e comparação com o ano anterior), quais categorias de despesa mais pesaram e, usando os fatos de "Despesas que mais aumentaram/reduziram", cite pelo nome e valor as 2 ou 3 categorias que explicam a variação das despesas, e "Sobre os KPIs:" com uma linha curta por indicador comentando (ótimo, bom, atenção) e comparando com média/ano anterior quando houver. Se houver fatos de "Forma de pagamento", inclua "Forma de pagamento:" com uma linha curta por forma e o percentual. Se houver fatos de "Comercial", SEMPRE feche com "Comercial:" — uma linha para Receptivo e outra para Ativo no formato "47 contatos → 10 matrículas (21,3% de conversão)" e, se houver comparação com o ano anterior, diga em uma frase se as matrículas estão acima ou abaixo (mês e acumulado). Se houver números de matrículas do ano anterior, cite-os. Feche com uma frase curta de próximos passos ligada aos pontos de atenção. Máximo de 2.000 caracteres.
+Escreva o resumo do relatório mensal. Comece com o título e as três linhas Receitas / Despesas / Resultado. Depois: receitas e despesas comparadas com o mesmo mês do ano anterior e o acumulado (pouco texto sobre tendência), nas despesas liste em tópicos curtos agrupados por tema (Pessoal, Impostos, Marketing etc.) o que aumentou, com valores, quais categorias de despesa mais pesaram e, usando os fatos de "Despesas que mais aumentaram/reduziram", cite pelo nome e valor as 2 ou 3 categorias que explicam a variação das despesas, e "Sobre os KPIs:" com uma linha curta por indicador comentando (ótimo, bom, atenção) e comparando com média/ano anterior quando houver. Se houver fatos de "Forma de pagamento", inclua "Forma de pagamento:" com uma linha curta por forma e o percentual. Se houver fatos de "Comercial", SEMPRE feche com "Comercial:" — uma linha para Receptivo e outra para Ativo no formato "47 contatos → 10 matrículas (21,3% de conversão)" e, se houver comparação com o ano anterior, diga em uma frase se as matrículas estão acima ou abaixo (mês e acumulado). Se houver números de matrículas do ano anterior, cite-os. Feche com uma frase curta de próximos passos ligada aos pontos de atenção. Se a lucratividade do mês for negativa mas houver resultado/lucratividade acumulados positivos, diga isso. Máximo de 2.200 caracteres.
 Exemplo do estilo da equipe (siga o jeito, não copie os números):
 ${EXEMPLO}`,
   projecao: `${BASE}
