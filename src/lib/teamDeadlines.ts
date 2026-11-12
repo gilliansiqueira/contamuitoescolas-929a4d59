@@ -67,7 +67,7 @@ export function projectionReportMonth(deadlines: { rotulo: string; data: string 
 }
 
 /** Relatórios atrasados: prazo do relatório já passou e "Envio ao cliente" não marcado. */
-export function overdueReports<T extends { report_delivered: boolean | null }>(portfolio: T[], reportDeadline: string | null, today: string): T[] {
+export function overdueReports<T extends { report_delivered: boolean | null; school_id?: string }>(portfolio: T[], reportDeadline: string | null, today: string, notApplicable: ReadonlySet<string> = new Set()): T[] {
   if (!reportDeadline || today <= reportDeadline) return [];
-  return portfolio.filter(p => !p.report_delivered);
+  return portfolio.filter(p => !p.report_delivered && !(p.school_id && notApplicable.has(p.school_id)));
 }

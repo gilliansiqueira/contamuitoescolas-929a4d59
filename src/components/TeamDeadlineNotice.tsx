@@ -66,7 +66,20 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
   });
   const overdueIds = projDue && projDeadline ? overdueProjections(scopeIds, projSteps, projDeadline, today) : [];
   const overdue = scope.filter(p => overdueIds.includes(p.school_id));
-  const overdueRep = overdueReports(scope, repDeadline, today);
+  const repMonth = projMonth || (repDeadline ? defaultReportMonth(today, false) : '');
+  const { data: repNA = [] } = useQuery({
+    queryKey: ['rep-na', repMonth, scopeIds.join(',')],
+    enabled: repDue && scopeIds.length > 0,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('monthly_closing_checklist').select('school_id')
+        .eq('month', repMonth).eq('step_key', 'envio_cliente').eq('status', 'not_applicable').in('school_id', scopeIds);
+      if (error) throw error;
+      return (data ?? []).map(r => r.school_id as string);
+    },
+  });
+  const overdueRep = overdueReports(scope, repDeadline, today, new Set(repNA));
   const nextOther = anns.filter(a => a.ativo).flatMap(a => deadlineParts(a.team_announcement_deadlines.filter(d => !/proje/i.test(d.rotulo)), today))
     .sort((x, y) => x.dias - y.dias)[0];
   const countParts = [
