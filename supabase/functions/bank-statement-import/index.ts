@@ -36,7 +36,9 @@ Deno.serve(async req => {
     if (digest !== input.hash) return response({ error: 'Arquivo mudou após a conferência. Selecione novamente.' }, 409);
     const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
     if (!['ofx', 'csv', 'txt', 'xlsx', 'xls', 'pdf'].includes(ext)) return response({ error: 'Formato não suportado.' }, 400);
-    const identity = await readIdentity(ext, bytes);
+    // Liberação pontual por empresa (school_features.extrato_sem_trava): não compara a conta do arquivo; importa só com aviso.
+    const { data: noGuard } = await admin.from('school_features').select('enabled').eq('school_id', input.schoolId).eq('feature_key', 'extrato_sem_trava').eq('enabled', true).maybeSingle();
+    const identity = noGuard ? undefined : await readIdentity(ext, bytes);
     const { data: shared } = await admin.rpc('bank_account_identity_shared', { _account: input.accountId });
     let check;
     try { check = checkStatementIdentity(identity, resolveHolder(account, entityCnpj), input.schoolId, { sharedRegistration: shared === true }); }

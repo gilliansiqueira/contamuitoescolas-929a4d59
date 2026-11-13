@@ -30,3 +30,4 @@
 - [x] Análise por obra na tela e no PDF (resultado, rankings, evolução, obra x estrutura, destaques)
 - [ ] Contas em atraso — depende do Conta Azul
 - [ ] Conta Azul ler/enviar (Ather + Wizard IC/Leme/SF) — aguardando app e chaves do Conta Azul
+- [x] Tirar trava de extrato em Cuiabá Goiabeiras

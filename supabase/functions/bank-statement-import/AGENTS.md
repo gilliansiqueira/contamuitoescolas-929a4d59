@@ -2,3 +2,4 @@
 - Identity is extracted independently from the file header on the server (PDF via first-page text, OCR never trusted); client identity, filenames, history and transaction-party documents are never proof. All formats (OFX, CSV, Excel, PDF, OCR) keep their previous routes and pre-existing balance/reading controls.
 - Commit through the service-only transactional RPC, which mirrors the same comparison rules; preserve existing service integrations and never infer or backfill account identity from historical statements.
 - Unknown RPC outcomes require readback; never report rollback or delete a potentially committed file on an unavailable status read.
+- Per-company escape hatch: `school_features.extrato_sem_trava` makes bank-statement-import skip file identity comparison (imports as inconclusive with warning) — owner request to unblock a company's team.
