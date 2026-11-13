@@ -34,5 +34,7 @@ describe('lucratividade automática', () => {
     expect(isAutoProfitMonth('2026-09', '2026-11')).toBe(false);
     expect(isAutoProfitMonth('2026-10', '2026-11')).toBe(true);
     expect(isAutoProfitMonth('2026-11', '2026-11')).toBe(false);
+    expect(isAutoProfitMonth('2026-01', '2026-11', '2026-01')).toBe(true);
+    expect(isAutoProfitMonth('2025-12', '2026-11', '2026-01')).toBe(false);
   });
 });

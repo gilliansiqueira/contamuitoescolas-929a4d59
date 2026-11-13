@@ -47,6 +47,10 @@ export function integralClosing(t: MonthTotals, receitaIntegral: number) {
   };
 }
 
-export function isAutoProfitMonth(month: string, currentMonth: string) {
-  return month >= AUTO_PROFIT_START && month < currentMonth;
+/** Empresas com `school_features.lucro_auto_2026` recalculam desde janeiro/2026. */
+export const AUTO_PROFIT_EARLY_FEATURE = 'lucro_auto_2026';
+export const AUTO_PROFIT_EARLY_START = '2026-01';
+
+export function isAutoProfitMonth(month: string, currentMonth: string, start: string = AUTO_PROFIT_START) {
+  return month >= start && month < currentMonth;
 }

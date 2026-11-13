@@ -8,8 +8,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { usePeriodMovementCtx } from '@/hooks/usePeriodMovementCtx';
 import { buildMonthMovement } from '@/lib/periodMovement';
-import { computeProfitability, isAutoProfitMonth, AUTO_PROFIT_START, PROFIT_LABELS, type ProfitKey } from '@/lib/profitability';
+import { computeProfitability, isAutoProfitMonth, AUTO_PROFIT_START, AUTO_PROFIT_EARLY_FEATURE, AUTO_PROFIT_EARLY_START, PROFIT_LABELS, type ProfitKey } from '@/lib/profitability';
 import { toast } from 'sonner';
+import { useSchoolFeature } from '@/hooks/useBankPilot';
 
 const currentMonth = () => {
   const d = new Date();
@@ -53,6 +54,8 @@ export function useAutoProfitability(schoolId: string) {
   const qc = useQueryClient();
   const { ctx, isInModel, isLoading } = usePeriodMovementCtx(schoolId);
   const { values: integral } = useIntegralRevenue(schoolId);
+  const { data: early, isLoading: earlyLoading } = useSchoolFeature(schoolId, AUTO_PROFIT_EARLY_FEATURE, true);
+  const start = early ? AUTO_PROFIT_EARLY_START : AUTO_PROFIT_START;
 
   const { data: defs } = useQuery({
     queryKey: ['kpi_auto_defs', schoolId],
@@ -65,18 +68,18 @@ export function useAutoProfitability(schoolId: string) {
   });
 
   const computed = useMemo(() => {
-    if (isLoading) return null;
+    if (isLoading || earlyLoading) return null;
     const cm = currentMonth();
     const out: Record<string, Record<ProfitKey, number | null>> = {};
-    let m = AUTO_PROFIT_START;
-    while (isAutoProfitMonth(m, cm)) {
+    let m = start;
+    while (isAutoProfitMonth(m, cm, start)) {
       const mv = buildMonthMovement(m, ctx, { isInModel });
       if (mv.source !== 'vazio') out[m] = computeProfitability(mv, integral[m]);
       const [y, mm] = m.split('-').map(Number);
       m = mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`;
     }
     return out;
-  }, [ctx, isInModel, isLoading, integral]);
+  }, [ctx, isInModel, isLoading, earlyLoading, start, integral]);
 
   const lastSig = useRef('');
   useEffect(() => {
