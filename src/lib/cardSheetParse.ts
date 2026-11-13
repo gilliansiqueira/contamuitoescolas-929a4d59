@@ -9,12 +9,36 @@ export const CARD_FIELDS: { key: CardField; label: string }[] = [
 export type ColumnMap = Partial<Record<CardField, number>>;
 
 const norm = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+/** Decodifica CSV: UTF-8 (com ou sem BOM); se houver caracteres inválidos, usa windows-1252 (Excel antigo). */
+export function decodeCsvBytes(b: Uint8Array): string {
+  const u = new TextDecoder('utf-8').decode(b).replace(/^\uFEFF/, '');
+  return u.includes('\uFFFD') ? new TextDecoder('windows-1252').decode(b) : u;
+}
+
+/** Lê CSV como texto puro (sem interpretar números/datas no formato americano). Detecta ; , ou tab e respeita aspas. */
+export function parseCsvText(text: string): string[][] {
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/).find(l => l.trim()) ?? '';
+  const sep = [';', '\t', ','].map(c => [c, first.split(c).length] as const).sort((a, b) => b[1] - a[1])[0][0];
+  const out: string[][] = []; let row: string[] = []; let cell = ''; let q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === sep) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); out.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); out.push(row); }
+  return out;
+}
+
 const PATTERNS: [CardField, RegExp][] = [
   ['data_pagamento', /(data|dt).*(pagamento|recebimento|prevista|vencimento|credito|liquidacao)|previsao/],
   ['data_venda', /(data|dt).*(venda|transacao|captura|autorizacao)|^data$/],
   ['liquido', /liquido/], ['bruto', /bruto|valor (da )?(venda|transacao)|^valor$/],
   ['taxa', /taxa|tarifa|desconto|mdr/], ['bandeira', /bandeira/],
-  ['forma', /forma|produto|modalidade|tipo/], ['parcela', /^(n[ºo°.]?|num(ero)?)\s*(da )?parcela|^parcela$/], ['nsu', /nsu|autoriza|stone ?id|cod.*transa|^id/],
+  ['forma', /forma|produto|modalidade|tipo/], ['parcela', /^(n[ºo°.]?|num(ero)?)\s*(da )?parcela|^parcela$/], ['nsu', /codigo nsu|nsu|autoriza|stone ?id|cod.*transa|^id/],
 ];
 
 /** Acha a linha de cabeçalho (a primeira com ao menos 3 campos reconhecidos) e sugere o mapeamento. */
@@ -27,6 +51,8 @@ export function detectHeader(rows: unknown[][]): { headerRow: number; map: Colum
       const hit = PATTERNS.find(([f, re]) => map[f] === undefined && re.test(h));
       if (hit) map[hit[0]] = i;
     });
+    const nsuIdx = (rows[r] ?? []).findIndex(c => /(codigo|cod\.?) nsu|^nsu$/.test(norm(c)));
+    if (nsuIdx >= 0) map.nsu = nsuIdx;
     if (Object.keys(map).length >= 3) return { headerRow: r, map };
   }
   return { headerRow: 0, map: {} };

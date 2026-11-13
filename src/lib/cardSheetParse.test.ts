@@ -43,3 +43,26 @@ describe('cardSheetParse', () => {
     expect(detectHeader([h]).map).toMatchObject({ data_venda: 3, data_pagamento: 4, bandeira: 6, forma: 7, nsu: 8, parcela: 10, bruto: 11, liquido: 12, taxa: 13 });
   });
 });
+
+import { readFileSync } from 'fs';
+import { parseCsvText, decodeCsvBytes } from './cardSheetParse';
+describe('CSVs reais das adquirentes (formato brasileiro)', () => {
+  const load = (f: string, k: 'recebimento' | 'venda') => {
+    const rows = parseCsvText(decodeCsvBytes(new Uint8Array(readFileSync(`src/test/fixtures/cardSheets/${f}`))));
+    const h = detectHeader(rows); return { h, rows, r: parseCardSheet(rows, h.headerRow, h.map, k) };
+  };
+  it('Stone recebimentos Vitória', () => {
+    const { r } = load('stone_recebimentos_vitoria.csv', 'recebimento');
+    expect([r.rows.length, r.totalBruto, r.totalLiquido, r.from, r.to]).toEqual([134, 55118.83, 54285.67, '2026-11-03', '2026-11-13']);
+  });
+  it('Stone vendas Pinheirinho', () => {
+    const { r } = load('stone_vendas_pinheirinho.csv', 'venda');
+    expect([r.rows.length, r.totalBruto, r.totalLiquido, r.from, r.to]).toEqual([40, 73151.47, 72169.85, '2026-11-03', '2026-11-12']);
+  });
+  it('PagBank Lauro usa Código NSU e datas dia/mês', () => {
+    const { r } = load('pagbank_lauro.csv', 'venda');
+    expect([r.totalBruto, r.totalLiquido]).toEqual([2905.2, 2869.98]);
+    expect(r.rows.map(x => x.data_pagamento)).toEqual(['2027-03-11', '2026-11-05']);
+    expect(r.rows[0].nsu).toBe('111193820314');
+  });
+});

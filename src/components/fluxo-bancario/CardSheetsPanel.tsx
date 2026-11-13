@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { CARD_FIELDS, detectHeader, parseCardSheet, suspectLines, type ColumnMap, type CardSheetResult } from '@/lib/cardSheetParse';
+import { CARD_FIELDS, detectHeader, parseCsvText, decodeCsvBytes, parseCardSheet, suspectLines, type ColumnMap, type CardSheetResult } from '@/lib/cardSheetParse';
 import { fmtBRL, fmtDate } from './shared';
 
 const db = supabase as any;
@@ -31,8 +31,12 @@ function Uploader({ schoolId, kind, onDone }: { schoolId: string; kind: Kind; on
 
   const pick = async (f: File) => {
     const buf = await f.arrayBuffer();
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+    let rows: unknown[][];
+    if (/\.(csv|txt)$/i.test(f.name)) rows = parseCsvText(decodeCsvBytes(new Uint8Array(buf)));
+    else {
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+    }
     const det = detectHeader(rows);
     let m = det.map;
     if (adq) {
