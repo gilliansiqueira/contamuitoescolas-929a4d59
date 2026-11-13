@@ -12,7 +12,7 @@ import { deadlineParts, todaySP, overdueProjections, overdueReports, PROJ_STEPS,
 import { defaultReportMonth } from '@/lib/reportMonth';
 import { useManagementPortfolio } from '@/hooks/useManagementPortfolio';
 
-type Ann = { id: string; titulo: string; ativo: boolean; team_announcement_deadlines: { id: string; rotulo: string; data: string; ordem: number }[] };
+type Ann = { id: string; titulo: string; ativo: boolean; destinatarios: string[] | null; team_announcement_deadlines: { id: string; rotulo: string; data: string; ordem: number }[] };
 
 export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId: string) => void } = {}) {
   const { user, isAdmin, canManageCollaborators } = useAuth() as any;
@@ -28,24 +28,27 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
     refetchInterval: 10 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.from('team_announcements')
-        .select('id,titulo,ativo,team_announcement_deadlines(id,rotulo,data,ordem)').order('created_at');
+        .select('id,titulo,ativo,destinatarios,team_announcement_deadlines(id,rotulo,data,ordem)').order('created_at');
       if (error) throw error;
       return (data ?? []) as Ann[];
     },
   });
 
-  const active = anns.filter(a => a.ativo).map(a => ({
+  // Avisos direcionados (destinatarios) só aparecem para as pessoas escolhidas e não entram nos prazos de projeção/relatório.
+  const forMe = (a: Ann) => !a.destinatarios || a.destinatarios.includes(user?.id);
+  const globalAnns = anns.filter(a => !a.destinatarios);
+  const active = anns.filter(a => a.ativo && forMe(a)).map(a => ({
     ...a,
     parts: deadlineParts([...a.team_announcement_deadlines].sort((x, y) => x.ordem - y.ordem), today),
-  })).filter(a => a.parts.length > 0);
+  })).filter(a => a.parts.length > 0 || (a.destinatarios && a.team_announcement_deadlines.length === 0));
 
   // Projeções em atraso: prazo de "projeç..." já vencido no aviso ativo.
-  const projDeadline = anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
+  const projDeadline = globalAnns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
     .filter(d => /proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0] ?? null;
   // Mesmo mês que o Controle de relatórios abre (anterior até o dia 20).
   const projMonth = projDeadline ? defaultReportMonth(today, false) : '';
   const projDue = !!projDeadline && today > projDeadline;
-  const repDeadline = anns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
+  const repDeadline = globalAnns.filter(a => a.ativo).flatMap(a => a.team_announcement_deadlines)
     .filter(d => !/proje/i.test(d.rotulo)).map(d => d.data).sort().reverse()[0] ?? null;
   const repDue = !!repDeadline && today > repDeadline;
   const { data: portfolio = [] } = useManagementPortfolio(projMonth || (repDeadline ? defaultReportMonth(today, false) : ''), !!isAdmin && (projDue || repDue));
@@ -80,7 +83,7 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
     },
   });
   const overdueRep = overdueReports(scope, repDeadline, today, new Set(repNA));
-  const nextOther = anns.filter(a => a.ativo).flatMap(a => deadlineParts(a.team_announcement_deadlines.filter(d => !/proje/i.test(d.rotulo)), today))
+  const nextOther = globalAnns.filter(a => a.ativo).flatMap(a => deadlineParts(a.team_announcement_deadlines.filter(d => !/proje/i.test(d.rotulo)), today))
     .sort((x, y) => x.dias - y.dias)[0];
   const countParts = [
     overdue.length ? `${overdue.length} projeç${overdue.length > 1 ? 'ões' : 'ão'}` : '',
@@ -112,6 +115,7 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
 
   const sentence = (a: (typeof active)[number]) => {
     const t = a.parts.map(p => p.texto);
+    if (!t.length) return a.titulo;
     const joined = t.length > 1 ? `${t.slice(0, -1).join(', ')} e ${t[t.length - 1]}` : t[0];
     return `${a.titulo} ${joined.charAt(0).toUpperCase()}${joined.slice(1)}.`;
   };
@@ -225,6 +229,13 @@ export function TeamDeadlineNotice({ onOpenSchool }: { onOpenSchool?: (schoolId:
 
 function AnnouncementEditor({ anns, onClose, userId }: { anns: Ann[]; onClose: () => void; userId?: string }) {
   const qc = useQueryClient();
+  const { data: team = [] } = useQuery({
+    queryKey: ['team-people'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('user_id,email').is('school_id', null).order('email');
+      return (data ?? []).filter(p => p.email) as { user_id: string; email: string }[];
+    },
+  });
   const refresh = () => qc.invalidateQueries({ queryKey: ['team_announcements'] });
   const run = async (p: PromiseLike<{ error: any }>) => { const { error } = await p; if (error) toast.error('Não foi possível salvar: ' + error.message); refresh(); };
 
@@ -239,6 +250,15 @@ function AnnouncementEditor({ anns, onClose, userId }: { anns: Ann[]; onClose: (
                 <Input defaultValue={a.titulo} onBlur={e => e.target.value !== a.titulo && run(supabase.from('team_announcements').update({ titulo: e.target.value }).eq('id', a.id))} />
                 <Switch checked={a.ativo} onCheckedChange={v => run(supabase.from('team_announcements').update({ ativo: v }).eq('id', a.id))} />
                 <Button size="icon" variant="ghost" aria-label="Excluir aviso" onClick={() => confirm('Excluir este aviso?') && run(supabase.from('team_announcements').delete().eq('id', a.id))}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pl-4 text-xs">
+                <span className="font-medium">Para quem:</span>
+                <Button size="sm" variant={a.destinatarios ? 'outline' : 'default'} onClick={() => run(supabase.from('team_announcements').update({ destinatarios: null }).eq('id', a.id))}>Toda a equipe</Button>
+                {team.map(p => {
+                  const on = !!a.destinatarios?.includes(p.user_id);
+                  const next = on ? (a.destinatarios ?? []).filter(x => x !== p.user_id) : [...(a.destinatarios ?? []), p.user_id];
+                  return <Button key={p.user_id} size="sm" variant={on ? 'default' : 'outline'} onClick={() => run(supabase.from('team_announcements').update({ destinatarios: next.length ? next : null }).eq('id', a.id))}>{p.email.split('@')[0]}</Button>;
+                })}
               </div>
               {[...a.team_announcement_deadlines].sort((x, y) => x.ordem - y.ordem).map(d => (
                 <div key={d.id} className="flex items-center gap-2 pl-4">

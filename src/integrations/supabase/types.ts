@@ -6068,6 +6068,7 @@ export type Database = {
           ativo: boolean
           created_at: string
           created_by: string | null
+          destinatarios: string[] | null
           id: string
           titulo: string
         }
@@ -6075,6 +6076,7 @@ export type Database = {
           ativo?: boolean
           created_at?: string
           created_by?: string | null
+          destinatarios?: string[] | null
           id?: string
           titulo?: string
         }
@@ -6082,6 +6084,7 @@ export type Database = {
           ativo?: boolean
           created_at?: string
           created_by?: string | null
+          destinatarios?: string[] | null
           id?: string
           titulo?: string
         }
