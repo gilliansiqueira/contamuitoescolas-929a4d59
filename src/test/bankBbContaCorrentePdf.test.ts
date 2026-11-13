@@ -25,3 +25,22 @@ describe('PDF BB "Extrato de Conta Corrente" com (+)/(-) (Brasília Sudoeste)', 
     expect(() => parseBBContaCorrentePdfLines(bad)).toThrow(/não fecha/);
   });
 });
+
+import goiabeiras from './fixtures/bbGoiabeiras1211.json';
+describe('PDF BB com data e valor em linhas separadas (Cuiabá Goiabeiras, Rende Fácil)', () => {
+  const r = parseBBContaCorrentePdfLines(goiabeiras as string[]);
+  it('fecha com os saldos impressos', () => {
+    const mov = r.transactions.reduce((a, t) => a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
+    expect(Math.round(mov * 100) / 100).toBe(-10405.82);
+    expect(r.saldoFinalInformado).toBe(-10405.82);
+    expect(r.saldoComAplicacaoInformado).toBe(6564.9);
+    expect(r.periodoFim).toBe('2026-11-12');
+  });
+  it('mantém histórico e sentido', () => {
+    const f = (d: string, v: number) => r.transactions.find(t => t.data === d && t.valor === v);
+    expect(f('2026-11-03', 15103.84)?.tipo).toBe('saida');
+    expect(f('2026-11-03', 15103.84)?.descricao).toMatch(/^BB Rende Fácil/);
+    expect(f('2026-11-12', 12300)?.descricao).toBe('Pix - Enviado - Influx English School Goi');
+    expect(r.transactions.some(t => /Cliente|Agência|^.* - \d+( |$)/.test(t.descricao))).toBe(false);
+  });
+});

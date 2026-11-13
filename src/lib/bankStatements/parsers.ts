@@ -1082,10 +1082,36 @@ export function isBBContaCorrentePdf(lines: string[]): boolean {
  * O histórico vem na linha ACIMA do lançamento e o complemento (quem pagou/recebeu) na linha ABAIXO.
  * O sentido vem do "(+)"/"(-)". Cada "Saldo do dia" é conferido; se não fechar, nada é importado.
  */
-export function parseBBContaCorrentePdfLines(lines: string[]): BankParseResult {
+/**
+ * Layout alternativo do BB (ex.: com BB Rende Fácil): a data fica sozinha (ou com o histórico) numa linha e o valor
+ * na linha de baixo; "Saldo do dia" vem com 00/00/0000 e o saldo final como "S A L D O". Junta numa linha só.
+ */
+export function normalizeBBContaCorrenteLines(lines: string[]): string[] {
+  const DATA = /^(\d{2}\/\d{2}\/\d{4}|00\/00\/0{3,4})\b\s*(.*)$/;
+  const VALOR = /\d,\d{2}\s*\((\+|-)\)\s*$/;
+  const out: string[] = []; let last = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+/g, ' ').trim();
+    const m = line.match(DATA);
+    if (!m) { out.push(line); continue; }
+    const data = m[1].startsWith('00/') ? last : m[1];
+    if (!m[1].startsWith('00/')) last = m[1];
+    if (VALOR.test(m[2])) { out.push(`${data} ${m[2]}`); continue; }
+    const next = (lines[i + 1] ?? '').replace(/\s+/g, ' ').trim();
+    if (data && VALOR.test(next) && !DATA.test(next)) {
+      if (m[2]) out.push(m[2]);
+      out.push(`${data} ${next}`); i++; continue;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+export function parseBBContaCorrentePdfLines(input: string[]): BankParseResult {
+  const lines = normalizeBBContaCorrenteLines(input);
   const txs: ParsedBankTx[] = [];
   const DT = /^(\d{2}\/\d{2}\/\d{4})\s+(.*?)\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s*\((\+|-)\)\s*$/;
-  const HEADER = /^(extrato de conta corrente|cliente:|periodo:|lancamentos$|dia\s+lote)/i;
+  const HEADER = /^(extrato de conta corrente|cliente\b|periodo:|agencia:|lancamentos$|dia\s+lote|\d{1,3}$)/i;
   const r2 = (n: number) => Math.round(n * 100) / 100;
   const limpaComp = (s: string) => s.replace(/^\d{2}\/\d{2}\s+\d{2}:\d{2}\s+/, '').replace(/^\d{11,14}\s+/, '').trim();
   let buf: string[] = [];
@@ -1118,7 +1144,7 @@ export function parseBBContaCorrentePdfLines(lines: string[]): BankParseResult {
     anexa(ultimo, buf.slice(0, -1));
     const hist = buf.length ? buf[buf.length - 1] : '';
     buf = [];
-    const inline = limpaComp(m[2].replace(/^\d{3,5}\s+/, '').replace(/^\d{6,}\s*/, ''));
+    const inline = limpaComp(m[2].replace(/^\d{1,5}(\s+|$)/, '').replace(/^\d{1,5}(\s+|$)/, '').replace(/^\d{6,}(\s+|$)/, ''));
     const descricao = [hist, inline].filter(Boolean).join(' - ') || 'Lançamento BB';
     const tx: ParsedBankTx = { data, descricao, valor: Math.abs(v), tipo: v < 0 ? 'saida' : 'entrada' };
     txs.push(tx); ultimo = tx; ultimoTemComp = !!inline;
