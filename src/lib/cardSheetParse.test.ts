@@ -38,4 +38,8 @@ describe('cardSheetParse', () => {
     expect(r.diff).toBe(-500.5);
     expect(suspectLines(r, true).map(x => x.line)).toEqual([4, 5]);
   });
+  it('reconhece a planilha de recebimentos da Stone', () => {
+    const h = ['DOCUMENTO','STONECODE','CATEGORIA','DATA DA VENDA','DATA DE VENCIMENTO','DATA DE VENCIMENTO ORIGINAL','BANDEIRA','PRODUTO','STONE ID','QTD DE PARCELAS','Nº DA PARCELA','VALOR BRUTO','VALOR LÍQUIDO','DESCONTO DE MDR'];
+    expect(detectHeader([h]).map).toMatchObject({ data_venda: 3, data_pagamento: 4, bandeira: 6, forma: 7, nsu: 8, parcela: 10, bruto: 11, liquido: 12, taxa: 13 });
+  });
 });

@@ -14,7 +14,7 @@ const PATTERNS: [CardField, RegExp][] = [
   ['data_venda', /(data|dt).*(venda|transacao|captura|autorizacao)|^data$/],
   ['liquido', /liquido/], ['bruto', /bruto|valor (da )?(venda|transacao)|^valor$/],
   ['taxa', /taxa|tarifa|desconto|mdr/], ['bandeira', /bandeira/],
-  ['forma', /forma|produto|modalidade|tipo/], ['parcela', /parcela/], ['nsu', /nsu|autoriza|stone ?id|cod.*transa|^id/],
+  ['forma', /forma|produto|modalidade|tipo/], ['parcela', /^(n[ºo°.]?|num(ero)?)\s*(da )?parcela|^parcela$/], ['nsu', /nsu|autoriza|stone ?id|cod.*transa|^id/],
 ];
 
 /** Acha a linha de cabeçalho (a primeira com ao menos 3 campos reconhecidos) e sugere o mapeamento. */
