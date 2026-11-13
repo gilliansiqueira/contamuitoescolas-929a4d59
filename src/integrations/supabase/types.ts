@@ -1253,6 +1253,143 @@ export type Database = {
           },
         ]
       }
+      card_sheet_imports: {
+        Row: {
+          adquirente: string
+          column_map: Json
+          file_hash: string
+          id: string
+          imported_at: string
+          kind: string
+          period_from: string | null
+          period_to: string | null
+          rows_count: number
+          school_id: string
+          source_file: string
+          total_bruto: number
+          total_liquido: number
+          uploaded_by: string | null
+        }
+        Insert: {
+          adquirente: string
+          column_map?: Json
+          file_hash: string
+          id?: string
+          imported_at?: string
+          kind: string
+          period_from?: string | null
+          period_to?: string | null
+          rows_count?: number
+          school_id: string
+          source_file: string
+          total_bruto?: number
+          total_liquido?: number
+          uploaded_by?: string | null
+        }
+        Update: {
+          adquirente?: string
+          column_map?: Json
+          file_hash?: string
+          id?: string
+          imported_at?: string
+          kind?: string
+          period_from?: string | null
+          period_to?: string | null
+          rows_count?: number
+          school_id?: string
+          source_file?: string
+          total_bruto?: number
+          total_liquido?: number
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_sheet_imports_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_sheet_rows: {
+        Row: {
+          adquirente: string
+          bandeira: string | null
+          bruto: number | null
+          data_pagamento: string | null
+          data_venda: string | null
+          forma: string | null
+          id: string
+          imported_at: string
+          liquido: number | null
+          nsu: string | null
+          origem_upload_id: string
+          parcela: string | null
+          raw: Json
+          row_key: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          taxa: number | null
+        }
+        Insert: {
+          adquirente: string
+          bandeira?: string | null
+          bruto?: number | null
+          data_pagamento?: string | null
+          data_venda?: string | null
+          forma?: string | null
+          id?: string
+          imported_at?: string
+          liquido?: number | null
+          nsu?: string | null
+          origem_upload_id: string
+          parcela?: string | null
+          raw?: Json
+          row_key: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          taxa?: number | null
+        }
+        Update: {
+          adquirente?: string
+          bandeira?: string | null
+          bruto?: number | null
+          data_pagamento?: string | null
+          data_venda?: string | null
+          forma?: string | null
+          id?: string
+          imported_at?: string
+          liquido?: number | null
+          nsu?: string | null
+          origem_upload_id?: string
+          parcela?: string | null
+          raw?: Json
+          row_key?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          taxa?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_sheet_rows_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "card_sheet_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_sheet_rows_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_rules: {
         Row: {
           created_at: string

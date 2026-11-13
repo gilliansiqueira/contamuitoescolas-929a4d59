@@ -10,6 +10,7 @@ import { BankTransactionsTable, type TableFocus } from './BankTransactionsTable'
 import { BankAccountsImports } from './BankAccountsImports';
 import { CashflowConference } from './CashflowConference';
 import { ReconAssist } from './ReconAssist';
+import { CardSheetsPanel } from './CardSheetsPanel';
 import { useDataSource } from '@/hooks/useBankPilot';
 import { Landmark, ShieldCheck } from 'lucide-react';
 
@@ -82,6 +83,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
           <TabsTrigger value="resumo">Resumo</TabsTrigger>
           <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
           <TabsTrigger value="contas">Contas e Extratos</TabsTrigger>
+          {isAdmin && <TabsTrigger value="cartoes">Cartões</TabsTrigger>}
           {reconAssist && isAdmin && <TabsTrigger value="assistida">Conciliação assistida</TabsTrigger>}
           {source && <TabsTrigger value="conferencia">Conferência Dashboard</TabsTrigger>}
         </TabsList>
@@ -152,6 +154,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
           <CashflowConference schoolId={schoolId} accounts={accounts} txs={txs} />
         </TabsContent>
 
+        {isAdmin && <TabsContent value="cartoes"><CardSheetsPanel schoolId={schoolId} /></TabsContent>}
         <TabsContent value="contas">
           <BankAccountsImports schoolId={schoolId} accounts={accounts} txs={txs} onViewAuto={(importId, from, to) => { setFocus({ importId, from, to, nonce: Date.now() }); setTab('movimentacoes'); }} />
         </TabsContent>

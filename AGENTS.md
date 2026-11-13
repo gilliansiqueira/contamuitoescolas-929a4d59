@@ -35,3 +35,4 @@
 - Visão de outras carteiras (pendências, atrasos, gerência) só para super_admin ou `user_permissions.team_oversight` via `can_oversee_team()` nas RPCs da Central; `admin_scope='all'` só libera entrar nas empresas — para a equipe ajudar sem ver números das colegas.
 - Histórico: anos antigos em `commercial_history_monthly`, receitas antigas em `revenue_history_monthly`; nunca sobrepõem dados da plataforma.
 - Auto-conciliação bancária por empresa via `school_features.auto_recon_pix_ted_despesas` (trigger `bank_tx_force_pending`/`bank_tx_auto_recon_on_item`): só PIX/TED/saídas com item do modelo, movimento normal e sem par — para poupar trabalho sem conciliar algo sem classificação.
+- Card sheets (aba Cartões no Fluxo Bancário): `card_sheet_imports`/`card_sheet_rows`, team-only with RESTRICTIVE `can_see_school`, parser in `src/lib/cardSheetParse.ts`; kept separate from API `acquirer_sales` and never feeds financial calculations — conference material only.
