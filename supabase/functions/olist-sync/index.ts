@@ -54,12 +54,15 @@ async function olist(token: string, method: string, path: string, body?: unknown
   return t ? JSON.parse(t) : null;
 }
 /** Troca a categoria de um lançamento do Caixa: a Olist exige o lançamento completo no PUT. */
-async function setCaixaCategoria(token: string, id: number | string, cat: number, valor?: number) {
+async function setCaixaCategoria(token: string, id: number | string, cat: number, valor?: number, onlyIfCat?: number | null): Promise<boolean> {
   const c = await olist(token, 'GET', `/caixa/${id}`);
+  // Nunca sobrescreve categoria já escolhida pela equipe no Tiny.
+  if (onlyIfCat && c.categoria?.id && Number(c.categoria.id) !== onlyIfCat) return false;
   const body: Record<string, unknown> = { historico: c.historico, data: c.data, valor: valor ?? Math.abs(Number(c.valor)), tipo: c.tipo, conta: { id: c.conta?.id }, categoria: { id: cat } };
   if (c.contato?.id) body.contato = { id: c.contato.id };
   body.dataCompetencia = c.dataCompetencia || String(c.data).slice(0, 7);
   await olist(token, 'PUT', `/caixa/${id}`, body);
+  return true;
 }
 // deno-lint-ignore no-explicit-any
 async function listAll(token: string, path: string): Promise<any[]> {
@@ -161,9 +164,10 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
         }
         if (!cat) continue;
         try {
-          await setCaixaCategoria(token, p.olist_id, cat);
-          await admin.from('erp_push_log').update({ status: 'enviado', model_item_id: item ?? null, olist_categoria_id: cat, categoria_origem: origem, erro: null, updated_at: nowIso() }).eq('id', p.id);
-          reclass++;
+          if (await setCaixaCategoria(token, p.olist_id, cat, undefined, pendCat)) {
+            await admin.from('erp_push_log').update({ status: 'enviado', model_item_id: item ?? null, olist_categoria_id: cat, categoria_origem: origem, erro: null, updated_at: nowIso() }).eq('id', p.id);
+            reclass++;
+          } else await admin.from('erp_push_log').update({ status: 'enviado', categoria_origem: 'equipe', erro: null, updated_at: nowIso() }).eq('id', p.id);
         } catch (e) { await admin.from('erp_push_log').update({ erro: e instanceof Error ? e.message : String(e), updated_at: nowIso() }).eq('id', p.id); }
       }
     }
