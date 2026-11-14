@@ -85,3 +85,14 @@ describe('histórico do Tiny para pendentes (WNC)', () => {
     expect(suggestOlistCategory({ descricao: 'Pix enviado - Iolanda Gadonski Ferreira', tipo: 'saida' }, hist, 999)).toBe(77);
   });
 });
+
+describe('categoria pelas contas pagas da contraparte no Tiny', () => {
+  it('Pix novo da Iolanda casa com o contato das contas pagas e usa a categoria da maioria', async () => {
+    const { sameCounterpart, majorityCategory } = await import('../../supabase/functions/olist-sync/push');
+    expect(sameCounterpart('Pix enviado - Iolanda Gadonski Ferreira', 'Iolanda Gadonski Ferreira')).toBe(true);
+    expect(sameCounterpart('Pix enviado: "Cp :81466286-Iolanda Gadonski Ferreira"', 'Iolanda Gadonski Ferreira')).toBe(true);
+    expect(sameCounterpart('Liquidação de conta a pagar - Iolanda Gadonski Ferreira', 'Iolanda Gadonski Ferreira')).toBe(true);
+    expect(majorityCategory([1049436354, 1049436354, 999, null], 999)).toBe(1049436354);
+    expect(majorityCategory([1, 2], null)).toBe(null);
+  });
+});

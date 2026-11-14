@@ -4,7 +4,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
-import { suggestCategory, suggestOlistCategory, pickOpenBill, isOperation, addDays, toBr, findExisting, dailyDiff, type Tx, type OpenBill, type ModelItem, type OlistCaixa } from './push.ts';
+import { suggestCategory, sameCounterpart, majorityCategory, pickOpenBill, isOperation, addDays, toBr, findExisting, dailyDiff, type Tx, type OpenBill, type ModelItem, type OlistCaixa } from './push.ts';
 
 const API = 'https://api.tiny.com.br/public-api/v3';
 const AUTH = 'https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect';
@@ -42,10 +42,24 @@ async function accessToken(conn: any): Promise<string> {
   }
 }
 async function olist(token: string, method: string, path: string, body?: unknown) {
-  const r = await fetch(`${API}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  let r!: Response;
+  // A Olist limita requisições por minuto: espera e tenta de novo quando responde 429.
+  for (let i = 0; i < 5; i++) {
+    r = await fetch(`${API}${path}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status !== 429 || i === 4) break;
+    await r.text(); await new Promise(res => setTimeout(res, 3000 * (i + 1)));
+  }
   const t = await r.text();
   if (!r.ok) throw new Error(`Olist respondeu ${r.status} em ${method} ${path.split('?')[0]}: ${t.slice(0, 300)}`);
   return t ? JSON.parse(t) : null;
+}
+/** Troca a categoria de um lançamento do Caixa: a Olist exige o lançamento completo no PUT. */
+async function setCaixaCategoria(token: string, id: number | string, cat: number, valor?: number) {
+  const c = await olist(token, 'GET', `/caixa/${id}`);
+  const body: Record<string, unknown> = { historico: c.historico, data: c.data, valor: valor ?? Math.abs(Number(c.valor)), tipo: c.tipo, conta: { id: c.conta?.id }, categoria: { id: cat } };
+  if (c.contato?.id) body.contato = { id: c.contato.id };
+  body.dataCompetencia = c.dataCompetencia || String(c.data).slice(0, 7);
+  await olist(token, 'PUT', `/caixa/${id}`, body);
 }
 // deno-lint-ignore no-explicit-any
 async function listAll(token: string, path: string): Promise<any[]> {
@@ -99,15 +113,37 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
   const catOf = new Map((maps ?? []).filter(m => m.olist_categoria_id).map(m => [m.model_item_id, Number(m.olist_categoria_id)]));
   let enviados = 0, aClassificar = 0, erros = 0, simulados = 0, reclass = 0, jaExistia = 0;
 
-  // Histórico de categorias do Tiny/Olist (12 meses), inclusive lançamentos enviados por nós que a equipe reclassificou lá.
-  // Ignora sem categoria e a categoria "A classificar".
+  // Histórico de categorias do Tiny/Olist (12 meses): contas pagas/recebidas da mesma contraparte.
+  // As listas da Olist não trazem a categoria; ela é lida no detalhe de até 5 contas recentes por contraparte.
   const pendCat = conn.pending_categoria_id ? Number(conn.pending_categoria_id) : null;
   const today = new Date().toISOString().slice(0, 10);
-  const catHist: OlistCaixa[] = [];
-  for (const link of links) {
-    catHist.push(...await listCaixa(token, Number(link.olist_conta_id), addDays(today, -365), addDays(today, 1)).catch(() => [] as OlistCaixa[]));
+  const paid: Record<'D' | 'C', { id: number; nome: string; venc: string }[]> = { D: [], C: [] };
+  for (const [t, path] of [['D', '/contas-pagar'], ['C', '/contas-receber']] as const) {
+    // deno-lint-ignore no-explicit-any
+    const rows: any[] = [];
+    // A Olist limita o intervalo de datas por consulta: lê em blocos de 90 dias.
+    for (let d = -365; d < 30; d += 90) rows.push(...await listAll(token, `${path}?situacao=pago&dataInicialVencimento=${addDays(today, d)}&dataFinalVencimento=${addDays(today, Math.min(d + 89, 30))}`).catch(() => []));
+    paid[t] = rows.map(r => ({ id: Number(r.id), nome: String(r.cliente?.nome ?? r.contato?.nome ?? ''), venc: String(r.dataVencimento ?? '') }));
   }
-  const usableHist = catHist.filter(e => e.categoriaId && e.categoriaId !== pendCat);
+  const detailCache = new Map<string, number | null>();
+  let histErr: string | null = null;
+  const histDbg: unknown[] = [];
+  const histCategory = async (descricao: string, tipo: string): Promise<number | null> => {
+    const t = tipo === 'saida' ? 'D' : 'C';
+    const cands = paid[t].filter(p => p.nome && sameCounterpart(descricao, p.nome)).sort((x, y) => y.venc.localeCompare(x.venc)).slice(0, 5);
+    const cats: (number | null)[] = [];
+    for (const c of cands) {
+      const k = `${t}:${c.id}`;
+      if (!detailCache.has(k)) {
+        await new Promise(res => setTimeout(res, 600));
+        const d = await olist(token, 'GET', `${t === 'D' ? '/contas-pagar' : '/contas-receber'}/${c.id}`).catch((e) => { histErr = e instanceof Error ? e.message : String(e); return null; });
+        detailCache.set(k, d?.categoria?.id ? Number(d.categoria.id) : null);
+      }
+      cats.push(detailCache.get(k) ?? null);
+    }
+    if (histDbg.length < 8) histDbg.push({ descricao, n: cands.length, cats });
+    return majorityCategory(cats, pendCat);
+  };
 
   // 1) Reclassificação: lançamentos enviados como "A classificar" — pelo item da plataforma (De/Para) ou pelo histórico do Tiny.
   if (!conn.test_mode) {
@@ -120,12 +156,12 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
         let cat = item ? catOf.get(item) : undefined;
         let origem = 'item';
         if (!cat) {
-          const c = suggestOlistCategory({ descricao: p.descricao ?? '', tipo: p.tipo }, usableHist.filter(e => e.id !== Number(p.olist_id)), pendCat);
+          const c = await histCategory(p.descricao ?? '', p.tipo);
           if (c) { cat = c; origem = 'historico_olist'; }
         }
         if (!cat) continue;
         try {
-          await olist(token, 'PUT', `/caixa/${p.olist_id}`, { categoria: { id: cat } });
+          await setCaixaCategoria(token, p.olist_id, cat);
           await admin.from('erp_push_log').update({ status: 'enviado', model_item_id: item ?? null, olist_categoria_id: cat, categoria_origem: origem, erro: null, updated_at: nowIso() }).eq('id', p.id);
           reclass++;
         } catch (e) { await admin.from('erp_push_log').update({ erro: e instanceof Error ? e.message : String(e), updated_at: nowIso() }).eq('id', p.id); }
@@ -176,7 +212,7 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
       const op = isOperation(item);
       let cat = sug.modelItemId ? catOf.get(sug.modelItemId) : undefined;
       let fromOlist = false;
-      if (!op && !cat) { const c = suggestOlistCategory(tx, usableHist, pendCat); if (c) { cat = c; fromOlist = true; } }
+      if (!op && !cat) { const c = await histCategory(tx.descricao, tx.tipo); if (c) { cat = c; fromOlist = true; } }
       const unclassified = !op && !cat;
       if (unclassified && conn.pending_categoria_id) cat = Number(conn.pending_categoria_id);
       const billId = op ? null : pickOpenBill(tx, open[tx.tipo], used);
@@ -212,7 +248,7 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
     }
   }
   await admin.from('erp_connections').update({ last_push_at: nowIso(), ...(erros ? { last_error: `${erros} lançamento(s) com erro no envio` } : { last_error: null, last_ok_at: nowIso() }) }).eq('id', conn.id);
-  return { enviados, aClassificar, erros, simulados, reclass, jaExistia };
+  return { enviados, aClassificar, erros, simulados, reclass, jaExistia, historico: { pagas: paid.D.length, recebidas: paid.C.length, consultas: detailCache.size, erro: histErr, amostra: histDbg } };
 }
 
 /** Desfaz duplicados criados por nós: apaga só lançamentos nossos que já existiam na Olist (lançados por outros). */
@@ -275,9 +311,10 @@ const Body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cron') }),
   z.object({ action: z.literal('inspect'), school_id: z.string().uuid(), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
   z.object({ action: z.literal('ops'), school_id: z.string().uuid(), ops: z.array(z.discriminatedUnion('op', [
+    z.object({ op: z.literal('get'), path: z.string().regex(/^\/(contas-pagar|contas-receber|caixa)\/\d+$/) }),
     z.object({ op: z.literal('delete_pagar'), id: z.number().int() }),
     z.object({ op: z.literal('delete_caixa'), id: z.number().int() }),
-    z.object({ op: z.literal('set_categoria'), id: z.number().int(), categoria_id: z.number().int() }),
+    z.object({ op: z.literal('set_categoria'), id: z.number().int(), categoria_id: z.number().int(), valor: z.number().positive().optional() }),
     z.object({ op: z.literal('create_caixa'), conta_id: z.number().int(), data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), valor: z.number().positive(), tipo: z.enum(['D', 'C']), historico: z.string().max(250), categoria_id: z.number().int() }),
   ])).max(200) }),
 ]);
@@ -402,9 +439,10 @@ Deno.serve(async (req) => {
       const out: unknown[] = [];
       for (const o of b.ops) {
         try {
+          if (o.op === 'get') { out.push({ ...o, ok: true, body: await olist(token, 'GET', o.path) }); continue; }
           if (o.op === 'delete_pagar') await olist(token, 'DELETE', `/contas-pagar/${o.id}`);
           else if (o.op === 'delete_caixa') await olist(token, 'DELETE', `/caixa/${o.id}`);
-          else if (o.op === 'set_categoria') await olist(token, 'PUT', `/caixa/${o.id}`, { categoria: { id: o.categoria_id } });
+          else if (o.op === 'set_categoria') await setCaixaCategoria(token, o.id, o.categoria_id, o.valor);
           else { const r = await olist(token, 'POST', '/caixa', { historico: o.historico, data: o.data, valor: o.valor, tipo: o.tipo, conta: { id: o.conta_id }, categoria: { id: o.categoria_id } }); out.push({ ...o, ok: true, id: r?.id ?? null }); continue; }
           out.push({ ...o, ok: true });
         } catch (e) { out.push({ ...o, ok: false, erro: e instanceof Error ? e.message : String(e) }); }

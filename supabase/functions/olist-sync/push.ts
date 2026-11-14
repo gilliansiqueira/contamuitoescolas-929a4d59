@@ -60,7 +60,7 @@ export type OlistCaixa = { id: number; data: string; valor: number; tipo: string
 export function counterpartKey(s: string): string {
   const base = String(s ?? '').split('|')[0].replace(/\(extrato [^)]*\)/i, '');
   return normDesc(base)
-    .replace(/^(PIX (ENVIADO|RECEBIDO|PARA|DE)( DE| PARA)?|PAGAMENTO( DE TITULO| DE BOLETO)?|TED (ENVIADA|RECEBIDA)|TRANSFERENCIA (ENVIADA|RECEBIDA))\b/, '')
+    .replace(/^(PIX (ENVIADO|RECEBIDO|PARA|DE)( DE| PARA)?|PAGAMENTO( DE TITULO| DE BOLETO)?|LIQUIDACAO DE CONTA A (PAGAR|RECEBER)|TED (ENVIADA|RECEBIDA)|TRANSFERENCIA (ENVIADA|RECEBIDA))\b/, '')
     .trim().replace(/^CP\b/, '')
     .replace(/\b(LTDA|S A|SA|ME|EIRELI|EPP)\b/g, ' ')
     .replace(/\s+/g, ' ').trim();
@@ -99,4 +99,18 @@ export function dailyDiff(bank: Pick<Tx, 'data' | 'valor' | 'tipo'>[], caixa: Ol
   for (const e of caixa) if (e.tipo === 'C' || e.tipo === 'D') g(String(e.data).slice(0, 10)).olist += e.tipo === 'D' ? -Math.abs(Number(e.valor)) : Math.abs(Number(e.valor));
   return [...m].map(([data, v]) => ({ data, banco: +v.banco.toFixed(2), olist: +v.olist.toFixed(2), diferenca: +(v.banco - v.olist).toFixed(2) }))
     .filter(r => Math.abs(r.diferenca) > 0.009).sort((a, b) => a.data.localeCompare(b.data));
+}
+
+/** Mesma contraparte: nome do extrato igual ao contato da conta na Olist. */
+export const sameCounterpart = (descricao: string, nome: string) => { const k = counterpartKey(descricao); return !!k && k === counterpartKey(nome); };
+
+/** Categoria que aparece em pelo menos 60% das contas da contraparte (ignora vazias e "A classificar"). */
+export function majorityCategory(cats: (number | null)[], ignoreCat: number | null = null): number | null {
+  const ok = cats.filter((c): c is number => !!c && c !== ignoreCat);
+  if (!ok.length) return null;
+  const counts = new Map<number, number>();
+  for (const c of ok) counts.set(c, (counts.get(c) ?? 0) + 1);
+  let best = 0, n = 0;
+  for (const [k, v] of counts) if (v > n) { best = k; n = v; }
+  return n / ok.length >= 0.6 ? best : null;
 }
