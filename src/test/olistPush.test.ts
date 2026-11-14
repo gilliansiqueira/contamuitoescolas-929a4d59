@@ -73,3 +73,15 @@ describe('Olist: categoria pelo que a equipe já classificou lá', () => {
     expect(suggestOlistCategory({ descricao: 'Pagamento de Título - EXPRESSO SAO MIGUEL S A', tipo: 'entrada' }, caixa, 9)).toBeNull();
   });
 });
+
+describe('histórico do Tiny para pendentes (WNC)', () => {
+  it('Pix antigo "Cp :81466286-Iolanda" ensina a categoria do Pix novo, ignorando "A classificar"', async () => {
+    const { suggestOlistCategory } = await import('../../supabase/functions/olist-sync/push');
+    const hist = [
+      { id: 1, data: '2026-09-10', valor: 40, tipo: 'D', historico: 'Pix enviado: "Cp :81466286-Iolanda Gadonski Ferreira" (extrato 10/09/2026)', categoriaId: 77 },
+      { id: 2, data: '2026-10-10', valor: 4020, tipo: 'D', historico: 'Pix enviado: "Cp :81466286-Iolanda Gadonski Ferreira" (extrato 10/10/2026)', categoriaId: 77 },
+      { id: 3, data: '2026-10-20', valor: 8093.16, tipo: 'D', historico: 'Pix enviado: "Cp :81466286-Iolanda Gadonski Ferreira"', categoriaId: 999 },
+    ];
+    expect(suggestOlistCategory({ descricao: 'Pix enviado - Iolanda Gadonski Ferreira', tipo: 'saida' }, hist, 999)).toBe(77);
+  });
+});
