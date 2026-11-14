@@ -61,7 +61,7 @@ export function counterpartKey(s: string): string {
   const base = String(s ?? '').split('|')[0].replace(/\(extrato [^)]*\)/i, '');
   return normDesc(base)
     .replace(/^(PIX (ENVIADO|RECEBIDO|PARA|DE)( DE| PARA)?|PAGAMENTO( DE TITULO| DE BOLETO)?|TED (ENVIADA|RECEBIDA)|TRANSFERENCIA (ENVIADA|RECEBIDA))\b/, '')
-    .replace(/^(CP )/, '')
+    .trim().replace(/^CP\b/, '')
     .replace(/\b(LTDA|S A|SA|ME|EIRELI|EPP)\b/g, ' ')
     .replace(/\s+/g, ' ').trim();
 }

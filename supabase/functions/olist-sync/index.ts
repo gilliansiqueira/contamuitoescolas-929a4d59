@@ -99,18 +99,34 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
   const catOf = new Map((maps ?? []).filter(m => m.olist_categoria_id).map(m => [m.model_item_id, Number(m.olist_categoria_id)]));
   let enviados = 0, aClassificar = 0, erros = 0, simulados = 0, reclass = 0, jaExistia = 0;
 
-  // 1) Reclassificação: lançamentos enviados como "A classificar" que a equipe já classificou.
+  // Histórico de categorias do Tiny/Olist (12 meses), inclusive lançamentos enviados por nós que a equipe reclassificou lá.
+  // Ignora sem categoria e a categoria "A classificar".
+  const pendCat = conn.pending_categoria_id ? Number(conn.pending_categoria_id) : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const catHist: OlistCaixa[] = [];
+  for (const link of links) {
+    catHist.push(...await listCaixa(token, Number(link.olist_conta_id), addDays(today, -365), addDays(today, 1)).catch(() => [] as OlistCaixa[]));
+  }
+  const usableHist = catHist.filter(e => e.categoriaId && e.categoriaId !== pendCat);
+
+  // 1) Reclassificação: lançamentos enviados como "A classificar" — pelo item da plataforma (De/Para) ou pelo histórico do Tiny.
   if (!conn.test_mode) {
-    const { data: pend } = await admin.from('erp_push_log').select('id, bank_transaction_id, olist_id, acao').eq('connection_id', conn.id).eq('status', 'a_classificar').limit(200);
+    const { data: pend } = await admin.from('erp_push_log').select('id, bank_transaction_id, olist_id, acao, descricao, tipo').eq('connection_id', conn.id).eq('status', 'a_classificar').limit(500);
     if (pend?.length) {
       const { data: txs } = await admin.from('bank_transactions').select('id, model_item_id').in('id', pend.map(p => p.bank_transaction_id));
       for (const p of pend) {
+        if (p.acao !== 'caixa' || !p.olist_id) continue;
         const item = txs?.find(t => t.id === p.bank_transaction_id)?.model_item_id;
-        const cat = item ? catOf.get(item) : undefined;
-        if (!cat || p.acao !== 'caixa' || !p.olist_id) continue;
+        let cat = item ? catOf.get(item) : undefined;
+        let origem = 'item';
+        if (!cat) {
+          const c = suggestOlistCategory({ descricao: p.descricao ?? '', tipo: p.tipo }, usableHist.filter(e => e.id !== Number(p.olist_id)), pendCat);
+          if (c) { cat = c; origem = 'historico_olist'; }
+        }
+        if (!cat) continue;
         try {
           await olist(token, 'PUT', `/caixa/${p.olist_id}`, { categoria: { id: cat } });
-          await admin.from('erp_push_log').update({ status: 'enviado', model_item_id: item, olist_categoria_id: cat, categoria_origem: 'item', updated_at: nowIso() }).eq('id', p.id);
+          await admin.from('erp_push_log').update({ status: 'enviado', model_item_id: item ?? null, olist_categoria_id: cat, categoria_origem: origem, erro: null, updated_at: nowIso() }).eq('id', p.id);
           reclass++;
         } catch (e) { await admin.from('erp_push_log').update({ erro: e instanceof Error ? e.message : String(e), updated_at: nowIso() }).eq('id', p.id); }
       }
@@ -147,9 +163,6 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
     const ours = await ourIds(conn.id);
     const usedCx = new Set<number>();
     // Histórico de categorias que a equipe já usou na Olist (últimos 180 dias), para sugerir sem De/Para.
-    const pendCat = conn.pending_categoria_id ? Number(conn.pending_categoria_id) : null;
-    const catHist = await listCaixa(token, Number(link.olist_conta_id), addDays(txs[0].data, -180), addDays(txs[txs.length - 1].data, 1))
-      .then(r => r.filter(e => !ours.has(e.id))).catch(() => [] as OlistCaixa[]);
     for (const tx of txs) {
       const exist = findExisting(tx, caixa, usedCx, ours);
       if (exist) {
@@ -163,7 +176,7 @@ async function runPush(conn: any, opts: { retry?: boolean } = {}) {
       const op = isOperation(item);
       let cat = sug.modelItemId ? catOf.get(sug.modelItemId) : undefined;
       let fromOlist = false;
-      if (!op && !cat) { const c = suggestOlistCategory(tx, catHist, pendCat); if (c) { cat = c; fromOlist = true; } }
+      if (!op && !cat) { const c = suggestOlistCategory(tx, usableHist, pendCat); if (c) { cat = c; fromOlist = true; } }
       const unclassified = !op && !cat;
       if (unclassified && conn.pending_categoria_id) cat = Number(conn.pending_categoria_id);
       const billId = op ? null : pickOpenBill(tx, open[tx.tipo], used);
