@@ -273,6 +273,13 @@ const Body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('reconcile'), school_id: z.string().uuid() }),
   z.object({ action: z.literal('push'), school_id: z.string().uuid(), retry: z.boolean().optional() }),
   z.object({ action: z.literal('cron') }),
+  z.object({ action: z.literal('inspect'), school_id: z.string().uuid(), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+  z.object({ action: z.literal('ops'), school_id: z.string().uuid(), ops: z.array(z.discriminatedUnion('op', [
+    z.object({ op: z.literal('delete_pagar'), id: z.number().int() }),
+    z.object({ op: z.literal('delete_caixa'), id: z.number().int() }),
+    z.object({ op: z.literal('set_categoria'), id: z.number().int(), categoria_id: z.number().int() }),
+    z.object({ op: z.literal('create_caixa'), conta_id: z.number().int(), data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), valor: z.number().positive(), tipo: z.enum(['D', 'C']), historico: z.string().max(250), categoria_id: z.number().int() }),
+  ])).max(200) }),
 ]);
 
 Deno.serve(async (req) => {
@@ -323,7 +330,7 @@ Deno.serve(async (req) => {
       userClient.rpc('is_admin'), userClient.rpc('is_super_admin'), userClient.rpc('admin_manages_school', { _school_id: b.school_id }),
     ]);
     if (!isAdmin || !sees) return json({ error: 'Sem acesso a esta empresa' }, 403);
-    const superOnly = ['save_app', 'authorize', 'settings', 'save_link', 'dedup_cleanup'];
+    const superOnly = ['save_app', 'authorize', 'settings', 'save_link', 'dedup_cleanup', 'inspect', 'ops'];
     if (superOnly.includes(b.action) && !isSuper) return json({ error: 'Só a administração pode configurar a integração com a Olist.' }, 403);
 
     let { data: conn } = await admin.from('erp_connections').select('*').eq('school_id', b.school_id).maybeSingle();
@@ -379,6 +386,31 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
     if (b.action === 'dedup_cleanup') return json({ ok: true, ...(await dedupCleanup(conn, b.dry_run)) });
+    if (b.action === 'inspect') {
+      // Conferência manual (só administração): contas a pagar e Caixa da Olist num período.
+      const token = await accessToken(conn);
+      const { data: links } = await admin.from('erp_account_links').select('olist_conta_id, olist_conta_nome').eq('connection_id', conn.id);
+      const pagar: unknown[] = [];
+      for (const sit of ['aberto', 'atrasadas', 'pago', 'parcial']) pagar.push(...(await listAll(token, `/contas-pagar?situacao=${sit}&dataInicialVencimento=${b.from}&dataFinalVencimento=${b.to}`).catch(() => [])).map(x => ({ ...x, _sit: sit })));
+      const caixa: unknown[] = [];
+      for (const l of links ?? []) caixa.push(...(await listCaixa(token, Number(l.olist_conta_id), b.from, b.to)).map(x => ({ ...x, conta: l.olist_conta_id })));
+      const categorias = await listAll(token, '/categorias-receita-despesa');
+      return json({ ok: true, links, pagar, caixa, categorias: categorias.map(c => ({ id: c.id, descricao: c.descricao })) });
+    }
+    if (b.action === 'ops') {
+      const token = await accessToken(conn);
+      const out: unknown[] = [];
+      for (const o of b.ops) {
+        try {
+          if (o.op === 'delete_pagar') await olist(token, 'DELETE', `/contas-pagar/${o.id}`);
+          else if (o.op === 'delete_caixa') await olist(token, 'DELETE', `/caixa/${o.id}`);
+          else if (o.op === 'set_categoria') await olist(token, 'PUT', `/caixa/${o.id}`, { categoria: { id: o.categoria_id } });
+          else { const r = await olist(token, 'POST', '/caixa', { historico: o.historico, data: o.data, valor: o.valor, tipo: o.tipo, conta: { id: o.conta_id }, categoria: { id: o.categoria_id } }); out.push({ ...o, ok: true, id: r?.id ?? null }); continue; }
+          out.push({ ...o, ok: true });
+        } catch (e) { out.push({ ...o, ok: false, erro: e instanceof Error ? e.message : String(e) }); }
+      }
+      return json({ ok: true, out });
+    }
     if (b.action === 'reconcile') return json({ ok: true, ...(await reconcile(conn)) });
     if (b.action === 'push') {
       if (!conn.enabled) return json({ error: 'A integração com a Olist está desligada.' }, 400);
