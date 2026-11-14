@@ -31,3 +31,6 @@
 - [ ] Contas em atraso — depende do Conta Azul
 - [ ] Conta Azul ler/enviar (Ather + Wizard IC/Leme/SF) — aguardando app e chaves do Conta Azul
 - [x] Tirar trava de extrato em Cuiabá Goiabeiras
+
+- [ ] WNC: categoria do Tiny pelo histórico (aguarda a sincronização automática)
+- [ ] WNC: separar salário em VR/VT conforme a planilha e excluir do contas a pagar do Tiny o que já está no caixa (aguarda a planilha)
