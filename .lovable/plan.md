@@ -1,11 +1,19 @@
-# Empresas sem relatório de cartão na plataforma
+# Quintal de Casa: planilha dos lançamentos conciliados no sábado (14/11)
 
-Conferi as empresas ativas que ainda não têm nenhuma planilha de cartão (vendas ou recebimentos, de qualquer maquininha) enviada na aba Cartões. Ficaram de fora a Demo e as empresas restritas.
+Criar o arquivo `quintal_conciliados_14-11.xlsx` com uma aba que lista os 22 lançamentos conciliados no sábado.
 
-**Escolas (16):** Blumenau, Boa Vista, Campo Largo, Chapecó, Contorno, Cuiabá Goiabeiras, Cuiabá Jardim Itália, Dourados, Hauer, Lauro de Freitas, Linhares, Londrina Dom Bosco, Manaus Centro, Maracaju, Pinhais, Pinheirinho, Piracicaba, Portão, Praia da Costa, São Chico, São José.
+Colunas:
+- data do lançamento
+- descrição
+- valor (R$)
+- entrada ou saída
+- conta
+- horário da conciliação
+- quem conciliou
+- observação
 
-**Outras empresas:** Agência One, Ather Engenharia, Central Press, Farmácia Magistral, FourBio, Go Company, Jurassic, OAP, Obras Nascimento, Quintal de Casa, Wizard IC, Wizard Leme, Wizard SF, WNC. Algumas dessas talvez nem usem maquininha.
+Embaixo da lista, um total calculado por fórmula.
 
-## O que vou fazer ao aprovar
-- Acrescentar uma aba "Sem relatório" na planilha das maquininhas, com essas empresas separadas entre escolas e outras. O arquivo novo será a versão 2 da planilha (relatorios_stone_empresas_v2.xlsx).
-- Nada muda na plataforma.
+Uma segunda aba, "Pendentes do sábado", traz os dois Pix com data de 14/11 que continuam pendentes: Vanessa e Reza, de R$ 250 cada.
+
+Somente leitura: nada muda na plataforma.
