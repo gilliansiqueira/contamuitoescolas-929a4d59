@@ -13,7 +13,7 @@ const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', cur
 const fmtDate = (d: string) => d.split('-').reverse().join('/');
 const fmtMonth = (m: string) => { const [y, mm] = m.split('-'); return `${['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+mm - 1]}/${y}`; };
 
-function Row({ r, onSaved }: { r: ClientPendingRow; onSaved: () => void }) {
+function useNoteForm(r: ClientPendingRow, onSaved: () => void) {
   const [cat, setCat] = useState(r.categoria_texto ?? '');
   const [obs, setObs] = useState(r.observacao ?? '');
   const [saving, setSaving] = useState(false);
@@ -27,17 +27,39 @@ function Row({ r, onSaved }: { r: ClientPendingRow; onSaved: () => void }) {
     toast.success('Enviado para a equipe');
     onSaved();
   };
+  return { cat, setCat, obs, setObs, saving, dirty, save };
+}
+
+function SaveButton({ r, f }: { r: ClientPendingRow; f: ReturnType<typeof useNoteForm> }) {
+  return <>
+    <Button size="sm" onClick={f.save} disabled={f.saving || !f.dirty}>{r.note_updated_at ? 'Atualizar' : 'Enviar'}</Button>
+    {r.note_updated_at && <div className="mt-1 text-[11px] text-muted-foreground">Enviado em {new Date(r.note_updated_at).toLocaleDateString('pt-BR')}</div>}
+  </>;
+}
+
+function RowCard({ r, onSaved }: { r: ClientPendingRow; onSaved: () => void }) {
+  const f = useNoteForm(r, onSaved);
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex justify-between gap-2 text-sm"><span className="text-muted-foreground">{fmtDate(r.data)} · {r.conta}</span><span className="font-semibold tabular-nums text-destructive">{fmtBRL(Number(r.valor))}</span></div>
+      <div className="text-sm">{r.descricao}</div>
+      <Input value={f.cat} onChange={e => f.setCat(e.target.value)} placeholder="Qual é essa despesa? Ex.: material de limpeza" maxLength={300} />
+      <Input value={f.obs} onChange={e => f.setObs(e.target.value)} placeholder="Observação (opcional)" maxLength={1000} />
+      <SaveButton r={r} f={f} />
+    </div>
+  );
+}
+
+function Row({ r, onSaved }: { r: ClientPendingRow; onSaved: () => void }) {
+  const f = useNoteForm(r, onSaved);
   return (
     <tr className="border-t align-top">
       <td className="p-2 whitespace-nowrap">{fmtDate(r.data)}</td>
       <td className="p-2"><div>{r.descricao}</div><div className="text-xs text-muted-foreground">{r.conta}</div></td>
       <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{fmtBRL(Number(r.valor))}</td>
-      <td className="p-2 min-w-56"><Input value={cat} onChange={e => setCat(e.target.value)} placeholder="Ex.: material de limpeza" maxLength={300} /></td>
-      <td className="p-2 min-w-48"><Input value={obs} onChange={e => setObs(e.target.value)} placeholder="Opcional" maxLength={1000} /></td>
-      <td className="p-2 whitespace-nowrap">
-        <Button size="sm" onClick={save} disabled={saving || !dirty}>{r.note_updated_at ? 'Atualizar' : 'Enviar'}</Button>
-        {r.note_updated_at && <div className="mt-1 text-[11px] text-muted-foreground">Enviado em {new Date(r.note_updated_at).toLocaleDateString('pt-BR')}</div>}
-      </td>
+      <td className="p-2 min-w-56"><Input value={f.cat} onChange={e => f.setCat(e.target.value)} placeholder="Ex.: material de limpeza" maxLength={300} /></td>
+      <td className="p-2 min-w-48"><Input value={f.obs} onChange={e => f.setObs(e.target.value)} placeholder="Opcional" maxLength={1000} /></td>
+      <td className="p-2 whitespace-nowrap"><SaveButton r={r} f={f} /></td>
     </tr>
   );
 }
@@ -80,10 +102,10 @@ export function ClientPendencias({ schoolId }: { schoolId: string }) {
         {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p>
           : error ? <p className="text-sm text-destructive">Não foi possível carregar as pendências.</p>
           : list.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma saída pendente.</p>
-          : <div className="overflow-x-auto"><table className="w-full text-sm">
+          : <><div className="space-y-2 md:hidden">{list.map(r => <RowCard key={`${r.id}-${r.note_updated_at ?? ''}`} r={r} onSaved={refresh} />)}</div><div className="hidden overflow-x-auto md:block"><table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-muted-foreground"><th className="p-2">Data</th><th className="p-2">Descrição no banco</th><th className="p-2 text-right">Valor</th><th className="p-2">Qual é essa despesa?</th><th className="p-2">Observação</th><th className="p-2" /></tr></thead>
               <tbody>{list.map(r => <Row key={`${r.id}-${r.note_updated_at ?? ''}`} r={r} onSaved={refresh} />)}</tbody>
-            </table></div>}
+            </table></div></>}
       </CardContent>
     </Card>
   );
