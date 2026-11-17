@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -3714,6 +3714,88 @@ export type Database = {
         }
         Relationships: []
       }
+      mgmt_task_comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          task_id: string
+          user_id?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mgmt_task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "mgmt_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mgmt_tasks: {
+        Row: {
+          assignee_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          school_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          school_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          school_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mgmt_tasks_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       module_tabs: {
         Row: {
           created_at: string
@@ -6841,6 +6923,7 @@ export type Database = {
       can_manage_collaborators: { Args: never; Returns: boolean }
       can_oversee_team: { Args: never; Returns: boolean }
       can_see_school: { Args: { _school_id: string }; Returns: boolean }
+      can_use_mgmt_tasks: { Args: never; Returns: boolean }
       can_view_client_logins: { Args: never; Returns: boolean }
       can_view_team_time: { Args: never; Returns: boolean }
       client_pending_outflows: {
@@ -7059,6 +7142,13 @@ export type Database = {
       }
       is_platform_member: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      mgmt_task_members: {
+        Args: never
+        Returns: {
+          email: string
+          user_id: string
+        }[]
+      }
       my_team_time_external_id: { Args: never; Returns: string }
       recon_network_patterns: {
         Args: { _school_id: string }

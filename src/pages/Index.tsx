@@ -6,6 +6,7 @@ import { AfternoonBankCheck } from '@/components/team/AfternoonBankCheck';
 import { HelpCenter, setHelpScreen } from '@/components/help/HelpCenter';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
+import { MgmtTasks } from '@/components/mgmt-tasks/MgmtTasks';
 import { useSchoolFeature, BANK_PILOT_FEATURE } from '@/hooks/useBankPilot';
 import { useSchools } from '@/hooks/useFinancialData';
 import { useDemoMode } from '@/contexts/DemoModeContext';
@@ -33,6 +34,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
   CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark, GraduationCap, Wallet, KeyRound, ClipboardList,
+  ListTodo,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -71,7 +73,7 @@ const ScreenLoading = () => (
   <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>
 );
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons' | 'renewal' | 'payroll' | 'access' | 'client_pending';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons' | 'renewal' | 'payroll' | 'access' | 'client_pending' | 'mgmt_tasks';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -89,6 +91,7 @@ const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean; pilot
   { key: 'payroll', label: 'Folha e benefícios', icon: Wallet, adminOnly: true },
   { key: 'access', label: 'Acessos e senhas', icon: KeyRound, adminOnly: true },
   { key: 'client_pending', label: 'Pendências', icon: ClipboardList },
+  { key: 'mgmt_tasks', label: 'Tarefas', icon: ListTodo, adminOnly: true },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
@@ -235,7 +238,8 @@ function IndexBody({
     queryKey: ['clientPendingEnabled', school.id], enabled: !isDemo && !isPresentationMode,
     queryFn: async () => { const { data } = await (supabase as any).rpc('client_pending_outflows_enabled', { _school_id: school.id }); return !!data; },
   });
-  const visibleMainTabs = mainTabs.filter(t => (t.key !== 'client_pending' || clientPendingEnabled) && (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled) && !(t.key === 'renewal' && isQuintal(school.id)));
+  const canMgmtTasks = !!profile?.permissions?.includes('gestao_tarefas');
+  const visibleMainTabs = mainTabs.filter(t => (t.key !== 'client_pending' || clientPendingEnabled) && (t.key !== 'mgmt_tasks' || canMgmtTasks) && (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled) && !(t.key === 'renewal' && isQuintal(school.id)));
 
   if ((isPresentationMode || isDemo) && isSettingsTab) {
     setActiveTab('dashboard');
@@ -331,7 +335,7 @@ function IndexBody({
       items: canSeeAdminTabs
         ? [
             ...(['datatable'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
-            ...(['renewal'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
+            ...(['mgmt_tasks', 'renewal'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['bank_flow', 'payroll', 'access'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['upload', 'uploads_history', 'audit_history'] as Tab[])
               .filter(t => settingsTabs.some(s => s.key === t))
@@ -446,6 +450,7 @@ function IndexBody({
                   {activeTab === 'client_pending' && clientPendingEnabled && <ClientPendencias schoolId={school.id} />}
                   {activeTab === 'payroll' && canSeeAdminTabs && <ClientPayroll schoolId={school.id} />}
                   {activeTab === 'access' && canSeeAdminTabs && <ClientAccess schoolId={school.id} schoolName={school.nome} />}
+                  {activeTab === 'mgmt_tasks' && canSeeAdminTabs && canMgmtTasks && <MgmtTasks />}
                   {activeTab === 'renewal' && canSeeAdminTabs && <RenovacaoModule schoolId={school.id} schoolName={school.nome} />}
                   {activeTab === 'datatable' && (
                     <ExportPdfSection fileName={`dados-${selectedMonth}`}>
