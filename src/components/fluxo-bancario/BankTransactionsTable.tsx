@@ -62,6 +62,15 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     toast.success(on ? 'Marcado: falta conciliar no Nibo' : 'Conciliado no Nibo');
     qcNibo.invalidateQueries({ queryKey: ['niboPending', schoolId] });
   };
+  const [onlyClientNote, setOnlyClientNote] = useState(false);
+  const { data: clientNoteMap = new Map<string, { categoria_texto: string; observacao: string | null; user_email: string | null; updated_at: string }>() } = useQuery({
+    queryKey: ['bankTxClientNotes', schoolId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from('bank_tx_client_notes').select('bank_transaction_id,categoria_texto,observacao,user_email,updated_at').eq('school_id', schoolId);
+      if (error) throw error;
+      return new Map<string, any>((data ?? []).map((r: any) => [r.bank_transaction_id, r]));
+    },
+  });
   const [importFilter, setImportFilter] = useState<string | null>(null);
   useEffect(() => { if (focus) { setImportFilter(focus.importId); setCat('auto'); setAccountId('all'); setFrom(focus.from); setTo(focus.to); } }, [focus?.nonce]);
   const [cat, setCat] = useState<'all' | 'mov' | 'receita' | 'despesa' | 'operacao' | 'transf' | 'auto' | 'aclassificar' | 'ignorar' | 'dividido'>('all');
@@ -222,9 +231,9 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     const vMin = parseV(minValor), vMax = parseV(maxValor);
     const inRange = (t: BankTx) => { const v = Math.abs(Number(t.valor)); return (vMin == null || v >= vMin - 0.005) && (vMax == null || v <= vMax + 0.005); };
     return txs
-       .filter(t => inRange(t) && (tipoFilter === 'all' || t.tipo === tipoFilter) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)))
+       .filter(t => inRange(t) && (tipoFilter === 'all' || t.tipo === tipoFilter) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)) && (!onlyClientNote || clientNoteMap.has(t.id)))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet, minValor, maxValor, tipoFilter]);
+   }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet, onlyClientNote, clientNoteMap, minValor, maxValor, tipoFilter]);
 
   const exportPendencias = () => {
     const pendRows = rows.filter(t => t.recon_status === 'pendente');
@@ -371,6 +380,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           {rows.length} lançamentos · <span className="font-semibold text-success">Conciliados {conc.length} ({fmtBRL(concValor)})</span> · <span className="font-semibold text-warning">Pendentes {pend.length} ({fmtBRL(pendValor)})</span> · <CrossLine c={cross(rows)} />
         </p>
         <div className="flex flex-wrap gap-2">
+          {clientNoteMap.size > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={onlyClientNote} onCheckedChange={v => setOnlyClientNote(!!v)} />Com resposta do cliente ({clientNoteMap.size})</label>}
           {niboEnabled && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={onlyNibo} onCheckedChange={v => setOnlyNibo(!!v)} />Só falta no Nibo ({niboSet.size})</label>}
           {autoCount > 0 && <label className="flex items-center gap-1.5 text-xs text-muted-foreground"><Checkbox checked={!showAuto} onCheckedChange={v => setShowAuto(!v)} />Esconder aplicações automáticas ({autoCount})</label>}
           {importFilter && <Button size="sm" variant="secondary" onClick={() => { setImportFilter(null); setCat('all'); }}>Só deste extrato · limpar filtro ✕</Button>}
@@ -489,6 +499,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
                     <SelectTrigger className={`mt-1 h-7 w-48 text-xs ${!t.model_item_id ? 'border-warning text-warning' : ''}`}><SelectValue placeholder="Escolha a subcategoria" /></SelectTrigger>
                     <SelectContent><SelectItem value="none">Escolha a subcategoria</SelectItem>{operationItemsFor(t.tipo).map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent>
                   </Select>}
+                  {clientNoteMap.has(t.id) && (() => { const n = clientNoteMap.get(t.id)!; return <span className="mt-1 flex max-w-72 items-start gap-1 rounded bg-accent/40 px-1.5 py-0.5 text-[11px] text-accent-foreground" title={`Cliente${n.user_email ? ` (${n.user_email})` : ''} · ${fmtDateTime(n.updated_at)}`}><MessageSquare className="mt-0.5 h-3 w-3 shrink-0" /><span><b>Cliente:</b> {n.categoria_texto}{n.observacao ? ` — ${n.observacao}` : ''}</span></span>; })()}
                   {t.transfer_pair_id && (() => { const o = txs.find(x => x.transfer_pair_id === t.transfer_pair_id && x.id !== t.id); const me = accName.get(t.account_id) ?? '?'; const other = o ? accName.get(o.account_id) ?? '?' : '?'; return <span className="ml-1 text-[10px] text-muted-foreground">{t.tipo === 'saida' ? `${me} → ${other}` : `${other} → ${me}`}</span>; })()}</td>
                  <td className="p-2 text-right tabular-nums text-success whitespace-nowrap">{t.tipo === 'entrada' ? fmtBRL(displayedValue(t)) : ''}</td>
                  <td className="p-2 text-right tabular-nums text-destructive whitespace-nowrap">{t.tipo === 'saida' ? fmtBRL(displayedValue(t)) : ''}</td>

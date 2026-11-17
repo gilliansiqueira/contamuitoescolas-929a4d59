@@ -1217,6 +1217,57 @@ export type Database = {
           },
         ]
       }
+      bank_tx_client_notes: {
+        Row: {
+          bank_transaction_id: string
+          categoria_texto: string
+          created_at: string
+          id: string
+          observacao: string | null
+          school_id: string
+          updated_at: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          bank_transaction_id: string
+          categoria_texto?: string
+          created_at?: string
+          id?: string
+          observacao?: string | null
+          school_id: string
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          bank_transaction_id?: string
+          categoria_texto?: string
+          created_at?: string
+          id?: string
+          observacao?: string | null
+          school_id?: string
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_tx_client_notes_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_tx_client_notes_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_tx_nibo_pending: {
         Row: {
           marked_at: string
@@ -6792,6 +6843,23 @@ export type Database = {
       can_see_school: { Args: { _school_id: string }; Returns: boolean }
       can_view_client_logins: { Args: never; Returns: boolean }
       can_view_team_time: { Args: never; Returns: boolean }
+      client_pending_outflows: {
+        Args: { _school_id: string }
+        Returns: {
+          categoria_texto: string
+          conta: string
+          data: string
+          descricao: string
+          id: string
+          note_updated_at: string
+          observacao: string
+          valor: number
+        }[]
+      }
+      client_pending_outflows_enabled: {
+        Args: { _school_id: string }
+        Returns: boolean
+      }
       close_recon_day: {
         Args: { _day: string; _school_id: string }
         Returns: {
@@ -7029,6 +7097,10 @@ export type Database = {
           _url: string
         }
         Returns: string
+      }
+      save_client_tx_note: {
+        Args: { _obs: string; _texto: string; _tx_id: string }
+        Returns: undefined
       }
       set_bank_import_guard_enforced: {
         Args: { _enabled: boolean }

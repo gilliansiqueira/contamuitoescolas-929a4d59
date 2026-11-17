@@ -28,9 +28,11 @@ import { AppHeader } from '@/components/app-shell/AppHeader';
 import { SchoolSelector } from '@/components/SchoolSelector';
 import { ManagementCenter } from '@/components/management/ManagementCenter';
 import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
-  CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark, GraduationCap, Wallet, KeyRound,
+  CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark, GraduationCap, Wallet, KeyRound, ClipboardList,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -62,13 +64,14 @@ const ReconReasonsConfig = lazyNamed(() => import('@/components/fluxo-bancario/R
 const ClientPayroll = lazyNamed(() => import('@/components/client-payroll/ClientPayroll'), 'ClientPayroll');
 const ClientAccess = lazyNamed(() => import('@/components/client-access/ClientAccess'), 'ClientAccess');
 const RenovacaoModule = lazyNamed(() => import('@/components/renovacao/RenovacaoModule'), 'RenovacaoModule');
+const ClientPendencias = lazyNamed(() => import('@/components/client-pending/ClientPendencias'), 'ClientPendencias');
 const FluxoBancario = lazyNamed(() => import('@/components/fluxo-bancario/FluxoBancario'), 'FluxoBancario');
 
 const ScreenLoading = () => (
   <div className="min-h-48 flex items-center justify-center text-sm text-muted-foreground">Carregando dados…</div>
 );
 
-type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons' | 'renewal' | 'payroll' | 'access';
+type Tab = 'dashboard' | 'cashflow' | 'receivables' | 'simulation' | 'calendar' | 'datatable' | 'comparativo_periodos' | 'scenarios' | 'upload' | 'guide' | 'export' | 'comparison' | 'uploads_history' | 'saldo_inicial' | 'payment_delays' | 'audit_history' | 'daily_flow' | 'users' | 'historico_financeiro' | 'modelos_financeiros' | 'empresa_modelo' | 'bank_flow' | 'recon_reasons' | 'renewal' | 'payroll' | 'access' | 'client_pending';
 
 type AppModule = 'projecao' | 'realizado';
 
@@ -85,6 +88,7 @@ const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean; pilot
   { key: 'renewal', label: 'Renovação escolar', icon: GraduationCap, adminOnly: true },
   { key: 'payroll', label: 'Folha e benefícios', icon: Wallet, adminOnly: true },
   { key: 'access', label: 'Acessos e senhas', icon: KeyRound, adminOnly: true },
+  { key: 'client_pending', label: 'Pendências', icon: ClipboardList },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
@@ -227,13 +231,21 @@ function IndexBody({
   const isSettingsTab = settingsTabs.some(t => t.key === activeTab);
   const canSeeAdminTabs = isAdmin && !isPresentationMode && !isDemo;
   const { data: bankPilotEnabled = false } = useSchoolFeature(school.id, BANK_PILOT_FEATURE, canSeeAdminTabs);
-  const visibleMainTabs = mainTabs.filter(t => (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled) && !(t.key === 'renewal' && isQuintal(school.id)));
+  const { data: clientPendingEnabled = false } = useQuery({
+    queryKey: ['clientPendingEnabled', school.id], enabled: !isDemo && !isPresentationMode,
+    queryFn: async () => { const { data } = await (supabase as any).rpc('client_pending_outflows_enabled', { _school_id: school.id }); return !!data; },
+  });
+  const visibleMainTabs = mainTabs.filter(t => (t.key !== 'client_pending' || clientPendingEnabled) && (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled) && !(t.key === 'renewal' && isQuintal(school.id)));
 
   if ((isPresentationMode || isDemo) && isSettingsTab) {
     setActiveTab('dashboard');
   }
 
   if (!canSeeAdminTabs && mainTabs.some(t => t.key === activeTab && t.adminOnly)) {
+    setActiveTab('dashboard');
+  }
+
+  if (activeTab === 'client_pending' && !clientPendingEnabled) {
     setActiveTab('dashboard');
   }
 
@@ -283,7 +295,7 @@ function IndexBody({
     {
       key: 'visao-geral',
       title: 'Visão Geral',
-      items: [projItem('dashboard')],
+      items: [projItem('dashboard'), ...(visibleMainTabs.some(v => v.key === 'client_pending') ? [projItem('client_pending')] : [])],
     },
     {
       key: 'caixa-projecao',
@@ -431,6 +443,7 @@ function IndexBody({
                   {activeTab === 'bank_flow' && bankPilotEnabled && canSeeAdminTabs && (
                     <FluxoBancario schoolId={school.id} selectedMonth={selectedMonth} />
                   )}
+                  {activeTab === 'client_pending' && clientPendingEnabled && <ClientPendencias schoolId={school.id} />}
                   {activeTab === 'payroll' && canSeeAdminTabs && <ClientPayroll schoolId={school.id} />}
                   {activeTab === 'access' && canSeeAdminTabs && <ClientAccess schoolId={school.id} schoolName={school.nome} />}
                   {activeTab === 'renewal' && canSeeAdminTabs && <RenovacaoModule schoolId={school.id} schoolName={school.nome} />}
