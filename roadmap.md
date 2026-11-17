@@ -1,36 +1,8 @@
 # Roadmap
-- [x] Revisão final bancária: caixa incompleto editável, commit em lote, contagem real e concorrência sintética (102 testes + 38 SQL + 4 concorrência; sem publicação/ativação)
-- [x] Simplificar proteção bancária e restaurar transição da tela antiga; ativação completa só após publicação (96 testes + 26 SQL e concorrência)
-- [x] Proteção de identidade/destino na importação bancária, cadastro autorizado e testes sintéticos (sem publicação; PDF/OCR bloqueado até leitor independente)
-- [x] Manter previsão pendente do dia atual no Fluxo Diário, fechamento e avisos de saldo (23 testes financeiros)
-- [ ] Conferir Fluxo Diário do Champagnat com login (sessão não disponível; aguarda login na prévia)
-- [x] Aviso de projeções em atraso
-- [x] Menu Equipe com abas
-- [ ] Leitura automática do PDF de holerites (aguarda PDF de exemplo)
-- [x] Quintal: estrutura e telas exclusivas trazidas; Renovação oculta; Fluxo Bancário liberado
-- [x] Quintal: dados importados e conferidos
-- [ ] Quintal: ativar Fluxo Bancário em nov/2026 (aguarda contas e saldo de 31/10)
-- [ ] Quintal: conferência tela a tela com o projeto original
-- [x] Manaus Centro: enviar planilha de renovação corrigida (Omni + Sponte), sem a turma 2027/1
-- [x] Conciliação assistida (teste Praia da Costa): sugestões, cruzamento triplo, baixa Omni/Sponte manual, painel de ganho
-- [ ] Baixa automática no Omni/Sponte por relatório (aguarda relatório de baixas de exemplo)
-- [ ] Leitores de repasse Getnet/Rede/Sicredi (aguarda arquivos de exemplo)
-- [ ] WhatsApp por exportação de conversa de grupo (etapa seguinte)
-- [x] Mercado Pago WNC: conector somente leitura (tabelas, função, painel, testes, auditoria Olist por leitura)
-- [ ] Mercado Pago WNC: cadastrar token de produção e validar prévia (aguarda credencial da WNC)
-- [ ] Mercado Pago: autorização OAuth por cliente e leitura agendada (após validar o piloto)
-- [x] Acessos e senhas: testes isolados da proposta (staging/client-access-guard, banco descartável)
-- [ ] Acessos e senhas: promoção (aguarda aprovação da Bruna)
-- [x] Extratos: proteção só bloqueia conta comprovadamente errada; PDF/OCR e cadastros incompletos voltam a importar com aviso
-- [ ] Extratos: publicar a tela nova (aguarda revisão e publicação pela Bruna)
-
-## Ather (plano aprovado 11/11)
-- [x] Lançar despesas e obras de set/out (Conta Azul, data de pagamento)
-- [x] Receitas por centro de custo set/out (sem transferência, aporte e empréstimo)
-- [x] Análise por obra na tela e no PDF (resultado, rankings, evolução, obra x estrutura, destaques)
-- [ ] Contas em atraso — depende do Conta Azul
-- [ ] Conta Azul ler/enviar (Ather + Wizard IC/Leme/SF) — aguardando app e chaves do Conta Azul
-- [x] Tirar trava de extrato em Cuiabá Goiabeiras
-
-- [x] WNC: categoria do Tiny pelo histórico (aguarda a sincronização automática)
-- [x] WNC: separar salário em VR/VT conforme a planilha e excluir do contas a pagar do Tiny o que já está no caixa (aguarda a planilha) (excluir contas abertas: API do Tiny não permite; equipe exclui à mão)
+- [x] Farmácia Magistral: ícones nos indicadores
+- [x] Farmácia Magistral: CMV de out/2026 (Loja, Veterinária, Total, % sobre vendas)
+- [x] Farmácia Magistral: aba "Despesas por área" com Atendimento/Laboratório/Administrativo/Comercial
+- [ ] Farmácia: ligar despesas do modelo às áreas automaticamente — aguarda Bruna confirmar áreas e quais despesas vão em cada
+- [ ] Farmácia: estoque em R$ — aguarda relatório de estoque
+- [ ] Farmácia: envio do PDF de CMV com conferência — próximo passo
+- [ ] Indaiatuba: receita integral — aguarda lista de valores
