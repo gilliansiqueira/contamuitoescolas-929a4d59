@@ -6,7 +6,6 @@ import { AfternoonBankCheck } from '@/components/team/AfternoonBankCheck';
 import { HelpCenter, setHelpScreen } from '@/components/help/HelpCenter';
 import { usePresentation } from '@/components/presentation-provider';
 import { useAuth } from '@/hooks/useAuth';
-import { MgmtTasks } from '@/components/mgmt-tasks/MgmtTasks';
 import { useSchoolFeature, BANK_PILOT_FEATURE } from '@/hooks/useBankPilot';
 import { useSchools } from '@/hooks/useFinancialData';
 import { useDemoMode } from '@/contexts/DemoModeContext';
@@ -91,7 +90,6 @@ const mainTabs: { key: Tab; label: string; icon: any; adminOnly?: boolean; pilot
   { key: 'payroll', label: 'Folha e benefícios', icon: Wallet, adminOnly: true },
   { key: 'access', label: 'Acessos e senhas', icon: KeyRound, adminOnly: true },
   { key: 'client_pending', label: 'Pendências', icon: ClipboardList },
-  { key: 'mgmt_tasks', label: 'Tarefas', icon: ListTodo, adminOnly: true },
 ];
 
 const settingsTabsBase: { key: Tab; label: string; adminOnly?: boolean }[] = [
@@ -335,7 +333,7 @@ function IndexBody({
       items: canSeeAdminTabs
         ? [
             ...(['datatable'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
-            ...(['mgmt_tasks', 'renewal'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
+            ...(['renewal'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['bank_flow', 'payroll', 'access'] as Tab[]).filter(t => visibleMainTabs.some(v => v.key === t)).map(projItem),
             ...(['upload', 'uploads_history', 'audit_history'] as Tab[])
               .filter(t => settingsTabs.some(s => s.key === t))
@@ -450,7 +448,6 @@ function IndexBody({
                   {activeTab === 'client_pending' && clientPendingEnabled && <ClientPendencias schoolId={school.id} />}
                   {activeTab === 'payroll' && canSeeAdminTabs && <ClientPayroll schoolId={school.id} />}
                   {activeTab === 'access' && canSeeAdminTabs && <ClientAccess schoolId={school.id} schoolName={school.nome} />}
-                  {activeTab === 'mgmt_tasks' && canSeeAdminTabs && canMgmtTasks && <MgmtTasks />}
                   {activeTab === 'renewal' && canSeeAdminTabs && <RenovacaoModule schoolId={school.id} schoolName={school.nome} />}
                   {activeTab === 'datatable' && (
                     <ExportPdfSection fileName={`dados-${selectedMonth}`}>
