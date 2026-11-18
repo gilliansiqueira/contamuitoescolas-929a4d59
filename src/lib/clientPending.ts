@@ -1,7 +1,13 @@
 export interface ClientPendingRow {
   id: string; data: string; descricao: string; valor: number; conta: string;
-  categoria_texto: string | null; observacao: string | null; note_updated_at: string | null;
+  categoria_texto: string | null; observacao: string | null; note_updated_at: string | null; tipo?: 'entrada' | 'saida';
 }
+
+export type PendingKind = 'all' | 'entrada' | 'saida';
+export const isInflow = (r: ClientPendingRow) => r.tipo === 'entrada';
+/** Filtro por tipo (entrada/saída). */
+export const filterByKind = (rows: ClientPendingRow[], kind: PendingKind) =>
+  kind === 'all' ? rows : rows.filter(r => (r.tipo ?? 'saida') === kind);
 
 /** Meses (YYYY-MM) presentes, do mais recente ao mais antigo. */
 export const pendingMonths = (rows: ClientPendingRow[]) =>

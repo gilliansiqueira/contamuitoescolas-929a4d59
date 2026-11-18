@@ -39,3 +39,4 @@
 - Per-company classification exceptions are done by giving that company its own copy of the financial model (e.g. 'Escola - Vitória', pró-labore as operation) and remapping its model_item_id rows; never special-case a school in the SSOT code.
 - Client pending outflows (`bank_tx_client_notes`, RPCs `client_pending_outflows*`/`save_client_tx_note`, feature `cliente_pendencias_saidas`): clients read only pending normal outflows via SECURITY DEFINER RPCs and write free-text notes; the team sees them in Fluxo Bancário — notes never classify, reconcile or feed calculations.
 - Team task board (`mgmt_tasks`, `mgmt_task_comments`): visible only to users with `user_permissions.gestao_tarefas` via `can_use_mgmt_tasks()`, RESTRICTIVE `can_see_school` when linked to a company; pure rules in `src/lib/mgmtTasks.ts` — operational aid only, never feeds financial calculations.
+- Client pending inflows: `cliente_pendencias_entradas` via `client_pending_types`; note-only.

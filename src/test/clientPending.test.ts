@@ -19,3 +19,11 @@ describe('sininho de pendências', () => {
     expect(uc([{ ...base, categoria_texto: null }, { ...base, categoria_texto: '  ' }, { ...base, categoria_texto: 'Combustível' }])).toBe(2);
   });
 });
+
+import { filterByKind } from '@/lib/clientPending';
+describe('Dourados: entradas e saídas', () => {
+  const mix = [{ ...rows[0], tipo: 'entrada' as const }, { ...rows[1], tipo: 'saida' as const }, rows[2]];
+  it('filtra entradas', () => expect(filterByKind(mix, 'entrada').map(x => x.id)).toEqual(['a']));
+  it('sem tipo conta como saída', () => expect(filterByKind(mix, 'saida').map(x => x.id)).toEqual(['b', 'c']));
+  it('todas', () => expect(filterByKind(mix, 'all')).toHaveLength(3));
+});
