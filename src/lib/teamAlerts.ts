@@ -144,6 +144,17 @@ export function bankApiAlerts(
   return out;
 }
 
+/** Envio ao Tiny/Olist ligado mas sem autorização: avisa para autorizar de novo (senão o envio para em silêncio). */
+export function erpAlerts(
+  conns: { id: string; school_id: string; enabled: boolean; authorized: boolean; last_error: string | null }[],
+  schoolName: Map<string, string>,
+): MoneyAlert[] {
+  return conns.filter(c => c.enabled && (!c.authorized || !!c.last_error)).map(c => ({
+    key: `erp-${c.id}`, tone: 'late' as const, schoolId: c.school_id,
+    text: `${schoolName.get(c.school_id) ?? 'Empresa'}: ${!c.authorized ? 'Tiny desconectado — autorizar de novo na integração Olist' : 'envio ao Tiny falhou — conferir a integração Olist'}`,
+  }));
+}
+
 /** Só as empresas da carteira da pessoa entram nos avisos — evita bagunça entre carteiras. */
 export function onlyMine<T extends { schoolId?: string }>(alerts: T[], mySchoolIds: Iterable<string>): T[] {
   const set = new Set(mySchoolIds);

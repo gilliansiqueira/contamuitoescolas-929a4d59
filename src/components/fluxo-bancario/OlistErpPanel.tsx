@@ -119,6 +119,7 @@ export function OlistErpPanel({ schoolId, accounts }: { schoolId: string; accoun
         <span className="text-muted-foreground">Aplicativo {conn?.has_credentials ? 'cadastrado' : 'não cadastrado'} · {conn?.authorized ? 'autorizada' : 'não autorizada'}</span>
         {conn?.last_push_at && <span className="text-muted-foreground">· último envio {fmtDateTime(conn.last_push_at)}</span>}
       </div>
+      {conn?.enabled && conn?.has_credentials && !conn?.authorized && <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs font-semibold text-destructive">Tiny desconectado — nada está sendo enviado. Clique em "Autorizar na Olist" e entre com o login do Tiny.</p>}
       {conn?.last_error && <p className="mt-1 text-xs text-destructive">{conn.last_error}</p>}
       {recon && (
         <div className="mt-3 rounded-lg border border-border p-3 text-xs">
