@@ -92,7 +92,7 @@ export function useTeamAlerts(enabled: boolean) {
     }
     const schoolName = new Map(rows.map(r => [r.school_id, r.school_name]));
     alerts.unshift(...onlyMine(bankApiAlerts(bankApi, schoolName, today), mineIdSet));
-    alerts.unshift(...onlyMine(erpAlerts(erpConns, schoolName), mineIdSet));
+    { const e = erpAlerts(erpConns, schoolName); alerts.unshift(...(isSuperAdmin ? e : onlyMine(e, mineIdSet))); }
     const mins = minutesSaoPaulo();
     for (const t of timed) {
       if (isTimedTaskOverdue(t, mins)) alerts.push({ key: `timed-${t.id}`, tone: 'late', schoolId: t.school_id, text: `${schoolName.get(t.school_id) ?? 'Empresa'}: ${t.label}` });
