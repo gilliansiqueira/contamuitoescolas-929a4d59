@@ -8,6 +8,7 @@ export interface SidebarItem {
   label: string;
   icon?: any;
   active?: boolean;
+  badge?: number;
   onSelect: () => void;
 }
 
@@ -15,6 +16,8 @@ export interface SidebarGroup {
   key: string;
   title: string;
   items: SidebarItem[];
+  /** Sempre aberto (itens que o cliente precisa achar rápido). */
+  alwaysOpen?: boolean;
 }
 
 interface Props {
@@ -41,12 +44,15 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
         key={item.key}
         onClick={item.onSelect}
         title={collapsed ? item.label : undefined}
-        className={`app-sidebar-item w-full flex items-center gap-3 rounded-lg text-sm transition-colors ${
+        className={`app-sidebar-item relative w-full flex items-center gap-3 rounded-lg text-sm transition-colors ${
           collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2'
         } ${item.active ? 'app-sidebar-item-active font-semibold shadow-sm' : ''}`}
       >
         {Icon && <Icon className="w-5 h-5 shrink-0" />}
         {!collapsed && <span className="truncate">{item.label}</span>}
+        {!!item.badge && (
+          <span className={`${collapsed ? 'absolute top-1 right-1' : 'ml-auto'} min-w-5 h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center`}>{item.badge}</span>
+        )}
       </button>
     );
     if (!collapsed) return btn;
@@ -60,7 +66,7 @@ export function AppSidebar({ groups, collapsed, footerGroup }: Props) {
 
   const renderGroup = (group: SidebarGroup) => {
     if (group.items.length === 0) return null;
-    const isOpen = collapsed || openGroups[group.key] === true;
+    const isOpen = collapsed || group.alwaysOpen || openGroups[group.key] === true;
     const hasActive = group.items.some(i => i.active);
     return (
       <div key={group.key}>

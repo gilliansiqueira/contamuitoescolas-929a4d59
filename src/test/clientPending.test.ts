@@ -11,3 +11,11 @@ describe('pendências do cliente', () => {
   });
   it('meses do mais recente', () => expect(pendingMonths(rows)).toEqual(['2026-11', '2026-10']));
 });
+
+import { unansweredCount as uc } from '@/lib/clientPending';
+describe('sininho de pendências', () => {
+  it('conta só as saídas sem resposta', () => {
+    const base = { id: '', data: '2026-11-01', descricao: '', valor: 1, conta: '', observacao: null, note_updated_at: null };
+    expect(uc([{ ...base, categoria_texto: null }, { ...base, categoria_texto: '  ' }, { ...base, categoria_texto: 'Combustível' }])).toBe(2);
+  });
+});

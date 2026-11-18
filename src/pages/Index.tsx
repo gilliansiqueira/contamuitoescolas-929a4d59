@@ -34,7 +34,9 @@ import {
   LayoutDashboard, BarChart3, Calculator, Settings, CreditCard,
   CalendarDays, TableProperties, TrendingUp, Table2, Database, Landmark, GraduationCap, Wallet, KeyRound, ClipboardList,
   ListTodo,
+  Bell,
 } from 'lucide-react';
+import { unansweredCount, type ClientPendingRow } from '@/lib/clientPending';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const lazyNamed = <T extends Record<string, unknown>, K extends keyof T>(loader: () => Promise<T>, name: K) =>
@@ -236,6 +238,12 @@ function IndexBody({
     queryKey: ['clientPendingEnabled', school.id], enabled: !isDemo && !isPresentationMode,
     queryFn: async () => { const { data } = await (supabase as any).rpc('client_pending_outflows_enabled', { _school_id: school.id }); return !!data; },
   });
+  const { data: clientPendingRows = [] } = useQuery({
+    queryKey: ['clientPendingOutflows', school.id], enabled: !!clientPendingEnabled && !isAdmin,
+    refetchInterval: 5 * 60_000,
+    queryFn: async () => { const { data, error } = await (supabase as any).rpc('client_pending_outflows', { _school_id: school.id }); if (error) throw error; return (data ?? []) as ClientPendingRow[]; },
+  });
+  const pendingOpen = clientPendingEnabled && !isAdmin ? unansweredCount(clientPendingRows) : 0;
   const canMgmtTasks = !!profile?.permissions?.includes('gestao_tarefas');
   const visibleMainTabs = mainTabs.filter(t => (t.key !== 'client_pending' || clientPendingEnabled) && (t.key !== 'mgmt_tasks' || canMgmtTasks) && (!t.adminOnly || canSeeAdminTabs) && (!t.pilotOnly || bankPilotEnabled) && !(t.key === 'renewal' && isQuintal(school.id)));
 
@@ -297,7 +305,13 @@ function IndexBody({
     {
       key: 'visao-geral',
       title: 'Visão Geral',
-      items: [projItem('dashboard'), ...(visibleMainTabs.some(v => v.key === 'client_pending') ? [projItem('client_pending')] : [])],
+      items: [projItem('dashboard')],
+    },
+    {
+      key: 'pendencias-cliente',
+      title: 'Pendências',
+      alwaysOpen: true,
+      items: visibleMainTabs.some(v => v.key === 'client_pending') ? [{ ...projItem('client_pending'), badge: pendingOpen }] : [],
     },
     {
       key: 'caixa-projecao',
@@ -392,6 +406,13 @@ function IndexBody({
           collapsed={sidebarCollapsed}
           onToggleCollapsed={toggleSidebar}
           onOpenMobileNav={() => setNavOpen(true)}
+          extraActions={clientPendingEnabled && !isAdmin ? (
+            <Button variant="ghost" size="icon" className="relative w-9 h-9" onClick={() => goProjecao('client_pending')}
+              title={pendingOpen ? `${pendingOpen} pendência(s) aguardando sua resposta` : 'Pendências'} aria-label="Pendências">
+              <Bell className="w-4 h-4" />
+              {pendingOpen > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">{pendingOpen}</span>}
+            </Button>
+          ) : null}
         />
         {isQuintal(school.id) && (
           <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border/30 px-4 py-2">

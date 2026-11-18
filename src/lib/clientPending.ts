@@ -16,3 +16,7 @@ export function filterClientPending(rows: ClientPendingRow[], month: string, sea
     (!q || r.descricao.toLowerCase().includes(q) || r.conta.toLowerCase().includes(q) || (r.categoria_texto ?? '').toLowerCase().includes(q)),
   );
 }
+
+/** Quantas pendências ainda estão sem resposta do cliente (número do sininho). */
+export const unansweredCount = (rows: ClientPendingRow[]) =>
+  rows.filter(r => !(r.categoria_texto ?? '').trim()).length;

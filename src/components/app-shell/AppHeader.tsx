@@ -4,6 +4,7 @@ import { SchoolSelector } from '@/components/SchoolSelector';
 import { MonthSelector } from '@/components/MonthSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { PresentationToggle } from '@/components/PresentationToggle';
+import type { ReactNode } from 'react';
 import type { School } from '@/types/financial';
 
 interface Props {
@@ -19,13 +20,14 @@ interface Props {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onOpenMobileNav: () => void;
+  extraActions?: ReactNode;
 }
 
 /** Cabeçalho limpo da nova moldura: empresa, período, tema, apresentação e sair. */
 export function AppHeader({
   school, isDemo, isAdminAll, accessibleSchoolIds, profileEmail,
   onSelectSchool, onSignOut, periodValue, onPeriodChange,
-  collapsed, onToggleCollapsed, onOpenMobileNav,
+  collapsed, onToggleCollapsed, onOpenMobileNav, extraActions,
 }: Props) {
   return (
     <header className="app-shell-header sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur-md">
@@ -69,6 +71,7 @@ export function AppHeader({
             <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Período</span>
             <MonthSelector schoolId={school.id} value={periodValue} onChange={onPeriodChange} />
           </div>
+          {extraActions}
           <PresentationToggle />
           <ThemeToggle />
           {!isDemo && (

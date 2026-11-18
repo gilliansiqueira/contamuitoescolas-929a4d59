@@ -51,6 +51,7 @@ export function MobileNavSheet({ open, onOpenChange, sections }: Props) {
                     >
                       {Icon && <Icon className="w-5 h-5" />}
                       <span className="line-clamp-2">{item.label}</span>
+                      {!!(item as any).badge && <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">{(item as any).badge}</span>}
                     </button>
                   );
                 })}
