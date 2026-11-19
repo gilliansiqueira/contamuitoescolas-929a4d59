@@ -5,7 +5,7 @@ export interface FinancialEntry {
   valor: number;
   tipo: 'entrada' | 'saida';
   categoria: string;
-  origem: 'sponte' | 'cheque' | 'cartao' | 'manual' | 'fluxo' | 'contas_pagar' | 'simulacao';
+  origem: 'sponte' | 'cheque' | 'cartao' | 'manual' | 'fluxo' | 'contas_pagar' | 'simulacao' | 'recorrente';
   school_id: string;
   origem_upload_id?: string;
   tipoOriginal?: string; // raw "tipo" value from the source file

@@ -126,7 +126,7 @@ export function projectEntries(
   // 1) gate do modelo — origens de upload nativo (sponte/cheque/cartao/contas_pagar)
   // SEMPRE passam: elas são classificadas pelo `tipo` nativo, não pelo nome da
   // categoria, então não devem ser barradas pelo modelo financeiro.
-  const ORIGENS_BYPASS_MODELO = new Set(['contas_pagar', 'sponte', 'cheque', 'cartao']);
+  const ORIGENS_BYPASS_MODELO = new Set(['contas_pagar', 'sponte', 'cheque', 'cartao', 'recorrente']);
   if (options.hasModel) {
     active = active.filter(e => {
       if (ORIGENS_BYPASS_MODELO.has(e.origem)) return true;

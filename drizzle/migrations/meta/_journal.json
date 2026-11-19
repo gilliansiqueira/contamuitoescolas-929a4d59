@@ -904,6 +904,20 @@
       "when": 1795039480573,
       "tag": "0128_client_pending_inflows",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1795119911380,
+      "tag": "0129_forecast_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1795119929916,
+      "tag": "0130_forecast_origem",
+      "breakpoints": true
     }
   ]
 }

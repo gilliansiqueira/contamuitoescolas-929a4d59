@@ -3096,6 +3096,68 @@ export type Database = {
           },
         ]
       }
+      forecast_rules: {
+        Row: {
+          active: boolean
+          categoria: string
+          created_at: string
+          created_by: string | null
+          data: string | null
+          descricao: string
+          dia: number | null
+          end_month: string | null
+          id: string
+          kind: string
+          school_id: string
+          start_month: string | null
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          active?: boolean
+          categoria: string
+          created_at?: string
+          created_by?: string | null
+          data?: string | null
+          descricao: string
+          dia?: number | null
+          end_month?: string | null
+          id?: string
+          kind: string
+          school_id: string
+          start_month?: string | null
+          tipo: string
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          active?: boolean
+          categoria?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string | null
+          descricao?: string
+          dia?: number | null
+          end_month?: string | null
+          id?: string
+          kind?: string
+          school_id?: string
+          start_month?: string | null
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_rules_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       help_article_versions: {
         Row: {
           article_id: string
@@ -7164,6 +7226,10 @@ export type Database = {
       refresh_bank_cashflow_status: {
         Args: { _school_id: string }
         Returns: undefined
+      }
+      regenerate_forecast_entries: {
+        Args: { _months?: number; _school_id: string }
+        Returns: number
       }
       report_due_date: { Args: { _month: string }; Returns: string }
       restore_access_version: { Args: { _hist_id: string }; Returns: undefined }

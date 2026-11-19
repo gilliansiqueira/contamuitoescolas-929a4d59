@@ -112,13 +112,14 @@ export interface PeriodMovementCtx {
 // Helpers puros
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ORIGENS_NATIVAS = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar']);
+const ORIGENS_NATIVAS = new Set(['sponte', 'cheque', 'cartao', 'contas_pagar', 'recorrente']);
 
 const ORIGEM_LABEL: Record<string, string> = {
   sponte: 'Receita (Sponte)',
   cheque: 'Receita (Cheques)',
   cartao: 'Receita (Cartões)',
   contas_pagar: 'Despesa (Contas a Pagar)',
+  recorrente: 'Previsão automática',
 };
 
 /** Fluxo importado que é realizado de fato (não marcado como projetado). */

@@ -11,6 +11,7 @@ import { BankAccountsImports } from './BankAccountsImports';
 import { CashflowConference } from './CashflowConference';
 import { ReconAssist } from './ReconAssist';
 import { CardSheetsPanel } from './CardSheetsPanel';
+import { ForecastRulesPanel } from './ForecastRulesPanel';
 import { useDataSource } from '@/hooks/useBankPilot';
 import { Landmark, ShieldCheck } from 'lucide-react';
 
@@ -26,6 +27,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
   const { data: accounts = [] } = useBankAccounts(schoolId);
   const { isAdmin } = useAuth();
   const { data: chequesSocios } = useSchoolFeature(schoolId, 'cheques_socios', isAdmin);
+  const { data: previsaoAuto } = useSchoolFeature(schoolId, 'previsao_automatica', isAdmin);
   const { data: reconAssist } = useSchoolFeature(schoolId, 'conciliacao_assistida', isAdmin);
   const { data: txs = [], isLoading } = useBankTransactions(schoolId);
   const { entries: projected } = useProjectedEntries(schoolId);
@@ -84,6 +86,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
           <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
           <TabsTrigger value="contas">Contas e Extratos</TabsTrigger>
           {isAdmin && <TabsTrigger value="cartoes">Cartões</TabsTrigger>}
+          {isAdmin && previsaoAuto && <TabsTrigger value="previsoes">Previsões</TabsTrigger>}
           {reconAssist && isAdmin && <TabsTrigger value="assistida">Conciliação assistida</TabsTrigger>}
           {source && <TabsTrigger value="conferencia">Conferência Dashboard</TabsTrigger>}
         </TabsList>
@@ -155,6 +158,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
         </TabsContent>
 
         {isAdmin && <TabsContent value="cartoes"><CardSheetsPanel schoolId={schoolId} /></TabsContent>}
+        {isAdmin && previsaoAuto && <TabsContent value="previsoes"><ForecastRulesPanel schoolId={schoolId} /></TabsContent>}
         <TabsContent value="contas">
           <BankAccountsImports schoolId={schoolId} accounts={accounts} txs={txs} onViewAuto={(importId, from, to) => { setFocus({ importId, from, to, nonce: Date.now() }); setTab('movimentacoes'); }} />
         </TabsContent>

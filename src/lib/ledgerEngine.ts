@@ -223,6 +223,7 @@ const ORIGENS_SEMPRE_CLASSIFICADAS = new Set([
   'cheque',
   'cartao',
   'contas_pagar',
+  'recorrente',
 ]);
 
 function defaultRuleForTipo(tipo: 'entrada' | 'saida'): LedgerRule {
