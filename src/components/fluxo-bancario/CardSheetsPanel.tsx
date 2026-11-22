@@ -2,14 +2,14 @@ import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Upload, Trash2, CreditCard, ShoppingCart, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Upload, Trash2, Download, CreditCard, ShoppingCart, AlertTriangle, ChevronDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { CARD_FIELDS, detectHeader, parseCsvText, decodeCsvBytes, parseCardSheet, suspectLines, type ColumnMap, type CardSheetResult } from '@/lib/cardSheetParse';
+import { CARD_FIELDS, detectHeader, parseCsvText, decodeCsvBytes, parseCardSheet, suspectLines, isIdHeader, type ColumnMap, type CardSheetResult } from '@/lib/cardSheetParse';
 import { fmtBRL, fmtDate } from './shared';
 
 const db = supabase as any;
@@ -49,7 +49,7 @@ function Uploader({ schoolId, kind, onDone }: { schoolId: string; kind: Kind; on
 
   const res: CardSheetResult | null = file ? parseCardSheet(file.rows, headerRow, map, kind) : null;
   const useBruto = map.bruto !== undefined;
-  const blocked = !res || !adq || res.rows.length === 0 || Math.abs(res.diff) >= 0.01 || (map.bruto === undefined && map.liquido === undefined);
+  const blocked = !res || !adq || res.rows.length === 0 || Math.abs(res.diff) >= 0.01 || res.sciLines.length > 0 || (map.bruto === undefined && map.liquido === undefined);
   const header = file ? (file.rows[headerRow] ?? []).map(c => String(c ?? '')) : [];
 
   const save = async () => {
@@ -114,6 +114,12 @@ function Uploader({ schoolId, kind, onDone }: { schoolId: string; kind: Kind; on
               {suspectLines(res, useBruto).length > 0 && <p className="mt-1 text-xs">Linhas que explicam a diferença: {suspectLines(res, useBruto).map(r => r.line).join(', ')}</p>}
             </div>
           )}
+          {res.sciLines.length > 0 && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-destructive">
+              <p className="flex items-center gap-1 font-medium"><AlertTriangle className="h-4 w-4" /> Stone ID abreviado pelo Excel (ex.: 4,14627E+13) em {res.sciLines.length} linha(s). Baixe de novo da maquininha sem abrir no Excel. Importação bloqueada.</p>
+              <p className="mt-1 text-xs">Linhas: {res.sciLines.slice(0, 40).join(', ')}{res.sciLines.length > 40 ? '…' : ''}</p>
+            </div>
+          )}
           <Collapsible>
             <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-primary"><ChevronDown className="h-3 w-3" /> Colunas reconhecidas</CollapsibleTrigger>
             <CollapsibleContent className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -167,6 +173,24 @@ function Section({ schoolId, kind, title, icon: Icon, hint }: { schoolId: string
     const { error } = await db.from('card_sheet_imports').delete().eq('id', id);
     if (error) toast.error(error.message); else qc.invalidateQueries({ queryKey: key });
   };
+  const baixar = async (i: any) => {
+    const all: any[] = [];
+    for (let p = 0; ; p += 1000) {
+      const { data, error } = await db.from('card_sheet_rows').select('raw,nsu').eq('origem_upload_id', i.id).order('row_key').range(p, p + 999);
+      if (error) { toast.error(error.message); return; }
+      all.push(...(data ?? [])); if (!data || data.length < 1000) break;
+    }
+    if (!all.length) { toast.error('Nenhuma linha neste envio.'); return; }
+    const cols = Object.keys(all[0].raw ?? {});
+    const aoa = [cols, ...all.map(r => cols.map(c => r.raw?.[c] ?? ''))];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    cols.forEach((c, k) => { if (!isIdHeader(c)) return; for (let r = 1; r < aoa.length; r++) {
+      const ref = XLSX.utils.encode_cell({ r, c: k }); const v = aoa[r][k];
+      if (v !== '' && v != null) ws[ref] = { t: 's', v: typeof v === 'number' && Number.isInteger(v) ? BigInt(v).toString() : String(v) };
+    } });
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Planilha');
+    XLSX.writeFile(wb, String(i.source_file || 'cartoes').replace(/\.[^.]+$/, '') + '.xlsx');
+  };
   return (
     <Card>
       <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Icon className="h-4 w-4 text-primary" /> {title}</CardTitle><p className="text-xs text-muted-foreground">{hint}</p></CardHeader>
@@ -179,7 +203,7 @@ function Section({ schoolId, kind, title, icon: Icon, hint }: { schoolId: string
               <tr key={i.id} className="border-t border-border/50">
                 <td className="max-w-[200px] truncate py-1" title={i.source_file}>{i.source_file}</td><td>{i.adquirente}</td>
                 <td>{fmtDate(i.period_from)} a {fmtDate(i.period_to)}</td><td className="text-right">{i.rows_count}</td><td className="text-right">{fmtBRL(Number(i.total_bruto))}</td>
-                <td className="text-right"><Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => del(i.id)}><Trash2 className="h-3.5 w-3.5" /></Button></td>
+                <td className="whitespace-nowrap text-right"><Button size="icon" variant="ghost" className="h-6 w-6" title="Baixar planilha" aria-label="Baixar planilha" onClick={() => baixar(i)}><Download className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-6 w-6" title="Excluir" onClick={() => del(i.id)}><Trash2 className="h-3.5 w-3.5" /></Button></td>
               </tr>))}</tbody>
           </table>
         )}

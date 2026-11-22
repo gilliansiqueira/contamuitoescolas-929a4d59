@@ -93,7 +93,15 @@ export interface CardSheetResult {
   porForma: Record<string, { qtd: number; bruto: number; liquido: number }>;
   porDia: Record<string, { qtd: number; bruto: number; liquido: number }>;
   from: string | null; to: string | null;
+  sciLines: number[];
 }
+
+/** Identificador abreviado pelo Excel em notação científica (ex.: 4,14627E+13): dígitos já perdidos no arquivo. */
+export const isScientificId = (v: unknown) => /^\d+([.,]\d+)?E\+?\d+$/i.test(String(v ?? '').trim());
+/** Cabeçalhos de códigos (Stone ID, NSU, Stonecode, autorização…) que devem ser texto, nunca número. */
+export const isIdHeader = (h: string) => /stone ?(id|code)|nsu|autoriza|\bid\b|codigo|cod\.?|tid/.test(norm(h));
+/** Converte identificador para texto sem perder dígitos. */
+export const idText = (v: unknown): unknown => typeof v === 'number' && Number.isInteger(v) ? BigInt(v).toString() : v;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -103,6 +111,8 @@ export function parseCardSheet(rows: unknown[][], headerRow: number, map: Column
   const out: CardRow[] = []; const skipped: CardSheetResult['skipped'] = [];
   let fileTotal: number | null = null; let fileTotalLine: number | null = null;
   const seen = new Map<string, number>();
+  const idCols = header.map((h, k) => (isIdHeader(h) || map.nsu === k ? k : -1)).filter(k => k >= 0);
+  const sciLines: number[] = [];
   for (let i = headerRow + 1; i < rows.length; i++) {
     const r = rows[i] ?? [];
     if (r.every(c => String(c ?? '').trim() === '')) continue;
@@ -117,11 +127,12 @@ export function parseCardSheet(rows: unknown[][], headerRow: number, map: Column
     const dv = parseBRDate(get(r, 'data_venda')); const dp = parseBRDate(get(r, 'data_pagamento'));
     if (bruto === null && liquido === null) { skipped.push({ line, motivo: 'Sem valor' }); continue; }
     if (!dv && !dp) { skipped.push({ line, motivo: 'Sem data' }); continue; }
-    const txt = (f: CardField) => { const v = get(r, f); const s = String(v ?? '').trim(); return s || null; };
+    if (idCols.some(k => isScientificId(r[k]))) sciLines.push(line);
+    const txt = (f: CardField) => { const v = idText(get(r, f)); const s = String(v ?? '').trim(); return s || null; };
     const nsu = txt('nsu'); const parcela = txt('parcela');
     const base = [dv, dp, r2(bruto ?? 0), r2(liquido ?? 0), nsu ?? '', parcela ?? ''].join('|');
     const n = (seen.get(base) ?? 0) + 1; seen.set(base, n);
-    const raw: Record<string, unknown> = {}; header.forEach((h, k) => { if (h) raw[h] = r[k] ?? null; });
+    const raw: Record<string, unknown> = {}; header.forEach((h, k) => { if (h) raw[h] = idCols.includes(k) ? idText(r[k] ?? null) : r[k] ?? null; });
     out.push({ line, data_venda: dv, data_pagamento: dp, bruto, taxa: parseBRNumber(get(r, 'taxa')), liquido,
       bandeira: txt('bandeira'), forma: txt('forma'), parcela, nsu, row_key: `${base}#${n}`, raw });
   }
@@ -141,7 +152,7 @@ export function parseCardSheet(rows: unknown[][], headerRow: number, map: Column
     }
   }
   dates.sort();
-  return { rows: out, skipped, totalBruto, totalLiquido, fileTotal, fileTotalLine, diff, porForma, porDia, from: dates[0] ?? null, to: dates[dates.length - 1] ?? null };
+  return { rows: out, skipped, totalBruto, totalLiquido, fileTotal, fileTotalLine, diff, porForma, porDia, from: dates[0] ?? null, to: dates[dates.length - 1] ?? null, sciLines };
 }
 
 /** Quando o total do arquivo não bate, aponta linhas cujo valor sozinho explica a diferença. */
