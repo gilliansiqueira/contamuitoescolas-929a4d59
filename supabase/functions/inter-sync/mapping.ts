@@ -3,6 +3,7 @@
 export interface InterTx {
   idTransacao?: string; dataInclusao?: string; dataTransacao?: string; dataEntrada?: string;
   tipoTransacao?: string; tipoOperacao?: string; valor?: string | number; titulo?: string; descricao?: string;
+  detalhes?: Record<string, unknown> | null;
 }
 export interface MappedTx { data: string; tipo: 'entrada' | 'saida'; valor: number; descricao: string; bankRef: string }
 export interface ExistingRow { data: string; tipo: string; valor: number | string; bank_ref: string | null }
@@ -17,9 +18,21 @@ export function mapInterTx(t: InterTx): MappedTx | null {
   if (!Number.isFinite(valor) || valor <= 0) return null;
   const descricao = [t.titulo, t.descricao].map(s => String(s ?? '').trim()).filter(Boolean)
     .filter((s, i, a) => a.indexOf(s) === i).join(' - ') || String(t.tipoTransacao ?? 'Lançamento Inter');
+  const desc = viaMercadoPago(t) && !/mercado ?pago/i.test(descricao) ? `${descricao} (via Mercado Pago)` : descricao;
   const id = String(t.idTransacao ?? '').trim();
   const bankRef = id ? `inter:${id}` : `inter:${data}|${op}|${valor.toFixed(2)}|${descricao}`;
-  return { data, tipo: op === 'C' ? 'entrada' : 'saida', valor, descricao, bankRef };
+  return { data, tipo: op === 'C' ? 'entrada' : 'saida', valor, descricao: desc, bankRef };
+}
+
+/** Crédito cujo banco de origem é o Mercado Pago (ISPB 10573521 / código 323) nos detalhes do Inter. */
+export function viaMercadoPago(t: InterTx): boolean {
+  if (String(t.tipoOperacao ?? '').toUpperCase() !== 'C' || !t.detalhes) return false;
+  return Object.entries(t.detalhes).some(([k, v]) => {
+    const s = String(v ?? '').trim();
+    if (/endtoend/i.test(k)) return /^E10573521/i.test(s); // Pix: E + ISPB do banco pagador
+    if (/mercado ?pago/i.test(s) || /ispb/i.test(k) && s === '10573521') return true;
+    return /banco|ispb|instituicao/i.test(k) && /^0*323$/.test(s);
+  });
 }
 
 const key = (d: string, tipo: string, v: number | string) => `${d}|${tipo}|${Number(v).toFixed(2)}`;

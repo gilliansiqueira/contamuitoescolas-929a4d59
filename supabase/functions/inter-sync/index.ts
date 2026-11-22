@@ -85,6 +85,11 @@ async function runSync(conn: any, origem: 'noturna' | 'comercial' | 'manual', ac
       .eq('account_id', conn.bank_account_id).eq('is_forecast', false).gte('data', win.inicio).lte('data', win.fim).limit(10000);
     if (ee) throw ee;
     const { novos, jaExistiam } = splitNew(mapped, existing ?? []);
+    // Repasses do Mercado Pago já gravados sem a marca: corrige só o nome editado, sem mexer em valor.
+    for (const m of mapped.filter(x => x.descricao.endsWith('(via Mercado Pago)'))) {
+      await admin.from('bank_transactions').update({ descricao_editada: m.descricao })
+        .eq('account_id', conn.bank_account_id).eq('bank_ref', m.bankRef).is('descricao_editada', null);
+    }
 
     // Sem nada novo e com o mesmo saldo da última leitura de hoje: não cria outro registro no histórico.
     const { data: last } = await admin.from('bank_statement_imports').select('id, periodo_fim, saldo_final_informado')

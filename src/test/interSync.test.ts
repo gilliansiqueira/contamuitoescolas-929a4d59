@@ -47,3 +47,15 @@ describe('Inter: leitura fecha buracos entre extratos', () => {
     expect(syncWindow('2026-11-08', '2025-01-01', 'noturna', '2026-01-01').inicio).toBe('2026-08-11');
   });
 });
+
+import { mapInterTx as mapMP } from '../../supabase/functions/inter-sync/mapping';
+describe('Pix vindo do Mercado Pago', () => {
+  const base = { dataTransacao: '2026-11-18', tipoOperacao: 'C', valor: '9000', titulo: 'Pix recebido', descricao: 'Wnc Group Vestuario E Servicos Ltda' };
+  it('marca repasse quando o banco do pagador é o Mercado Pago', () => {
+    expect(mapMP({ ...base, detalhes: { endToEndId: 'E10573521202611181200abcdefghijk' } })!.descricao).toContain('(via Mercado Pago)');
+    expect(mapMP({ ...base, detalhes: { codigoBancoPagador: '323' } })!.descricao).toContain('(via Mercado Pago)');
+  });
+  it('não marca outros bancos', () => {
+    expect(mapMP({ ...base, detalhes: { endToEndId: 'E00416968202611181200abcdefghijk' } })!.descricao).not.toContain('Mercado Pago');
+  });
+});
