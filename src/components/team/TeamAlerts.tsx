@@ -8,7 +8,7 @@ import {
 } from '@/hooks/useManagementPortfolio';
 import { defaultReportMonth } from '@/lib/reportMonth';
 import {
-  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS, isTimedTaskOverdue, minutesSaoPaulo, moneyAlerts, onlyMine, bankApiAlerts, erpAlerts,
+  oldPendencies, reportAlert, isOverdueRequest, managerAlerts, buildScoreboard, hourSaoPaulo, OLD_PENDENCY_DAYS, isTimedTaskOverdue, minutesSaoPaulo, moneyAlerts, onlyMine, bankApiAlerts, erpAlerts, myTaskAlerts,
 } from '@/lib/teamAlerts';
 import { useMyDay } from '@/hooks/useMyDay';
 import { logActivity } from '@/lib/teamActivity';
@@ -67,6 +67,10 @@ export function useTeamAlerts(enabled: boolean) {
     queryKey: ['bank_api_connections', 'alerts'], enabled, refetchInterval: 10 * 60_000,
     queryFn: async () => { const { data } = await (supabase as any).from('bank_api_connections').select('id,school_id,enabled,last_error,cert_expires_at'); return (data ?? []) as any[]; },
   });
+  const { data: myTasks = [] } = useQuery({
+    queryKey: ['mgmt_tasks', 'alerts', user?.id], enabled: enabled && !!user?.id, refetchInterval: 10 * 60_000,
+    queryFn: async () => { const { data } = await (supabase as any).from('mgmt_tasks').select('id,title,assignee_id,status,due_date,school_id').eq('assignee_id', user.id).neq('status', 'concluida'); return (data ?? []) as any[]; },
+  });
   const [tick, setTick] = useState(0);
   useEffect(() => { const i = setInterval(() => setTick(t => t + 1), 60_000); return () => clearInterval(i); }, []);
 
@@ -93,6 +97,7 @@ export function useTeamAlerts(enabled: boolean) {
     const schoolName = new Map(rows.map(r => [r.school_id, r.school_name]));
     alerts.unshift(...onlyMine(bankApiAlerts(bankApi, schoolName, today), mineIdSet));
     { const e = erpAlerts(erpConns, schoolName); alerts.unshift(...(isSuperAdmin ? e : onlyMine(e, mineIdSet))); }
+    alerts.unshift(...myTaskAlerts(myTasks, uid, today));
     const mins = minutesSaoPaulo();
     for (const t of timed) {
       if (isTimedTaskOverdue(t, mins)) alerts.push({ key: `timed-${t.id}`, tone: 'late', schoolId: t.school_id, text: `${schoolName.get(t.school_id) ?? 'Empresa'}: ${t.label}` });
@@ -115,7 +120,7 @@ export function useTeamAlerts(enabled: boolean) {
     }
     const ackSet = new Set(acks);
     return { alerts: alerts.filter(a => !ackSet.has(a.key)), today };
-  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month, timed, tick, myDay, acks, bankApi, erpConns]);
+  }, [user?.id, isSuperAdmin, rows, daily, backlog, names, dueDate, supervised, requests, today, month, timed, tick, myDay, acks, bankApi, erpConns, myTasks]);
 }
 
 interface Props { schools: School[]; onOpenSchool: (s: School) => void; onOpenCenter: () => void }

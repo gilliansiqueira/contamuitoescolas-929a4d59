@@ -40,3 +40,4 @@
 - Client pending notes (`bank_tx_client_notes`, RPCs `client_pending_*`/`save_client_tx_note`, features `cliente_pendencias_saidas`/`_entradas`): clients read pending normal tx via SECURITY DEFINER RPCs and write notes only — never classify, reconcile or calculate.
 - Team task board (`mgmt_tasks*`): only `gestao_tarefas` users via `can_use_mgmt_tasks()`, RESTRICTIVE `can_see_school`; rules in `mgmtTasks.ts`; never financial.
 - Auto forecasts: `forecast_rules` → `regenerate_forecast_entries` writes future origem `recorrente` (native projected, replaced by bank cutoff); suggestions in `recurringForecast.ts`, team confirms.
+- Weekly team reminders (`mgmt_weekly_reminders` → `run_weekly_mgmt_reminders`, weekly pg_cron): create a `mgmt_tasks` row with last week's ERP-category total and split; olist-sync cron only resolves category names to ids — read-only, never financial.

@@ -356,7 +356,20 @@ Deno.serve(async (req) => {
       const { data: conns } = await admin.from('erp_connections').select('*').eq('enabled', true).eq('authorized', true);
       const out: unknown[] = [];
       for (const c of conns ?? []) {
-        try { out.push({ school: c.school_id, ...(await runPush(c)) }); }
+        try {
+          out.push({ school: c.school_id, ...(await runPush(c)) });
+          // Lembretes semanais da equipe: traduz nomes de categoria do Tiny em ids (só leitura).
+          const { data: rems } = await admin.from('mgmt_weekly_reminders').select('id,categoria_nomes').eq('school_id', c.school_id).eq('active', true);
+          if (rems?.length) {
+            const cats = await listAll(await accessToken(c), '/categorias-receita-despesa');
+            const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            for (const r of rems) {
+              const want = new Set((r.categoria_nomes ?? []).map(norm));
+              const ids = cats.filter((k: any) => want.has(norm(String(k.descricao ?? '')))).map((k: any) => k.id);
+              await admin.from('mgmt_weekly_reminders').update({ categoria_ids: ids }).eq('id', r.id);
+            }
+          }
+        }
         catch (e) { const msg = e instanceof Error ? e.message : String(e); await admin.from('erp_connections').update({ last_error: msg, last_push_at: nowIso() }).eq('id', c.id); out.push({ school: c.school_id, erro: msg }); }
       }
       return json({ ok: true, out });

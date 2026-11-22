@@ -3858,6 +3858,65 @@ export type Database = {
           },
         ]
       }
+      mgmt_weekly_reminders: {
+        Row: {
+          active: boolean
+          assignee_id: string
+          categoria_ids: number[]
+          categoria_nomes: string[]
+          created_at: string
+          created_by: string
+          id: string
+          label_a: string
+          label_b: string
+          last_week_start: string | null
+          school_id: string
+          split_pct: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assignee_id: string
+          categoria_ids?: number[]
+          categoria_nomes?: string[]
+          created_at?: string
+          created_by: string
+          id?: string
+          label_a?: string
+          label_b?: string
+          last_week_start?: string | null
+          school_id: string
+          split_pct?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assignee_id?: string
+          categoria_ids?: number[]
+          categoria_nomes?: string[]
+          created_at?: string
+          created_by?: string
+          id?: string
+          label_a?: string
+          label_b?: string
+          last_week_start?: string | null
+          school_id?: string
+          split_pct?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mgmt_weekly_reminders_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       module_tabs: {
         Row: {
           created_at: string
@@ -7241,6 +7300,7 @@ export type Database = {
         Args: { _acao?: string; _id: string }
         Returns: string
       }
+      run_weekly_mgmt_reminders: { Args: never; Returns: number }
       save_access_entry: {
         Args: {
           _change_senha: boolean

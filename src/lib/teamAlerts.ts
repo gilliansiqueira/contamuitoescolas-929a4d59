@@ -160,3 +160,12 @@ export function onlyMine<T extends { schoolId?: string }>(alerts: T[], mySchoolI
   const set = new Set(mySchoolIds);
   return alerts.filter(a => !a.schoolId || set.has(a.schoolId));
 }
+
+/** Tarefas da aba Tarefas abertas para a pessoa com prazo até hoje (ex.: lembrete semanal da obra). */
+export function myTaskAlerts(
+  tasks: { id: string; title: string; assignee_id: string; status: string; due_date: string | null; school_id: string | null }[],
+  uid: string | undefined, today: string,
+): MoneyAlert[] {
+  return tasks.filter(t => uid && t.assignee_id === uid && t.status !== 'concluida' && !!t.due_date && t.due_date <= today)
+    .map(t => ({ key: `task-${t.id}`, tone: (t.due_date! < today ? 'late' : 'warn') as 'late' | 'warn', schoolId: t.school_id ?? undefined, text: `Tarefa: ${t.title}` }));
+}
