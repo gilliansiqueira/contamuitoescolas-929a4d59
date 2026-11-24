@@ -341,6 +341,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         rows: novos.map(({ t, h, k }) => ({ data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, bank_ref: t.bankRef ?? null, dedup_hash: h, movement_kind: k, is_forecast: !!t.futuro })),
         links: preview.linkRefs ?? [],
       });
+      if (imp?.ignoredBeforeStart) toast.info(`${imp.ignoredBeforeStart} lançamento(s) anteriores ao início do acompanhamento foram ignorados`, { duration: 10000 });
       try { const np = await autoPairTransfers(schoolId); if (np) toast.info(`${np} transferência(s) entre contas pareadas com a outra ponta`); } catch { /* pareamento é opcional */ }
       const { data: counts } = await db.from('bank_statement_imports').select('inseridas,duplicadas').eq('id', imp.id).eq('account_id', preview.accountId).eq('school_id', preview.schoolId).maybeSingle();
       { const autoN = novos.filter(n => n.k === 'auto_aplicacao' || n.k === 'auto_resgate').length;
