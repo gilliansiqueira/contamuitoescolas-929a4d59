@@ -1,11 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
-import { useAvailableMonths } from '@/hooks/useFinancialData';
 
 /**
  * Fonte única de filtro de período para o app inteiro.
  * `value` segue o formato do MonthSelector: 'all' ou 'YYYY-MM,YYYY-MM,...'
- * Persistido por escola em localStorage.
+ * Abre sempre no mês atual; não é guardado no navegador.
  */
 interface Ctx {
   schoolId: string | null;
@@ -37,46 +36,13 @@ interface ProviderProps {
 }
 
 export function GlobalPeriodProvider({ schoolId, children }: ProviderProps) {
-  const storageKey = `global-period:${schoolId}`;
-
-  // null = ainda não definido (aguardando meses disponíveis da escola).
-  const [value, setValueState] = useState<string | null>(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
-      if (raw && typeof raw === 'string') return raw;
-    } catch { /* ignore */ }
-    return null;
-  });
-
-  // Ao trocar de escola, recarrega a seleção salva (ou volta a "não definido").
-  useEffect(() => {
-    let saved: string | null = null;
-    try {
-      saved = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
-    } catch { /* ignore */ }
-    setValueState(saved && typeof saved === 'string' ? saved : null);
-  }, [storageKey]);
-
-  const { data: availableMonths } = useAvailableMonths(schoolId);
-
-  // Primeira abertura da escola: abre no último mês com lançamentos.
-  useEffect(() => {
-    if (value !== null) return;
-    if (!availableMonths) return;
-    const last = availableMonths.length > 0
-      ? availableMonths[availableMonths.length - 1]
-      : currentMonth();
-    setValueState(last);
-  }, [availableMonths, value]);
-
-  useEffect(() => {
-    if (value === null) return;
-    try { localStorage.setItem(storageKey, value); } catch { /* ignore */ }
-  }, [value, storageKey]);
+  // Sempre abre no mês atual ao entrar ou trocar de empresa (sem guardar no navegador).
+  const [value, setValueState] = useState<string>(() => currentMonth());
+  useEffect(() => { setValueState(currentMonth()); }, [schoolId]);
 
   const setValue = useCallback((v: string) => setValueState(v || 'all'), []);
 
-  const effectiveValue = value ?? 'all';
+  const effectiveValue = value || 'all';
 
   const months = useMemo(() => {
     if (!effectiveValue || effectiveValue === 'all') return [];
@@ -86,11 +52,11 @@ export function GlobalPeriodProvider({ schoolId, children }: ProviderProps) {
   const startMonth = months[0] ?? null;
   const endMonth = months[months.length - 1] ?? null;
 
-  const entKey = `global-entity:${schoolId}`;
-  const [entityId, setEntityIdState] = useState<string>(() => { try { return localStorage.getItem(entKey) || 'all'; } catch { return 'all'; } });
-  const setEntityId = useCallback((v: string) => { setEntityIdState(v); setCurrentEntity(v); try { localStorage.setItem(entKey, v); } catch { /* ignore */ } }, [entKey]);
+  const [entityId, setEntityIdState] = useState<string>('all');
+  const setEntityId = useCallback((v: string) => { setEntityIdState(v); setCurrentEntity(v); }, []);
   const [entities, setEntities] = useState<Ctx['entities']>([]);
   useEffect(() => {
+    setEntityId('all');
     if (!schoolId) return;
     supabase.from('company_entities' as any).select('id,nome,cnpj').eq('school_id', schoolId).order('sort_order')
       .then(({ data }) => {
