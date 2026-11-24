@@ -1,3 +1,4 @@
+import { accountNumberIssue } from '@/lib/bankAccountNumber';
 import { useState, useEffect, useRef } from 'react';
 import { validateAccountRegistration } from '@/lib/bankStatements/accountRegistration';
 import { ImportGeneration, checkStatementIdentity, resolveHolder, normalizeAccount, resolveBankCode } from '@/lib/bankStatements/identity';
@@ -502,8 +503,8 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               <div><Label>Código do banco (automático para banco conhecido)</Label><Input maxLength={3} value={form.bankCode} onChange={e => setForm({ ...form, bankCode: e.target.value })} placeholder="237" /></div>
               <div><Label>CPF/CNPJ autorizado do titular (opcional)</Label><Input value={form.holderDocument} onChange={e => setForm({ ...form, holderDocument: e.target.value })} /></div>
               {entities.length > 0 && <div className="col-span-2"><Label>Titular específico desta conta (opcional)</Label><Select value={form.holderEntityId || 'none'} onValueChange={v => setForm({ ...form, holderEntityId: v === 'none' ? '' : v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Usar documento específico da conta</SelectItem>{entities.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent></Select></div>}
-              <div><Label>Agência</Label><Input value={form.agencia} onChange={e => setForm({ ...form, agencia: e.target.value })} /></div>
-              <div><Label>Conta</Label><Input value={form.conta} onChange={e => setForm({ ...form, conta: e.target.value })} /></div>
+              <div><Label>Agência</Label><Input value={form.agencia} onChange={e => setForm({ ...form, agencia: e.target.value })} />{accountNumberIssue(form.agencia) && <p className={`mt-1 text-xs ${accountNumberIssue(form.agencia)!.level === 'block' ? 'text-destructive' : 'text-warning'}`}>{accountNumberIssue(form.agencia)!.message}</p>}</div>
+              <div><Label>Conta</Label><Input value={form.conta} onChange={e => setForm({ ...form, conta: e.target.value })} />{accountNumberIssue(form.conta) && <p className={`mt-1 text-xs ${accountNumberIssue(form.conta)!.level === 'block' ? 'text-destructive' : 'text-warning'}`}>{accountNumberIssue(form.conta)!.message}</p>}</div>
               {(!resolveBankCode(form.banco, form.bankCode) || !normalizeAccount(form.agencia) || !normalizeAccount(form.conta)) && <p className="col-span-2 text-xs text-muted-foreground">Caixa e saldos podem ser salvos normalmente. Para importar extratos, complete banco, agência e conta.</p>}
               <div><Label>Saldo inicial</Label><Input value={form.saldo} onChange={e => setForm({ ...form, saldo: e.target.value })} placeholder="1.500,50" /></div>
               <div><Label>Data do saldo (fim do dia)</Label><Input type="date" value={form.saldoData} onChange={e => setForm({ ...form, saldoData: e.target.value })} /></div>
@@ -524,7 +525,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
               <label className="col-span-2 flex items-start gap-2 text-sm"><Checkbox checked={form.esporadico} onCheckedChange={v => setForm({ ...form, esporadico: !!v })} /><span>Extrato esporádico<span className="block text-xs text-muted-foreground">O cliente envia o extrato só de vez em quando: a Central não marca a bolinha de vermelho nem cobra extrato no Meu Dia, e o saldo fica valendo o do último extrato até chegar outro.</span></span></label>
             </div>
           )}
-          <DialogFooter><Button onClick={saveAccount}>Salvar</Button></DialogFooter>
+          <DialogFooter><Button onClick={saveAccount} disabled={!!form && [form.agencia, form.conta].some(v => accountNumberIssue(v)?.level === 'block')}>Salvar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
