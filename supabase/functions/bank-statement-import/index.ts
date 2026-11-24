@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { filterRowsFromStart } from './start.ts';
+import { applyStartCut } from './start.ts';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { z } from 'npm:zod@3.23.8';
 import { checkStatementIdentity, resolveHolder, IdentityMismatchError } from '../_shared/bankIdentity.ts';
@@ -49,15 +49,16 @@ Deno.serve(async req => {
     }
     if (!identity && ext === 'pdf') check.warnings = [...check.warnings.filter(w => !w.startsWith('Não deu para confirmar')), 'O servidor não conseguiu ler banco, agência e conta deste PDF (imagem, senha ou layout). A importação segue normalmente; confira se escolheu a conta certa.'];
     const identityStatus = check.verified ? 'verified' : 'inconclusive';
+    const { data: cutOn } = await admin.from('school_features').select('enabled').eq('school_id', input.schoolId).eq('feature_key', 'extrato_corte_inicio').eq('enabled', true).maybeSingle();
+    const { data: src } = cutOn ? await admin.from('school_data_sources').select('start_month').eq('school_id', input.schoolId).maybeSingle() : { data: null };
+    const { kept: keptRows, ignored } = applyStartCut(input.rows ?? [], src?.start_month, !!cutOn);
+    if (ignored) check.warnings = [...check.warnings, `${ignored} lançamento(s) anteriores ao início do acompanhamento (${src!.start_month!.slice(5, 7)}/${src!.start_month!.slice(0, 4)}) foram ignorados.`];
     if (input.action === 'validate') return response({ ok: true, identityStatus, warnings: check.warnings, ignoredBeforeStart: ignored });
     const formato = ext === 'txt' ? 'csv' : ext === 'xls' ? 'xlsx' : ext;
     const path = `${input.schoolId}/${input.accountId}/${digest}-${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await admin.storage.from('bank-statements').upload(path, bytes, { contentType: file.type || 'application/octet-stream' });
     if (uploadError) return response({ error: 'Não foi possível guardar o arquivo. Nada foi importado.' }, 503);
     uploaded = path;
-    const { data: src } = await admin.from('school_data_sources').select('start_month').eq('school_id', input.schoolId).maybeSingle();
-    const { kept: keptRows, ignored } = filterRowsFromStart(input.rows ?? [], src?.start_month);
-    if (ignored) check.warnings = [...check.warnings, `${ignored} lançamento(s) anteriores ao início do acompanhamento (${src!.start_month!.slice(5, 7)}/${src!.start_month!.slice(0, 4)}) foram ignorados.`];
     const { data, error } = await admin.rpc('commit_verified_bank_import', { _user: user.user.id, _school: input.schoolId, _account: input.accountId, _identity: identity ?? {}, _meta: { ...input.metadata, formato, file_name: file.name, file_path: path, file_hash: digest }, _rows: keptRows, _links: input.links ?? [] });
     if (error) {
       // A lost RPC response is not evidence of rollback: read back the exact hash/destination.
