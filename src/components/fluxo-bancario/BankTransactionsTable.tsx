@@ -166,7 +166,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
   const needsItem = (t: BankTx) => !isAutoInvest(t) && !t.transfer_pair_id && t.movement_kind !== 'ignorar';
   const unclassified = (t: BankTx) => needsItem(t) && (t.splits?.length ? t.splits.some(sp => sp.categoria !== 'ignorar' && !sp.model_item_id) : !t.model_item_id);
   const operationPending = txs.filter(t => t.movement_kind === 'operacao' && !t.model_item_id).length;
-  const transferPending = txs.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id && (!startMonth || t.data >= startMonth)).length;
+  const transferPending = txs.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id && !t.transfer_pair_waived && (!startMonth || t.data >= startMonth)).length;
   const opSemSub = (t: BankTx) => t.splits?.length ? t.splits.some(sp => sp.categoria === 'operacao' && !sp.model_item_id) : (t.movement_kind === 'operacao' && !t.model_item_id && !t.transfer_pair_id);
   const splitPending = txs.filter(t => t.splits?.some(sp => sp.categoria === 'operacao' && !sp.model_item_id)).length;
   const applyItem = async (ids: string[], itemId: string | null) => {

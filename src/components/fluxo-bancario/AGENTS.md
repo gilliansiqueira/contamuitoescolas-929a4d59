@@ -1,0 +1,1 @@
+- Unpaired-transfer exceptions are per-row (`bank_transactions.transfer_pair_waived`), set only by explicit owner request; never a per-school rule — so new unpaired transfers keep being flagged.

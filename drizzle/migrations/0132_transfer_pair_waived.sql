@@ -1,0 +1,1 @@
+ALTER TABLE public.bank_transactions ADD COLUMN IF NOT EXISTS transfer_pair_waived boolean NOT NULL DEFAULT false;

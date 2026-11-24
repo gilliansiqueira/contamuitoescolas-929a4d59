@@ -42,6 +42,8 @@ export const displayDesc = (t: Pick<BankTx, 'descricao' | 'descricao_editada'>) 
 export interface BankTx {
   id: string;
   is_forecast?: boolean;
+  /** Exceção pontual: transferência sem a outra ponta dispensada de par. */
+  transfer_pair_waived?: boolean;
   account_id: string;
   import_id: string;
   data: string;

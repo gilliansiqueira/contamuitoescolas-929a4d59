@@ -925,6 +925,13 @@
       "when": 1795382868742,
       "tag": "0131_mgmt_weekly_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1795550301317,
+      "tag": "0132_transfer_pair_waived",
+      "breakpoints": true
     }
   ]
 }

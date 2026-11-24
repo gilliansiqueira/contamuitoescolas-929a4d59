@@ -56,7 +56,7 @@ export function CashflowConference({ schoolId, accounts, txs }: Props) {
 
     const aClass = g.filter(e => e.tipo_nome === 'A classificar');
     const pend = tx.filter(t => t.recon_status === 'pendente');
-    const semPar = tx.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id);
+    const semPar = tx.filter(t => t.movement_kind === 'transferencia' && !t.transfer_pair_id && !t.transfer_pair_waived);
     const pairOut = tx.filter(t => t.transfer_pair_id && !transito.includes(t) && !tx.some(o => o.id !== t.id && o.transfer_pair_id === t.transfer_pair_id));
     const splitDiff = tx.filter(t => t.splits?.length && Math.abs(r2(t.splits.reduce((s, p) => s + Number(p.valor), 0)) - r2(Number(t.valor))) > 0.004);
     const auto = tx.filter(isAutoInvest);

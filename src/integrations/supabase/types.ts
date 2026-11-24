@@ -1111,6 +1111,7 @@ export type Database = {
           school_system_status: string | null
           tipo: string
           transfer_pair_id: string | null
+          transfer_pair_waived: boolean
           valor: number
         }
         Insert: {
@@ -1144,6 +1145,7 @@ export type Database = {
           school_system_status?: string | null
           tipo: string
           transfer_pair_id?: string | null
+          transfer_pair_waived?: boolean
           valor: number
         }
         Update: {
@@ -1177,6 +1179,7 @@ export type Database = {
           school_system_status?: string | null
           tipo?: string
           transfer_pair_id?: string | null
+          transfer_pair_waived?: boolean
           valor?: number
         }
         Relationships: [
