@@ -6,3 +6,4 @@
 - [ ] Farmácia: estoque em R$ — aguarda relatório de estoque
 - [ ] Farmácia: envio do PDF de CMV com conferência — próximo passo
 - [ ] Indaiatuba: receita integral — aguarda lista de valores
+- [x] Excluir extrato de Salto enviado em Sinop
