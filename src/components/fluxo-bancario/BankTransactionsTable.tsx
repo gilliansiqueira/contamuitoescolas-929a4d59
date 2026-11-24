@@ -26,7 +26,7 @@ interface Props { schoolId: string; accounts: BankAccount[]; txs: BankTx[]; defa
 
 export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, defaultTo, focus }: Props) {
   const [accountId, setAccountId] = useState<string>('all');
-  const [status, setStatus] = useState<'all' | ReconStatus>('all');
+  const [status, setStatus] = useState<'all' | 'sem_justificativa' | ReconStatus>('all');
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   useEffect(() => { setFrom(defaultFrom); setTo(defaultTo); }, [defaultFrom, defaultTo]);
@@ -231,7 +231,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
     const vMin = parseV(minValor), vMax = parseV(maxValor);
     const inRange = (t: BankTx) => { const v = Math.abs(Number(t.valor)); return (vMin == null || v >= vMin - 0.005) && (vMax == null || v <= vMax + 0.005); };
     return txs
-       .filter(t => inRange(t) && (tipoFilter === 'all' || t.tipo === tipoFilter) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || t.recon_status === status) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)) && (!onlyClientNote || clientNoteMap.has(t.id)))
+       .filter(t => inRange(t) && (tipoFilter === 'all' || t.tipo === tipoFilter) && (accountId === 'all' || t.account_id === accountId) && t.data >= from && t.data <= to && (status === 'all' || (status === 'sem_justificativa' ? t.recon_status === 'pendente' && !t.justification_reason_id && needsJustification(t) : t.recon_status === status)) && (!q || displayDesc(t).toLowerCase().includes(q) || t.descricao.toLowerCase().includes(q)) && (showAuto || cat === 'auto' || !isAutoInvest(t)) && (cat === 'all' || (cat === 'aclassificar' ? unclassified(t) : cat === 'receita' || cat === 'despesa' ? matchesFinancial(t) : catOf(t) === cat || (cat === 'ignorar' && !!t.splits?.some(sp => sp.categoria === 'ignorar')))) && (!importFilter || t.import_id === importFilter) && (!onlyNibo || niboSet.has(t.id)) && (!onlyClientNote || clientNoteMap.has(t.id)))
       .sort((a, b) => a.data.localeCompare(b.data) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
    }, [txs, accountId, from, to, status, search, showAuto, cat, importFilter, modelItems, onlyNibo, niboSet, onlyClientNote, clientNoteMap, minValor, maxValor, tipoFilter]);
 
@@ -352,7 +352,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
         <div className="w-40"><label className="text-xs text-muted-foreground">Situação</label>
           <Select value={status} onValueChange={v => setStatus(v as any)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="pendente">Só pendentes</SelectItem><SelectItem value="conciliado">Conciliados</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="pendente">Só pendentes</SelectItem><SelectItem value="sem_justificativa">Pendentes sem justificativa</SelectItem><SelectItem value="conciliado">Conciliados</SelectItem></SelectContent>
           </Select>
         </div>
         <div className="w-36"><label className="text-xs text-muted-foreground">Tipo</label>
@@ -410,7 +410,7 @@ export function BankTransactionsTable({ schoolId, accounts, txs, defaultFrom, de
           <span className="font-semibold">Fechamento do dia {fmtDate(closeTarget)}</span>
           {closeTarget >= JUSTIFICATION_START
             ? semJust > 0
-              ? <button type="button" className="ml-2 rounded bg-destructive px-1.5 py-0.5 text-xs font-semibold text-destructive-foreground" onClick={() => { setStatus('pendente'); setFrom(JUSTIFICATION_START); setTo(closeTarget); }}>{semJust} sem justificativa — ver</button>
+              ? <button type="button" className="ml-2 rounded bg-destructive px-1.5 py-0.5 text-xs font-semibold text-destructive-foreground" onClick={() => { setStatus('sem_justificativa'); setFrom(JUSTIFICATION_START); setTo(closeTarget); }}>{semJust} sem justificativa — ver</button>
               : <span className="ml-2 text-xs text-success">todas as pendências justificadas</span>
             : <span className="ml-2 text-xs text-muted-foreground">justificativa obrigatória a partir de {fmtDate(JUSTIFICATION_START)}</span>}
           {lastClosure && <span className="ml-2 text-xs text-muted-foreground">· finalizado por {lastClosure.closed_by_email ?? '—'} em {fmtDateTime(lastClosure.closed_at)}</span>}
