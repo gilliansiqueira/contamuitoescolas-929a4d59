@@ -7,3 +7,5 @@
 - [ ] Farmácia: envio do PDF de CMV com conferência — próximo passo
 - [ ] Indaiatuba: receita integral — aguarda lista de valores
 - [x] Excluir extrato de Salto enviado em Sinop
+- [x] Uberlândia Centro e Santa Mônica: liberar pendências de entradas e saídas e verificar como cliente
+- [x] Franqueados: guia ilustrado em PDF de acesso, navegação, pendências e instalação no celular
