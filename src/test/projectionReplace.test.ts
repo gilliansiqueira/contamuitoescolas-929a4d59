@@ -14,3 +14,9 @@ describe('effectiveReplaceCutoff', () => {
     expect(effectiveReplaceCutoff('0000-01-01', '2026-11-05', ['2026-10-30'])).toBe('0000-01-01');
   });
 });
+describe('effectiveReplaceCutoff – arquivo cobrindo o mês (Manaus Laranjeiras)', () => {
+  it('cartão enviado em 25/11 com vendas diárias desde 03/11 substitui desde 03/11', () => {
+    const dates = ['2026-11-03','2026-11-05','2026-11-10','2026-11-14','2026-11-17','2026-11-21','2026-11-24','2026-12-02'];
+    expect(effectiveReplaceCutoff('2026-11-25', '2026-11-25', dates)).toBe('2026-11-03');
+  });
+});
