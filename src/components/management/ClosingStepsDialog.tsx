@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { fetchAllRows } from '@/lib/fetchAll';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -254,8 +255,7 @@ function DailyTasksSection({ schoolId }: { schoolId: string }) {
   const { data: pend } = useQuery({
     queryKey: ['daily-recon-pending', schoolId, day],
     queryFn: async () => {
-      const { data, error } = await supabase.from('bank_transactions').select('valor').eq('school_id', schoolId).eq('is_forecast', false).eq('recon_status', 'pendente').gte('data', '2026-09-01').lte('data', day);
-      if (error) throw error;
+      const data = await fetchAllRows<{ valor: number }>('bank_transactions', q => q.eq('school_id', schoolId).eq('is_forecast', false).eq('recon_status', 'pendente').gte('data', '2026-09-01').lte('data', day), 1000, 'valor');
       return { n: data?.length ?? 0, v: (data ?? []).reduce((s, r) => s + Number(r.valor), 0) };
     },
   });

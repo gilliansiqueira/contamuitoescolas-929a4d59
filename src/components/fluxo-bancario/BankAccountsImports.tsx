@@ -1,4 +1,5 @@
 import { accountNumberIssue } from '@/lib/bankAccountNumber';
+import { fetchAllRows } from '@/lib/fetchAll';
 import { useState, useEffect, useRef } from 'react';
 import { validateAccountRegistration } from '@/lib/bankStatements/accountRegistration';
 import { ImportGeneration, checkStatementIdentity, resolveHolder, normalizeAccount, resolveBankCode } from '@/lib/bankStatements/identity';
@@ -200,8 +201,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const efet = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && !x.t.bankRef && !existing.has(hashes[x.i]));
         if (efet.length) {
           const datas = efet.map(x => x.t.data).sort();
-          const { data: prev } = await db.from('bank_transactions').select('id, data, valor, tipo, descricao').eq('account_id', accountId)
-            .eq('is_forecast', false).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const prev = await fetchAllRows<any>('bank_transactions', q => q.eq('account_id', accountId).eq('is_forecast', false).gte('data', datas[0]).lte('data', datas[datas.length - 1]), 1000, 'id, data, valor, tipo, descricao');
           const pool = new Map<string, { id: string; descricao: string }[]>();
           (prev ?? []).forEach((r: any) => { if (claimed.has(r.id)) return; const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r]); });
           efet.forEach(({ t, i }) => {
@@ -215,8 +215,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const efet = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && !x.t.bankRef && !existing.has(hashes[x.i]));
         if (efet.length) {
           const datas = efet.map(x => x.t.data).sort();
-          const { data: prev } = await db.from('bank_transactions').select('data, valor, tipo').eq('account_id', accountId)
-            .eq('is_forecast', false).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const prev = await fetchAllRows<any>('bank_transactions', q => q.eq('account_id', accountId).eq('is_forecast', false).gte('data', datas[0]).lte('data', datas[datas.length - 1]), 1000, 'data, valor, tipo');
           const disp = new Map<string, number>();
           (prev ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; disp.set(k, (disp.get(k) ?? 0) + 1); });
           // Descontar os que já casaram por hash (mesmo arquivo reenviado).
@@ -245,8 +244,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const cand = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && x.t.bankRef && !existing.has(hashes[x.i]));
         if (cand.length) {
           const datas = cand.map(x => x.t.data).sort();
-          const { data: semRef } = await db.from('bank_transactions').select('id, data, valor, tipo').eq('account_id', accountId)
-            .eq('is_forecast', false).is('bank_ref', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const semRef = await fetchAllRows<any>('bank_transactions', q => q.eq('account_id', accountId).eq('is_forecast', false).is('bank_ref', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]), 1000, 'id, data, valor, tipo');
           const pool = new Map<string, string[]>();
           (semRef ?? []).forEach((r: any) => { const k = `${r.data}|${r.tipo}|${Number(r.valor).toFixed(2)}`; pool.set(k, [...(pool.get(k) ?? []), r.id]); });
           cand.forEach(({ t, i }) => { const k = `${t.data}|${t.tipo}|${t.valor.toFixed(2)}`; const ids = pool.get(k); if (ids?.length) { existing.add(hashes[i]); linkRefs.push({ id: ids.shift()!, bankRef: t.bankRef! }); } });
@@ -257,8 +255,7 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
         const cand2 = result.transactions.map((t, i) => ({ t, i })).filter(x => !x.t.futuro && (x.t.bankRef || collided.has(x.i)) && !existing.has(hashes[x.i]));
         if (cand2.length) {
           const datas = cand2.map(x => x.t.data).sort();
-          const { data: comRefRows } = await db.from('bank_transactions').select('id, data, valor, tipo, descricao, bank_ref').eq('account_id', accountId)
-            .eq('is_forecast', false).not('bank_ref', 'is', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]).limit(5000);
+          const comRefRows = await fetchAllRows<any>('bank_transactions', q => q.eq('account_id', accountId).eq('is_forecast', false).not('bank_ref', 'is', null).gte('data', datas[0]).lte('data', datas[datas.length - 1]), 1000, 'id, data, valor, tipo, descricao, bank_ref');
           // Mesmo dia + sentido + valor; a descrição pode mudar entre PDF e OFX (hífen, "TRANSF.AUTORIZ.ENTRE C/C" × "TRANSF CC PARA CC",
           // "RESG AUTOMATICO" × "RESG/VENCTO CDB"): casa pelas palavras-chave, nunca juntando pessoas diferentes.
           const linked = new Set(linkRefs.map(l => l.id));
@@ -291,9 +288,8 @@ export function BankAccountsImports({ schoolId, accounts, txs = [], onViewAuto }
       // Saldo em conta esperado = saldo inicial + movimento já gravado + movimento novo deste arquivo.
       let saldoCalc: number | undefined;
       if (acc && result.saldoFinalInformado !== undefined && result.saldoComAplicacaoInformado === undefined && result.periodoFim) {
-        let q = db.from('bank_transactions').select('valor, tipo').eq('account_id', accountId).eq('is_forecast', false).lte('data', result.periodoFim).limit(20000);
-        if (acc.saldo_inicial_data) q = q.gt('data', acc.saldo_inicial_data);
-        const { data: gravados } = await q;
+        const fim = result.periodoFim; const ini = acc.saldo_inicial_data;
+        const gravados = await fetchAllRows<any>('bank_transactions', q => { let b = q.eq('account_id', accountId).eq('is_forecast', false).lte('data', fim); if (ini) b = b.gt('data', ini); return b; }, 1000, 'valor, tipo');
         const movG = (gravados ?? []).reduce((a: number, r: any) => a + (r.tipo === 'entrada' ? 1 : -1) * Number(r.valor), 0);
         const movN = result.transactions.reduce((a, t, i) => (t.futuro || existing.has(hashes[i]) || (acc.saldo_inicial_data && t.data <= acc.saldo_inicial_data)) ? a : a + (t.tipo === 'entrada' ? t.valor : -t.valor), 0);
         saldoCalc = Math.round((Number(acc.saldo_inicial ?? 0) + movG + movN) * 100) / 100;
