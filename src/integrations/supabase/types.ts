@@ -7181,6 +7181,7 @@ export type Database = {
           ref_day: string
           school_id: string
           statement_received: boolean
+          statement_today: boolean
         }[]
       }
       get_management_portfolio: {

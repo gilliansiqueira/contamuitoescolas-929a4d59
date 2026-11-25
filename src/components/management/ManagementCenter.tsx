@@ -162,13 +162,13 @@ function cardDefsFor(mode: PeriodMode, today: string, available: (row: Portfolio
     { key: 'closing_pending', label: 'Relatório pendente', icon: FileCheck2, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: row => !row.period_closed || !row.report_delivered },
   ];
   if (mode === 'hoje') return [
-     { key: 'no_statement', label: 'Extrato não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
+     { key: 'no_statement', label: 'Extrato de hoje não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
      { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
      { key: 'in_progress', label: 'Conciliação em andamento', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
      { key: 'done_today', label: 'Concluídas hoje', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'done' },
   ];
   return [
-     { key: 'no_statement', label: 'Extrato não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
+     { key: 'no_statement', label: 'Extrato do dia anterior não enviado', icon: AlertCircle, tone: 'text-destructive-foreground bg-destructive', strip: 'border-t-destructive bg-destructive/[0.07]', num: 'text-destructive', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'no_statement' },
      { key: 'closed_100', label: 'Concluídas', icon: CheckCircle2, tone: 'text-success-foreground bg-success', strip: 'border-t-success bg-success/[0.08]', num: 'text-success', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'done' },
      { key: 'not_started', label: 'Aguardando início', icon: UserX, tone: 'text-primary-foreground bg-primary', strip: 'border-t-primary bg-primary/[0.07]', num: 'text-primary', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'not_started' },
      { key: 'left_pending', label: 'Deixaram pendência', icon: Clock3, tone: 'text-progress-foreground bg-progress', strip: 'border-t-progress bg-progress/[0.09]', num: 'text-progress', match: (row, daily) => dailyReconState(daily, available(row, daily)) === 'in_progress' },
@@ -359,7 +359,9 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       return (data ?? []) as { id: string; nome: string }[];
     },
   });
-  const { data: dailyRows = [], isLoading: dailyLoading } = useManagementDailyStatus(today, true);
+  const { data: rawDailyRows = [], isLoading: dailyLoading } = useManagementDailyStatus(today, true);
+  // Aba Hoje: "extrato enviado" = extrato recebido hoje; Dia anterior: extrato cobrindo o dia útil anterior.
+  const dailyRows = useMemo(() => mode === 'hoje' ? rawDailyRows.map(r => ({ ...r, statement_received: !!r.statement_today })) : rawDailyRows, [mode, rawDailyRows]);
   const { data: backlog = [], isLoading: backlogLoading } = useManagementBacklog(today, true);
   const { data: bankStartMonths, isLoading: bankLoading } = useManagementBankAvailability(true);
   const { data: rows = [], isLoading, isError } = useManagementPortfolio(month, true);
@@ -566,6 +568,10 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       return weight(a) - weight(b) || b.pending - a.pending;
     }).slice(0, 4), [filtered, month, dueDate, backlogBySchool]);
   const refDay = dailyRows[0]?.ref_day ?? null;
+  const missingToday = useMemo(() => rows.filter(row => {
+    const raw = rawDailyRows.find(d => d.school_id === row.school_id);
+    return !!raw && bankAvailable(row, raw) && !raw.statement_today;
+  }).length, [rows, rawDailyRows, bankStartMonths]);
   const withMovementBase = useMemo(() => baseFiltered.filter(row => {
     const daily = dailyBySchool.get(row.school_id);
     return !!daily && bankAvailable(row, daily) && daily.recon_required > 0;
@@ -807,6 +813,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
           />
 
           {view !== 'pending' && <>
+            {view !== 'closing' && mode === 'ontem' && !dailyLoading && missingToday > 0 && <button type="button" onClick={() => { setMode('hoje'); setCardFilter('no_statement'); }} className="mb-2 text-xs font-medium text-destructive underline-offset-2 hover:underline">Hoje ainda faltam {missingToday} extrato(s) — ver</button>}
               <div className={`mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${view === 'closing' ? 'xl:grid-cols-4' : 'xl:grid-cols-5'}`}>
               {summaryCards.map(card => {
                 const isActive = activeCard?.key === card.key;

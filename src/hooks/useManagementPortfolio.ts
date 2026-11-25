@@ -106,6 +106,8 @@ export function useSetManagementResponsibleDisplayName() {
 export interface DailyStatusRow {
   school_id: string; ref_day: string; recon_required: number; reconciled: number; recon_pending: number;
   statement_received: boolean; reconciled_today: number; imports_today: number; last_activity: string | null;
+  /** Extrato de conta regular enviado no próprio dia (aba Hoje). */
+  statement_today: boolean;
 }
 export interface BacklogRow {
   transaction_id: string; school_id: string; data: string; descricao: string; valor: number; tipo: string; account_name: string | null; reason_name?: string | null; justification_note?: string | null;
