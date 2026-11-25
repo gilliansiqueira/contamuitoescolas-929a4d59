@@ -946,6 +946,13 @@
       "when": 1795622751510,
       "tag": "0134_import_cut_month",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1795642296519,
+      "tag": "0135_client_pending_from_start_month",
+      "breakpoints": true
     }
   ]
 }
