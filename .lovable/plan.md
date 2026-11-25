@@ -19,3 +19,8 @@ Nada muda em saldos, conciliação ou cálculos financeiros. É só a forma de m
 - O link chama `setMode('hoje')` e `setCardFilter('no_statement')`.
 - Os títulos dos quadros mudam em `cardDefsFor`.
 - Fica de fora o aviso das 15h30 (`AfternoonBankCheck`), que já usa o dia atual.
+
+## Botões "Hoje" e "Dia anterior" no topo
+- Ao trocar de botão, tudo na Central passa a usar o dia escolhido: os quadros, a contagem de extratos não enviados, a lista por empresa, as bolinhas e a barra de conciliação.
+- **Primeiro passo:** abrir a Central e clicar nos dois botões, para achar o que hoje não muda junto. Isso será corrigido para seguir o dia escolhido.
+- Depois de ajustar, confiro de novo: em "Hoje" o quadro precisa mostrar as cerca de 29 empresas que ainda faltam, e em "Dia anterior", as 3.
