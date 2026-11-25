@@ -50,9 +50,10 @@ Deno.serve(async req => {
     if (!identity && ext === 'pdf') check.warnings = [...check.warnings.filter(w => !w.startsWith('Não deu para confirmar')), 'O servidor não conseguiu ler banco, agência e conta deste PDF (imagem, senha ou layout). A importação segue normalmente; confira se escolheu a conta certa.'];
     const identityStatus = check.verified ? 'verified' : 'inconclusive';
     const { data: cutOn } = await admin.from('school_features').select('enabled').eq('school_id', input.schoolId).eq('feature_key', 'extrato_corte_inicio').eq('enabled', true).maybeSingle();
-    const { data: src } = cutOn ? await admin.from('school_data_sources').select('start_month').eq('school_id', input.schoolId).maybeSingle() : { data: null };
-    const { kept: keptRows, ignored } = applyStartCut(input.rows ?? [], src?.start_month, !!cutOn);
-    if (ignored) check.warnings = [...check.warnings, `${ignored} lançamento(s) anteriores ao início do acompanhamento (${src!.start_month!.slice(5, 7)}/${src!.start_month!.slice(0, 4)}) foram ignorados.`];
+    const { data: src } = cutOn ? await admin.from('school_data_sources').select('start_month, import_cut_month').eq('school_id', input.schoolId).maybeSingle() : { data: null };
+    const cutMonth: string | null = (src as { import_cut_month?: string | null } | null)?.import_cut_month || src?.start_month || null;
+    const { kept: keptRows, ignored } = applyStartCut(input.rows ?? [], cutMonth, !!cutOn);
+    if (ignored) check.warnings = [...check.warnings, `${ignored} lançamento(s) anteriores ao início do acompanhamento (${cutMonth!.slice(5, 7)}/${cutMonth!.slice(0, 4)}) foram ignorados.`];
     if (input.action === 'validate') return response({ ok: true, identityStatus, warnings: check.warnings, ignoredBeforeStart: ignored });
     const formato = ext === 'txt' ? 'csv' : ext === 'xls' ? 'xlsx' : ext;
     const path = `${input.schoolId}/${input.accountId}/${digest}-${crypto.randomUUID()}.${ext}`;

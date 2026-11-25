@@ -1,0 +1,2 @@
+ALTER TABLE public.school_data_sources ADD COLUMN IF NOT EXISTS import_cut_month text;
+COMMENT ON COLUMN public.school_data_sources.import_cut_month IS 'Optional YYYY-MM: bank imports drop rows before this month (only with feature extrato_corte_inicio); overrides start_month for the cut only.';

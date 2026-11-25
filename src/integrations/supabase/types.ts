@@ -5756,6 +5756,7 @@ export type Database = {
           created_at: string
           daily_flow_source: string
           dashboard_source: string
+          import_cut_month: string | null
           last_error: string | null
           last_synced_at: string | null
           opening_adjustment: number | null
@@ -5770,6 +5771,7 @@ export type Database = {
           created_at?: string
           daily_flow_source?: string
           dashboard_source?: string
+          import_cut_month?: string | null
           last_error?: string | null
           last_synced_at?: string | null
           opening_adjustment?: number | null
@@ -5784,6 +5786,7 @@ export type Database = {
           created_at?: string
           daily_flow_source?: string
           dashboard_source?: string
+          import_cut_month?: string | null
           last_error?: string | null
           last_synced_at?: string | null
           opening_adjustment?: number | null

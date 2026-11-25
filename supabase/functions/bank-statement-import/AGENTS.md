@@ -3,4 +3,4 @@
 - Commit through the service-only transactional RPC, which mirrors the same comparison rules; preserve existing service integrations and never infer or backfill account identity from historical statements.
 - Unknown RPC outcomes require readback; never report rollback or delete a potentially committed file on an unavailable status read.
 - Per-company escape hatch: `school_features.extrato_sem_trava` makes bank-statement-import skip file identity comparison (imports as inconclusive with warning) — owner request to unblock a company's team.
-- Rows dated before `school_data_sources.start_month` are dropped server-side (validate + confirm, `start.ts`) only for companies with `school_features.extrato_corte_inicio` (Wizard) — other companies import unchanged per owner.
+- Rows dated before `school_data_sources.start_month` are dropped server-side (validate + confirm, `start.ts`) only for companies with `school_features.extrato_corte_inicio` (Wizard, Praia da Costa, Manaus Centro); `school_data_sources.import_cut_month` overrides start_month for the cut only — other companies import unchanged per owner.
