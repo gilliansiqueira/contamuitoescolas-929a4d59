@@ -17,6 +17,8 @@ export interface UserProfile {
   extra_school_ids: string[];
   /** Permissões extras por usuário (tabela user_permissions), ex.: 'ponto_view'. */
   permissions: string[];
+  /** Colegas supervisionadas (team_supervision) — entram em "Minha carteira". */
+  supervised_member_ids: string[];
 }
 
 interface AuthContextValue {
@@ -64,7 +66,7 @@ async function loadProfile(userId: string): Promise<UserProfile | null> {
   const extra_school_ids = Array.from(new Set([...(extras ?? []), ...(supSchools ?? [])].map((r: any) => r.school_id).filter(Boolean)));
   const admin_scope: AdminScope = ((profile as any).admin_scope === 'list' ? 'list' : 'all');
   const permissions = ((perms ?? []) as any[]).map(r => r.permission as string);
-  return { ...profile, role, admin_scope, extra_school_ids, permissions };
+  return { ...profile, role, admin_scope, extra_school_ids, permissions, supervised_member_ids: memberIds };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { isInMyPortfolio } from '@/lib/myPortfolio';
 import type { School } from '@/types/financial';
 import {
   useManagementPortfolio, useManagementDailyStatus, useManagementBacklog, useManagementResponsibleDisplayNames, todaySaoPaulo,
@@ -22,7 +23,7 @@ import { Bell, AlertTriangle } from 'lucide-react';
 type Alert = { key: string; tone: 'late' | 'warn' | 'team'; text: string; schoolId?: string };
 
 export function useTeamAlerts(enabled: boolean) {
-  const { user, isSuperAdmin } = useAuth() as any;
+  const { user, isSuperAdmin, profile } = useAuth() as any;
   const today = todaySaoPaulo();
   const month = defaultReportMonth(today, false);
   const { data: rows = [] } = useManagementPortfolio(month, enabled);
@@ -79,7 +80,7 @@ export function useTeamAlerts(enabled: boolean) {
     const alerts: Alert[] = [];
     const dailyBy = new Map(daily.map(d => [d.school_id, d]));
     const old = oldPendencies(backlog, today);
-    const mine = rows.filter(r => r.responsible_user_id === uid);
+    const mine = rows.filter(r => isInMyPortfolio(r.responsible_user_id, uid, profile?.supervised_member_ids ?? []));
     const fmtM = `${month.slice(5, 7)}/${month.slice(0, 4)}`;
     for (const r of mine) {
       const d = dailyBy.get(r.school_id);

@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { School } from '@/types/financial';
 import { useAuth } from '@/hooks/useAuth';
+import { isInMyPortfolio } from '@/lib/myPortfolio';
 import {
   useManagementResponsibleDisplayNames,
   useManagementPortfolio,
@@ -493,16 +494,16 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
 
   // Busca, visão e situação. O filtro do card é aplicado depois, em `filtered`.
   const myUserId = profile?.user_id ?? null;
+  const supervisedIds = profile?.supervised_member_ids ?? [];
   const ownerOptions = useMemo(() => {
     const m = new Map<string, string>();
     rows.forEach(r => { if (r.responsible_user_id && r.responsible_user_id !== myUserId) m.set(r.responsible_user_id, displayNameByUser.get(r.responsible_user_id) ?? nameFromEmail(r.responsible_email ?? '')); });
     return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [rows, myUserId, displayNameByUser]);
-  const showOwnerFilter = !isSuperAdmin && !!myUserId && ownerOptions.length > 0 && rows.some(r => r.responsible_user_id === myUserId);
+  const showOwnerFilter = !isSuperAdmin && !!myUserId && ownerOptions.length > 0 && rows.some(r => isInMyPortfolio(r.responsible_user_id, myUserId, supervisedIds));
   const baseFiltered = useMemo(() => rows.filter(row => {
     if (showOwnerFilter && ownerFilter !== 'all') {
-      const target = ownerFilter === 'mine' ? myUserId : ownerFilter;
-      if (row.responsible_user_id !== target) return false;
+      if (ownerFilter === 'mine' ? !isInMyPortfolio(row.responsible_user_id, myUserId, supervisedIds) : row.responsible_user_id !== ownerFilter) return false;
     }
     const term = search.toLocaleLowerCase('pt-BR');
     const matchesSearch = row.school_name.toLocaleLowerCase('pt-BR').includes(term)
@@ -514,7 +515,7 @@ export function ManagementCenter({ schools, onSelect, onSignOut }: Props) {
       || (view === 'pending' && (row.reconciliation_pending > 0 || row.checklist_pending > 0 || row.waiting_for_client))
       || (view === 'responsible' && !!row.responsible_user_id);
     return matchesSearch && matchesView && (mode !== 'mes' || situation === 'all' || status === situation);
-  }), [displayNameByUser, month, dueDate, mode, rows, search, situation, view, showOwnerFilter, ownerFilter, myUserId]);
+  }), [displayNameByUser, month, dueDate, mode, rows, search, situation, view, showOwnerFilter, ownerFilter, myUserId, supervisedIds]);
 
   const filtered = useMemo(() => {
     if (!activeCard) return baseFiltered;
