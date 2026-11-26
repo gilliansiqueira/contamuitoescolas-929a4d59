@@ -953,6 +953,13 @@
       "when": 1795642296519,
       "tag": "0135_client_pending_from_start_month",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1795703505884,
+      "tag": "0136_mgmt_rpcs_include_supervised",
+      "breakpoints": true
     }
   ]
 }
