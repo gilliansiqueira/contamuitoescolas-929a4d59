@@ -1,0 +1,3 @@
+- Lolli uses school-scoped, team-only `lolli_*` data with cascading import-batch provenance; only validated archived bank conversions enter shared bank tables to avoid duplicate financial feeds.
+- All commerce financial views use `useLolliDRE` and `buildCommerceDRE` in the shared ledger engine; preserve the source DRE contract rather than repeating the source Dashboard's different rules.
+- Secrets and source user privileges never migrate; reconnect Olist through the existing authorized connection flow.

@@ -396,3 +396,77 @@ export function isInvestmentMovementLabel(...labels: Array<string | null | undef
     return /\baplica(cao|coes)\b/.test(n) || /\bresgate/.test(n);
   });
 }
+
+export type CommerceDreRows = {
+  sales: Record<string, unknown>[];
+  expenses: Record<string, unknown>[];
+  marketing: Record<string, unknown>[];
+  manualRevenues: Record<string, unknown>[];
+  groups: Record<string, unknown>[];
+  products: Record<string, unknown>[];
+  costs: Record<string, unknown>[];
+};
+
+/** Source commerce DRE contract, centralized here so every commerce view agrees.
+ * These are explicitly typed sales/expenses, not inferred bank movements.
+ * Preserves the original DRE (including its manual-revenue precedence and zero
+ * payment-fee placeholder); operational tax/freight sheets are not silently added.
+ */
+export function buildCommerceDRE(rows: CommerceDreRows) {
+  const number = (v: unknown) => Number(v) || 0;
+  const sum = (items: Record<string, unknown>[], key: string) => items.reduce((total, row) => total + number(row[key]), 0);
+  const typeTotal = (type: string) => sum(rows.expenses.filter(e => e.tipo === type), 'valor');
+  const costsBySku = new Map<string, { value: number; from: string }[]>();
+  for (const product of rows.products) {
+    const sku = String(product.sku ?? '');
+    costsBySku.set(sku, rows.costs.filter(c => c.product_id === product.id)
+      .map(c => ({ value: number(c.custo), from: String(c.vigencia_inicio ?? '') }))
+      .sort((a, b) => a.from.localeCompare(b.from)));
+  }
+  let receitaBruta = 0, descontos = 0, cancelamentos = 0, fretes = 0, freteEmpresa = 0, taxasMarketplace = 0, cogs = 0;
+  for (const sale of rows.sales) {
+    const status = normalizeTipo(String(sale.status ?? ''));
+    if (['cancel', 'em aberto', 'aguardando pagamento', 'pendente'].some(s => status.includes(s))) {
+      if (status.includes('cancel')) cancelamentos += number(sale.valor_liquido);
+      continue;
+    }
+    receitaBruta += number(sale.valor_bruto);
+    descontos += number(sale.desconto);
+    fretes += number(sale.frete_cobrado);
+    freteEmpresa += number(sale.frete_empresa);
+    taxasMarketplace += number(sale.taxa_marketplace);
+    const costs = costsBySku.get(String(sale.sku ?? '')) ?? [];
+    const date = String(sale.data_venda ?? '');
+    const applicable = costs.filter(c => c.from <= date);
+    const unit = applicable[applicable.length - 1]?.value ?? costs[0]?.value ?? 0;
+    cogs += unit * number(sale.quantidade);
+  }
+  const receitaManual = sum(rows.manualRevenues, 'valor');
+  const receitaBrutaFinal = receitaManual > 0 ? receitaManual : receitaBruta;
+  const receitaExtra = typeTotal('receita_extra');
+  // Cancelled orders were excluded above; deducting again would double-count.
+  const receitaLiquida = receitaBrutaFinal - descontos + receitaExtra;
+  const lucroBruto = receitaLiquida - cogs;
+  const despesasVariaveis = typeTotal('variavel');
+  const taxasPagamento = 0;
+  const margemContribuicao = lucroBruto - fretes - freteEmpresa - taxasPagamento - taxasMarketplace - despesasVariaveis;
+  const investimentoMkt = sum(rows.marketing, 'investimento') + typeTotal('marketing');
+  const despesasFixas = typeTotal('fixa');
+  const despesasAdmin = typeTotal('administrativa');
+  const groupByCategory = new Map(rows.groups.map(g => [String(g.categoria), String(g.grupo)]));
+  const groups = new Map<string, number>();
+  for (const expense of rows.expenses) {
+    if (expense.tipo !== 'outros' || !expense.categoria) continue;
+    const group = groupByCategory.get(String(expense.categoria)) ?? 'Sem grupo';
+    groups.set(group, (groups.get(group) ?? 0) + number(expense.valor));
+  }
+  const despesasGrupos = [...groups].map(([grupo, valor]) => ({ grupo, valor }));
+  const totalDespesasGrupos = despesasGrupos.reduce((total, g) => total + g.valor, 0);
+  const resultadoOperacional = margemContribuicao - investimentoMkt - despesasFixas - despesasAdmin - totalDespesasGrupos;
+  return {
+    receitaBruta: receitaBrutaFinal, descontos, cancelamentos, receitaLiquida, receitaExtra,
+    cogs, lucroBruto, fretes, freteEmpresa, taxasPagamento, taxasPlataforma: taxasMarketplace,
+    despesasVariaveis, margemContribuicao, investimentoMkt, despesasFixas, despesasAdmin,
+    despesasGrupos, totalDespesasGrupos, resultadoOperacional,
+  };
+}

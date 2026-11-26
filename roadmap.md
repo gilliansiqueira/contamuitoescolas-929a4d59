@@ -9,6 +9,7 @@
 - [x] Excluir extrato de Salto enviado em Sinop
 - [x] Uberlândia Centro e Santa Mônica: liberar pendências de entradas e saídas e verificar como cliente
 - [x] Franqueados: guia ilustrado em PDF de acesso, navegação, pendências e instalação no celular
-- [ ] Srta Lolli: importar histórico/configurações com rastreabilidade e conferir totais
-- [ ] Srta Lolli: contas/saldos/conciliados e telas exclusivas
+- [x] Srta Lolli: importar histórico/configurações com rastreabilidade e conferir totais (60 períodos conferidos)
+- [x] Srta Lolli: contas/saldos/conciliados e consulta exclusiva do histórico com filtro/exportação
 - [ ] Srta Lolli: reconectar Olist — precisa autorização da conta
+- [x] Srta Lolli: Dashboard e fechamento com a mesma referência da DRE original (outubro conferido no acesso da Ana)

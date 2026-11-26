@@ -8,6 +8,7 @@ import { isLolli, lolliDatasets, lolliMatchesPeriod, type LolliColumn } from '@/
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LolliDRE } from './LolliDRE.lolli';
 
 type DataRow = Record<string, unknown> & { id: string };
 const money = (value: unknown) => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -27,6 +28,7 @@ export function LolliModule({ schoolId }: { schoolId: string }) {
 
 function LolliRecords({ schoolId }: { schoolId: string }) {
   const { months } = useGlobalPeriod();
+  const [view, setView] = useState<'dre' | 'records'>('dre');
   const [datasetKey, setDatasetKey] = useState('sales');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
@@ -46,6 +48,7 @@ function LolliRecords({ schoolId }: { schoolId: string }) {
   }, [batches]);
   const { data: records = [], isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['lolli-records', schoolId, dataset.key],
+    enabled: view === 'records',
     queryFn: () => fetchAllRows<DataRow>(`lolli_${dataset.key}`, q => q.eq('school_id', schoolId), 1000,
       ['id', ...dataset.columns.map(c => c.key), 'source_file'].join(',')),
   });
@@ -73,12 +76,14 @@ function LolliRecords({ schoolId }: { schoolId: string }) {
   return <div className="space-y-6">
     <header className="flex flex-wrap items-end justify-between gap-3">
       <div><h1 className="text-2xl font-display font-semibold">Srta Lolli</h1><p className="mt-1 text-sm text-muted-foreground">Histórico importado · 26/11/2026</p></div>
-      <Button variant="outline" size="icon" aria-label="Atualizar dados da Lolli" title="Atualizar" disabled={isFetching} onClick={() => refetch()}><RefreshCw className={isFetching ? 'animate-spin' : ''} /></Button>
+      {view === 'records' && <Button variant="outline" size="icon" aria-label="Atualizar dados da Lolli" title="Atualizar" disabled={isFetching} onClick={() => refetch()}><RefreshCw className={isFetching ? 'animate-spin' : ''} /></Button>}
     </header>
+    <nav aria-label="Visões da Lolli" className="flex gap-2 border-b border-border pb-3"><Button variant={view === 'dre' ? 'default' : 'outline'} aria-pressed={view === 'dre'} onClick={() => setView('dre')}>DRE</Button><Button variant={view === 'records' ? 'default' : 'outline'} aria-pressed={view === 'records'} onClick={() => setView('records')}>Histórico</Button></nav>
+    {view === 'dre' ? <LolliDRE schoolId={schoolId} /> : <>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {[
         ['Itens de venda', counts.sales, ShoppingBag], ['Despesas', counts.expenses, Receipt],
-        ['Produtos', counts.products, Package], ['Movimentos bancários', 599, Landmark],
+        ['Produtos', counts.products, Package], ['Movimentos bancários', counts.bank_transactions, Landmark],
       ].map(([label, count, Icon]) => {
         const StatIcon = Icon as typeof Package;
         return <div key={String(label)} className="rounded-md border border-border bg-card p-4"><StatIcon className="mb-3 h-4 w-4 text-primary" /><p className="text-xl font-semibold tabular-nums">{Number(count ?? 0).toLocaleString('pt-BR')}</p><p className="mt-1 text-xs text-muted-foreground">{String(label)}</p></div>;
@@ -101,5 +106,6 @@ function LolliRecords({ schoolId }: { schoolId: string }) {
         <div className="overflow-x-auto border-y border-border"><table className="w-full text-sm"><thead className="bg-muted"><tr>{dataset.columns.map(c => <th key={c.key} className={`px-3 py-3 whitespace-nowrap font-medium ${c.money ? 'text-right' : 'text-left'}`}>{c.label}</th>)}</tr></thead><tbody>{visible.map(r => <tr key={r.id} className="border-t border-border hover:bg-muted/40">{dataset.columns.map(c => <td key={c.key} className={`px-3 py-3 ${c.money ? 'text-right tabular-nums whitespace-nowrap' : 'text-left'}`}><span className="block min-w-24 max-w-80 break-words">{cell(r[c.key], c)}</span></td>)}</tr>)}</tbody></table></div>}
       <div className="flex justify-end items-center gap-2"><span className="text-xs text-muted-foreground">Página {currentPage + 1} de {maxPage + 1}</span><Button variant="outline" size="icon" aria-label="Página anterior de registros" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft /></Button><Button variant="outline" size="icon" aria-label="Próxima página de registros" disabled={currentPage === maxPage} onClick={() => setPage(currentPage + 1)}><ChevronRight /></Button></div>
     </section>
+    </>}
   </div>;
 }

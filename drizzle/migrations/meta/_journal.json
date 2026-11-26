@@ -988,6 +988,13 @@
       "when": 1795707254129,
       "tag": "0140_lolli_preserve_bank_classification",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1795708488870,
+      "tag": "0141_lolli_available_history_months",
+      "breakpoints": true
     }
   ]
 }
