@@ -995,6 +995,13 @@
       "when": 1795708488870,
       "tag": "0141_lolli_available_history_months",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1795720235161,
+      "tag": "0142_client_pending_from_september",
+      "breakpoints": true
     }
   ]
 }
