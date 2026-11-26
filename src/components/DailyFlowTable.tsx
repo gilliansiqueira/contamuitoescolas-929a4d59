@@ -19,6 +19,7 @@ import { motion } from 'framer-motion';
 import { Table2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CompactStat } from '@/components/mobile/CompactStat';
+import { isReplacedByBankForecast } from '@/lib/periodMovement';
 import { buildDailyRows, closingEstimate as estimateClosing } from '@/lib/dailyFlow';
 import type { FinancialEntry } from '@/types/financial';
 import type { ProjectedEntry } from '@/lib/projectionEngine';
@@ -82,9 +83,10 @@ export function DailyFlowTable({ schoolId, selectedMonth }: DailyFlowTableProps)
   const adjustedProjectedEntries = useMemo(
     () => projectedEntries.filter(e => {
       if ((e.origem === 'fluxo' && e.tipoRegistro !== 'projetado') || e.impacto === 0) return false;
+      if (isReplacedByBankForecast(e, movementCtx, todayStr)) return false;
       return monthHasData(e);
     }),
-    [projectedEntries, monthHasData]
+    [projectedEntries, monthHasData, movementCtx, todayStr]
   );
 
   const realizedEntries = useMemo(

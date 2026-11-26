@@ -209,3 +209,22 @@ describe('histórico avulso no mês atual', () => {
   it('mês atual com projeção usa a projeção', () => { expect(rms('2026-11', ctx, '2026-11-03')).toBe('projecao'); });
   it('mês passado continua histórico', () => { expect(rms('2026-11', ctx, '2026-12-10')).toBe('historico'); });
 });
+
+describe('débito futuro do extrato × previsões', () => {
+  it('boleto agendado no fim do mês não apaga cartões previstos, só contas a pagar do intervalo', () => {
+    const cls: TypeClassification[] = [
+      { id: 'd', school_id: schoolId, tipoValor: 'Despesa', classificacao: 'despesa', entraNoResultado: true, impactaCaixa: true, operacaoSinal: 'subtrair', label: 'Despesa' } as any,
+    ];
+    const ctx = emptyCtx({
+      todayStr: '2026-11-26', classifications: cls,
+      entries: [
+        e({ data: '2026-11-25', valor: 100, tipo: 'saida', origem: 'fluxo', tipoOriginal: 'Despesa' }),
+        e({ data: '2026-11-30', valor: 2125, tipo: 'saida', origem: 'fluxo', tipoOriginal: 'Despesa', tipoRegistro: 'projetado' }),
+        e({ data: '2026-11-30', valor: 14427.49, tipo: 'entrada', origem: 'cartao', tipoRegistro: 'projetado' }),
+        e({ data: '2026-11-30', valor: 3240.10, tipo: 'saida', origem: 'contas_pagar', tipoRegistro: 'projetado' }),
+      ],
+    });
+    const mv = buildMonthMovement('2026-11', ctx);
+    expect(mv.saldoMovimento).toBeCloseTo(-100 - 2125 + 14427.49, 2);
+  });
+});

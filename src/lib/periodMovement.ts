@@ -170,6 +170,21 @@ export function resolveMonthSource(
 // por lançamento virava uma varredura completa a cada linha e travava a tela.
 const fluxoCutoffCache = new WeakMap<PeriodMovementCtx, Map<string, string | undefined>>();
 
+/**
+ * Previsão nativa substituída por lançamento futuro do extrato (mesmo sentido,
+ * depois do corte e até o último lançamento futuro do extrato no mês). Usado
+ * pelo fechamento mensal e pela tabela diária para mostrarem o mesmo saldo.
+ */
+export function isReplacedByBankForecast(entry: ProjectedEntry, ctx: PeriodMovementCtx, todayStr: string): boolean {
+  if (entry.origem === 'fluxo' || entry.origem === 'manual') return false;
+  const month = monthOf(entry.dataProjetada);
+  if (resolveMonthSource(month, ctx) !== 'fluxo') return false;
+  const cutoff = computeFluxoCutoff(month, ctx);
+  if (!cutoff || entry.dataProjetada <= cutoff || entry.dataProjetada === todayStr) return false;
+  return ctx.entries.some(f => f.origem === 'fluxo' && f.tipo === entry.tipo
+    && monthOf(f.dataProjetada) === month && f.dataProjetada >= entry.dataProjetada);
+}
+
 export function computeFluxoCutoff(month: string, ctx: PeriodMovementCtx): string | undefined {
   let byMonth = fluxoCutoffCache.get(ctx);
   if (!byMonth) { byMonth = new Map(); fluxoCutoffCache.set(ctx, byMonth); }
@@ -212,7 +227,7 @@ export function includeEntryForMonth(
   source: MovementSource,
   todayStr: string,
   classifications: TypeClassification[],
-  opts: { fluxoCutoff?: string; fluxoForecastThrough?: string } = {}
+  opts: { fluxoCutoff?: string; fluxoForecastThrough?: string; fluxoForecastThroughByTipo?: Record<string, string> } = {}
 ): boolean {
   if (source === 'fluxo') {
     // Mês parcialmente realizado: o fluxo importado manda até o último dia
@@ -224,7 +239,12 @@ export function includeEntryForMonth(
     const cutoff = opts.fluxoCutoff;
     if (!cutoff) return false;
     if (entry.dataProjetada === todayStr) return true;
-    return entry.dataProjetada > (opts.fluxoForecastThrough ?? cutoff);
+    // Débitos/créditos futuros do extrato só substituem previsões do MESMO
+    // sentido: um boleto agendado não pode apagar recebimentos de cartão.
+    const through = opts.fluxoForecastThroughByTipo
+      ? (opts.fluxoForecastThroughByTipo[entry.tipo] ?? cutoff)
+      : (opts.fluxoForecastThrough ?? cutoff);
+    return entry.dataProjetada > (through > cutoff ? through : cutoff);
   }
   if (source === 'historico') {
     // Mês histórico é encerrado: previsões de upload nativo (contas a pagar,
@@ -329,10 +349,14 @@ export function buildMonthMovement(
   const fluxoCutoff = source === 'fluxo' ? computeFluxoCutoff(month, ctx) : undefined;
   // O extrato pode conter débitos futuros: continuam projetados, mas impedem
   // duplicar a projeção nativa do mesmo intervalo no fechamento do mês.
-  const fluxoForecastThrough = source === 'fluxo'
-    ? ctx.entries.filter(e => e.origem === 'fluxo' && monthOf(e.dataProjetada) === month)
-      .reduce((last, e) => e.dataProjetada > last ? e.dataProjetada : last, fluxoCutoff ?? '')
-    : undefined;
+  const fluxoForecastThroughByTipo: Record<string, string> = {};
+  if (source === 'fluxo') {
+    for (const e of ctx.entries) {
+      if (e.origem !== 'fluxo' || monthOf(e.dataProjetada) !== month) continue;
+      const cur = fluxoForecastThroughByTipo[e.tipo] ?? fluxoCutoff ?? '';
+      if (e.dataProjetada > cur) fluxoForecastThroughByTipo[e.tipo] = e.dataProjetada;
+    }
+  }
   mov.parcial = source === 'fluxo';
   mov.realizadoAte = fluxoCutoff;
   const byKey = new Map<string, PorTipoAgg>();
@@ -399,7 +423,7 @@ export function buildMonthMovement(
   const pendingByEntry = new Map(originalMonthEntries.filter(e => !actualToday.includes(e)).map((e, i) => [e, pending[i]]));
   const monthEntries = source === 'fluxo' ? originalMonthEntries.map(e => pendingByEntry.get(e) ?? e) : originalMonthEntries;
   for (const e of monthEntries) {
-    if (!includeEntryForMonth(e, source, todayStr, ctx.classifications, { fluxoCutoff, fluxoForecastThrough })) continue;
+    if (!includeEntryForMonth(e, source, todayStr, ctx.classifications, { fluxoCutoff, fluxoForecastThroughByTipo })) continue;
     const valor = Number(e.valor) || 0;
     if (valor === 0) continue;
     const isRealizado = (e as any).tipoRegistro === 'realizado';
