@@ -42,4 +42,4 @@
 - Auto forecasts: `forecast_rules` → `regenerate_forecast_entries` writes future origem `recorrente` (native projected, replaced by bank cutoff); suggestions in `recurringForecast.ts`, team confirms.
 - Weekly team reminders (`mgmt_weekly_reminders` → `run_weekly_mgmt_reminders`, weekly pg_cron): create a `mgmt_tasks` row with last week's ERP-category total and split; olist-sync cron only resolves category names to ids — read-only, never financial.
 - Lolli isolation and shared DRE rules: see src/components/lolli/AGENTS.md.
-- Corte de pendências: antes de 2026-09-01 só soma em saldos; não aparece ao cliente (`client_pending_outflows`) nem nos contadores/fechamento da Central; Fluxo Bancário ainda mostra como pendente — pedido da equipe.
+- Pendências <2026-09-01: só saldo; fora do cliente e da Central, visíveis no Fluxo Bancário.
