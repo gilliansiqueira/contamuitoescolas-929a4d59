@@ -2,6 +2,8 @@ import { buildCommercialHistory } from '@/lib/commercialHistory';
 import { fillRevenueWithHistory } from '@/lib/revenueHistory';
 import { useHistoricalRows } from '@/hooks/useHistoricalRows';
 import { isQuintal } from '@/lib/quintal';
+import { isLolli } from '@/lib/lolli';
+import { LolliModule } from '@/components/lolli/LolliModule.lolli';
 import { SaldosBancosCard } from '@/components/dashboard/SaldosBancosCard';
 import { ManualEntriesPanel } from '@/components/ManualEntriesPanel';
 import { BANK_SMALL_DIFF_TOLERANCE } from '@/lib/bankStatements/confirmedBalance';
@@ -107,6 +109,12 @@ async function loadReportExtras(schoolId: string, months: string[], refMonth: st
 }
 
 export function Dashboard({ schoolId, selectedMonth }: DashboardProps) {
+  return isLolli(schoolId)
+    ? <LolliModule key={schoolId} schoolId={schoolId} />
+    : <FinancialDashboard key={schoolId} schoolId={schoolId} selectedMonth={selectedMonth} />;
+}
+
+function FinancialDashboard({ schoolId, selectedMonth }: DashboardProps) {
   const { isPresentationMode } = usePresentation();
   useAutoProfitability(schoolId);
   const { data: school } = useSchool(schoolId);

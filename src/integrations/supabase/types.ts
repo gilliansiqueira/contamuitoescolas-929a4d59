@@ -360,6 +360,7 @@ export type Database = {
           created_at: string
           data: string
           id: string
+          lolli_origin_upload_id: string | null
           origem: string
           saldo_aplicado: number
           saldo_conta: number
@@ -370,6 +371,7 @@ export type Database = {
           created_at?: string
           data: string
           id?: string
+          lolli_origin_upload_id?: string | null
           origem?: string
           saldo_aplicado?: number
           saldo_conta?: number
@@ -380,6 +382,7 @@ export type Database = {
           created_at?: string
           data?: string
           id?: string
+          lolli_origin_upload_id?: string | null
           origem?: string
           saldo_aplicado?: number
           saldo_conta?: number
@@ -391,6 +394,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_account_balances_lolli_origin_upload_id_fkey"
+            columns: ["lolli_origin_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
             referencedColumns: ["id"]
           },
           {
@@ -419,6 +429,7 @@ export type Database = {
           id: string
           identity_verified: boolean
           is_virtual: boolean
+          lolli_origin_upload_id: string | null
           nome: string
           saldo_inicial: number
           saldo_inicial_data: string | null
@@ -441,6 +452,7 @@ export type Database = {
           id?: string
           identity_verified?: boolean
           is_virtual?: boolean
+          lolli_origin_upload_id?: string | null
           nome: string
           saldo_inicial?: number
           saldo_inicial_data?: string | null
@@ -463,6 +475,7 @@ export type Database = {
           id?: string
           identity_verified?: boolean
           is_virtual?: boolean
+          lolli_origin_upload_id?: string | null
           nome?: string
           saldo_inicial?: number
           saldo_inicial_data?: string | null
@@ -475,6 +488,13 @@ export type Database = {
             columns: ["holder_entity_id"]
             isOneToOne: false
             referencedRelation: "company_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_lolli_origin_upload_id_fkey"
+            columns: ["lolli_origin_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
             referencedColumns: ["id"]
           },
           {
@@ -680,6 +700,7 @@ export type Database = {
           data_ref: string
           entity_id: string | null
           id: string
+          lolli_origin_upload_id: string | null
           nome: string
           saldo: number | null
           school_id: string
@@ -692,6 +713,7 @@ export type Database = {
           data_ref: string
           entity_id?: string | null
           id?: string
+          lolli_origin_upload_id?: string | null
           nome: string
           saldo?: number | null
           school_id: string
@@ -704,6 +726,7 @@ export type Database = {
           data_ref?: string
           entity_id?: string | null
           id?: string
+          lolli_origin_upload_id?: string | null
           nome?: string
           saldo?: number | null
           school_id?: string
@@ -717,6 +740,13 @@ export type Database = {
             columns: ["entity_id"]
             isOneToOne: false
             referencedRelation: "company_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_balances_lolli_origin_upload_id_fkey"
+            columns: ["lolli_origin_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
             referencedColumns: ["id"]
           },
           {
@@ -942,6 +972,7 @@ export type Database = {
           identity_status: string | null
           imported_by: string | null
           inseridas: number
+          lolli_origin_upload_id: string | null
           periodo_fim: string | null
           periodo_inicio: string | null
           saldo_aplicado_informado: number | null
@@ -965,6 +996,7 @@ export type Database = {
           identity_status?: string | null
           imported_by?: string | null
           inseridas?: number
+          lolli_origin_upload_id?: string | null
           periodo_fim?: string | null
           periodo_inicio?: string | null
           saldo_aplicado_informado?: number | null
@@ -988,6 +1020,7 @@ export type Database = {
           identity_status?: string | null
           imported_by?: string | null
           inseridas?: number
+          lolli_origin_upload_id?: string | null
           periodo_fim?: string | null
           periodo_inicio?: string | null
           saldo_aplicado_informado?: number | null
@@ -1004,6 +1037,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_statement_imports_lolli_origin_upload_id_fkey"
+            columns: ["lolli_origin_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
             referencedColumns: ["id"]
           },
           {
@@ -1095,6 +1135,7 @@ export type Database = {
           justification_reason_id: string | null
           justified_at: string | null
           justified_by: string | null
+          lolli_origin_upload_id: string | null
           manual_pair_id: string | null
           model_item_id: string | null
           movement_kind: string
@@ -1129,6 +1170,7 @@ export type Database = {
           justification_reason_id?: string | null
           justified_at?: string | null
           justified_by?: string | null
+          lolli_origin_upload_id?: string | null
           manual_pair_id?: string | null
           model_item_id?: string | null
           movement_kind?: string
@@ -1163,6 +1205,7 @@ export type Database = {
           justification_reason_id?: string | null
           justified_at?: string | null
           justified_by?: string | null
+          lolli_origin_upload_id?: string | null
           manual_pair_id?: string | null
           model_item_id?: string | null
           movement_kind?: string
@@ -1202,6 +1245,13 @@ export type Database = {
             columns: ["justification_reason_id"]
             isOneToOne: false
             referencedRelation: "recon_justification_reasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_lolli_origin_upload_id_fkey"
+            columns: ["lolli_origin_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
             referencedColumns: ["id"]
           },
           {
@@ -3704,6 +3754,1694 @@ export type Database = {
             columns: ["kpi_definition_id"]
             isOneToOne: false
             referencedRelation: "kpi_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_acquirer_sales: {
+        Row: {
+          adquirente: string | null
+          alerta_resolvido_em: string | null
+          alerta_resolvido_por: string | null
+          arquivo_nome: string | null
+          bandeira: string | null
+          chargeback: boolean | null
+          cliente: string | null
+          created_at: string | null
+          data: string | null
+          external_id: string | null
+          id: string
+          imported_at: string
+          nsu: string | null
+          origem_upload_id: string
+          pedido_aprovado: string | null
+          pedido_ref: string | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          status: string | null
+          valor: number | null
+        }
+        Insert: {
+          adquirente?: string | null
+          alerta_resolvido_em?: string | null
+          alerta_resolvido_por?: string | null
+          arquivo_nome?: string | null
+          bandeira?: string | null
+          chargeback?: boolean | null
+          cliente?: string | null
+          created_at?: string | null
+          data?: string | null
+          external_id?: string | null
+          id: string
+          imported_at?: string
+          nsu?: string | null
+          origem_upload_id: string
+          pedido_aprovado?: string | null
+          pedido_ref?: string | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          status?: string | null
+          valor?: number | null
+        }
+        Update: {
+          adquirente?: string | null
+          alerta_resolvido_em?: string | null
+          alerta_resolvido_por?: string | null
+          arquivo_nome?: string | null
+          bandeira?: string | null
+          chargeback?: boolean | null
+          cliente?: string | null
+          created_at?: string | null
+          data?: string | null
+          external_id?: string | null
+          id?: string
+          imported_at?: string
+          nsu?: string | null
+          origem_upload_id?: string
+          pedido_aprovado?: string | null
+          pedido_ref?: string | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          status?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_acquirer_sales_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_acquirer_sales_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_bank_source: {
+        Row: {
+          id: string
+          imported_at: string
+          origem_upload_id: string
+          original: Json
+          school_id: string
+          source_file: string
+          source_id: string
+          source_kind: string
+          source_table: string
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          origem_upload_id: string
+          original: Json
+          school_id: string
+          source_file: string
+          source_id: string
+          source_kind?: string
+          source_table: string
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          origem_upload_id?: string
+          original?: Json
+          school_id?: string
+          source_file?: string
+          source_id?: string
+          source_kind?: string
+          source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_bank_source_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_bank_source_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_card_fees_manuais: {
+        Row: {
+          created_at: string | null
+          data: string | null
+          id: string
+          imported_at: string
+          observacao: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          taxa_credito: number | null
+          taxa_debito: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data?: string | null
+          id: string
+          imported_at?: string
+          observacao?: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          taxa_credito?: number | null
+          taxa_debito?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: string | null
+          id?: string
+          imported_at?: string
+          observacao?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          taxa_credito?: number | null
+          taxa_debito?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_card_fees_manuais_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_card_fees_manuais_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_cash_flow_entries: {
+        Row: {
+          categoria_olist: string | null
+          conta_olist: string | null
+          created_at: string | null
+          data_lancamento: string | null
+          descricao: string | null
+          expense_id: string | null
+          external_id: string | null
+          fornecedor_cliente: string | null
+          id: string
+          import_id: string | null
+          imported_at: string
+          origem_upload_id: string
+          rule_id: string | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          status: string | null
+          tipo: string | null
+          updated_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          categoria_olist?: string | null
+          conta_olist?: string | null
+          created_at?: string | null
+          data_lancamento?: string | null
+          descricao?: string | null
+          expense_id?: string | null
+          external_id?: string | null
+          fornecedor_cliente?: string | null
+          id: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id: string
+          rule_id?: string | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          status?: string | null
+          tipo?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          categoria_olist?: string | null
+          conta_olist?: string | null
+          created_at?: string | null
+          data_lancamento?: string | null
+          descricao?: string | null
+          expense_id?: string | null
+          external_id?: string | null
+          fornecedor_cliente?: string | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id?: string
+          rule_id?: string | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          status?: string | null
+          tipo?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_cash_flow_entries_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_cash_flow_entries_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_cash_flow_rules: {
+        Row: {
+          acertos: number | null
+          categoria: string | null
+          created_at: string | null
+          expense_type: string | null
+          id: string
+          imported_at: string
+          match_text: string | null
+          match_type: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+        }
+        Insert: {
+          acertos?: number | null
+          categoria?: string | null
+          created_at?: string | null
+          expense_type?: string | null
+          id: string
+          imported_at?: string
+          match_text?: string | null
+          match_type?: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Update: {
+          acertos?: number | null
+          categoria?: string | null
+          created_at?: string | null
+          expense_type?: string | null
+          id?: string
+          imported_at?: string
+          match_text?: string | null
+          match_type?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_cash_flow_rules_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_cash_flow_rules_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_chargebacks: {
+        Row: {
+          cliente: string | null
+          created_at: string | null
+          data_debito: string | null
+          external_ref: string | null
+          id: string
+          imported_at: string
+          motivo: string | null
+          observacao: string | null
+          operadora: string | null
+          origem: string | null
+          origem_upload_id: string
+          pedido: string | null
+          prazo_contestacao: string | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          status: string | null
+          updated_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          cliente?: string | null
+          created_at?: string | null
+          data_debito?: string | null
+          external_ref?: string | null
+          id: string
+          imported_at?: string
+          motivo?: string | null
+          observacao?: string | null
+          operadora?: string | null
+          origem?: string | null
+          origem_upload_id: string
+          pedido?: string | null
+          prazo_contestacao?: string | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          status?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          cliente?: string | null
+          created_at?: string | null
+          data_debito?: string | null
+          external_ref?: string | null
+          id?: string
+          imported_at?: string
+          motivo?: string | null
+          observacao?: string | null
+          operadora?: string | null
+          origem?: string | null
+          origem_upload_id?: string
+          pedido?: string | null
+          prazo_contestacao?: string | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          status?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_chargebacks_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_chargebacks_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_devolucoes_venda: {
+        Row: {
+          cliente: string | null
+          created_at: string | null
+          data_devolucao: string | null
+          external_id: string | null
+          id: string
+          imported_at: string
+          numero_nota: string | null
+          observacoes: string | null
+          olist_devolucao_id: string | null
+          origem_upload_id: string
+          school_id: string
+          situacao: string | null
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+          valor: number | null
+          valor_frete: number | null
+          valor_produtos: number | null
+        }
+        Insert: {
+          cliente?: string | null
+          created_at?: string | null
+          data_devolucao?: string | null
+          external_id?: string | null
+          id: string
+          imported_at?: string
+          numero_nota?: string | null
+          observacoes?: string | null
+          olist_devolucao_id?: string | null
+          origem_upload_id: string
+          school_id: string
+          situacao?: string | null
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+          valor_frete?: number | null
+          valor_produtos?: number | null
+        }
+        Update: {
+          cliente?: string | null
+          created_at?: string | null
+          data_devolucao?: string | null
+          external_id?: string | null
+          id?: string
+          imported_at?: string
+          numero_nota?: string | null
+          observacoes?: string | null
+          olist_devolucao_id?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          situacao?: string | null
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+          valor_frete?: number | null
+          valor_produtos?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_devolucoes_venda_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_devolucoes_venda_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_expense_category_groups: {
+        Row: {
+          categoria: string | null
+          created_at: string | null
+          grupo: string | null
+          id: string
+          imported_at: string
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string | null
+          grupo?: string | null
+          id: string
+          imported_at?: string
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string | null
+          grupo?: string | null
+          id?: string
+          imported_at?: string
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_expense_category_groups_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_expense_category_groups_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_expenses: {
+        Row: {
+          categoria: string | null
+          created_at: string | null
+          data_despesa: string | null
+          descricao: string | null
+          id: string
+          import_id: string | null
+          imported_at: string
+          origem_upload_id: string
+          recorrente: boolean | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          tipo: string | null
+          valor: number | null
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string | null
+          data_despesa?: string | null
+          descricao?: string | null
+          id: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id: string
+          recorrente?: boolean | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          tipo?: string | null
+          valor?: number | null
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string | null
+          data_despesa?: string | null
+          descricao?: string | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id?: string
+          recorrente?: boolean | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          tipo?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_expenses_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_expenses_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_folha_mes: {
+        Row: {
+          beneficios: Json | null
+          created_at: string | null
+          dias_trabalhados: number | null
+          funcionario_id: string | null
+          holerite_arquivo: string | null
+          id: string
+          imported_at: string
+          liquido_holerite: number | null
+          mes: string | null
+          origem_upload_id: string
+          pago_em: string | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+        }
+        Insert: {
+          beneficios?: Json | null
+          created_at?: string | null
+          dias_trabalhados?: number | null
+          funcionario_id?: string | null
+          holerite_arquivo?: string | null
+          id: string
+          imported_at?: string
+          liquido_holerite?: number | null
+          mes?: string | null
+          origem_upload_id: string
+          pago_em?: string | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Update: {
+          beneficios?: Json | null
+          created_at?: string | null
+          dias_trabalhados?: number | null
+          funcionario_id?: string | null
+          holerite_arquivo?: string | null
+          id?: string
+          imported_at?: string
+          liquido_holerite?: number | null
+          mes?: string | null
+          origem_upload_id?: string
+          pago_em?: string | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_folha_mes_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_folha_mes_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_fretes_manuais: {
+        Row: {
+          created_at: string | null
+          id: string
+          imported_at: string
+          mes: string | null
+          observacao: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          imported_at?: string
+          mes?: string | null
+          observacao?: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          mes?: string | null
+          observacao?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_fretes_manuais_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_fretes_manuais_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_fretes_transportadora: {
+        Row: {
+          arquivo_nome: string | null
+          codigo_rastreio: string | null
+          created_at: string | null
+          data_envio: string | null
+          destinatario: string | null
+          external_id: string | null
+          id: string
+          imported_at: string
+          origem_upload_id: string
+          pedido_numero: string | null
+          peso: number | null
+          school_id: string
+          servico: string | null
+          source_file: string
+          source_kind: string
+          transportadora: string | null
+          updated_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          codigo_rastreio?: string | null
+          created_at?: string | null
+          data_envio?: string | null
+          destinatario?: string | null
+          external_id?: string | null
+          id: string
+          imported_at?: string
+          origem_upload_id: string
+          pedido_numero?: string | null
+          peso?: number | null
+          school_id: string
+          servico?: string | null
+          source_file: string
+          source_kind?: string
+          transportadora?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          arquivo_nome?: string | null
+          codigo_rastreio?: string | null
+          created_at?: string | null
+          data_envio?: string | null
+          destinatario?: string | null
+          external_id?: string | null
+          id?: string
+          imported_at?: string
+          origem_upload_id?: string
+          pedido_numero?: string | null
+          peso?: number | null
+          school_id?: string
+          servico?: string | null
+          source_file?: string
+          source_kind?: string
+          transportadora?: string | null
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_fretes_transportadora_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_fretes_transportadora_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_funcionarios: {
+        Row: {
+          ativo: boolean | null
+          banco: string | null
+          beneficios: Json | null
+          cargo: string | null
+          cpf: string | null
+          created_at: string | null
+          id: string
+          imported_at: string
+          nome: string | null
+          origem_upload_id: string
+          pix_chave: string | null
+          pix_tipo: string | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          banco?: string | null
+          beneficios?: Json | null
+          cargo?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          id: string
+          imported_at?: string
+          nome?: string | null
+          origem_upload_id: string
+          pix_chave?: string | null
+          pix_tipo?: string | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          banco?: string | null
+          beneficios?: Json | null
+          cargo?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          nome?: string | null
+          origem_upload_id?: string
+          pix_chave?: string | null
+          pix_tipo?: string | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_funcionarios_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_funcionarios_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_gateway_fee_periods: {
+        Row: {
+          ano_mes: string | null
+          created_at: string | null
+          gateway: string | null
+          id: string
+          import_id: string | null
+          imported_at: string
+          origem_upload_id: string
+          primeira_data: string | null
+          qtd_transacoes: number | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          total_bruto: number | null
+          total_liquido: number | null
+          total_taxas: number | null
+          ultima_data: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ano_mes?: string | null
+          created_at?: string | null
+          gateway?: string | null
+          id: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id: string
+          primeira_data?: string | null
+          qtd_transacoes?: number | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          total_bruto?: number | null
+          total_liquido?: number | null
+          total_taxas?: number | null
+          ultima_data?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ano_mes?: string | null
+          created_at?: string | null
+          gateway?: string | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id?: string
+          primeira_data?: string | null
+          qtd_transacoes?: number | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          total_bruto?: number | null
+          total_liquido?: number | null
+          total_taxas?: number | null
+          ultima_data?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_gateway_fee_periods_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_gateway_fee_periods_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_gateway_fees: {
+        Row: {
+          bandeira: string | null
+          created_at: string | null
+          data_transacao: string | null
+          external_id: string | null
+          gateway: string | null
+          id: string
+          import_id: string | null
+          imported_at: string
+          origem_upload_id: string
+          parcelas: number | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          tipo_transacao: string | null
+          valor_bruto: number | null
+          valor_liquido: number | null
+          valor_taxa: number | null
+        }
+        Insert: {
+          bandeira?: string | null
+          created_at?: string | null
+          data_transacao?: string | null
+          external_id?: string | null
+          gateway?: string | null
+          id: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id: string
+          parcelas?: number | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          tipo_transacao?: string | null
+          valor_bruto?: number | null
+          valor_liquido?: number | null
+          valor_taxa?: number | null
+        }
+        Update: {
+          bandeira?: string | null
+          created_at?: string | null
+          data_transacao?: string | null
+          external_id?: string | null
+          gateway?: string | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          origem_upload_id?: string
+          parcelas?: number | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          tipo_transacao?: string | null
+          valor_bruto?: number | null
+          valor_liquido?: number | null
+          valor_taxa?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_gateway_fees_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_gateway_fees_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_import_batches: {
+        Row: {
+          id: string
+          imported_at: string
+          last_sync: string | null
+          manifest: Json
+          school_id: string
+          source_company: Json
+          source_file: string
+          source_kind: string
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          last_sync?: string | null
+          manifest?: Json
+          school_id: string
+          source_company?: Json
+          source_file: string
+          source_kind?: string
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          last_sync?: string | null
+          manifest?: Json
+          school_id?: string
+          source_company?: Json
+          source_file?: string
+          source_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_import_batches_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_import_templates: {
+        Row: {
+          created_at: string | null
+          id: string
+          imported_at: string
+          mapeamento: Json | null
+          nome: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          tipo: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          imported_at?: string
+          mapeamento?: Json | null
+          nome?: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          tipo?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          mapeamento?: Json | null
+          nome?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_import_templates_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_import_templates_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_impostos_manuais: {
+        Row: {
+          created_at: string | null
+          id: string
+          imported_at: string
+          mes: string | null
+          observacao: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          imported_at?: string
+          mes?: string | null
+          observacao?: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          mes?: string | null
+          observacao?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_impostos_manuais_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_impostos_manuais_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_issue_comments: {
+        Row: {
+          anexo_path: string | null
+          autor_nome: string | null
+          created_at: string | null
+          id: string
+          imported_at: string
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          texto: string | null
+          transaction_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          anexo_path?: string | null
+          autor_nome?: string | null
+          created_at?: string | null
+          id: string
+          imported_at?: string
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          texto?: string | null
+          transaction_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          anexo_path?: string | null
+          autor_nome?: string | null
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          texto?: string | null
+          transaction_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_issue_comments_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_issue_comments_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_manual_revenues: {
+        Row: {
+          canal: string | null
+          created_at: string | null
+          created_by: string | null
+          data: string | null
+          id: string
+          imported_at: string
+          observacao: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+          valor: number | null
+          vendedor: string | null
+        }
+        Insert: {
+          canal?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data?: string | null
+          id: string
+          imported_at?: string
+          observacao?: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+          vendedor?: string | null
+        }
+        Update: {
+          canal?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data?: string | null
+          id?: string
+          imported_at?: string
+          observacao?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+          valor?: number | null
+          vendedor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_manual_revenues_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_manual_revenues_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_marketing_spend: {
+        Row: {
+          campanha: string | null
+          compras: number | null
+          created_at: string | null
+          data_mkt: string | null
+          id: string
+          import_id: string | null
+          imported_at: string
+          investimento: number | null
+          observacoes: string | null
+          origem_upload_id: string
+          plataforma: string | null
+          receita_atribuida: number | null
+          school_id: string
+          source_file: string
+          source_kind: string
+        }
+        Insert: {
+          campanha?: string | null
+          compras?: number | null
+          created_at?: string | null
+          data_mkt?: string | null
+          id: string
+          import_id?: string | null
+          imported_at?: string
+          investimento?: number | null
+          observacoes?: string | null
+          origem_upload_id: string
+          plataforma?: string | null
+          receita_atribuida?: number | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+        }
+        Update: {
+          campanha?: string | null
+          compras?: number | null
+          created_at?: string | null
+          data_mkt?: string | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          investimento?: number | null
+          observacoes?: string | null
+          origem_upload_id?: string
+          plataforma?: string | null
+          receita_atribuida?: number | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_marketing_spend_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_marketing_spend_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_olist_ignored_pedidos: {
+        Row: {
+          created_at: string | null
+          id: string
+          imported_at: string
+          motivo: string | null
+          olist_pedido_id: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          motivo?: string | null
+          olist_pedido_id?: string | null
+          origem_upload_id: string
+          school_id: string
+          source_file: string
+          source_kind?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          motivo?: string | null
+          olist_pedido_id?: string | null
+          origem_upload_id?: string
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_olist_ignored_pedidos_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_olist_ignored_pedidos_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_product_costs: {
+        Row: {
+          created_at: string | null
+          custo: number | null
+          id: string
+          imported_at: string
+          observacoes: string | null
+          origem_upload_id: string
+          product_id: string | null
+          school_id: string
+          source_file: string
+          source_kind: string
+          vigencia_inicio: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          custo?: number | null
+          id: string
+          imported_at?: string
+          observacoes?: string | null
+          origem_upload_id: string
+          product_id?: string | null
+          school_id: string
+          source_file: string
+          source_kind?: string
+          vigencia_inicio?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          custo?: number | null
+          id?: string
+          imported_at?: string
+          observacoes?: string | null
+          origem_upload_id?: string
+          product_id?: string | null
+          school_id?: string
+          source_file?: string
+          source_kind?: string
+          vigencia_inicio?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_product_costs_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_product_costs_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_products: {
+        Row: {
+          created_at: string | null
+          id: string
+          imported_at: string
+          nome: string | null
+          origem_upload_id: string
+          preco_lista: number | null
+          preco_lista_sync: string | null
+          school_id: string
+          sku: string | null
+          source_file: string
+          source_kind: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          imported_at?: string
+          nome?: string | null
+          origem_upload_id: string
+          preco_lista?: number | null
+          preco_lista_sync?: string | null
+          school_id: string
+          sku?: string | null
+          source_file: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          imported_at?: string
+          nome?: string | null
+          origem_upload_id?: string
+          preco_lista?: number | null
+          preco_lista_sync?: string | null
+          school_id?: string
+          sku?: string | null
+          source_file?: string
+          source_kind?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_products_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_products_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lolli_sales: {
+        Row: {
+          canal: string | null
+          cliente: string | null
+          codigo_rastreio: string | null
+          created_at: string | null
+          data_envio: string | null
+          data_faturamento: string | null
+          data_venda: string | null
+          desconto: number | null
+          external_id: string | null
+          forma_pagamento: string | null
+          frete_cobrado: number | null
+          frete_empresa: number | null
+          id: string
+          import_id: string | null
+          imported_at: string
+          marketplace: string | null
+          numero_ecommerce: string | null
+          olist_pedido_id: string | null
+          origem_upload_id: string
+          pagamentos_detalhe: Json | null
+          plataforma: string | null
+          produto: string | null
+          provisorio: boolean | null
+          quantidade: number | null
+          school_id: string
+          sku: string | null
+          source_file: string
+          source_kind: string
+          status: string | null
+          taxa_marketplace: number | null
+          valor_bruto: number | null
+          valor_liquido: number | null
+          vendedor: string | null
+        }
+        Insert: {
+          canal?: string | null
+          cliente?: string | null
+          codigo_rastreio?: string | null
+          created_at?: string | null
+          data_envio?: string | null
+          data_faturamento?: string | null
+          data_venda?: string | null
+          desconto?: number | null
+          external_id?: string | null
+          forma_pagamento?: string | null
+          frete_cobrado?: number | null
+          frete_empresa?: number | null
+          id: string
+          import_id?: string | null
+          imported_at?: string
+          marketplace?: string | null
+          numero_ecommerce?: string | null
+          olist_pedido_id?: string | null
+          origem_upload_id: string
+          pagamentos_detalhe?: Json | null
+          plataforma?: string | null
+          produto?: string | null
+          provisorio?: boolean | null
+          quantidade?: number | null
+          school_id: string
+          sku?: string | null
+          source_file: string
+          source_kind?: string
+          status?: string | null
+          taxa_marketplace?: number | null
+          valor_bruto?: number | null
+          valor_liquido?: number | null
+          vendedor?: string | null
+        }
+        Update: {
+          canal?: string | null
+          cliente?: string | null
+          codigo_rastreio?: string | null
+          created_at?: string | null
+          data_envio?: string | null
+          data_faturamento?: string | null
+          data_venda?: string | null
+          desconto?: number | null
+          external_id?: string | null
+          forma_pagamento?: string | null
+          frete_cobrado?: number | null
+          frete_empresa?: number | null
+          id?: string
+          import_id?: string | null
+          imported_at?: string
+          marketplace?: string | null
+          numero_ecommerce?: string | null
+          olist_pedido_id?: string | null
+          origem_upload_id?: string
+          pagamentos_detalhe?: Json | null
+          plataforma?: string | null
+          produto?: string | null
+          provisorio?: boolean | null
+          quantidade?: number | null
+          school_id?: string
+          sku?: string | null
+          source_file?: string
+          source_kind?: string
+          status?: string | null
+          taxa_marketplace?: number | null
+          valor_bruto?: number | null
+          valor_liquido?: number | null
+          vendedor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lolli_sales_origem_upload_id_fkey"
+            columns: ["origem_upload_id"]
+            isOneToOne: false
+            referencedRelation: "lolli_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lolli_sales_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
             referencedColumns: ["id"]
           },
         ]

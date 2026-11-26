@@ -41,3 +41,4 @@
 - Team task board (`mgmt_tasks*`): only `gestao_tarefas` users via `can_use_mgmt_tasks()`, RESTRICTIVE `can_see_school`; rules in `mgmtTasks.ts`; never financial.
 - Auto forecasts: `forecast_rules` → `regenerate_forecast_entries` writes future origem `recorrente` (native projected, replaced by bank cutoff); suggestions in `recurringForecast.ts`, team confirms.
 - Weekly team reminders (`mgmt_weekly_reminders` → `run_weekly_mgmt_reminders`, weekly pg_cron): create a `mgmt_tasks` row with last week's ERP-category total and split; olist-sync cron only resolves category names to ids — read-only, never financial.
+- Lolli uses isolated, batch-linked `lolli_*` tables; only archived bank conversions enter shared bank data to avoid duplicate feeds.

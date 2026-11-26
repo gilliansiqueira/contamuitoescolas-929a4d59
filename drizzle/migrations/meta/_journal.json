@@ -960,6 +960,34 @@
       "when": 1795703505884,
       "tag": "0136_mgmt_rpcs_include_supervised",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1795707029471,
+      "tag": "0137_lolli_isolated_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795707157460,
+      "tag": "0138_lolli_bank_traceability",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795707217901,
+      "tag": "0139_lolli_verified_archive_bank_conversion",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1795707254129,
+      "tag": "0140_lolli_preserve_bank_classification",
+      "breakpoints": true
     }
   ]
 }
