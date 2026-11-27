@@ -1388,10 +1388,23 @@ const isBradescoInvestResgate = (s: string) => {
   return /^transf mma titularidade$/.test(n) || /^transf autoriz entre c c$/.test(n);
 };
 
+/**
+ * Bradesco troca o texto do mesmo lançamento entre um download e outro (Palmital, 27/10 e 25/11):
+ * "DEPOSITO C/C BDN" × "DEP DINHEIRO ATM ..." e "PROVISAO GASTO CART CRED" × "CARTAO CREDITO ANUIDADE".
+ */
+const bradescoAlias = (s: string): string | null => {
+  const n = normalizeDesc(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/^deposito c c bdn\b/.test(n) || /^dep dinheiro atm\b/.test(n)) return 'deposito';
+  if (/^provisao gasto cart cred\b/.test(n) || /^cartao credito anuidade\b/.test(n)) return 'cartao';
+  return null;
+};
+
 /** Mesmo lançamento do banco apesar da mudança de texto entre arquivos (usado só com data, sentido e valor iguais). */
 export function sameBankEntryText(a: string, b: string): boolean {
   if (sameCounterpartyTokens(a, b)) return true;
   if (isBradescoInvestResgate(a) && isBradescoInvestResgate(b)) return true;
+  const aa = bradescoAlias(a);
+  if (aa && aa === bradescoAlias(b)) return true;
   return isResgateAplicacao(a) && isResgateAplicacao(b);
 }
 
