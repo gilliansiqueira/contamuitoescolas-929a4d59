@@ -252,8 +252,10 @@ export function detectMovementKind(descricao: string, tipo: 'entrada' | 'saida',
 /** Transferência entre contas próprias: a descrição cita a razão social da própria empresa. */
 export const isOwnTransfer = (t: Pick<BankTx, 'transfer_pair_id' | 'movement_kind'>) => !!t.transfer_pair_id || t.movement_kind === 'transferencia';
 export function detectOwnTransfer(descricao: string, ownNames: string[]): boolean {
-  const d = norm(descricao);
-  return ownNames.some(n => n.trim().length >= 3 && d.includes(norm(n)));
+  // Ignora pontuação nos dois lados: "INFLUX - INGLES" deve bater com o nome "influx ingles".
+  const clean = (s: string) => ` ${norm(s).replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
+  const d = clean(descricao);
+  return ownNames.some(n => n.trim().length >= 3 && clean(n).trim().length >= 3 && d.includes(clean(n)));
 }
 
 type PairTx = Pick<BankTx, 'id' | 'account_id' | 'data' | 'valor' | 'tipo' | 'transfer_pair_id' | 'movement_kind'>;

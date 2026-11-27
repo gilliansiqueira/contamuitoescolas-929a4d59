@@ -1,2 +1,3 @@
 - Unpaired-transfer exceptions are per-row (`bank_transactions.transfer_pair_waived`), set only by explicit owner request; never a per-school rule — so new unpaired transfers keep being flagged.
 - Bank lines (`fluxo_realizado`) bypass the model gate in `projectEntries`; aplicação/resgate rows count in aplicado even without `has_auto_invest` — keeps Dashboard and Fluxo Bancário balances equal.
+- Own-company names match ignoring punctuation (detectOwnTransfer is the only matcher) — bank text like 'INFLUX - INGLES' must match 'influx ingles'.
