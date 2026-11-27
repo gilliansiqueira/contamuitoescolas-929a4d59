@@ -338,7 +338,7 @@ export function ImportacaoSponteAuditada({ schoolId, onClose, onImported }: Prop
         description: `[Auditado] Upload "${fileName}" Sponte — ${parsed.length} registros, ${replaceSim.remover.count} removidos, saldo ${fmt(replaceSim.saldoEsperado)}`,
       });
 
-      qc.invalidateQueries({ queryKey: ['entries-from-base'] });
+      qc.invalidateQueries({ queryKey: ['entries'] });
 
       toast.success('Importação concluída com auditoria.');
       onImported();
