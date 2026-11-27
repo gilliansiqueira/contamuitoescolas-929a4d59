@@ -125,7 +125,7 @@ export function FluxoBancario({ schoolId, selectedMonth }: Props) {
                         <td className="py-2 font-medium">{a.nome} <span className="text-xs text-muted-foreground">{a.banco}</span></td>
                         <td>{fmtDate(lastDates.get(a.id))}</td>
                         <td className="text-right tabular-nums">{fmtBRL(b.emConta)}{(() => { const r = Number(a.anchors?.[0]?.retido ?? 0); return r > 0 ? <p className="text-[11px] text-muted-foreground">disponível {fmtBRL(b.emConta - r)} · {fmtBRL(r)} de cheque bloqueado</p> : null; })()}</td>
-                        <td className="text-right tabular-nums">{a.has_auto_invest ? fmtBRL(b.aplicado) : '—'}</td>
+                        <td className="text-right tabular-nums">{a.has_auto_invest || b.aplicado !== 0 ? fmtBRL(b.aplicado) : '—'}</td>
                         <td className="text-right tabular-nums font-semibold">{fmtBRL(b.total)}</td>
                         <td className="pl-3 text-xs">{checks.length === 0 ? <span className="text-muted-foreground">—</span> : checks.map(c => (
                           <p key={c.label} className={c.ok ? 'text-success' : 'text-destructive'}>{c.label}: {c.ok ? 'confere' : `diferença de ${fmtBRL(c.diff)}`} em {fmtDate(last!.periodo_fim)}</p>

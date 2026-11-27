@@ -130,6 +130,9 @@ export function projectEntries(
   if (options.hasModel) {
     active = active.filter(e => {
       if (ORIGENS_BYPASS_MODELO.has(e.origem)) return true;
+      // Linha do extrato (Fluxo Bancário): o dinheiro passou pela conta, então sempre mexe no saldo —
+      // mesmo "A classificar" sem item do modelo (fica sinalizada para a equipe classificar).
+      if (e.origem === 'fluxo' && e.categoria === 'fluxo_realizado') return true;
       const cls = getEffectiveClassification(e, classifications);
       if (cls === 'operacao') return true;
       if (cls === 'despesa' || cls === 'receita') {

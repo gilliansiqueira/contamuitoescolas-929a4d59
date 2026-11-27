@@ -95,7 +95,8 @@ export function accountBalances(acc: BankAccount, txs: BankTx[], upTo: string): 
     for (const t of txs) {
       if (t.account_id !== acc.id || t.data <= anchor.data || t.data > upTo) continue;
       emConta += signed(t);
-      if (isAutoInvest(t) && acc.has_auto_invest) aplicado -= signed(t);
+      // Igual a rawAccountBalances: aplicação lançada conta no aplicado mesmo sem aplicação automática ligada.
+      if (isAutoInvest(t)) aplicado -= signed(t);
     }
     return cover(acc, emConta, aplicado);
   }

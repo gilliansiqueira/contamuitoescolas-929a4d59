@@ -29,14 +29,18 @@ export function useBankAccounts(schoolId: string) {
 export async function fetchBankAccounts(schoolId: string): Promise<BankAccount[]> {
   {
     {
-      const [{ data, error }, { data: imps, error: e2 }] = await Promise.all([
+      const [{ data, error }, { data: imps, error: e2 }, { data: investRows, error: e4 }] = await Promise.all([
         // Conta virtual "Fora do banco (sócios)" nunca entra em saldos nem na conferência com extratos.
         db.from('bank_accounts').select('*').eq('school_id', schoolId).eq('is_virtual', false).order('sort_order').order('created_at'),
         db.from('bank_statement_imports').select('id, account_id, periodo_fim, saldo_final_informado, saldo_aplicado_informado, saldo_retido_informado, created_at')
           .eq('school_id', schoolId).gte('periodo_fim', '2026-09-01').not('saldo_final_informado', 'is', null).order('created_at'),
+        // Contas com aplicação/resgate lançados mesmo sem "aplicação automática" ligada: o dinheiro aplicado continua sendo da empresa.
+        db.from('bank_transactions').select('account_id').eq('school_id', schoolId).in('movement_kind', ['auto_aplicacao', 'auto_resgate']).limit(1000),
       ]);
       if (error) throw error;
       if (e2) throw e2;
+      if (e4) throw e4;
+      const investAccounts = new Set(((investRows ?? []) as any[]).map(r => r.account_id as string));
       // Extrato baixado no próprio dia em que termina (dia ainda aberto) e sem nenhum lançamento desse dia:
       // o saldo impresso é do fim do dia anterior. Usá-lo como fim do dia criava diferença falsa
       // quando os lançamentos do dia chegavam no extrato seguinte (ex.: Ather - Inter, 28/09/2026).
@@ -63,7 +67,7 @@ export async function fetchBankAccounts(schoolId: string): Promise<BankAccount[]
           const retido = Number(i.saldo_retido_informado ?? 0);
           const conta = Number(i.saldo_final_informado);
           // Conta com aplicação automática e arquivo sem o aplicado: vale o saldo em conta impresso; o aplicado segue calculado.
-          const aplicadoCalc = !!a.has_auto_invest && i.saldo_aplicado_informado == null;
+          const aplicadoCalc = (!!a.has_auto_invest || investAccounts.has(a.id)) && i.saldo_aplicado_informado == null;
           // Total com aplicação informado (ex.: Bradesco soma CDB no saldo do arquivo) vale também sem aplicação automática.
           const total = i.saldo_aplicado_informado != null ? Number(i.saldo_aplicado_informado) : conta;
           const dataAnchor = shifted.has(i.id) ? prevDay(i.periodo_fim) : i.periodo_fim;

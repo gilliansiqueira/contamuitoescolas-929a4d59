@@ -43,3 +43,4 @@
 - Weekly team reminders (`mgmt_weekly_reminders` → `run_weekly_mgmt_reminders`, weekly pg_cron): create a `mgmt_tasks` row with last week's ERP-category total and split; olist-sync cron only resolves category names to ids — read-only, never financial.
 - Lolli isolation and shared DRE rules: see src/components/lolli/AGENTS.md.
 - Pendências <2026-09-01: só saldo; fora do cliente e da Central, visíveis no Fluxo Bancário.
+- Bank statement lines (overlay `fluxo_realizado`) bypass the model gate in `projectEntries`, and aplicação/resgate rows count in the aplicado even without `has_auto_invest` — so Dashboard and Fluxo Bancário balances never diverge.
